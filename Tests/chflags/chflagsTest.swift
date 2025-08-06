@@ -1,4 +1,7 @@
-#
+// Modernized by Robert "r0ml" Lefkowitz <r0ml@liberally.net> in 2025
+// from a file containing the following notice:
+
+/*
 # Copyright 2017 Shivansh Rai
 # All rights reserved.
 #
@@ -22,42 +25,23 @@
 # LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
-#
-# $FreeBSD$
-#
+*/
 
-usage_output='usage: chflags'
+import ShellTesting
 
-atf_test_case invalid_usage
-invalid_usage_head()
-{
-	atf_set "descr" "Verify that an invalid usage with a supported option produces a valid error message"
-}
+struct chflagsTest : ShellTest {
+  var cmd = "chflags"
+  var suiteBundle = "chflagsTest"
 
-invalid_usage_body()
-{
-	atf_check -s not-exit:0 -e match:"$usage_output" chflags -f
-	atf_check -s not-exit:0 -e match:"$usage_output" chflags -H
-	atf_check -s not-exit:0 -e match:"$usage_output" chflags -h
-	atf_check -s not-exit:0 -e match:"$usage_output" chflags -L
-	atf_check -s not-exit:0 -e match:"$usage_output" chflags -P
-	atf_check -s not-exit:0 -e match:"$usage_output" chflags -R
-	atf_check -s not-exit:0 -e match:"$usage_output" chflags -v
-}
+  @Test("Verify that an invalid usage with a supported option produces a valid error message", arguments: [
+    "-f", "-H", "-h", "-L"
+  ]) func nofiles(_ f : String) async throws {
+    try await run(status: 1, error: /usage: chflags/, args: f)
+    }
 
-atf_test_case no_arguments
-no_arguments_head()
-{
-	atf_set "descr" "Verify that chflags(1) fails and generates a valid usage message when no arguments are supplied"
-}
-
-no_arguments_body()
-{
-	atf_check -s not-exit:0 -e match:"$usage_output" chflags
-}
-
-atf_init_test_cases()
-{
-	atf_add_test_case invalid_usage
-	atf_add_test_case no_arguments
+  @Test("change a flag") func changeFlag() async throws {
+    let k = try tmpfile("test", "Test file")
+    defer { rm(k) }
+    try await run(output: "test: 00 -> 01\n", args: "-v", "-v", "nodump", k)
+  }
 }

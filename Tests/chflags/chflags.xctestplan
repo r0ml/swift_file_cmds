@@ -1,0 +1,24 @@
+{
+  "configurations" : [
+    {
+      "id" : "F3912D8B-4BA8-4F80-B685-2450AA03E458",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E78DE70C2E43A97E001E00CA",
+        "name" : "chflagsTest"
+      }
+    }
+  ],
+  "version" : 1
+}
