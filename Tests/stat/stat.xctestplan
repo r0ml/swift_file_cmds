@@ -1,0 +1,18 @@
+{
+  "configurations" : [
+    {
+      "id" : "CADC0B09-9694-47A2-BBD0-4C346C4DC4B1",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+
+  ],
+  "version" : 1
+}

@@ -15,9 +15,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "E7A6AA552E428C1A001C9A44"
-               BuildableName = "chflags"
-               BlueprintName = "chflags"
+               BlueprintIdentifier = "E774FF252F02327400498517"
+               BuildableName = "all_commands"
+               BlueprintName = "all_commands"
                ReferencedContainer = "container:swift_file_cmds.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -30,7 +30,7 @@
       shouldUseLaunchSchemeArgsEnv = "YES">
       <TestPlans>
          <TestPlanReference
-            reference = "container:Tests/chflags/chflags.xctestplan"
+            reference = "container:all.xctestplan"
             default = "YES">
          </TestPlanReference>
       </TestPlans>
@@ -44,18 +44,7 @@
       ignoresPersistentStateOnLaunch = "NO"
       debugDocumentVersioning = "YES"
       debugServiceExtension = "internal"
-      allowLocationSimulation = "YES"
-      viewDebuggingEnabled = "No">
-      <BuildableProductRunnable
-         runnableDebuggingMode = "0">
-         <BuildableReference
-            BuildableIdentifier = "primary"
-            BlueprintIdentifier = "E7A6AA552E428C1A001C9A44"
-            BuildableName = "chflags"
-            BlueprintName = "chflags"
-            ReferencedContainer = "container:swift_file_cmds.xcodeproj">
-         </BuildableReference>
-      </BuildableProductRunnable>
+      allowLocationSimulation = "YES">
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"
@@ -63,16 +52,15 @@
       savedToolIdentifier = ""
       useCustomWorkingDirectory = "NO"
       debugDocumentVersioning = "YES">
-      <BuildableProductRunnable
-         runnableDebuggingMode = "0">
+      <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "E7A6AA552E428C1A001C9A44"
-            BuildableName = "chflags"
-            BlueprintName = "chflags"
+            BlueprintIdentifier = "E774FF252F02327400498517"
+            BuildableName = "all_commands"
+            BlueprintName = "all_commands"
             ReferencedContainer = "container:swift_file_cmds.xcodeproj">
          </BuildableReference>
-      </BuildableProductRunnable>
+      </MacroExpansion>
    </ProfileAction>
    <AnalyzeAction
       buildConfiguration = "Debug">

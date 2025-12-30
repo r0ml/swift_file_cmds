@@ -1,0 +1,24 @@
+{
+  "configurations" : [
+    {
+      "id" : "C264240B-B66C-4657-BB97-99E9C4CE83E1",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E77403112F02E8F400498517",
+        "name" : "truncateTest"
+      }
+    }
+  ],
+  "version" : 1
+}

@@ -1,0 +1,31 @@
+{
+  "configurations" : [
+    {
+      "id" : "5A9E7608-434B-496D-A7EA-7FDDCE49EDE1",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E78DE70C2E43A97E001E00CA",
+        "name" : "chflagsTest"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E77400DC2F02D27800498517",
+        "name" : "mkdirTest"
+      }
+    }
+  ],
+  "version" : 1
+}

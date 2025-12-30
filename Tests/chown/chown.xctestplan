@@ -1,0 +1,18 @@
+{
+  "configurations" : [
+    {
+      "id" : "C914EFA9-75CF-4970-8945-F5842B30D636",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+
+  ],
+  "version" : 1
+}

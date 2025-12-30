@@ -1,0 +1,18 @@
+{
+  "configurations" : [
+    {
+      "id" : "0426881E-FED8-49A6-938C-3BD293FB6931",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+
+  ],
+  "version" : 1
+}

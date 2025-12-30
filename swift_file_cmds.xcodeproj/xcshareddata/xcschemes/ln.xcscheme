@@ -15,9 +15,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "E7A6AA552E428C1A001C9A44"
-               BuildableName = "chflags"
-               BlueprintName = "chflags"
+               BlueprintIdentifier = "E774017A2F02D90000498517"
+               BuildableName = "ln"
+               BlueprintName = "ln"
                ReferencedContainer = "container:swift_file_cmds.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -27,13 +27,8 @@
       buildConfiguration = "Debug"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
-      shouldUseLaunchSchemeArgsEnv = "YES">
-      <TestPlans>
-         <TestPlanReference
-            reference = "container:Tests/chflags/chflags.xctestplan"
-            default = "YES">
-         </TestPlanReference>
-      </TestPlans>
+      shouldUseLaunchSchemeArgsEnv = "YES"
+      shouldAutocreateTestPlan = "YES">
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"
@@ -50,9 +45,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "E7A6AA552E428C1A001C9A44"
-            BuildableName = "chflags"
-            BlueprintName = "chflags"
+            BlueprintIdentifier = "E774017A2F02D90000498517"
+            BuildableName = "ln"
+            BlueprintName = "ln"
             ReferencedContainer = "container:swift_file_cmds.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -67,9 +62,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "E7A6AA552E428C1A001C9A44"
-            BuildableName = "chflags"
-            BlueprintName = "chflags"
+            BlueprintIdentifier = "E774017A2F02D90000498517"
+            BuildableName = "ln"
+            BlueprintName = "ln"
             ReferencedContainer = "container:swift_file_cmds.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
