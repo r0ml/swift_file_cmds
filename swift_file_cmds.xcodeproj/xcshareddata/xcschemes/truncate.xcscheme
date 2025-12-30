@@ -58,12 +58,20 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
          <CommandLineArgument
-            argument = "-s8388608t"
+            argument = "-s%100"
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
-            argument = "output.txt"
+            argument = "/var/folders/rp/z1b1nsmn2nv696ly22tly9jc0000gn/T/exists.txt"
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "/var/folders/rp/z1b1nsmn2nv696ly22tly9jc0000gn/T/afile4.txt"
             isEnabled = "YES">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "afile"
+            isEnabled = "NO">
          </CommandLineArgument>
       </CommandLineArguments>
    </LaunchAction>

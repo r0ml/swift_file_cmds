@@ -211,7 +211,7 @@ enum SimpleError: Error {
     let fd = Darwin.open(fname, oflags, omode)
     if fd == -1 {
       if (errno != ENOENT) {
-        warnx(fname)
+        warn(fname)
         return 1
       }
       return 0
@@ -220,20 +220,20 @@ enum SimpleError: Error {
 
     if opts.do_relative {
       if (fstat(fd, &sb) == -1) {
-        warnx(fname)
+        warn(fname)
         return 1
       }
       let oflow = Int(sb.st_size) + opts.sz
       if oflow < Int(sb.st_size) + opts.sz {
         errno = EFBIG;
-        warnx(fname)
+        warn(fname)
         return 1
       }
       tsize = oflow;
     }
     if opts.do_round {
       if (fstat(fd, &sb) == -1) {
-        warnx(fname)
+        warn(fname)
         return 1
       }
       var sz = opts.sz
@@ -270,7 +270,7 @@ enum SimpleError: Error {
       r = ftruncate(fd, Int64(tsize))
     }
     if (r == -1) {
-      warnx(fname)
+      warn(fname)
       return 1
     }
     return 0
