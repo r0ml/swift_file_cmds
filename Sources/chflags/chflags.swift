@@ -57,22 +57,19 @@ struct ATFlags : OptionSet {
 
 
 @main struct chflags : ShellCommand {
-  init() {
-    options = CommandOptions()
-  }
-
+  
   /* No chflagsat(), provide a shim to minimize the later diff. */
   fileprivate func chflagsat(_ fd : Int, _  path : String, _ flags : UInt32, _ atflag : ATFlags) -> Int32 {
-
-/*
+    
+    /*
      * This shim only provides proper semantics for AT_FDCWD and atflag with
      * either nothing set or only AT_SYMLINK_NOFOLLOW.  This is a fairly
      * narrow use-case, and this is likely to be sufficient going forward.
-*/
-
-//    assert(fd == AT_FDCWD);
-//    assert((atflag & ~AT_SYMLINK_NOFOLLOW) == 0);
-
+     */
+    
+    //    assert(fd == AT_FDCWD);
+    //    assert((atflag & ~AT_SYMLINK_NOFOLLOW) == 0);
+    
     if atflag.contains(.SYMLINK_NOFOLLOW) {
       return Darwin.lchflags(path, flags)
     }
@@ -80,24 +77,24 @@ struct ATFlags : OptionSet {
       return Darwin.chflags(path, flags)
     }
   }
-
-struct CommandOptions {
-  var Hflag = false
-  var Lflag = false
-  var Rflag = false
-  var fflag = false
-  var hflag = false
-  var vflag = 0
-  var xflag = false
-  var fts_options : FTSFlags = []
-  var args : [String] = []
-  var oct = false
-  var set : UInt = 0
-  var clear : UInt = 0
-}
-
-  var options : CommandOptions
-
+  
+  struct CommandOptions {
+    var Hflag = false
+    var Lflag = false
+    var Rflag = false
+    var fflag = false
+    var hflag = false
+    var vflag = 0
+    var xflag = false
+    var fts_options : FTSFlags = []
+    var args : [String] = []
+    var oct = false
+    var set : UInt = 0
+    var clear : UInt = 0
+  }
+  
+  var options : CommandOptions!
+  
   func parseOptions() throws(CmdErr) -> CommandOptions {
     //    FTS *ftsp;
     //    FTSENT *p;
@@ -105,43 +102,43 @@ struct CommandOptions {
     //    long val;
     //    int ch, fts_options, oct, rval;
     //    char *flags, *ep;
-
+    
     var opts = CommandOptions()
     //    while ((ch = getopt(argc, argv, "HLPRfhvx")) != -1)
     let go = BSDGetopt("HLPRfhvx")
     while let (k,_) = try go.getopt() {
       switch k {
-      case "H":
-        opts.Hflag = true
-        opts.Lflag = false
-      case "L":
-        opts.Lflag = true
-        opts.Hflag = false
-      case "P":
-        opts.Hflag = false
-        opts.Lflag = false
-      case "R":
-        opts.Rflag = true
-      case "f":
-        opts.fflag = true
-      case "h":
-        opts.hflag = true
-      case "v":
-        opts.vflag+=1
-      case "x":
-        opts.xflag = true
-      case "?":
-        fallthrough
-      default:
-        throw CmdErr(1)
+        case "H":
+          opts.Hflag = true
+          opts.Lflag = false
+        case "L":
+          opts.Lflag = true
+          opts.Hflag = false
+        case "P":
+          opts.Hflag = false
+          opts.Lflag = false
+        case "R":
+          opts.Rflag = true
+        case "f":
+          opts.fflag = true
+        case "h":
+          opts.hflag = true
+        case "v":
+          opts.vflag+=1
+        case "x":
+          opts.xflag = true
+        case "?":
+          fallthrough
+        default:
+          throw CmdErr(1)
       }
     }
-
+    
     opts.args = go.remaining
     if opts.args.count < 2 {
       throw CmdErr(1)
     }
-
+    
     if opts.Rflag {
       if opts.hflag {
         throw CmdErr(1, "the -R and -h options may not be specified together.")
@@ -150,7 +147,7 @@ struct CommandOptions {
         opts.fts_options = .LOGICAL
       } else {
         opts.fts_options = .PHYSICAL
-
+        
         if opts.Hflag {
           opts.fts_options.insert(.COMFOLLOW)
         }
@@ -163,9 +160,9 @@ struct CommandOptions {
     if opts.xflag {
       opts.fts_options.insert(.XDEV)
     }
-
+    
     let flags = opts.args.removeFirst()
-
+    
     if let ff = flags.first, ff >= "0" && ff <= "7" {
       if let val = Int(flags, radix: 8) {
         if val < 0 {
@@ -188,24 +185,24 @@ struct CommandOptions {
     }
     return opts
   }
-
+  
   func runCommand() async throws(CmdErr) {
-
+    
     Darwin.signal(SIGINFO, siginfo_handler)
-
+    
     var ftsp : FTSWalker
     do {
       ftsp = try FTSWalker(path: options.args, options: options.fts_options)
     } catch let e {
       throw CmdErr(1, "\(e)")
     }
-
+    
     var rval = 0
     var atflag = ATFlags()
-
+    
     while var p = ftsp.next() { //}  for (rval = 0; (void)(errno = 0), (p = fts_read(ftsp)) != NULL;) {
-//      int atflag;
-
+                                //      int atflag;
+      
       if (options.fts_options.contains(.LOGICAL) ||
           (options.fts_options.contains(.COMFOLLOW) &&
            p.level == FTS_ROOTLEVEL)) {
@@ -214,9 +211,9 @@ struct CommandOptions {
       else {
         atflag = .SYMLINK_NOFOLLOW;
       }
-
+      
       var newflags : UInt = 0
-
+      
       switch p.info {
         case .D:	/* Change it at FTS_DP if we're recursive. */
           if !options.Rflag {
@@ -232,7 +229,7 @@ struct CommandOptions {
         default:
           break;
       }
-
+      
       let oflags = UInt(p.statp!.flags.rawValue)
       if options.oct {
         newflags = options.set
@@ -240,7 +237,7 @@ struct CommandOptions {
       else {
         newflags = (oflags | options.set) & options.clear
       }
-
+      
       if (newflags == oflags) {
         continue
       }
@@ -260,8 +257,8 @@ struct CommandOptions {
     }
     throw CmdErr(rval, "");
   }
-
-
+  
+  
   var usage : String = "usage: chflags [-fhvx] [-R [-H | -L | -P]] flags file ..."
 }
 
