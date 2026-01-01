@@ -57,8 +57,9 @@ struct ATFlags : OptionSet {
 
 
 @main struct chflags : ShellCommand {
-
-
+  init() {
+    options = CommandOptions()
+  }
 
   /* No chflagsat(), provide a shim to minimize the later diff. */
   fileprivate func chflagsat(_ fd : Int, _  path : String, _ flags : UInt32, _ atflag : ATFlags) -> Int32 {
@@ -95,7 +96,7 @@ struct CommandOptions {
   var clear : UInt = 0
 }
 
-  var options : CommandOptions!
+  var options : CommandOptions
 
   func parseOptions() throws(CmdErr) -> CommandOptions {
     //    FTS *ftsp;
