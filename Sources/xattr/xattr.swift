@@ -25,573 +25,461 @@
  * IN THE SOFTWARE.
  */
 
-#include <ctype.h>
-#include <dirent.h>
-#include <err.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <getopt.h>
-#include <libgen.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/param.h>
-#include <sys/stat.h>
-#include <sys/xattr.h>
+import CMigration
+import Darwin
 
-static const char *attr_name = NULL;
-static const char *attr_value = NULL;
-static int cflag = 0; // clear all attributes
-static int lflag = 0; // print long format
-static int rflag = 0; // recursive
-static int sflag = 0; // do not follow symbolic links
-static int pflag = 0; // print attribute
-static int wflag = 0; // write attribute
-static int dflag = 0; // delete attribute
-static int vflag = 0; // verbose
-static int xflag = 0; // hexadecimal
+@main struct xattr : ShellCommand {
 
-static int nfiles = 0;
-static int status = EXIT_SUCCESS;
-static const char *prgname = NULL;
+  struct CommandOptions {
+    var attr_name : String = ""
+    var attr_value : String = ""
+    var cflag = false // clear all attributes
+    var lflag = false // print long format
+    var rflag = false // recursive
+    var sflag = false // do not follow symbolic links
+    var pflag = false // print attribute
+    var wflag = false // write attribute
+    var dflag = false // delete attribute
+    var vflag = false // verbose
+    var xflag = false // hexadecimal
 
-typedef void (*attribute_iterator) (int fd, const char *filename, const char *attr_name);
+    var nfiles = 0
+    var args : [String] = []
+    var main_opt : String? = nil
+    var req_args = 0
+  }
 
-__attribute__((__format__ (__printf__, 2, 3)))
-static void
-usage(int exit_code, const char *error_format, ...)
-{
-	if (error_format != NULL) {
-		va_list ap;
-		va_start(ap, error_format);
-		vprintf(error_format, ap);
-		printf("\n\n");
-		va_end(ap);
-	}
+  typealias attribute_iterator = (Int32, String, String) -> Bool
 
-	printf("usage: %s [-l] [-r] [-s] [-v] [-x] file [file ...]\n", prgname);
-	printf("       %s -p [-l] [-r] [-s] [-v] [-x] attr_name file [file ...]\n", prgname);
-	printf("       %s -w [-r] [-s] [-x] attr_name attr_value file [file ...]\n", prgname);
-	printf("       %s -d [-r] [-s] attr_name file [file ...]\n", prgname);
-	printf("       %s -c [-r] [-s] file [file ...]\n", prgname);
-	printf("\n");
-	printf("The first form lists the names of all xattrs on the given file(s).\n");
-	printf("The second form (-p) prints the value of the xattr attr_name.\n");
-	printf("The third form (-w) sets the value of the xattr attr_name to the string attr_value.\n");
-	printf("The fourth form (-d) deletes the xattr attr_name.\n");
-	printf("The fifth form (-c) deletes (clears) all xattrs.\n");
-	printf("\n");
-	printf("options:\n");
-	printf("  -h: print this help\n");
-	printf("  -l: print long format (attr_name: attr_value and hex output has offsets and\n");
-	printf("      ascii representation)\n");
-	printf("  -r: act recursively\n");
-	printf("  -s: act on the symbolic link itself rather than what the link points to\n");
-	printf("  -v: also print filename (automatic with -r and with multiple files)\n");
-	printf("  -x: attr_value is represented as a hex string for input and output\n");
+  //  __attribute__((__format__ (__printf__, 2, 3)))
+  /*  static void
+   usage(int exit_code, const char *error_format, ...)
+   {
+   if (error_format != NULL) {
+   va_list ap;
+   va_start(ap, error_format);
+   vprintf(error_format, ap);
+   printf("\n\n");
+   va_end(ap);
+   }
+   */
+  var options : CommandOptions!
 
-	exit(exit_code);
+  var usage = """
+usage: xattr [-l] [-r] [-s] [-v] [-x] file [file ...]
+       xattr -p [-l] [-r] [-s] [-v] [-x] attr_name file [file ...]
+       xattr -w [-r] [-s] [-x] attr_name attr_value file [file ...]
+       xattr -d [-r] [-s] attr_name file [file ...]
+       xattr -c [-r] [-s] file [file ...]
+
+The first form lists the names of all xattrs on the given file(s).
+The second form (-p) prints the value of the xattr attr_name.
+The third form (-w) sets the value of the xattr attr_name to the string attr_value.
+The fourth form (-d) deletes the xattr attr_name.
+The fifth form (-c) deletes (clears) all xattrs.
+
+options:
+  -h: print this help
+  -l: print long format (attr_name: attr_value and hex output has offsets and ascii representation)
+  -r: act recursively
+  -s: act on the symbolic link itself rather than what the link points to
+  -v: also print filename (automatic with -r and with multiple files)
+  -x: attr_value is represented as a hex string for input and output
+"""
+
+  /*
+   __attribute__((__format__ (__printf__, 2, 3)))
+*/
+
+  func print_error(_ filename : String, _ error_format : String) {
+    var stderr = FileDescriptor.standardError
+    var access_flags : Int32 = 0
+    if options.sflag {
+      access_flags |= AT_SYMLINK_NOFOLLOW;
+    }
+    if (faccessat(AT_FDCWD, filename, F_OK, access_flags) != 0) {
+      let saved_errno = errno
+      if (saved_errno == ENOENT) {
+        print("\(programName): No such file: \(filename)", to: &stderr)
+        return
+      }
+    }
+
+    print("\(programName): ", terminator: "", to: &stderr)
+    print(error_format, to: &stderr)
+  }
+
+  func print_errno(_ filename : String, _ attr_name : String?, _ err : Int32) {
+    if let attr_name,
+       err == ENOATTR {
+      print_error(filename, "\(filename): No such xattr: \(attr_name)")
+    } else {
+      if let se = strerror(err) {
+        print_error(filename, "[Errno \(err)] \(se): '\(filename)'")
+      } else {
+        print_error(filename, "[Errno \(err)]: '\(filename)'")
+      }
+    }
+  }
+
+ func get_filename_prefix(_ filename : String) -> String {
+   if options.vflag || options.rflag || options.nfiles > 1 {
+      return "\(filename): "
+    }
+    return ""
+  }
+
+  func iterate_all_attributes(_ fd : Int32, _ filename : String, _ iterator_func : attribute_iterator ) -> Bool {
+    var status = 0
+    let res2 = flistxattr(fd, nil, 0, 0)
+    if (res2 == -1) {
+      print_errno(filename, nil, errno)
+      return true
+    }
+
+    var buf = Array(repeating: Int8(0), count: res2)
+    let res = flistxattr(fd, &buf, res2, 0)
+    if (res == -1) {
+      print_errno(filename, nil, errno)
+      return true
+    }
+
+    var cur = buf
+    while (cur.count > 0) {
+      let attr_name = String(cString: cur)
+      let attr_len = strlen(cur) + 1
+      if iterator_func(fd, filename, attr_name) {
+        // there was an error
+        status = 1
+      }
+      cur = Array(buf.dropFirst(attr_len))
+    }
+    return status == 1
+  }
+
+  func get_printable_segment(_ segment : [UInt8]) -> String {
+    var printable_segment = ""
+    for i in segment {
+      let j = isprint(Int32(i))
+      let h = Character.from(i)
+      let k = h == nil || j == 0 ? "." : String(h!)
+      printable_segment.append(k)
+    }
+    return printable_segment
+  }
+
+  func print_one_xattr_hex(_ attr_value : [UInt8] ) {
+    let incr = 16
+
+    for i in stride(from: 0, to: attr_value.count, by: incr) {
+      let segment = attr_value.dropFirst(i)[0..<min(incr, attr_value.count-i)]
+      var segment_hex = ""
+      for s in segment {
+        let j = String(s, radix: 16)
+        let jj = String(repeating: "0", count: 2 - j.count) + j + " "
+        segment_hex.append(jj)
+      }
+
+      if options.lflag {
+        let printable_segment = get_printable_segment(Array(segment))
+        let kk = segment_hex + Array(repeating: " ", count: incr * 3 - segment_hex.count)
+        print("%08lX  \(kk) |\(printable_segment)|", i);
+      } else {
+        print(segment_hex)
+      }
+    }
+    if options.lflag {
+      let hexString = String(attr_value.count, radix: 16)
+      let paddedHex = String(repeating: "0", count: max(0, 8 - hexString.count)) + hexString
+      print(paddedHex)
+    }
+  }
+
+  func print_one_xattr(_ filename : String, _ attr_name : String, _ attr_value : [UInt8]) {
+
+    let filename_with_prefix = get_filename_prefix(filename)
+    if options.lflag {
+      if options.xflag {
+        print("\(filename_with_prefix)\(attr_name):", terminator: "")
+        print_one_xattr_hex(attr_value)
+      } else {
+        print("\(filename_with_prefix)\(attr_name): \(attr_value)")
+      }
+    } else {
+      if options.pflag {
+        if options.xflag {
+          if !filename_with_prefix.isEmpty {
+            print("\(filename_with_prefix)")
+          }
+          print_one_xattr_hex(attr_value)
+        } else {
+          let av = String(cString: attr_value)
+          print("\(filename_with_prefix)\(av)")
+        }
+      } else {
+        print("\(filename_with_prefix)\(attr_name)")
+      }
+    }
+  }
+
+  func read_attribute(_ fd : Int32, _ filename : String, _ name : String) -> Bool {
+    let res2 = fgetxattr(fd, name, nil, 0, 0, 0) // res is the lengtth of the attr in bytes
+    if (res2 == -1) {
+      print_errno(filename, name, errno)
+      return true
+    }
+
+    var buf = Array(repeating: UInt8(0), count: res2)
+    let res = fgetxattr(fd, name, &buf, res2, 0, 0);
+    if (res == -1) {
+      print_errno(filename, name, errno)
+      return true
+    }
+    print_one_xattr(filename, name, buf)
+    return false
+  }
+
+  func list_all_attributes(_ fd : Int32, _ filename : String) -> Bool {
+    return iterate_all_attributes(fd, filename, read_attribute);
+  }
+
+  func delete_attribute(_ fd : Int32, _ filename : String, _ name : String) -> Bool {
+    if (fremovexattr(fd, name, 0) == -1) {
+      let saved_errno = errno;
+      // Don't print ENOATTR errors when deleting recursively
+      if (!options.rflag || (saved_errno != ENOATTR)) {
+        print_errno(filename, name, saved_errno)
+        return true
+      }
+    }
+    return false
+  }
+
+  func clear_all_attributes(_ fd : Int32, _ filename : String) -> Bool {
+    return iterate_all_attributes(fd, filename, delete_attribute);
+  }
+
+  func hex_to_ascii_value(_ hexstr : String) -> [UInt8] {
+
+    let buf = (hexstr.filter { !$0.isWhitespace }).compactMap { UInt8(String($0), radix: 16) }
+
+    var res = [UInt8]()
+    for i in stride(from: 0, to: buf.count, by: 2) {
+      if i+1 < buf.count {
+        res.append( buf[i]*16 + buf[i+1] )
+      } else {
+        res.append( buf[i] )
+      }
+    }
+
+    return res
+  }
+
+  func write_attribute(_ fd : Int32, _ filename : String, _ name : String, _ value : String) -> Bool {
+ //   const char *actual_value = NULL;
+//    char *buf = NULL;
+//    size_t len = 0;
+
+    let actual_value : [UInt8] = options.xflag ? hex_to_ascii_value(value) : value.utf8CString.map { UInt8(bitPattern: $0) }
+
+    if (fsetxattr(fd, name, actual_value, actual_value.count, 0, 0) == -1) {
+      print_errno(filename, nil, errno)
+      return true
+    }
+    return false
+  }
+
+  func process_one_path(_ filename : String, _ name : String, _ value : String) -> Bool {
+    var sb = stat()
+    var is_link = false
+
+    var status = 0
+
+//    DIR *dir = NULL;
+
+    var oflags = O_RDONLY
+    if options.sflag {
+      oflags |= O_SYMLINK
+    }
+
+    // First, we lstat() the path to find out if it's a symlink
+    if lstat(filename, &sb) == -1 {
+      print_errno(filename, nil, errno)
+      return true
+    }
+
+    is_link = FileType(rawValue: sb.st_mode) == .symbolicLink //   S_ISLNK(sb.st_mode);
+
+    // Note: this follows symlinks unless sflag = 1
+    let fd = open(filename, oflags);
+    if fd == -1 {
+      print_errno(filename, nil, errno)
+      return true
+    }
+
+    defer { close(fd) }
+
+    if (fstat(fd,&sb) == -1) {
+      print_errno(filename, nil, errno)
+      return true
+    }
+
+    if options.rflag && !is_link && S_ISDIR(sb.st_mode) {
+//      struct dirent *dirent = NULL;
+      let dir = fdopendir(fd);
+      if (dir == nil) {
+        print_errno(filename, nil, errno)
+        return true
+      }
+
+      defer  { closedir(dir) }
+      while true {
+        let dirent = readdir(dir)
+        guard let dirent else { return status == 1 }
+        // let dnam : String = dirent.pointee.d_name
+
+        let dnam = withUnsafePointer(to: dirent.pointee.d_name) {
+            $0.withMemoryRebound(to: CChar.self, capacity: Int(NAME_MAX)) {
+                String(cString: $0)
+            }
+        }
+
+        if dnam == "." || dnam == ".." {
+          continue;
+        }
+
+        let dir_path = "\(filename)/\(dnam)"
+        if process_one_path(dir_path, name, value) {
+          status = 1
+        }
+      }
+    }
+
+    if options.wflag {
+      return write_attribute(fd, filename, name, value);
+    } else if options.dflag {
+      return delete_attribute(fd, filename, name)
+    } else if options.cflag {
+      return clear_all_attributes(fd, filename);
+    } else if options.pflag {
+      return read_attribute(fd, filename, name);
+    } else {
+      return list_all_attributes(fd, filename);
+    }
+  }
+
+  let long_opts: [CMigration.option] = [
+    option("help", .no_argument),
+  ]
+
+
+
+  func parseOptions() async throws(CmdErr) -> CommandOptions {
+    var opts = CommandOptions()
+    //    while ((ch = getopt(argc, argv, "HLPRfhvx")) != -1)
+    let go = BSDGetopt_long("hclrspwdvx", long_opts)
+    while let (k,_) = try go.getopt_long() {
+      switch k {
+
+
+          /*          prgname = basename((char *)argv[0]);
+           if (!prgname) {
+           prgname = argv[0];
+           }
+           */
+
+        case "help", "h":
+          var stderr = FileDescriptor.standardError
+          print(usage, to: &stderr)
+        case "c":
+          opts.cflag = true
+          if let m = opts.main_opt, m != k {
+            throw CmdErr(1, "Cannot specify -\(k) with -\(m)")
+          }
+          opts.main_opt = k
+          opts.req_args = 1
+        case "l":
+          opts.lflag = true
+        case "r":
+          opts.rflag = true
+        case "s":
+          opts.sflag = true
+        case "p":
+          opts.pflag = true
+          if let m = opts.main_opt, m != k {
+            throw CmdErr(1, "Cannot specify -\(k) with -\(m)")
+          }
+          opts.main_opt = k
+          opts.req_args = 2
+
+        case "w":
+          opts.wflag = true
+          if let m = opts.main_opt, m != k {
+            throw CmdErr(1, "Cannot specify -\(k) with -\(m)")
+          }
+          opts.main_opt = k
+          opts.req_args = 3
+
+        case "d":
+          opts.dflag = true
+          if let m = opts.main_opt, m != k {
+            throw CmdErr(1, "Cannot specify -\(k) with -\(m)")
+          }
+          opts.main_opt = k
+          opts.req_args = 2
+
+        case "v":
+          opts.vflag = true
+        case "x":
+          opts.xflag = true
+        case "?":
+          // getopt_long() will print an error message when it fails to parse
+          throw CmdErr(1)
+        default:
+          throw CmdErr(1)
+      }
+    }
+    opts.args = go.remaining
+
+    if opts.lflag && (opts.wflag || opts.dflag) {
+      throw CmdErr(1, "-l is not allowed with -w or -d")
+    }
+
+    if opts.main_opt == nil {
+      // Default mode is to list all attributes. We expect at least one file path
+      opts.req_args = 1
+    }
+
+    if opts.args.count < opts.req_args {
+      throw CmdErr(1, "Not enough arguments for option -\(opts.main_opt!). Expected at least \(opts.req_args) but got \(opts.args.count)")
+    }
+
+    if opts.pflag || opts.wflag || opts.dflag {
+      opts.attr_name = opts.args.removeFirst()
+    }
+
+    if opts.wflag {
+      opts.attr_value = opts.args.removeFirst()
+    }
+
+    opts.nfiles = opts.args.count
+    return opts
+  }
+
+  func runCommand() async throws(CmdErr) {
+    // nfiles = (argc - argind);
+    var status = 0
+
+    for filename in options.args {
+      if process_one_path(filename, options.attr_name, options.attr_value) {
+        status = 1
+      }
+    }
+
+    if status == 1 {
+      throw CmdErr(1, "")
+    }
+  }
 }
 
-__attribute__((__format__ (__printf__, 2, 3)))
-static void
-print_error(const char *filename, const char *error_format, ...)
-{
-	status = EXIT_FAILURE;
 
-	int access_flags = 0;
-	if (sflag) {
-		access_flags |= AT_SYMLINK_NOFOLLOW;
-	}
-	if (faccessat(AT_FDCWD, filename, F_OK, access_flags) != 0) {
-		int saved_errno = errno;
-		if (saved_errno == ENOENT) {
-			fprintf(stderr, "%s: No such file: %s\n", prgname, filename);
-			return;
-		}
-	}
-
-	if (error_format != NULL) {
-		va_list ap;
-		va_start(ap, error_format);
-		fprintf(stderr, "%s: ", prgname);
-		vfprintf(stderr, error_format, ap);
-		fprintf(stderr, "\n");
-		va_end(ap);
-	}
-}
-
-static void
-print_errno(const char *filename, const char *attr_name, int err)
-{
-	if (attr_name && (err == ENOATTR)) {
-		print_error(filename, "%s: No such xattr: %s", filename, attr_name);
-	} else {
-		print_error(filename, "[Errno %d] %s: '%s'", err, strerror(err), filename);
-	}
-}
-
-static size_t
-get_filename_prefix_length(const char *filename)
-{
-	// The extra two bytes hold ": ", see asprintf() in
-	// get_filename_prefix() below
-	if (vflag || rflag || nfiles > 1) {
-		return strlen(filename) + 2;
-	}
-	return 0;
-}
-
-static char *
-get_filename_prefix(const char *filename)
-{
-	char *filename_with_prefix = NULL;
-	size_t len = get_filename_prefix_length(filename);
-	if (len > 0) {
-		int res = asprintf(&filename_with_prefix, "%s: ", filename);
-		if (res == -1) {
-			err(1, "Failed to allocate memory");
-		}
-		return filename_with_prefix;
-	}
-
-	filename_with_prefix = strdup("");
-	if (!filename_with_prefix) {
-		err(1, "Failed to allocate memory");
-	}
-	return filename_with_prefix;
-}
-
-static void
-iterate_all_attributes(int fd, const char *filename, attribute_iterator iterator_func)
-{
-	ssize_t res = 0;
-	int saved_errno = 0;
-	char *buf = NULL, *cur = NULL;
-
-	res = flistxattr(fd, NULL, 0, 0);
-	if (res == -1) {
-		saved_errno = errno;
-		goto done;
-	}
-
-	buf = malloc(res);
-	if (!buf) {
-		err(1, "Failed to allocate memory");
-	}
-
-	res = flistxattr(fd, buf, res, 0);
-	if (res == -1) {
-		saved_errno = errno;
-		goto done;
-	}
-
-	cur = buf;
-	while (res > 0) {
-		const char *attr_name = cur;
-		size_t attr_len = strlen(cur) + 1;
-		iterator_func(fd, filename, attr_name);
-		cur += attr_len;
-		res -= attr_len;
-	}
-
-done:
-	if (saved_errno != 0) {
-		print_errno(filename, NULL, saved_errno);
-	}
-	free(buf);
-}
-
-static char *
-get_printable_segment(const char *segment, size_t segment_len)
-{
-	char *printable_segment = malloc((segment_len + 1) * sizeof(char));
-	if (!printable_segment) {
-		err(1, "Failed to allocate memory");
-	}
-
-	for (size_t i = 0; i < segment_len; i++) {
-		char printable_char = segment[i];
-		if (!isprint(printable_char)) {
-			printable_char = '.';
-		}
-		printable_segment[i] = printable_char;
-	}
-	printable_segment[segment_len] = '\0';
-	return printable_segment;
-}
-
-static void
-print_one_xattr_hex(const char *attr_value, size_t attr_value_len)
-{
-	static int incr = 16;
-	size_t bytes_left = attr_value_len;
-
-	for (size_t i = 0; i < attr_value_len; i += incr) {
-		const char *segment = attr_value + i;
-		size_t segment_len = MIN(incr, bytes_left);
-
-		char *segment_hex = malloc((3 * segment_len + 1) * sizeof(char));
-		if (!segment_hex) {
-			err(1, "Failed to allocate memory");
-		}
-
-		for (size_t j = 0; j < segment_len; j++) {
-			sprintf(segment_hex + 3 * j, "%02X ", (unsigned char)segment[j]);
-		}
-
-		if (lflag) {
-			char *printable_segment = get_printable_segment(segment, segment_len);
-			printf("%08lX  %-*s |%s|\n", i, incr * 3, segment_hex, printable_segment);
-			free(printable_segment);
-		} else {
-			printf("%s\n", segment_hex);
-		}
-
-		bytes_left -= segment_len;
-
-		free(segment_hex);
-	}
-	if (lflag) {
-		printf("%08lX\n", attr_value_len);
-	}
-}
-
-static void
-print_one_xattr(const char *filename, const char *attr_name, const char *attr_value, size_t attr_value_len)
-{
-	char *filename_with_prefix = get_filename_prefix(filename);
-
-	if (lflag) {
-		if (xflag) {
-			printf("%s%s:\n", filename_with_prefix, attr_name);
-			print_one_xattr_hex(attr_value, attr_value_len);
-		} else {
-			printf("%s%s: %s\n", filename_with_prefix, attr_name, attr_value);
-		}
-	} else {
-		if (pflag) {
-			if (xflag) {
-				if (get_filename_prefix_length(filename) > 0) {
-					printf("%s\n", filename_with_prefix);
-				}
-				print_one_xattr_hex(attr_value, attr_value_len);
-			} else {
-				printf("%s%s\n", filename_with_prefix, attr_value);
-			}
-		} else {
-			printf("%s%s\n", filename_with_prefix, attr_name);
-		}
-	}
-
-	free(filename_with_prefix);
-}
-
-static void
-read_attribute(int fd, const char *filename, const char *name)
-{
-	ssize_t res = 0;
-	int saved_errno = 0;
-	char *buf = NULL;
-
-	res = fgetxattr(fd, name, NULL, 0, 0, 0);
-	if (res == -1) {
-		saved_errno = errno;
-		goto done;
-	}
-
-	buf = malloc(res + 1);
-	if (!buf) {
-		err(1, "Failed to allocate memory");
-	}
-
-	res = fgetxattr(fd, name, buf, res, 0, 0);
-	if (res == -1) {
-		saved_errno = errno;
-		goto done;
-	}
-	buf[res] = '\0';
-	print_one_xattr(filename, name, buf, (size_t) res);
-
-done:
-	if (saved_errno != 0) {
-		print_errno(filename, name, saved_errno);
-	}
-
-	free(buf);
-}
-
-static void
-list_all_attributes(int fd, const char *filename)
-{
-	iterate_all_attributes(fd, filename, read_attribute);
-}
-
-static void
-delete_attribute(int fd, const char *filename, const char *name)
-{
-	if (fremovexattr(fd, name, 0) == -1) {
-		int saved_errno = errno;
-		// Don't print ENOATTR errors when deleting recursively
-		if (!rflag || (saved_errno != ENOATTR)) {
-			print_errno(filename, name, saved_errno);
-		}
-	}
-}
-
-static void
-clear_all_attributes(int fd, const char *filename)
-{
-	iterate_all_attributes(fd, filename, delete_attribute);
-}
-
-static char *
-hex_to_ascii_value(const char *hexstr, size_t *ascii_len)
-{
-	char *buf = NULL;
-	size_t len = strlen(hexstr);
-	size_t i = 0, j = 0;
-
-	if ((len % 2) != 0) {
-		len++;
-	}
-
-	buf = malloc(((len / 2) + 1) * sizeof(char));
-	if (!buf) {
-		err(1, "Failed to allocate memory");
-	}
-
-	// i points into hexstr, j points into the buffer
-	while (hexstr[i] != '\0' && i <= len) {
-		unsigned int hex = '\0';
-		if (isspace(hexstr[i])) {
-			i++;
-			continue;
-		}
-
-		sscanf(hexstr + i, "%02X", &hex);
-		buf[j++] = (char) hex;
-
-		// skip two bytes
-		i += 2;
-	}
-
-	if (ascii_len != NULL) {
-		*ascii_len = j;
-	}
-
-	buf[j] = '\0';
-	return buf;
-}
-
-static void
-write_attribute(int fd, const char *filename, const char *name, const char *value)
-{
-	const char *actual_value = NULL;
-	char *buf = NULL;
-	size_t len = 0;
-
-	if (xflag) {
-		buf = hex_to_ascii_value(value, &len);
-		actual_value = buf;
-	} else {
-		len = strlen(value);
-		actual_value = value;
-	}
-
-	if (fsetxattr(fd, name, actual_value, len, 0, 0) == -1) {
-		int saved_errno = errno;
-		print_errno(filename, NULL, saved_errno);
-	}
-	free(buf);
-}
-
-static void
-process_one_path(const char *filename, const char *name, const char *value)
-{
-	struct stat sb = { 0, };
-	int is_link = 0;
-	int saved_errno = 0;
-	int fd = -1;
-	DIR *dir = NULL;
-
-	int oflags = O_RDONLY;
-	if (sflag) {
-		oflags |= O_SYMLINK;
-	}
-
-	// First, we lstat() the path to find out if it's a symlink
-	if (lstat(filename, &sb) == -1) {
-		saved_errno = errno;
-		goto done;
-	}
-
-	is_link = S_ISLNK(sb.st_mode);
-
-	// Note: this follows symlinks unless sflag = 1
-	fd = open(filename, oflags);
-	if (fd == -1) {
-		saved_errno = errno;
-		goto done;
-	}
-
-	if (fstat(fd, &sb) == -1) {
-		saved_errno = errno;
-		goto done;
-	}
-
-	if (rflag && !is_link && S_ISDIR(sb.st_mode)) {
-		struct dirent *dirent = NULL;
-		dir = fdopendir(fd);
-		if (dir == NULL) {
-			saved_errno = errno;
-			goto done;
-		}
-		while ((dirent = readdir(dir)) != NULL) {
-			if (strcmp(dirent->d_name, ".") == 0 ||
-			    strcmp(dirent->d_name, "..") == 0) {
-				continue;
-			}
-
-			char *dir_path = NULL;
-			int res = asprintf(&dir_path, "%s/%s", filename, dirent->d_name);
-			if (res == -1) {
-				err(1, "Failed to allocate memory");
-			}
-
-			process_one_path(dir_path, name, value);
-			free(dir_path);
-		}
-	}
-
-	if (wflag) {
-		write_attribute(fd, filename, name, value);
-	} else if (dflag) {
-		delete_attribute(fd, filename, name);
-	} else if (cflag) {
-		clear_all_attributes(fd, filename);
-	} else if (pflag) {
-		read_attribute(fd, filename, name);
-	} else {
-		list_all_attributes(fd, filename);
-	}
-
-done:
-	if (dir != NULL) {
-		(void)closedir(dir);
-		dir = NULL;
-		// closedir() also closes the underlying fd
-		fd = -1;
-	}
-	if (fd != -1) {
-		(void)close(fd);
-	}
-	if (saved_errno != 0) {
-		print_errno(filename, NULL, saved_errno);
-	}
-}
-
-int
-main(int argc, const char * argv[])
-{
-	int ch, req_args = 0, main_opt = -1, argind = 0;
-	const struct option long_opts[] = {
-		{ "help", no_argument, NULL, 'h' },
-		{ NULL, 0, NULL, 0 }
-	};
-
-	prgname = basename((char *)argv[0]);
-	if (!prgname) {
-		prgname = argv[0];
-	}
-
-	while ((ch = getopt_long(argc, (char * const *) argv, "hclrspwdvx", long_opts, NULL)) != -1) {
-		switch (ch) {
-			case 'h':
-				usage(EXIT_SUCCESS, NULL);
-				break;
-			case 'c':
-				cflag = 1;
-				if ((main_opt != -1) && (main_opt != ch))
-					usage(EXIT_FAILURE, "Cannot specify -%c with -%c", ch, main_opt);
-				main_opt = ch;
-				req_args = 1;
-				break;
-			case 'l':
-				lflag = 1;
-				break;
-			case 'r':
-				rflag = 1;
-				break;
-			case 's':
-				sflag = 1;
-				break;
-			case 'p':
-				pflag = 1;
-				if ((main_opt != -1) && (main_opt != ch))
-					usage(EXIT_FAILURE, "Cannot specify -%c with -%c", ch, main_opt);
-				main_opt = ch;
-				req_args = 2;
-				break;
-			case 'w':
-				wflag = 1;
-				if ((main_opt != -1) && (main_opt != ch))
-					usage(EXIT_FAILURE, "Cannot specify -%c with -%c", ch, main_opt);
-				main_opt = ch;
-				req_args = 3;
-				break;
-			case 'd':
-				dflag = 1;
-				if ((main_opt != -1) && (main_opt != ch))
-					usage(EXIT_FAILURE, "Cannot specify -%c with -%c", ch, main_opt);
-				main_opt = ch;
-				req_args = 2;
-				break;
-			case 'v':
-				vflag = 1;
-				break;
-			case 'x':
-				xflag = 1;
-				break;
-			case '?':
-				// getopt_long() will print an error message when it fails to parse
-				usage(EXIT_FAILURE, "");
-				break;
-			default:
-				break;
-		}
-	}
-	argv += optind;
-	argc -= optind;
-
-	if (lflag && (wflag || dflag)) {
-		usage(EXIT_FAILURE, "-l is not allowed with -w or -d");
-	}
-
-	if (main_opt == -1) {
-		// Default mode is to list all attributes. We expect at least one file path
-		req_args = 1;
-	}
-
-	if (argc < req_args) {
-		usage(EXIT_FAILURE, "Not enough arguments for option -%c. Expected at least %d but got %d", main_opt, req_args, argc);
-	}
-
-	if (pflag || wflag || dflag) {
-		attr_name = argv[argind++];
-	}
-
-	if (wflag) {
-		attr_value = argv[argind++];
-	}
-
-	nfiles = (argc - argind);
-
-	while (argind < argc) {
-		const char *filename = argv[argind++];
-		process_one_path(filename, attr_name, attr_value);
-	}
-
-	return status;
-}

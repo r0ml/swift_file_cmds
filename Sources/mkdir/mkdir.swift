@@ -54,6 +54,7 @@ import Darwin
     var omode : mode_t = 0
   }
 
+  var options : CommandOptions!
 
   func parseOptions() throws(CmdErr) -> CommandOptions {
     var opts = CommandOptions()
@@ -92,14 +93,14 @@ import Darwin
     return opts
   }
 
-  func runCommand(_ opts : CommandOptions) async throws(CmdErr) {
+  func runCommand() async throws(CmdErr) {
     var success = 0
     var exitval = 0
-    for tap in opts.args {
+    for tap in options.args {
       let ta = FilePath(tap)
-      if opts.pflag {
-        success = build(ta.string, opts.omode, opts.vflag);
-      } else if (Darwin.mkdir(ta.string, opts.omode) < 0) {
+      if options.pflag {
+        success = build(ta.string, options.omode, options.vflag);
+      } else if (Darwin.mkdir(ta.string, options.omode) < 0) {
         if (errno == ENOTDIR || errno == ENOENT) {
           let j = ta.removingLastComponent()
           warnx(j.string)
@@ -118,7 +119,7 @@ import Darwin
         success = 0;
       } else {
         success = 1;
-        if opts.vflag {
+        if options.vflag {
           print(ta.string);
         }
       }
@@ -134,7 +135,7 @@ import Darwin
        * as chmod will (obviously) ignore the umask.  Do this
        * on newly created directories only.
        */
-      if (success == 1 && opts.mode != nil && Darwin.chmod(ta.string, opts.omode) == -1) {
+      if (success == 1 && options.mode != nil && Darwin.chmod(ta.string, options.omode) == -1) {
         warnx(ta.string)
         exitval = 1;
       }

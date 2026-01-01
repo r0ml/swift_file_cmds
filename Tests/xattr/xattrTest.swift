@@ -1,4 +1,44 @@
 // Copyright (c) 1868 Charles Babbage
 // Modernized by Robert "r0ml" Lefkowitz <code@liberally.net> in 2025
 
-import Foundation
+import ShellTesting
+
+struct xattrTest : ShellTest {
+  var cmd = "xattr"
+  var suiteBundle = "sattrTest"
+  
+  @Test("Verify that xattr does not exit cleanly on failure") func rdar79795987() async throws {
+    let k = try tmpfile("XXXX1/abc", "")
+    rm(k)
+    print(k.path)
+    try await run(status: 1, error: /xattr: XXXX1: No such xattr:/, args: ["-p", "com.apple.xattrtest.idontexist", k.deletingLastPathComponent()] )
+    rm(k.deletingLastPathComponent())
+  }
+
+  @Test("Verify that xattr behaves correctly when hex values have embedded NULs") func rdar79990691() async throws {
+    let k = try tmpfile("XXXX2/abc", "")
+    rm(k)
+    print(k.path)
+    try await run(args: ["-w", "-x", "com.apple.xattrtest", "00 00 00 00 00 00 00 00 04 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00", k.deletingLastPathComponent()] )
+    rm(k.deletingLastPathComponent())
+  }
+
+  @Test("Verify that deleting an xattr recursively does not exit with an error") func rdar80300336() async throws {
+    let k = try tmpfile("XXXX3/XXXX/abc", "")
+    try await run(args: ["-d", "-r", "com.apple.xattrtest", k.deletingLastPathComponent().deletingLastPathComponent()])
+    rm(k, k.deletingLastPathComponent(), k.deletingLastPathComponent().deletingLastPathComponent())
+  }
+
+  @Test("Verifying that deleting an xattr recursively with a symlink directory target does not affect files in that directory") func rdar82573904() async throws {
+
+    let fn = try tmpfile("XXXX4/XXXX/abc", "")
+    try await run(args: ["-w", "com.apple.xattrtest", "testvalue", fn])
+    try await run(output: "testvalue\n", args: ["-p", "com.apple.xattrtest", fn])
+    let sl = try tmpfile("XXXX4/symlink")
+    try FileManager.default.createSymbolicLink(at: sl, withDestinationURL: fn.deletingLastPathComponent() )
+    try await run(args: ["-d", "-r", "com.apple.xattrtest", sl])
+    try await run(output: "testvalue\n", args: ["-p", "com.apple.xattrtest", fn])
+    rm(fn, sl, fn.deletingLastPathComponent(), fn.deletingLastPathComponent().deletingLastPathComponent() )
+  }
+}
+

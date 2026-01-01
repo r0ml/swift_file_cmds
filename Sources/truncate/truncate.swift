@@ -99,8 +99,10 @@ enum SimpleError: Error {
    rname = NULL;
    */
 
+  var options : CommandOptions!
+
   func parseOptions() async throws(CmdErr) -> CommandOptions {
-    var opts = CommandOptions()
+    var options = CommandOptions()
     //    while ((ch = getopt(argc, argv, "HLPRfhvx")) != -1)
     let go = BSDGetopt("cr:s:")
     while let (k,v) = try go.getopt() {
@@ -108,29 +110,29 @@ enum SimpleError: Error {
 
           //  "cdr:s:o:l:"   // not Apple
         case "c":
-          opts.no_create = true
+          options.no_create = true
 
 
        case "d": // not possible because Apple does not have this option
-          opts.do_dealloc = true
-          opts.do_truncate = false
+          options.do_dealloc = true
+          options.do_truncate = false
 
         case "r":
-          opts.do_refer = true
-          opts.rname = v
+          options.do_refer = true
+          options.rname = v
         case "s":
           if v.hasPrefix("+") || v.hasPrefix("-") {
-            opts.do_relative = true
+            options.do_relative = true
           } else if v.hasPrefix("%") || v.hasPrefix("/") {
-            opts.do_round = true
+            options.do_round = true
           }
           do {
-            let usz = try expand_number(opts.do_relative || opts.do_round ?
+            let usz = try expand_number(options.do_relative || options.do_round ?
                                         String(v.dropFirst()) : v)
             guard let kk = Int(exactly: usz) else { throw SimpleError.message("invalid size argument `\(v)'") }
             let jj = v.hasPrefix("-") || v.hasPrefix("/") ? -kk : kk
-            opts.sz = jj
-            opts.got_size = true
+            options.sz = jj
+            options.got_size = true
           } catch {
             errx(Int(EXIT_FAILURE), "invalid size argument `\(v)'")
           }
@@ -158,7 +160,7 @@ enum SimpleError: Error {
       }
 
     }
-    opts.args = go.remaining
+    options.args = go.remaining
 
     /*
      * Exactly one of do_refer, got_size or do_dealloc must be specified.
@@ -167,7 +169,7 @@ enum SimpleError: Error {
      * the length argument must be set.  See usage() for allowed
      * invocations.
      */
-    if opts.args.isEmpty || ((opts.do_refer ? 1 : 0) + (opts.got_size ? 1 : 0) + (opts.do_dealloc ? 1 : 0) ) != 1 {
+    if options.args.isEmpty || ((options.do_refer ? 1 : 0) + (options.got_size ? 1 : 0) + (options.do_dealloc ? 1 : 0) ) != 1 {
       /*
        if (argc < 1 || do_refer + got_size + do_dealloc != 1 ||
        (do_dealloc == 1 && len == -1))
@@ -175,34 +177,34 @@ enum SimpleError: Error {
        */
       throw CmdErr(1)
     }
-    return opts
+    return options
   }
 
 
 
-  func runCommand(_ opts : CommandOptions) async throws(CmdErr) {
+  func runCommand() async throws(CmdErr) {
 
     var tsize = 0
-    if opts.do_refer  {
+    if options.do_refer  {
       var sb : stat = stat()
-      if (stat(opts.rname, &sb) == -1) {
-        err(Int(EXIT_FAILURE), opts.rname);
+      if (stat(options.rname, &sb) == -1) {
+        err(Int(EXIT_FAILURE), options.rname);
       }
       tsize = Int(sb.st_size)
     }
-    else if !opts.do_dealloc {
-      tsize = opts.sz
+    else if !options.do_dealloc {
+      tsize = options.sz
     }
 
     var error = 0
-    for fname in opts.args {
-      error += once(fname, opts, tsize)
+    for fname in options.args {
+      error += once(fname, tsize)
     }
     exit(error > 0 ? EXIT_FAILURE : EXIT_SUCCESS)
   }
 
-  func once(_ fname : String, _ opts : CommandOptions, _ ttsize : Int) -> Int {
-    let oflags = opts.no_create ? O_WRONLY : O_WRONLY | O_CREAT
+  func once(_ fname : String, _ ttsize : Int) -> Int {
+    let oflags = options.no_create ? O_WRONLY : O_WRONLY | O_CREAT
     let omode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH
     var sb : stat = stat()
 
@@ -218,34 +220,34 @@ enum SimpleError: Error {
     }
     defer { close(fd) }
 
-    if opts.do_relative {
+    if options.do_relative {
       if (fstat(fd, &sb) == -1) {
         warn(fname)
         return 1
       }
-      let oflow = Int(sb.st_size) + opts.sz
-      if oflow < Int(sb.st_size) + opts.sz {
+      let oflow = Int(sb.st_size) + options.sz
+      if oflow < Int(sb.st_size) + options.sz {
         errno = EFBIG;
         warn(fname)
         return 1
       }
       tsize = oflow;
     }
-    if opts.do_round {
+    if options.do_round {
       if (fstat(fd, &sb) == -1) {
         warn(fname)
         return 1
       }
-      var sz = opts.sz
+      var sz = options.sz
       if (sz < 0) {
         sz = -sz
       }
       if (Int(sb.st_size) % sz) != 0 {
         var round = Int(sb.st_size) / sz
-        if (round != sz && opts.sz < 0) {
+        if (round != sz && options.sz < 0) {
           round -= 1
         }
-        else if (opts.sz > 0) {
+        else if (options.sz > 0) {
           round += 1
         }
         tsize = (round < 0 ? 0 : round) * sz;
@@ -258,7 +260,7 @@ enum SimpleError: Error {
     }
 
     /*
-     if opts.do_dealloc {
+     if options.do_dealloc {
      sr.r_offset = off;
      sr.r_len = len;
      r = fspacectl(fd, SPACECTL_DEALLOC, &sr, 0, &sr);
@@ -266,7 +268,7 @@ enum SimpleError: Error {
      */
 
     var r : Int32 = 0
-    if opts.do_truncate {
+    if options.do_truncate {
       r = ftruncate(fd, Int64(tsize))
     }
     if (r == -1) {

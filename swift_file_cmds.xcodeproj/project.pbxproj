@@ -51,38 +51,40 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
-		E77400D42F02CD9800498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77400D32F02CD9800498517 /* CMigration */; };
 		E77400E52F02D27E00498517 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E77400E42F02D27E00498517 /* ShellTesting */; };
-		E77403892F033CDF00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77403882F033CDF00498517 /* CMigration */; };
-		E774038B2F033CE400498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E774038A2F033CE400498517 /* CMigration */; };
-		E774038D2F033CEC00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E774038C2F033CEC00498517 /* CMigration */; };
-		E774038F2F033CF000498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E774038E2F033CF000498517 /* CMigration */; };
-		E77403912F033CF700498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77403902F033CF700498517 /* CMigration */; };
-		E77403932F033CFC00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77403922F033CFC00498517 /* CMigration */; };
-		E77403952F033D0100498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77403942F033D0100498517 /* CMigration */; };
-		E77403972F033D0900498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77403962F033D0900498517 /* CMigration */; };
-		E77403992F033D0E00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77403982F033D0E00498517 /* CMigration */; };
-		E774039B2F033D1100498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E774039A2F033D1100498517 /* CMigration */; };
-		E774039D2F033D1500498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E774039C2F033D1500498517 /* CMigration */; };
-		E774039F2F033D1A00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E774039E2F033D1A00498517 /* CMigration */; };
-		E77403A12F033D2200498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77403A02F033D2200498517 /* CMigration */; };
-		E77403A32F033D2600498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77403A22F033D2600498517 /* CMigration */; };
-		E77403A52F033D2A00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77403A42F033D2A00498517 /* CMigration */; };
-		E77403A72F033D3000498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77403A62F033D3000498517 /* CMigration */; };
-		E77403A92F033D3400498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77403A82F033D3400498517 /* CMigration */; };
-		E77403AB2F033D3800498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77403AA2F033D3800498517 /* CMigration */; };
-		E77403AD2F033D3C00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77403AC2F033D3C00498517 /* CMigration */; };
-		E77403AF2F033D4000498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77403AE2F033D4000498517 /* CMigration */; };
-		E77403B12F033D4400498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77403B02F033D4400498517 /* CMigration */; };
-		E77403B32F033D4800498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77403B22F033D4800498517 /* CMigration */; };
-		E77403B52F033D4C00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77403B42F033D4C00498517 /* CMigration */; };
-		E77403B72F033D5200498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77403B62F033D5200498517 /* CMigration */; };
-		E77403B92F033D5700498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77403B82F033D5700498517 /* CMigration */; };
-		E77403BB2F033D5B00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77403BA2F033D5B00498517 /* CMigration */; };
-		E77403BD2F033D6200498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77403BC2F033D6200498517 /* CMigration */; };
 		E77403C12F038F4900498517 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E77403C02F038F4900498517 /* ShellTesting */; };
+		E77403C52F05C55800498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77403C42F05C55800498517 /* CMigration */; };
+		E77404D32F05F33E00498517 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E77404D22F05F33E00498517 /* ShellTesting */; };
+		E77404D62F06CEE600498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404D52F06CEE600498517 /* CMigration */; };
+		E77404D82F06CF1900498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404D72F06CF1900498517 /* CMigration */; };
+		E77404DA2F06CF1F00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404D92F06CF1F00498517 /* CMigration */; };
+		E77404DC2F06CF2600498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404DB2F06CF2600498517 /* CMigration */; };
+		E77404DE2F06CF2C00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404DD2F06CF2C00498517 /* CMigration */; };
+		E77404E02F06CF3100498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404DF2F06CF3100498517 /* CMigration */; };
+		E77404E22F06CF3600498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404E12F06CF3600498517 /* CMigration */; };
+		E77404E42F06CF3A00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404E32F06CF3A00498517 /* CMigration */; };
+		E77404E62F06CF3E00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404E52F06CF3E00498517 /* CMigration */; };
+		E77404E82F06CF4400498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404E72F06CF4400498517 /* CMigration */; };
+		E77404EA2F06CF4900498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404E92F06CF4900498517 /* CMigration */; };
+		E77404EC2F06CF4D00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404EB2F06CF4D00498517 /* CMigration */; };
+		E77404EE2F06CF5100498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404ED2F06CF5100498517 /* CMigration */; };
+		E77404F02F06CF5500498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404EF2F06CF5500498517 /* CMigration */; };
+		E77404F22F06CF5900498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404F12F06CF5900498517 /* CMigration */; };
+		E77404F42F06CF5E00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404F32F06CF5E00498517 /* CMigration */; };
+		E77404F62F06CF6200498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404F52F06CF6200498517 /* CMigration */; };
+		E77404F82F06CF6600498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404F72F06CF6600498517 /* CMigration */; };
+		E77404FA2F06CF6B00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404F92F06CF6B00498517 /* CMigration */; };
+		E77404FC2F06CF6F00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404FB2F06CF6F00498517 /* CMigration */; };
+		E77404FE2F06CF7600498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404FD2F06CF7600498517 /* CMigration */; };
+		E77405002F06CF7B00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404FF2F06CF7B00498517 /* CMigration */; };
+		E77405022F06CF7F00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77405012F06CF7F00498517 /* CMigration */; };
+		E77405042F06CF8300498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77405032F06CF8300498517 /* CMigration */; };
+		E77405062F06CF8700498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77405052F06CF8700498517 /* CMigration */; };
+		E77405082F06CF8B00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77405072F06CF8B00498517 /* CMigration */; };
+		E774050A2F06CF8F00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77405092F06CF8F00498517 /* CMigration */; };
+		E774050C2F06CF9400498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E774050B2F06CF9400498517 /* CMigration */; };
+		E774050E2F06CF9B00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E774050D2F06CF9B00498517 /* CMigration */; };
 		E78DE7162E43A989001E00CA /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E78DE7152E43A989001E00CA /* ShellTesting */; };
-		E7A6AA5F2E428C76001C9A44 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E7A6AA5E2E428C76001C9A44 /* CMigration */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -733,6 +735,13 @@
 			);
 			target = E77403112F02E8F400498517 /* truncateTest */;
 		};
+		E77404D12F05F30300498517 /* Exceptions for "Tests" folder in "xattrTest" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				xattr/xattrTest.swift,
+			);
+			target = E774031C2F02E90400498517 /* xattrTest */;
+		};
 		E78DE71C2E43ABBD001E00CA /* Exceptions for "Tests" folder in "chflagsTest" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -777,6 +786,7 @@
 				E78DE71C2E43ABBD001E00CA /* Exceptions for "Tests" folder in "chflagsTest" target */,
 				E77400E72F02D29900498517 /* Exceptions for "Tests" folder in "mkdirTest" target */,
 				E77403BF2F038F0800498517 /* Exceptions for "Tests" folder in "truncateTest" target */,
+				E77404D12F05F30300498517 /* Exceptions for "Tests" folder in "xattrTest" target */,
 			);
 			path = Tests;
 			sourceTree = "<group>";
@@ -801,7 +811,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E77403892F033CDF00498517 /* CMigration in Frameworks */,
+				E77403C52F05C55800498517 /* CMigration in Frameworks */,
+				E77404D62F06CEE600498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -809,7 +820,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E774038B2F033CE400498517 /* CMigration in Frameworks */,
+				E774050E2F06CF9B00498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -817,7 +828,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E774038D2F033CEC00498517 /* CMigration in Frameworks */,
+				E774050C2F06CF9400498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -825,7 +836,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E774038F2F033CF000498517 /* CMigration in Frameworks */,
+				E774050A2F06CF8F00498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -833,7 +844,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E77403912F033CF700498517 /* CMigration in Frameworks */,
+				E77405082F06CF8B00498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -841,7 +852,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E77403932F033CFC00498517 /* CMigration in Frameworks */,
+				E77405062F06CF8700498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -849,7 +860,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E77403952F033D0100498517 /* CMigration in Frameworks */,
+				E77405042F06CF8300498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -857,7 +868,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E77403972F033D0900498517 /* CMigration in Frameworks */,
+				E77405022F06CF7F00498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -865,7 +876,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E77403992F033D0E00498517 /* CMigration in Frameworks */,
+				E77405002F06CF7B00498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -873,7 +884,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E774039B2F033D1100498517 /* CMigration in Frameworks */,
+				E77404FE2F06CF7600498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -881,7 +892,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E774039D2F033D1500498517 /* CMigration in Frameworks */,
+				E77404FC2F06CF6F00498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -889,7 +900,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E774039F2F033D1A00498517 /* CMigration in Frameworks */,
+				E77404FA2F06CF6B00498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -897,7 +908,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E77403A12F033D2200498517 /* CMigration in Frameworks */,
+				E77404F62F06CF6200498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -905,7 +916,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E77403A32F033D2600498517 /* CMigration in Frameworks */,
+				E77404F42F06CF5E00498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -913,7 +924,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E77403A52F033D2A00498517 /* CMigration in Frameworks */,
+				E77404F22F06CF5900498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -921,7 +932,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E77403A72F033D3000498517 /* CMigration in Frameworks */,
+				E77404F02F06CF5500498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -929,7 +940,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E77403A92F033D3400498517 /* CMigration in Frameworks */,
+				E77404EE2F06CF5100498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -937,7 +948,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E77403AB2F033D3800498517 /* CMigration in Frameworks */,
+				E77404EC2F06CF4D00498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -945,7 +956,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E77403AD2F033D3C00498517 /* CMigration in Frameworks */,
+				E77404EA2F06CF4900498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -953,7 +964,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E77403AF2F033D4000498517 /* CMigration in Frameworks */,
+				E77404E82F06CF4400498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -961,7 +972,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E77403B12F033D4400498517 /* CMigration in Frameworks */,
+				E77404E62F06CF3E00498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -969,7 +980,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E77403B32F033D4800498517 /* CMigration in Frameworks */,
+				E77404E42F06CF3A00498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -977,7 +988,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E77403B52F033D4C00498517 /* CMigration in Frameworks */,
+				E77404E22F06CF3600498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -985,7 +996,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E77403B72F033D5200498517 /* CMigration in Frameworks */,
+				E77404E02F06CF3100498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -993,7 +1004,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E77403B92F033D5700498517 /* CMigration in Frameworks */,
+				E77404DE2F06CF2C00498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1001,7 +1012,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E77403BB2F033D5B00498517 /* CMigration in Frameworks */,
+				E77404DC2F06CF2600498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1150,6 +1161,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E77404D32F05F33E00498517 /* ShellTesting in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1157,7 +1169,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E77403BD2F033D6200498517 /* CMigration in Frameworks */,
+				E77404DA2F06CF1F00498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1165,7 +1177,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E77400D42F02CD9800498517 /* CMigration in Frameworks */,
+				E77404F82F06CF6600498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1181,7 +1193,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E7A6AA5F2E428C76001C9A44 /* CMigration in Frameworks */,
+				E77404D82F06CF1900498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1310,7 +1322,8 @@
 			);
 			name = xattr;
 			packageProductDependencies = (
-				E77403882F033CDF00498517 /* CMigration */,
+				E77403C42F05C55800498517 /* CMigration */,
+				E77404D52F06CEE600498517 /* CMigration */,
 			);
 			productName = xattr;
 			productReference = E77400EC2F02D83000498517 /* xattr */;
@@ -1330,7 +1343,7 @@
 			);
 			name = truncate;
 			packageProductDependencies = (
-				E774038A2F033CE400498517 /* CMigration */,
+				E774050D2F06CF9B00498517 /* CMigration */,
 			);
 			productName = truncate;
 			productReference = E77400F72F02D84100498517 /* truncate */;
@@ -1350,7 +1363,7 @@
 			);
 			name = touch;
 			packageProductDependencies = (
-				E774038C2F033CEC00498517 /* CMigration */,
+				E774050B2F06CF9400498517 /* CMigration */,
 			);
 			productName = touch;
 			productReference = E77401022F02D85700498517 /* touch */;
@@ -1370,7 +1383,7 @@
 			);
 			name = stat;
 			packageProductDependencies = (
-				E774038E2F033CF000498517 /* CMigration */,
+				E77405092F06CF8F00498517 /* CMigration */,
 			);
 			productName = stat;
 			productReference = E774010D2F02D86100498517 /* stat */;
@@ -1390,7 +1403,7 @@
 			);
 			name = rmdir;
 			packageProductDependencies = (
-				E77403902F033CF700498517 /* CMigration */,
+				E77405072F06CF8B00498517 /* CMigration */,
 			);
 			productName = rmdir;
 			productReference = E77401182F02D86F00498517 /* rmdir */;
@@ -1410,7 +1423,7 @@
 			);
 			name = rm;
 			packageProductDependencies = (
-				E77403922F033CFC00498517 /* CMigration */,
+				E77405052F06CF8700498517 /* CMigration */,
 			);
 			productName = rm;
 			productReference = E77401232F02D87600498517 /* rm */;
@@ -1430,7 +1443,7 @@
 			);
 			name = pax;
 			packageProductDependencies = (
-				E77403942F033D0100498517 /* CMigration */,
+				E77405032F06CF8300498517 /* CMigration */,
 			);
 			productName = pax;
 			productReference = E774012E2F02D87D00498517 /* pax */;
@@ -1450,7 +1463,7 @@
 			);
 			name = pathchk;
 			packageProductDependencies = (
-				E77403962F033D0900498517 /* CMigration */,
+				E77405012F06CF7F00498517 /* CMigration */,
 			);
 			productName = pathchk;
 			productReference = E77401392F02D89900498517 /* pathchk */;
@@ -1470,7 +1483,7 @@
 			);
 			name = mv;
 			packageProductDependencies = (
-				E77403982F033D0E00498517 /* CMigration */,
+				E77404FF2F06CF7B00498517 /* CMigration */,
 			);
 			productName = mv;
 			productReference = E77401442F02D8A800498517 /* mv */;
@@ -1490,7 +1503,7 @@
 			);
 			name = mtree;
 			packageProductDependencies = (
-				E774039A2F033D1100498517 /* CMigration */,
+				E77404FD2F06CF7600498517 /* CMigration */,
 			);
 			productName = mtree;
 			productReference = E774014F2F02D8B200498517 /* mtree */;
@@ -1510,7 +1523,7 @@
 			);
 			name = mknod;
 			packageProductDependencies = (
-				E774039C2F033D1500498517 /* CMigration */,
+				E77404FB2F06CF6F00498517 /* CMigration */,
 			);
 			productName = mknod;
 			productReference = E774015A2F02D8BE00498517 /* mknod */;
@@ -1530,7 +1543,7 @@
 			);
 			name = mkfifo;
 			packageProductDependencies = (
-				E774039E2F033D1A00498517 /* CMigration */,
+				E77404F92F06CF6B00498517 /* CMigration */,
 			);
 			productName = mkfifo;
 			productReference = E77401652F02D8C500498517 /* mkfifo */;
@@ -1550,7 +1563,7 @@
 			);
 			name = ls;
 			packageProductDependencies = (
-				E77403A02F033D2200498517 /* CMigration */,
+				E77404F52F06CF6200498517 /* CMigration */,
 			);
 			productName = ls;
 			productReference = E77401702F02D8F900498517 /* ls */;
@@ -1570,7 +1583,7 @@
 			);
 			name = ln;
 			packageProductDependencies = (
-				E77403A22F033D2600498517 /* CMigration */,
+				E77404F32F06CF5E00498517 /* CMigration */,
 			);
 			productName = ln;
 			productReference = E774017B2F02D90000498517 /* ln */;
@@ -1590,7 +1603,7 @@
 			);
 			name = ipcs;
 			packageProductDependencies = (
-				E77403A42F033D2A00498517 /* CMigration */,
+				E77404F12F06CF5900498517 /* CMigration */,
 			);
 			productName = ipcs;
 			productReference = E77401862F02D90800498517 /* ipcs */;
@@ -1610,7 +1623,7 @@
 			);
 			name = ipcrm;
 			packageProductDependencies = (
-				E77403A62F033D3000498517 /* CMigration */,
+				E77404EF2F06CF5500498517 /* CMigration */,
 			);
 			productName = ipcrm;
 			productReference = E77401912F02D91400498517 /* ipcrm */;
@@ -1630,7 +1643,7 @@
 			);
 			name = install;
 			packageProductDependencies = (
-				E77403A82F033D3400498517 /* CMigration */,
+				E77404ED2F06CF5100498517 /* CMigration */,
 			);
 			productName = install;
 			productReference = E774019C2F02D91D00498517 /* install */;
@@ -1650,7 +1663,7 @@
 			);
 			name = gzip;
 			packageProductDependencies = (
-				E77403AA2F033D3800498517 /* CMigration */,
+				E77404EB2F06CF4D00498517 /* CMigration */,
 			);
 			productName = gzip;
 			productReference = E77401A72F02D92700498517 /* gzip */;
@@ -1670,7 +1683,7 @@
 			);
 			name = du;
 			packageProductDependencies = (
-				E77403AC2F033D3C00498517 /* CMigration */,
+				E77404E92F06CF4900498517 /* CMigration */,
 			);
 			productName = du;
 			productReference = E77401B22F02D9DE00498517 /* du */;
@@ -1690,7 +1703,7 @@
 			);
 			name = df;
 			packageProductDependencies = (
-				E77403AE2F033D4000498517 /* CMigration */,
+				E77404E72F06CF4400498517 /* CMigration */,
 			);
 			productName = df;
 			productReference = E77401BD2F02D9E600498517 /* df */;
@@ -1710,7 +1723,7 @@
 			);
 			name = dd;
 			packageProductDependencies = (
-				E77403B02F033D4400498517 /* CMigration */,
+				E77404E52F06CF3E00498517 /* CMigration */,
 			);
 			productName = dd;
 			productReference = E77401C82F02D9F200498517 /* dd */;
@@ -1730,7 +1743,7 @@
 			);
 			name = cp;
 			packageProductDependencies = (
-				E77403B22F033D4800498517 /* CMigration */,
+				E77404E32F06CF3A00498517 /* CMigration */,
 			);
 			productName = cp;
 			productReference = E77401D32F02D9F900498517 /* cp */;
@@ -1750,7 +1763,7 @@
 			);
 			name = compress;
 			packageProductDependencies = (
-				E77403B42F033D4C00498517 /* CMigration */,
+				E77404E12F06CF3600498517 /* CMigration */,
 			);
 			productName = compress;
 			productReference = E77401DE2F02DA0900498517 /* compress */;
@@ -1770,7 +1783,7 @@
 			);
 			name = cksum;
 			packageProductDependencies = (
-				E77403B62F033D5200498517 /* CMigration */,
+				E77404DF2F06CF3100498517 /* CMigration */,
 			);
 			productName = cksum;
 			productReference = E77401E92F02DA2F00498517 /* cksum */;
@@ -1790,7 +1803,7 @@
 			);
 			name = chown;
 			packageProductDependencies = (
-				E77403B82F033D5700498517 /* CMigration */,
+				E77404DD2F06CF2C00498517 /* CMigration */,
 			);
 			productName = chown;
 			productReference = E77401F42F02DA4300498517 /* chown */;
@@ -1810,7 +1823,7 @@
 			);
 			name = chmod;
 			packageProductDependencies = (
-				E77403BA2F033D5B00498517 /* CMigration */,
+				E77404DB2F06CF2600498517 /* CMigration */,
 			);
 			productName = chmod;
 			productReference = E77401FF2F02DA5300498517 /* chmod */;
@@ -2211,6 +2224,7 @@
 			);
 			name = xattrTest;
 			packageProductDependencies = (
+				E77404D22F05F33E00498517 /* ShellTesting */,
 			);
 			productName = xattrTest;
 			productReference = E774031D2F02E90400498517 /* xattrTest.xctest */;
@@ -2230,7 +2244,7 @@
 			);
 			name = chgrp;
 			packageProductDependencies = (
-				E77403BC2F033D6200498517 /* CMigration */,
+				E77404D92F06CF1F00498517 /* CMigration */,
 			);
 			productName = chgrp;
 			productReference = E77403472F03346800498517 /* chgrp */;
@@ -2250,7 +2264,7 @@
 			);
 			name = mkdir;
 			packageProductDependencies = (
-				E77400D32F02CD9800498517 /* CMigration */,
+				E77404F72F06CF6600498517 /* CMigration */,
 			);
 			productName = mkdir;
 			productReference = E774FFFB2F0239B700498517 /* mkdir */;
@@ -2291,7 +2305,7 @@
 			);
 			name = chflags;
 			packageProductDependencies = (
-				E7A6AA5E2E428C76001C9A44 /* CMigration */,
+				E77404D72F06CF1900498517 /* CMigration */,
 			);
 			productName = chflags;
 			productReference = E7A6AA562E428C1A001C9A44 /* chflags */;
@@ -2478,8 +2492,8 @@
 			mainGroup = E73706FF2E4273AC00246ED4;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */,
 				E7A6AA602E428C8C001C9A44 /* XCRemoteSwiftPackageReference "ShellTesting" */,
+				E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E73707092E4273AC00246ED4 /* Products */;
@@ -5560,7 +5574,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */ = {
+		E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/r0ml/CMigration";
 			requirement = {
@@ -5579,165 +5593,174 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		E77400D32F02CD9800498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
 		E77400E42F02D27E00498517 /* ShellTesting */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E7A6AA602E428C8C001C9A44 /* XCRemoteSwiftPackageReference "ShellTesting" */;
 			productName = ShellTesting;
-		};
-		E77403882F033CDF00498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
-		E774038A2F033CE400498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
-		E774038C2F033CEC00498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
-		E774038E2F033CF000498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
-		E77403902F033CF700498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
-		E77403922F033CFC00498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
-		E77403942F033D0100498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
-		E77403962F033D0900498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
-		E77403982F033D0E00498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
-		E774039A2F033D1100498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
-		E774039C2F033D1500498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
-		E774039E2F033D1A00498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
-		E77403A02F033D2200498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
-		E77403A22F033D2600498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
-		E77403A42F033D2A00498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
-		E77403A62F033D3000498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
-		E77403A82F033D3400498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
-		E77403AA2F033D3800498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
-		E77403AC2F033D3C00498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
-		E77403AE2F033D4000498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
-		E77403B02F033D4400498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
-		E77403B22F033D4800498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
-		E77403B42F033D4C00498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
-		E77403B62F033D5200498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
-		E77403B82F033D5700498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
-		E77403BA2F033D5B00498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
-		E77403BC2F033D6200498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
 		};
 		E77403C02F038F4900498517 /* ShellTesting */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E7A6AA602E428C8C001C9A44 /* XCRemoteSwiftPackageReference "ShellTesting" */;
 			productName = ShellTesting;
 		};
-		E78DE7152E43A989001E00CA /* ShellTesting */ = {
+		E77403C42F05C55800498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = CMigration;
+		};
+		E77404D22F05F33E00498517 /* ShellTesting */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E7A6AA602E428C8C001C9A44 /* XCRemoteSwiftPackageReference "ShellTesting" */;
 			productName = ShellTesting;
 		};
-		E7A6AA5E2E428C76001C9A44 /* CMigration */ = {
+		E77404D52F06CEE600498517 /* CMigration */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA5D2E428C76001C9A44 /* XCRemoteSwiftPackageReference "CMigration" */;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
 			productName = CMigration;
+		};
+		E77404D72F06CF1900498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77404D92F06CF1F00498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77404DB2F06CF2600498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77404DD2F06CF2C00498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77404DF2F06CF3100498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77404E12F06CF3600498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77404E32F06CF3A00498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77404E52F06CF3E00498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77404E72F06CF4400498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77404E92F06CF4900498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77404EB2F06CF4D00498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77404ED2F06CF5100498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77404EF2F06CF5500498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77404F12F06CF5900498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77404F32F06CF5E00498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77404F52F06CF6200498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77404F72F06CF6600498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77404F92F06CF6B00498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77404FB2F06CF6F00498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77404FD2F06CF7600498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77404FF2F06CF7B00498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77405012F06CF7F00498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77405032F06CF8300498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77405052F06CF8700498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77405072F06CF8B00498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77405092F06CF8F00498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E774050B2F06CF9400498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E774050D2F06CF9B00498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E78DE7152E43A989001E00CA /* ShellTesting */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E7A6AA602E428C8C001C9A44 /* XCRemoteSwiftPackageReference "ShellTesting" */;
+			productName = ShellTesting;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

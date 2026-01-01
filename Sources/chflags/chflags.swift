@@ -95,6 +95,8 @@ struct CommandOptions {
   var clear : UInt = 0
 }
 
+  var options : CommandOptions!
+
   func parseOptions() throws(CmdErr) -> CommandOptions {
     //    FTS *ftsp;
     //    FTSENT *p;
@@ -186,13 +188,13 @@ struct CommandOptions {
     return opts
   }
 
-  func runCommand(_ opts : CommandOptions) async throws(CmdErr) {
+  func runCommand() async throws(CmdErr) {
 
     Darwin.signal(SIGINFO, siginfo_handler)
 
     var ftsp : FTSWalker
     do {
-      ftsp = try FTSWalker(path: opts.args, options: opts.fts_options)
+      ftsp = try FTSWalker(path: options.args, options: options.fts_options)
     } catch let e {
       throw CmdErr(1, "\(e)")
     }
@@ -203,8 +205,8 @@ struct CommandOptions {
     while var p = ftsp.next() { //}  for (rval = 0; (void)(errno = 0), (p = fts_read(ftsp)) != NULL;) {
 //      int atflag;
 
-      if (opts.fts_options.contains(.LOGICAL) ||
-          (opts.fts_options.contains(.COMFOLLOW) &&
+      if (options.fts_options.contains(.LOGICAL) ||
+          (options.fts_options.contains(.COMFOLLOW) &&
            p.level == FTS_ROOTLEVEL)) {
         atflag = []
       }
@@ -216,7 +218,7 @@ struct CommandOptions {
 
       switch p.info {
         case .D:	/* Change it at FTS_DP if we're recursive. */
-          if !opts.Rflag {
+          if !options.Rflag {
             p.setAction(.SKIP);
           }
           continue;
@@ -231,22 +233,22 @@ struct CommandOptions {
       }
 
       let oflags = UInt(p.statp!.flags.rawValue)
-      if opts.oct {
-        newflags = opts.set
+      if options.oct {
+        newflags = options.set
       }
       else {
-        newflags = (oflags | opts.set) & opts.clear
+        newflags = (oflags | options.set) & options.clear
       }
 
       if (newflags == oflags) {
         continue
       }
-      if (chflagsat(Int(AT_FDCWD), p.accpath, UInt32(newflags), atflag) == -1 && !opts.fflag) {
+      if (chflagsat(Int(AT_FDCWD), p.accpath, UInt32(newflags), atflag) == -1 && !options.fflag) {
         warn(p.path);
         rval = 1;
-      } else if (opts.vflag > 0 || (siginfo.withLock { $0 } ) ) {
+      } else if (options.vflag > 0 || (siginfo.withLock { $0 } ) ) {
         print(p.path, terminator: "")
-        if (opts.vflag > 1 || (siginfo.withLock { $0 }) ) {
+        if (options.vflag > 1 || (siginfo.withLock { $0 }) ) {
           print(": 0\(String(oflags, radix: 8)) -> 0\(String(newflags,  radix: 8))", terminator: "")
         }
         print("");

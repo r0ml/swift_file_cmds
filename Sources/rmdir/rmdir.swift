@@ -43,6 +43,8 @@ import Darwin
     var args = [String]()
   }
 
+  var options : CommandOptions!
+
   func parseOptions() throws(CmdErr) -> CommandOptions {
     var opts = CommandOptions()
     let go = BSDGetopt("pv")
@@ -66,18 +68,18 @@ import Darwin
     return opts
   }
 
-  func runCommand(_ opts : CommandOptions) async throws(CmdErr) {
+  func runCommand() async throws(CmdErr) {
     var errors = false
-    for argv in opts.args {
+    for argv in options.args {
       if Darwin.rmdir(argv) < 0 {
         warnx(argv)
         errors = true
       } else {
-        if opts.vflag {
+        if options.vflag {
           print(argv)
         }
-        if opts.pflag {
-          errors = rm_path(argv, opts.vflag) || errors
+        if options.pflag {
+          errors = rm_path(argv, options.vflag) || errors
         }
       }
     }
