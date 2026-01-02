@@ -84,6 +84,8 @@
 		E774050A2F06CF8F00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77405092F06CF8F00498517 /* CMigration */; };
 		E774050C2F06CF9400498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E774050B2F06CF9400498517 /* CMigration */; };
 		E774050E2F06CF9B00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E774050D2F06CF9B00498517 /* CMigration */; };
+		E77405102F070FA200498517 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E774050F2F070FA200498517 /* ShellTesting */; };
+		E77405142F0716AB00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77405132F0716AB00498517 /* CMigration */; };
 		E78DE7162E43A989001E00CA /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E78DE7152E43A989001E00CA /* ShellTesting */; };
 /* End PBXBuildFile section */
 
@@ -742,6 +744,13 @@
 			);
 			target = E774031C2F02E90400498517 /* xattrTest */;
 		};
+		E77405122F070FED00498517 /* Exceptions for "Tests" folder in "touchTest" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				touch/touchTest.swift,
+			);
+			target = E77403062F02E8E300498517 /* touchTest */;
+		};
 		E78DE71C2E43ABBD001E00CA /* Exceptions for "Tests" folder in "chflagsTest" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -785,6 +794,7 @@
 			exceptions = (
 				E78DE71C2E43ABBD001E00CA /* Exceptions for "Tests" folder in "chflagsTest" target */,
 				E77400E72F02D29900498517 /* Exceptions for "Tests" folder in "mkdirTest" target */,
+				E77405122F070FED00498517 /* Exceptions for "Tests" folder in "touchTest" target */,
 				E77403BF2F038F0800498517 /* Exceptions for "Tests" folder in "truncateTest" target */,
 				E77404D12F05F30300498517 /* Exceptions for "Tests" folder in "xattrTest" target */,
 			);
@@ -1146,6 +1156,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E77405102F070FA200498517 /* ShellTesting in Frameworks */,
+				E77405142F0716AB00498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2185,6 +2197,8 @@
 			);
 			name = touchTest;
 			packageProductDependencies = (
+				E774050F2F070FA200498517 /* ShellTesting */,
+				E77405132F0716AB00498517 /* CMigration */,
 			);
 			productName = touchTest;
 			productReference = E77403072F02E8E300498517 /* touchTest.xctest */;
@@ -5753,6 +5767,16 @@
 			productName = CMigration;
 		};
 		E774050D2F06CF9B00498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E774050F2F070FA200498517 /* ShellTesting */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E7A6AA602E428C8C001C9A44 /* XCRemoteSwiftPackageReference "ShellTesting" */;
+			productName = ShellTesting;
+		};
+		E77405132F0716AB00498517 /* CMigration */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
 			productName = CMigration;

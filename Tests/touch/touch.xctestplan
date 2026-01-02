@@ -12,7 +12,13 @@
     "testTimeoutsEnabled" : true
   },
   "testTargets" : [
-
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E77403062F02E8E300498517",
+        "name" : "touchTest"
+      }
+    }
   ],
   "version" : 1
 }
