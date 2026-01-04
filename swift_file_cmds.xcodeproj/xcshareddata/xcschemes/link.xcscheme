@@ -15,9 +15,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "E774017A2F02D90000498517"
-               BuildableName = "ln"
-               BlueprintName = "ln"
+               BlueprintIdentifier = "E77405472F09BB2700498517"
+               BuildableName = "link"
+               BlueprintName = "link"
                ReferencedContainer = "container:swift_file_cmds.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -30,7 +30,7 @@
       shouldUseLaunchSchemeArgsEnv = "YES">
       <TestPlans>
          <TestPlanReference
-            reference = "container:Tests/ln/ln.xctestplan"
+            reference = "container:Tests/link/link.xctestplan"
             default = "YES">
          </TestPlanReference>
       </TestPlans>
@@ -50,18 +50,12 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "E774017A2F02D90000498517"
-            BuildableName = "ln"
-            BlueprintName = "ln"
+            BlueprintIdentifier = "E77405472F09BB2700498517"
+            BuildableName = "link"
+            BlueprintName = "link"
             ReferencedContainer = "container:swift_file_cmds.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
-      <CommandLineArguments>
-         <CommandLineArgument
-            argument = ""
-            isEnabled = "YES">
-         </CommandLineArgument>
-      </CommandLineArguments>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"
@@ -73,9 +67,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "E774017A2F02D90000498517"
-            BuildableName = "ln"
-            BlueprintName = "ln"
+            BlueprintIdentifier = "E77405472F09BB2700498517"
+            BuildableName = "link"
+            BlueprintName = "link"
             ReferencedContainer = "container:swift_file_cmds.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

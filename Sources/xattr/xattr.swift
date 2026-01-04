@@ -303,12 +303,12 @@ options:
     }
 
     // First, we lstat() the path to find out if it's a symlink
-    if lstat(filename, &sb) == -1 {
-      print_errno(filename, nil, errno)
-      return true
+    do {
+      let fmd = try FileMetadata(for: filename /*, resolvingSymlinks: false) */ )
+      is_link = fmd.fileType == .symbolicLink
+    } catch(let e) {
+      print_errno(filename, nil, e.code)
     }
-
-    is_link = FileType(rawValue: sb.st_mode) == .symbolicLink //   S_ISLNK(sb.st_mode);
 
     // Note: this follows symlinks unless sflag = 1
     let fd = open(filename, oflags);

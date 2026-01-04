@@ -5,7 +5,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Copyright (c) 1987, 1993, 1994
- *	The Regents of the University of California.  All rights reserved.
+ *  The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -35,19 +35,20 @@
 import CMigration
 import Darwin
 
-@main class ln : ShellCommand {
+@main class link : ShellCommand {
 
   struct CommandOptions {
-    var fflag = false			/* Unlink existing files. */
-    var Fflag = false			/* Remove empty directories also. */
-    var hflag = false			/* Check new name for symlink first. */
-    var iflag = false			/* Interactive mode. */
-    var Pflag = false			/* Create hard links to symlinks. */
-    var sflag = false			/* Symbolic, not hard, link. */
-    var vflag = false			/* Verbose output. */
-    var wflag = false			/* Warn if symlink target does not
+    var fflag = false      /* Unlink existing files. */
+    var Fflag = false      /* Remove empty directories also. */
+    var hflag = false      /* Check new name for symlink first. */
+    var iflag = false      /* Interactive mode. */
+    var Pflag = false      /* Create hard links to symlinks. */
+    var sflag = false      /* Symbolic, not hard, link. */
+    var vflag = false      /* Verbose output. */
+    var wflag = false      /* Warn if symlink target does not
                            * exist, and -f is not enabled. */
     var args = [String]()
+    var linkFlag = false
     var linkch = ">"
   }
 
@@ -58,12 +59,12 @@ import Darwin
   required init() {
   }
 
-  //    static char	linkch;
+  //    static char  linkch;
 
 
-  //	struct stat sb;
-  //	char *targetdir;
-  //	int ch, exitval;
+  //  struct stat sb;
+  //  char *targetdir;
+  //  int ch, exitval;
 
   /*
    * Test for the special case where the utility is called as
@@ -72,94 +73,35 @@ import Darwin
    */
   func parseOptions() throws(CmdErr) -> CommandOptions {
     var options = CommandOptions()
-    let go = BSDGetopt("FLPfhinsvw")
-    while let (k, v) = try go.getopt() {
-      switch(k) {
-        case "F":
-          options.Fflag = true
-        case "L":
-          options.Pflag = false
-        case "P":
-          options.Pflag = true
-        case "f":
-          options.fflag = true
-          options.iflag = false
-          options.wflag = false
-        case "h", "n":
-          options.hflag = true
-        case "i":
-          options.iflag = true
-          options.fflag = false
-        case "s":
-          options.sflag = true
-        case "v":
-          options.vflag = true
-        case "w":
-          options.wflag = true
-        case "?":
-          fallthrough
-        default:
-          throw CmdErr(1)
+
+      let go = BSDGetopt("")
+      while let (k, v) = try go.getopt() {
+        throw CmdErr(1)
       }
+
+      options.args = go.remaining
+      if options.args.count != 2 {
+        throw CmdErr(1)
+      }
+      options.linkFlag = true
+      return options
     }
 
-    options.args = go.remaining
-
-    options.linkch = options.sflag ? "-" : "="
-    if !options.sflag {
-      options.Fflag = false
-    }
-    if options.Fflag && !options.iflag {
-      options.fflag = true
-      options.wflag = false		/* Implied when fflag is true */
-    }
-    options.args = go.remaining
-    return options
-  }
 
   func runCommand() async throws(CmdErr) {
-    switch options.args.count {
-      case 0:
-        throw CmdErr(1)
-        /* NOTREACHED */
-      case 1:				/* ln source */
-        exit(linkit(options.args[0], ".", true))
-      case 2:				/* ln source target */
-        exit(linkit(options.args[0], options.args[1], false))
-      default:
-        break
+    if let fm = try? FileMetadata(for: options.args[1], followSymlinks: false) {
+      errno = EEXIST
+      err(1, options.args[1]);
     }
-    /* ln source1 source2 directory */
-
-    targetdir = options.args.removeLast()
-    
-    if options.hflag {
-        if let fm = try? FileMetadata(for: targetdir!, followSymlinks: false),
-           fm.fileType == .symbolicLink {
-          /*
-           * We were asked not to follow symlinks, but found one at
-           * the target--simulate "not a directory" error
-           */
-          errno = ENOTDIR
-          err(1, targetdir)
-        }
-    }
-    do {
-      let fm = try FileMetadata(for: targetdir!)
-      if fm.fileType != .directory {
-        throw CmdErr(1, usage)
-      }
-    } catch(let e) {
-      err(1, targetdir)
-    }
-    var exitval : Int32 = 0
-    for argv in options.args {
-      exitval = max(exitval, linkit(argv, targetdir!, true))
-    }
-    exit(exitval)
+    /*
+     * We could simply call link(2) here, but linkit()
+     * performs additional checks and gives better
+     * diagnostics.
+     */
+    exit(linkit(options.args[0], options.args[1], false))
   }
-
-  /*
+  
+    /*
    * Two pathnames refer to the same directory entry if the directories match
    * and the final components' names match.
    */
@@ -337,8 +279,5 @@ import Darwin
     return 0
   }
 
-  var usage : String = """
-usage: ln [-s [-F] | -L | -P] [-f | -i] [-hnv] source_file [target_file]
-       ln [-s [-F] | -L | -P] [-f | -i] [-hnv] source_file ... target_dir
-"""
+  var usage : String = "usage: link source_file target_file"
 }

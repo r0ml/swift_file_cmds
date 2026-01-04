@@ -1,7 +1,7 @@
 {
   "configurations" : [
     {
-      "id" : "F6588C59-3314-4B8E-8EF2-0730F0C36E5A",
+      "id" : "93817C55-CDEB-46F7-BE37-B36FF20E1A90",
       "name" : "Configuration 1",
       "options" : {
 
@@ -15,8 +15,8 @@
     {
       "target" : {
         "containerPath" : "container:swift_file_cmds.xcodeproj",
-        "identifier" : "E77402B92F02E7E100498517",
-        "name" : "lnTest"
+        "identifier" : "E77405522F09BB3800498517",
+        "name" : "linkTest"
       }
     }
   ],

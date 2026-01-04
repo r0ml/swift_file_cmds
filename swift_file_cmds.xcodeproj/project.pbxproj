@@ -86,6 +86,11 @@
 		E774050E2F06CF9B00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E774050D2F06CF9B00498517 /* CMigration */; };
 		E77405102F070FA200498517 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E774050F2F070FA200498517 /* ShellTesting */; };
 		E77405142F0716AB00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77405132F0716AB00498517 /* CMigration */; };
+		E77405442F07892500498517 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E77405432F07892500498517 /* ShellTesting */; };
+		E77405462F078AF200498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77405452F078AF200498517 /* CMigration */; };
+		E774054C2F09BB2700498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77405482F09BB2700498517 /* CMigration */; };
+		E77405592F09BB3800498517 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E77405532F09BB3800498517 /* ShellTesting */; };
+		E774055A2F09BB3800498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77405552F09BB3800498517 /* CMigration */; };
 		E78DE7162E43A989001E00CA /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E78DE7152E43A989001E00CA /* ShellTesting */; };
 /* End PBXBuildFile section */
 
@@ -546,6 +551,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 		};
+		E774054D2F09BB2700498517 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
 		E774FFF92F0239B700498517 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -619,6 +633,8 @@
 		E77403122F02E8F400498517 /* truncateTest.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = truncateTest.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E774031D2F02E90400498517 /* xattrTest.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = xattrTest.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E77403472F03346800498517 /* chgrp */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = chgrp; sourceTree = BUILT_PRODUCTS_DIR; };
+		E77405512F09BB2700498517 /* link */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = link; sourceTree = BUILT_PRODUCTS_DIR; };
+		E774055F2F09BB3800498517 /* linkTest.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = linkTest.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E774FF2B2F02333E00498517 /* all.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = all.xctestplan; sourceTree = "<group>"; };
 		E774FFFB2F0239B700498517 /* mkdir */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = mkdir; sourceTree = BUILT_PRODUCTS_DIR; };
 		E78DE70D2E43A97E001E00CA /* chflagsTest.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = chflagsTest.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -751,6 +767,34 @@
 			);
 			target = E77403062F02E8E300498517 /* touchTest */;
 		};
+		E77405422F0788D700498517 /* Exceptions for "Tests" folder in "lnTest" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ln/lnTest.swift,
+			);
+			target = E77402B92F02E7E100498517 /* lnTest */;
+		};
+		E77405652F09BBA800498517 /* Exceptions for "Sources" folder in "link" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				link/link.swift,
+			);
+			target = E77405472F09BB2700498517 /* link */;
+		};
+		E774056B2F09BBF000498517 /* Exceptions for "Tests" folder in "chflags" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				link/linkTest.swift,
+			);
+			target = E7A6AA552E428C1A001C9A44 /* chflags */;
+		};
+		E774056F2F09BF9600498517 /* Exceptions for "Tests" folder in "linkTest" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				link/linkTest.swift,
+			);
+			target = E77405522F09BB3800498517 /* linkTest */;
+		};
 		E78DE71C2E43ABBD001E00CA /* Exceptions for "Tests" folder in "chflagsTest" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -777,6 +821,7 @@
 				E774032A2F03320500498517 /* Exceptions for "Sources" folder in "cksum" target */,
 				E774033D2F03335400498517 /* Exceptions for "Sources" folder in "du" target */,
 				E774033B2F03334A00498517 /* Exceptions for "Sources" folder in "ipcrm" target */,
+				E77405652F09BBA800498517 /* Exceptions for "Sources" folder in "link" target */,
 				E77403392F03334100498517 /* Exceptions for "Sources" folder in "ln" target */,
 				E77400042F0239F900498517 /* Exceptions for "Sources" folder in "mkdir" target */,
 				E77403372F03333500498517 /* Exceptions for "Sources" folder in "mknod" target */,
@@ -792,7 +837,10 @@
 		E7370AC92E42746700246ED4 /* Tests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
+				E774056B2F09BBF000498517 /* Exceptions for "Tests" folder in "chflags" target */,
 				E78DE71C2E43ABBD001E00CA /* Exceptions for "Tests" folder in "chflagsTest" target */,
+				E774056F2F09BF9600498517 /* Exceptions for "Tests" folder in "linkTest" target */,
+				E77405422F0788D700498517 /* Exceptions for "Tests" folder in "lnTest" target */,
 				E77400E72F02D29900498517 /* Exceptions for "Tests" folder in "mkdirTest" target */,
 				E77405122F070FED00498517 /* Exceptions for "Tests" folder in "touchTest" target */,
 				E77403BF2F038F0800498517 /* Exceptions for "Tests" folder in "truncateTest" target */,
@@ -1107,6 +1155,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E77405442F07892500498517 /* ShellTesting in Frameworks */,
+				E77405462F078AF200498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1182,6 +1232,23 @@
 			buildActionMask = 2147483647;
 			files = (
 				E77404DA2F06CF1F00498517 /* CMigration in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E774054B2F09BB2700498517 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E774054C2F09BB2700498517 /* CMigration in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E77405582F09BB3800498517 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E77405592F09BB3800498517 /* ShellTesting in Frameworks */,
+				E774055A2F09BB3800498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1281,6 +1348,8 @@
 				E77403122F02E8F400498517 /* truncateTest.xctest */,
 				E774031D2F02E90400498517 /* xattrTest.xctest */,
 				E77403472F03346800498517 /* chgrp */,
+				E77405512F09BB2700498517 /* link */,
+				E774055F2F09BB3800498517 /* linkTest.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -2064,6 +2133,8 @@
 			);
 			name = lnTest;
 			packageProductDependencies = (
+				E77405432F07892500498517 /* ShellTesting */,
+				E77405452F078AF200498517 /* CMigration */,
 			);
 			productName = lnTest;
 			productReference = E77402BA2F02E7E100498517 /* lnTest.xctest */;
@@ -2263,6 +2334,47 @@
 			productName = chgrp;
 			productReference = E77403472F03346800498517 /* chgrp */;
 			productType = "com.apple.product-type.tool";
+		};
+		E77405472F09BB2700498517 /* link */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E774054E2F09BB2700498517 /* Build configuration list for PBXNativeTarget "link" */;
+			buildPhases = (
+				E774054A2F09BB2700498517 /* Sources */,
+				E774054B2F09BB2700498517 /* Frameworks */,
+				E774054D2F09BB2700498517 /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = link;
+			packageProductDependencies = (
+				E77405482F09BB2700498517 /* CMigration */,
+			);
+			productName = ln;
+			productReference = E77405512F09BB2700498517 /* link */;
+			productType = "com.apple.product-type.tool";
+		};
+		E77405522F09BB3800498517 /* linkTest */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E774055C2F09BB3800498517 /* Build configuration list for PBXNativeTarget "linkTest" */;
+			buildPhases = (
+				E77405572F09BB3800498517 /* Sources */,
+				E77405582F09BB3800498517 /* Frameworks */,
+				E774055B2F09BB3800498517 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = linkTest;
+			packageProductDependencies = (
+				E77405532F09BB3800498517 /* ShellTesting */,
+				E77405552F09BB3800498517 /* CMigration */,
+			);
+			productName = lnTest;
+			productReference = E774055F2F09BB3800498517 /* linkTest.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 		E774FFFA2F0239B700498517 /* mkdir */ = {
 			isa = PBXNativeTarget;
@@ -2547,6 +2659,8 @@
 				E77402A32F02E7C800498517 /* ipcrmTest */,
 				E77401852F02D90800498517 /* ipcs */,
 				E77402AE2F02E7D800498517 /* ipcsTest */,
+				E77405472F09BB2700498517 /* link */,
+				E77405522F09BB3800498517 /* linkTest */,
 				E774017A2F02D90000498517 /* ln */,
 				E77402B92F02E7E100498517 /* lnTest */,
 				E774016F2F02D8F900498517 /* ls */,
@@ -2726,6 +2840,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		E774031B2F02E90400498517 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E774055B2F09BB3800498517 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -3079,6 +3200,20 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		E77403432F03346800498517 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E774054A2F09BB2700498517 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E77405572F09BB3800498517 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -5008,6 +5143,72 @@
 			};
 			name = Release;
 		};
+		E774054F2F09BB2700498517 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = MHEBPE6SV2;
+				ENABLE_HARDENED_RUNTIME = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		E77405502F09BB2700498517 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = MHEBPE6SV2;
+				ENABLE_HARDENED_RUNTIME = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		E774055D2F09BB3800498517 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = MHEBPE6SV2;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = software.tinker.lnTest;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		E774055E2F09BB3800498517 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = MHEBPE6SV2;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = software.tinker.lnTest;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 		E774FF262F02327400498517 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -5549,6 +5750,24 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		E774054E2F09BB2700498517 /* Build configuration list for PBXNativeTarget "link" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E774054F2F09BB2700498517 /* Debug */,
+				E77405502F09BB2700498517 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E774055C2F09BB3800498517 /* Build configuration list for PBXNativeTarget "linkTest" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E774055D2F09BB3800498517 /* Debug */,
+				E774055E2F09BB3800498517 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		E774FF282F02327400498517 /* Build configuration list for PBXAggregateTarget "all_commands" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -5589,6 +5808,30 @@
 
 /* Begin XCRemoteSwiftPackageReference section */
 		E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/r0ml/CMigration";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+		E77405492F09BB2700498517 /* XCRemoteSwiftPackageReference "CMigration" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/r0ml/CMigration";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+		E77405542F09BB3800498517 /* XCRemoteSwiftPackageReference "ShellTesting" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/r0ml/ShellTesting";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+		E77405562F09BB3800498517 /* XCRemoteSwiftPackageReference "CMigration" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/r0ml/CMigration";
 			requirement = {
@@ -5779,6 +6022,31 @@
 		E77405132F0716AB00498517 /* CMigration */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77405432F07892500498517 /* ShellTesting */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E7A6AA602E428C8C001C9A44 /* XCRemoteSwiftPackageReference "ShellTesting" */;
+			productName = ShellTesting;
+		};
+		E77405452F078AF200498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77405482F09BB2700498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77405492F09BB2700498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77405532F09BB3800498517 /* ShellTesting */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77405542F09BB3800498517 /* XCRemoteSwiftPackageReference "ShellTesting" */;
+			productName = ShellTesting;
+		};
+		E77405552F09BB3800498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77405562F09BB3800498517 /* XCRemoteSwiftPackageReference "CMigration" */;
 			productName = CMigration;
 		};
 		E78DE7152E43A989001E00CA /* ShellTesting */ = {
