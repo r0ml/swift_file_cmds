@@ -35,112 +35,108 @@
  * SUCH DAMAGE.
  */
 
-#include <sys/cdefs.h> /* __used */
-#ifndef lint
-__used static const char copyright[] =
-"@(#) Copyright (c) 1991, 1993\n\
-	The Regents of the University of California.  All rights reserved.\n";
-#endif /* not lint */
+import CMigration
+import Darwin
 
-#ifndef lint
-#if 0
-static char sccsid[] = "@(#)cksum.c	8.2 (Berkeley) 4/28/95";
-#endif
-#endif /* not lint */
+@main struct cksum : ShellCommand {
+  //	uint32_t val;
+  //	int ch, fd, rval;
+  //	off_t len;
+  //	char *fn, *p;
+  //	int (*cfncn)(int, uint32_t *, off_t *);
+  //	void (*pfncn)(char *, uint32_t, off_t);
 
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
 
-#include <sys/types.h>
+  struct CommandOptions {
+    var cfncn : (Int32) -> (UInt32, Int)? = crc
+    var pfncn : (String?, UInt32, Int) -> () = pcrc
+    var args : [String] = []
+  }
 
-#include <err.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
+  var options : CommandOptions!
 
-#include "extern.h"
+  /*
+  if ((p = strrchr(argv[0], '/')) == NULL)
+    p = argv[0];
+  else
+    ++p;
+*/
 
-static void usage(void);
+  func parseOptions() throws(CmdErr) -> CommandOptions {
+/*    if (!strcmp(p, "sum")) {
+      cfncn = csum1;
+      pfncn = psum1;
+      ++argv;
+    } else {
+ */
+    var options = CommandOptions()
+    var go = BSDGetopt("o:")
+    while let (k,v) = try go.getopt() {
+      switch k {
+        case "o":
+          switch v {
+            case "1":
+              options.cfncn = csum1
+              options.pfncn = psum1
+            case "2":
+              options.cfncn = csum2
+              options.pfncn = psum2
+            case "3":
+              options.cfncn = crc32
+              options.pfncn = pcrc
+            default:
+              warn("illegal argument to -o option")
+              throw CmdErr(1)
+          }
+        case "?":
+          fallthrough
+        default:
+          throw CmdErr(1)
+      }
+    }
+    options.args = go.remaining
+    return options
+  }
 
-int
-main(int argc, char **argv)
-{
-	uint32_t val;
-	int ch, fd, rval;
-	off_t len;
-	char *fn, *p;
-	int (*cfncn)(int, uint32_t *, off_t *);
-	void (*pfncn)(char *, uint32_t, off_t);
+  func runCommand() throws(CmdErr) {
+    var rval : Int32 = 0
+    if options.args.isEmpty {
+      let fd = STDIN_FILENO
+      let fn : String? = nil
+      if let vl = options.cfncn(fd) {
+        options.pfncn(fn, vl.0, vl.1)
+      } else {
+        warn(fn ?? "stdin")
+        rval = 1
+      }
+    }
 
-	if ((p = strrchr(argv[0], '/')) == NULL)
-		p = argv[0];
-	else
-		++p;
-	if (!strcmp(p, "sum")) {
-		cfncn = csum1;
-		pfncn = psum1;
-		++argv;
-	} else {
-		cfncn = crc;
-		pfncn = pcrc;
+    for fn in options.args {
+      let fd = open(fn, O_RDONLY, 0)
+        if fd < 0 {
+          warn(fn)
+          rval = 1
+          continue
+        }
 
-		while ((ch = getopt(argc, argv, "o:")) != -1)
-			switch (ch) {
-			case 'o':
-				if (!strcmp(optarg, "1")) {
-					cfncn = csum1;
-					pfncn = psum1;
-				} else if (!strcmp(optarg, "2")) {
-					cfncn = csum2;
-					pfncn = psum2;
-				} else if (!strcmp(optarg, "3")) {
-					cfncn = crc32;
-					pfncn = pcrc;
-				} else {
-					warnx("illegal argument to -o option");
-					usage();
-				}
-				break;
-			case '?':
-			default:
-				usage();
-			}
-		argc -= optind;
-		argv += optind;
-	}
+    if let vl = options.cfncn(fd) {
+      options.pfncn(fn, vl.0, vl.1)
+    } else {
+        warn(fn)
+        rval = 1
+      }
+      close(fd)
+    }
+//    #ifdef __APPLE__
+//    if (rval == 0 && (ferror(stdout) != 0 || fflush(stdout) != 0)) {
+//      err(1, "stdout")
+//    }
+//#endif
+    exit(rval)
+  }
 
-	fd = STDIN_FILENO;
-	fn = NULL;
-	rval = 0;
-	do {
-		if (*argv) {
-			fn = *argv++;
-			if ((fd = open(fn, O_RDONLY, 0)) < 0) {
-				warn("%s", fn);
-				rval = 1;
-				continue;
-			}
-		}
-		if (cfncn(fd, &val, &len)) {
-			warn("%s", fn ? fn : "stdin");
-			rval = 1;
-		} else
-			pfncn(fn, val, len);
-		(void)close(fd);
-	} while (*argv);
-#ifdef __APPLE__
-	if (rval == 0 && (ferror(stdout) != 0 || fflush(stdout) != 0))
-		err(1, "stdout");
-#endif
-	exit(rval);
-}
-
-static void
-usage(void)
-{
-	(void)fprintf(stderr, "usage: cksum [-o 1 | 2 | 3] [file ...]\n");
-	(void)fprintf(stderr, "       sum [file ...]\n");
-	exit(1);
+  var usage = """
+usage: cksum [-o 1 | 2 | 3] [file ...]
+       sum [file ...]
+"""
 }

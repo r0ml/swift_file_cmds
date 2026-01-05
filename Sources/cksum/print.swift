@@ -32,45 +32,30 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-#if 0
-static char sccsid[] = "@(#)print.c	8.1 (Berkeley) 6/6/93";
-#endif
-#endif /* not lint */
+import CMigration
 
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
-
-#include <sys/types.h>
-
-#include <stdio.h>
-#include <stdint.h>
-
-#include "extern.h"
-
-void
-pcrc(char *fn, uint32_t val, off_t len)
-{
-	(void)printf("%lu %jd", (u_long)val, (intmax_t)len);
-	if (fn != NULL)
-		(void)printf(" %s", fn);
-	(void)printf("\n");
+func pcrc(_ fn : String?, _ val : UInt32, _ len : Int) {
+  print("\(val) \(len)", terminator: "")
+  if let fn  {
+    print(" \(fn)", terminator: "")
+  }
+	print("")
 }
 
-void
-psum1(char *fn, uint32_t val, off_t len)
-{
-	(void)printf("%lu %jd", (u_long)val, (intmax_t)(len + 1023) / 1024);
-	if (fn != NULL)
-		(void)printf(" %s", fn);
-	(void)printf("\n");
+func psum1(_ fn : String?, _ val : UInt32, _ len : Int) {
+  let jd = (len + 1023) / 1024
+  print("\(val) \(jd)", terminator: "")
+  if let fn {
+    print(" \(fn)", terminator: "")
+  }
+	print("")
 }
 
-void
-psum2(char *fn, uint32_t val, off_t len)
-{
-	(void)printf("%lu %jd", (u_long)val, (intmax_t)(len + 511) / 512);
-	if (fn != NULL)
-		(void)printf(" %s", fn);
-	(void)printf("\n");
+func psum2(_ fn : String?, _ val : UInt32, _ len : Int) {
+  let j = (len + 511) / 512
+  print("\(val) \(j)", terminator: "")
+  if let fn {
+    print(" \(fn)", terminator: "")
+  }
+	print("")
 }

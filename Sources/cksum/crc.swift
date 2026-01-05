@@ -35,22 +35,10 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-#if 0
-static char sccsid[] = "@(#)crc.c	8.1 (Berkeley) 6/17/93";
-#endif
-#endif /* not lint */
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
+import CMigration
+import Darwin
 
-#include <sys/types.h>
-
-#include <stdint.h>
-#include <unistd.h>
-
-#include "extern.h"
-
-static const uint32_t crctab[] = {
+fileprivate var crctab : Array<UInt32> = [
 	0x0,
 	0x04c11db7, 0x09823b6e, 0x0d4326d9, 0x130476dc, 0x17c56b6b,
 	0x1a864db2, 0x1e475005, 0x2608edb8, 0x22c9f00f, 0x2f8ad6d6,
@@ -103,7 +91,7 @@ static const uint32_t crctab[] = {
 	0x8d79e0be, 0x803ac667, 0x84fbdbd0, 0x9abc8bd5, 0x9e7d9662,
 	0x933eb0bb, 0x97ffad0c, 0xafb010b1, 0xab710d06, 0xa6322bdf,
 	0xa2f33668, 0xbcb4666d, 0xb8757bda, 0xb5365d03, 0xb1f740b4
-};
+]
 
 /*
  * Compute a POSIX 1003.2 checksum.  This routine has been broken out so that
@@ -111,38 +99,43 @@ static const uint32_t crctab[] = {
  * locations to store the crc and the number of bytes read.  It returns 0 on
  * success and 1 on failure.  Errno is set on failure.
  */
-uint32_t crc_total = ~0;		/* The crc over a number of files. */
+var crc_total : UInt32 = ~0;		/* The crc over a number of files. */
 
-int
-crc(int fd, uint32_t *cval, off_t *clen)
-{
-	uint32_t lcrc;
-	int nr;
-	off_t len;
-	u_char *p;
-	u_char buf[16 * 1024];
+func crc(_ fd : Int32) -> (UInt32, Int)?  {
+//	uint32_t lcrc;
+//	int nr;
+//	off_t len;
+//	u_char *p;
+//	u_char buf[16 * 1024];
+  let bufsiz = 16 * 1024
+  var buf = Array<UInt8>(repeating: 0, count: bufsiz)
 
-#define	COMPUTE(var, ch)	(var) = (var) << 8 ^ crctab[(var) >> 24 ^ (ch)]
+  func COMPUTE(_ varx : UInt32, _ ch : UInt8) -> UInt32	{
+    return (varx << 8) ^ crctab[Int(UInt8(varx >> 24) ^ ch)]
+  }
 
-	lcrc = len = 0;
-	crc_total = ~crc_total;
-	while ((nr = read(fd, buf, sizeof(buf))) > 0)
-		for (len += nr, p = buf; nr--; ++p) {
-			COMPUTE(lcrc, *p);
-			COMPUTE(crc_total, *p);
-		}
-	if (nr < 0)
-		return (1);
-
-	*clen = len;
+  var lcrc : UInt32 = 0
+  var len = 0
+	crc_total = ~crc_total
+  while true {
+    let nr = read(fd, &buf, bufsiz)
+    if nr < 0 { return nil }
+    if nr == 0 { break }
+    len += nr
+    for x in 0..<nr {
+      lcrc = COMPUTE(lcrc, buf[x])
+      crc_total = COMPUTE(crc_total, buf[x])
+    }
+  }
 
 	/* Include the length of the file. */
-	for (; len != 0; len >>= 8) {
-		COMPUTE(lcrc, len & 0xff);
-		COMPUTE(crc_total, len & 0xff);
-	}
+  var lenx = len
+  while lenx != 0 {
+    lcrc = COMPUTE(lcrc, UInt8(lenx & 0xff))
+    crc_total = COMPUTE(crc_total, UInt8(lenx & 0xff))
+    lenx = lenx >> 8
+  }
 
-	*cval = ~lcrc;
 	crc_total = ~crc_total;
-	return (0);
+  return (~lcrc, len)
 }

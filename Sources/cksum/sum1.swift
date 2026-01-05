@@ -32,46 +32,36 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-#if 0
-static char sccsid[] = "@(#)sum1.c	8.1 (Berkeley) 6/6/93";
-#endif
-#endif /* not lint */
+import CMigration
+import Darwin
 
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
+func csum1(_ fd : Int32) -> (UInt32, Int)? {
+//	int nr;
+//	u_int lcrc;
+//	off_t total;
+//	u_char *p;
+//	u_char buf[8192];
 
-#include <sys/types.h>
-
-#include <unistd.h>
-#include <stdint.h>
-
-#include "extern.h"
-
-int
-csum1(int fd, uint32_t *cval, off_t *clen)
-{
-	int nr;
-	u_int lcrc;
-	off_t total;
-	u_char *p;
-	u_char buf[8192];
-
+  let bufsiz = 8192
+  var buf = Array(repeating: UInt8(0), count: bufsiz)
 	/*
 	 * 16-bit checksum, rotating right before each addition;
 	 * overflow is discarded.
 	 */
-	lcrc = total = 0;
-	while ((nr = read(fd, buf, sizeof(buf))) > 0)
-		for (total += nr, p = buf; nr--; ++p) {
-			if (lcrc & 1)
-				lcrc |= 0x10000;
-			lcrc = ((lcrc >> 1) + *p) & 0xffff;
-		}
-	if (nr < 0)
-		return (1);
+  var lcrc : UInt32 = 0
+  var total = 0
+  while true {
+    let nr = read(fd, &buf, bufsiz)
+    if nr == 0 { break }
+    if nr < 0 { return nil }
+    total += nr
+    for x in 0..<nr {
+      if (lcrc & 1) != 0 {
+        lcrc |= 0x10000
+      }
+      lcrc = ((lcrc >> 1) + UInt32(buf[x]) ) & 0xffff
+    }
+  }
 
-	*cval = lcrc;
-	*clen = total;
-	return (0);
+  return (lcrc, total)
 }
