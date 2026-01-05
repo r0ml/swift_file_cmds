@@ -37,171 +37,148 @@
  * to all POSIX systems.
  */
 
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
+import CMigration
+import Darwin
 
-#include <sys/types.h>
-#include <sys/stat.h>
+struct pathchk : ShellCommand {
 
-#include <err.h>
-#include <errno.h>
-#include <limits.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
+  struct CommandOptions {
+    var pflag = false  /* Perform portability checks */
+    var Pflag = false  /* Check for empty paths, leading '-' */
+    var args : [String] = []
+  }
 
-static int	 check(const char *);
-static int	 portable(const char *);
-static void	 usage(void);
+  var options : CommandOptions!
 
-static int	 pflag;			/* Perform portability checks */
-static int	 Pflag;			/* Check for empty paths, leading '-' */
+  func parseOptions() throws(CmdErr) -> CommandOptions {
+    var options = CommandOptions()
+    let go = BSDGetopt("pP")
+    while let (k, _) = try go.getopt() {
+      switch k {
+        case "p":
+          options.pflag = true
+        case "P":
+          options.Pflag = true
+        default:
+          throw CmdErr(1)
+      }
+    }
+    options.args = go.remaining
+    if options.args.isEmpty {
+      throw CmdErr(1)
+    }
+    return options
+  }
 
-int
-main(int argc, char *argv[])
-{
-	int ch, rval;
-	const char *arg;
+  func runCommand() async throws(CmdErr) {
+    var rval : Int32 = 0
+    for arg in options.args {
+      if check(arg) {
+        rval = 1
+      }
+    }
 
-	while ((ch = getopt(argc, argv, "pP")) > 0) {
-		switch (ch) {
-		case 'p':
-			pflag = 1;
-			break;
-		case 'P':
-			Pflag = 1;
-			break;
-		default:
-			usage();
-			/*NOTREACHED*/
-		}
-	}
-	argc -= optind;
-	argv += optind;
+    exit(rval);
+  }
 
-	if (argc == 0)
-		usage();
+  var usage = "usage: pathchk [-Pp] pathname ..."
 
-	rval = 0;
-	while ((arg = *argv++) != NULL)
-		rval |= check(arg);
 
-	exit(rval);
-}
+  func check(_ path : String) -> Bool {
+    //	struct stat sb;
+    //	long complen, namemax, pathmax, svnamemax;
+    //	int last;
+    //	char *end, *p, *pathd;
 
-static void
-usage(void)
-{
+    let pathd = path
+    let p = pathd
 
-	fprintf(stderr, "usage: pathchk [-Pp] pathname ...\n");
-	exit(1);
-}
+    if options.Pflag && p.isEmpty {
+      warnx(": empty pathname")
+      return true
+    }
 
-static int
-check(const char *path)
-{
-	struct stat sb;
-	long complen, namemax, pathmax, svnamemax;
-	int last;
-	char *end, *p, *pathd;
+    if (options.Pflag || options.pflag) && (p.hasPrefix("-") || p.firstMatch(of: /\/-/) != nil) {
+      warn("\(path): contains a component starting with '-'");
+      return true
+    }
 
-	if ((pathd = strdup(path)) == NULL)
-		err(1, "strdup");
+    var namemax = Int(_POSIX_NAME_MAX)
+    if !options.pflag {
+      errno = 0
+      namemax = pathconf(p.hasPrefix("/") ? "/" : ".", Int32(_PC_NAME_MAX))
+      if namemax == -1 && errno != 0 {
+        namemax = Int(NAME_MAX)
+      }
+    }
 
-	p = pathd;
+    let k = FilePath(path).components
+    var j = [String]()
+    for p in k {
+//      p += strspn(p, "/");
+//      complen = strcspn(p, "/")
+//      end = p + complen;
+//      last = *end == '\0';
+//      *end = '\0';
 
-	if (Pflag && *p == '\0') {
-		warnx("%s: empty pathname", path);
-		goto bad;
-	}
-	if ((Pflag || pflag) && (*p == '-' || strstr(p, "/-") != NULL)) {
-		warnx("%s: contains a component starting with '-'", path);
-		goto bad;
-	}
+      if (namemax != -1 && p.string.count > namemax) {
+        warn("\(path): \(p): component too long (limit \(namemax)")
+        return true
+      }
 
-	if (!pflag) {
-		errno = 0;
-		namemax = pathconf(*p == '/' ? "/" : ".", _PC_NAME_MAX);
-		if (namemax == -1 && errno != 0)
-			namemax = NAME_MAX;
-	} else
-		namemax = _POSIX_NAME_MAX;
+      j.append(p.string)
+      if !options.pflag {
+        do {
+          let _ = try FileMetadata(for: String(j.joined(separator: "/")))
+        } catch(let e) {
+          if e.code != ENOENT {
+            warn("\(path): \(j)")
+            return true
+          }
+        }
+      }
 
-	for (;;) {
-		p += strspn(p, "/");
-		complen = (long)strcspn(p, "/");
-		end = p + complen;
-		last = *end == '\0';
-		*end = '\0';
+      if options.pflag && !portable(p.string) {
+        warn("\(path): \(p): component contains non-portable character")
+        return true
+      }
 
-		if (namemax != -1 && complen > namemax) {
-			warnx("%s: %s: component too long (limit %ld)", path,
-			    p, namemax);
-			goto bad;
-		}
+      if j.count == k.count {
+        break
+      }
 
-		if (!pflag && stat(pathd, &sb) == -1 && errno != ENOENT) {
-			warn("%s: %.*s", path, (int)(strlen(pathd) -
-			    complen - 1), pathd);
-			goto bad;
-		}
+      if !options.pflag {
+        errno = 0
+        let svnamemax = namemax
+        namemax = pathconf(j.joined(separator: "/"), _PC_NAME_MAX)
+        if (namemax == -1 && errno != 0) {
+          namemax = svnamemax
+        }
+      }
+    }
 
-		if (pflag && !portable(p)) {
-			warnx("%s: %s: component contains non-portable "
-			    "character", path, p);
-			goto bad;
-		}
+    var pathmax = Int(_POSIX_PATH_MAX)
+    if !options.pflag {
+      errno = 0;
+      pathmax = pathconf(path, _PC_PATH_MAX)
+      if (pathmax == -1 && errno != 0) {
+        pathmax = Int(PATH_MAX)
+      }
+    }
 
-		if (last)
-			break;
+    if pathmax != -1 && path.count >= pathmax {
+      warn("\(path): path too long (limit \(pathmax-1)")
+      return true
+    }
 
-		if (!pflag) {
-			errno = 0;
-			svnamemax = namemax;
-			namemax = pathconf(pathd, _PC_NAME_MAX);
-			if (namemax == -1 && errno != 0)
-				namemax = svnamemax;
-		}
+    return false
+  }
 
-		*end = '/';
-		p = end + 1;
-	}
-
-	if (!pflag) {
-		errno = 0;
-		pathmax = pathconf(path, _PC_PATH_MAX);
-		if (pathmax == -1 && errno != 0)
-			pathmax = PATH_MAX;
-	} else
-		pathmax = _POSIX_PATH_MAX;
-	if (pathmax != -1 && strlen(path) >= (size_t)pathmax) {
-		warnx("%s: path too long (limit %ld)", path, pathmax - 1);
-		goto bad;
-	}
-
-	free(pathd);
-	return (0);
-
-bad:	free(pathd);
-	return (1);
-}
-
-/*
- * Check whether a path component contains only portable characters.
- */
-static int
-portable(const char *path)
-{
-	static const char charset[] =
-	    "abcdefghijklmnopqrstuvwxyz"
-	    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	    "0123456789._-";
-	long s;
-
-	s = strspn(path, charset);
-	if (path[s] != '\0')
-		return (0);
-
-	return (1);
+  /*
+   * Check whether a path component contains only portable characters.
+   */
+  func portable(_ path : String) -> Bool {
+    let charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
+    return path.allSatisfy { charset.contains($0) }
+  }
 }

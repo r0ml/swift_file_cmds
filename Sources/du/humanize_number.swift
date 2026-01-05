@@ -72,10 +72,6 @@ public func humanize_number(_ len : Int, _ quotientx : Int, _ suffix : String, _
 /// get scale for humanize_number, or fail with nil
 fileprivate func gshn(_ len : Int, _ quotientx : Int, _ suffix : String, _ flags : HumanizeFlags) -> Int? {
   /* Values for humanize_number(3)'s scale parameter. */
-  let getscale = 1 << 4 // 0x10
-  let autoscale = 1 << 5 // 0x20
-
-
 
   /*
    const char *prefixes, *sep;

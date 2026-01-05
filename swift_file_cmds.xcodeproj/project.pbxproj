@@ -808,7 +808,6 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				chflags/chflags.swift,
-				du/humanize_number.swift,
 			);
 			target = E7A6AA552E428C1A001C9A44 /* chflags */;
 		};
