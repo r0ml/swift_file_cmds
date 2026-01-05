@@ -35,52 +35,17 @@
  * SUCH DAMAGE.
  */
 
-#include <sys/cdefs.h>
-#ifndef lint
-__used static const char copyright[] =
-"@(#) Copyright (c) 1989, 1993, 1994\n\
-	The Regents of the University of California.  All rights reserved.\n";
-#endif /* not lint */
+import CMigration
+import Darwin
 
-#ifndef lint
-#if 0
-static const char sccsid[] = "@(#)du.c	8.5 (Berkeley) 5/4/95";
-#endif
-#endif /* not lint */
+let SI_OPT = CHAR_MAX + 1
+let UNITS_2 = 1
+let UNITS_SI = 2
 
-#include <sys/mount.h>
-#include <sys/param.h>
-#include <sys/queue.h>
-#include <sys/stat.h>
-#include <sys/attr.h>
+let unix2003 = true
 
-#include <err.h>
-#include <errno.h>
-#include <fnmatch.h>
-#include <fts.h>
-#include <getopt.h>
-#include <libutil.h>
-#include <locale.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sysexits.h>
-#include <unistd.h>
 
-#ifdef __APPLE__
-#include <get_compat.h>
-#include <sys/sysctl.h>
-#include <TargetConditionals.h>
-#else
-#define COMPAT_MODE(func, mode) (1)
-#endif
-
-#define SI_OPT	(CHAR_MAX + 1)
-
-#define UNITS_2		1
-#define UNITS_SI	2
-
+/*
 typedef struct _compat_ftsent {
 	struct _ftsent *fts_cycle;	/* cycle node */
 	struct _ftsent *fts_parent;	/* parent directory */
@@ -125,673 +90,710 @@ struct ignentry {
 	char			*mask;
 	SLIST_ENTRY(ignentry)	next;
 };
+*/
 
-static int	linkchk(FTSENT *);
-static int	dirlinkchk(FTSENT *);
-static void	usage(void);
-static void	prthumanval(int64_t);
-static void	ignoreadd(const char *);
-static void	ignoreclean(void);
-static int	ignorep(FTSENT *);
-static void	siginfo(int __unused);
 
-static int	nodumpflag = 0;
-static int	Aflag, hflag;
-static long	blocksize, cblocksize;
-static volatile sig_atomic_t info;
+@main struct du : ShellCommand {
+  
+  /*
+   FTS		*fts;
+   FTSENT		*p;
+   off_t		savednumber, curblocks;
+   uint64_t	threshold, threshold_sign;
+   int		ftsoptions;
+   char 		**save;
+   static char	dot[] = ".";
 
-static const struct option long_options[] =
-{
-	{ "si", no_argument, NULL, SI_OPT },
-	{ NULL, no_argument, NULL, 0 },
-};
+   setlocale(LC_ALL, "");
 
-int
-main(int argc, char *argv[])
-{
-	FTS		*fts;
-	FTSENT		*p;
-	off_t		savednumber, curblocks;
-	uint64_t	threshold, threshold_sign;
-	int		ftsoptions;
-	int		depth;
-	int		Hflag, Lflag, aflag, sflag, dflag, cflag;
-	int		lflag, ch, notused, rval;
-	char 		**save;
-	static char	dot[] = ".";
+   */
 
-	setlocale(LC_ALL, "");
+  struct CommandOptions {
+    var Hflag = false
+    var Lflag = false
+    var aflag = false
+    var sflag = false
+    var dflag = false
+    var cflag = false
+    var lflag = false
+    var hflag = 0
+    var Aflag = false
+    var nodumpflag = false
+    var cblocksize = Int(DEV_BSIZE)
+    var blocksize = 0
+    var depth = Int(INT_MAX)
+    var threshold = 0
+    var threshold_sign = 1
+    var ftsoptions : FTSFlags = []
+    var args : [String] = []
+  }
 
-	Hflag = Lflag = aflag = sflag = dflag = cflag = lflag = hflag = Aflag = 0;
+  var options : CommandOptions!
 
-	save = argv;
-	ftsoptions = FTS_PHYSICAL;
-#ifdef __APPLE__
-	// rdar://4924219
-	ftsoptions |= FTS_NOCHDIR;
-#endif
-	savednumber = 0;
-	threshold = 0;
-	threshold_sign = 1;
-	cblocksize = DEV_BSIZE;
-	blocksize = 0;
-	depth = INT_MAX;
-	SLIST_INIT(&ignores);
+  /*
+   save = argv;
+   ftsoptions = FTS_PHYSICAL;
+   #ifdef __APPLE__
+   // rdar://4924219
+   ftsoptions |= FTS_NOCHDIR;
+   #endif
+   savednumber = 0;
+   threshold = 0;
+   threshold_sign = 1;
+   SLIST_INIT(&ignores);
+   */
 
-	while ((ch = getopt_long(argc, argv, "+AB:HI:LPasd:cghklmnrt:x",
-	    long_options, NULL)) != -1)
-		switch (ch) {
-		case 'A':
-			Aflag = 1;
-			break;
-		case 'B':
-			errno = 0;
-			cblocksize = atoi(optarg);
-			if (errno == ERANGE || cblocksize <= 0) {
-				warnx("invalid argument to option B: %s",
-				    optarg);
-				usage();
-			}
-			break;
-		case 'H':
-			Hflag = 1;
-			Lflag = 0;
-			break;
-		case 'I':
-			ignoreadd(optarg);
-			break;
-		case 'L':
-			Lflag = 1;
-			Hflag = 0;
-			break;
-		case 'P':
-			Hflag = Lflag = 0;
-			break;
-		case 'a':
-			aflag = 1;
-			break;
-		case 's':
-			sflag = 1;
-			break;
-		case 'd':
-			dflag = 1;
-			errno = 0;
-			depth = atoi(optarg);
-			if (errno == ERANGE || depth < 0) {
-				warnx("invalid argument to option d: %s",
-				    optarg);
-				usage();
-			}
-			break;
-		case 'c':
-			cflag = 1;
-			break;
-		case 'g':
-			hflag = 0;
-			blocksize = 1073741824;
-			break;
-		case 'h':
-			hflag = UNITS_2;
-			break;
-		case 'k':
-			hflag = 0;
-			blocksize = 1024;
-			break;
-		case 'l':
-			lflag = 1;
-			break;
-		case 'm':
-			hflag = 0;
-			blocksize = 1048576;
-			break;
-		case 'n':
-			nodumpflag = 1;
-			break;
-		case 'r':		 /* Compatibility. */
-			break;
-		case 't' :
-			if (expand_number(optarg, &threshold) != 0 ||
-			    threshold == 0) {
-				warnx("invalid threshold: %s", optarg);
-				usage();
-			} else if (threshold < 0)
-				threshold_sign = -1;
-			break;
-		case 'x':
-			ftsoptions |= FTS_XDEV;
-			break;
-		case SI_OPT:
-			hflag = UNITS_SI;
-			break;
-		case '?':
-		default:
-			usage();
-			/* NOTREACHED */
-		}
+  let long_opts : [CMigration.option] = [
+    option.init("si", .no_argument),
+    //    { "si", no_argument, NULL, SI_OPT },
+  ]
 
-	argc -= optind;
-	argv += optind;
 
-	/*
-	 * XXX
-	 * Because of the way that fts(3) works, logical walks will not count
-	 * the blocks actually used by symbolic links.  We rationalize this by
-	 * noting that users computing logical sizes are likely to do logical
-	 * copies, so not counting the links is correct.  The real reason is
-	 * that we'd have to re-implement the kernel's symbolic link traversing
-	 * algorithm to get this right.  If, for example, you have relative
-	 * symbolic links referencing other relative symbolic links, it gets
-	 * very nasty, very fast.  The bottom line is that it's documented in
-	 * the man page, so it's a feature.
-	 */
+  func howmany(_ x : Int, _ y : Int) -> Int {
+    ((x % y) == 0) ? (x / y) : ((x / y) + 1) /* # y's == x bits? */
+  }
 
-	if (Hflag)
-		ftsoptions |= FTS_COMFOLLOW;
-	if (Lflag) {
-		ftsoptions &= ~FTS_PHYSICAL;
-		ftsoptions |= FTS_LOGICAL;
-	}
+  func parseOptions() throws(CmdErr) -> CommandOptions {
+    var options = CommandOptions()
+    let go = BSDGetopt_long("+AB:HI:LPasd:cghklmnrt:x", long_opts)
 
-	if (!Aflag && (cblocksize % DEV_BSIZE) != 0)
-		cblocksize = howmany(cblocksize, DEV_BSIZE) * DEV_BSIZE;
+    while let (k, v) = try go.getopt_long() {
+      switch k {
+        case "A":
+          options.Aflag = true
+        case "B":
+          if let c = Int(v), c > 0 {
+            options.cblocksize = c
+          } else {
+            throw CmdErr(1, "invalid argument to option B: \(v)")
+          }
+        case "H":
+          options.Hflag = true
+          options.Lflag = false
+        case "I":
+          ignoreadd(v);
+        case "L":
+          options.Lflag = true
+          options.Hflag = false
+        case "P":
+          options.Hflag = false
+          options.Lflag = false
+        case "a":
+          options.aflag = true
+        case "s":
+          options.sflag = true
+        case "d":
+          options.dflag = true
+          errno = 0;
+          if let d = Int(v), d >= 0 {
+            options.depth = d
+          } else {
+            throw CmdErr(1, "invalid argument to option d: v")
+          }
+        case "c":
+          options.cflag = true
+        case "g":
+          options.hflag = 0
+          options.blocksize = 1073741824
+        case "h":
+          options.hflag = UNITS_2
+        case "k":
+          options.hflag = 0
+          options.blocksize = 1024
+        case "l":
+          options.lflag = true
+        case "m":
+          options.hflag = 0
+          options.blocksize = 1048576
+        case "n":
+          options.nodumpflag = true
+        case "r":		 /* Compatibility. */
+          break
+        case "t" :
+          if let threshold = try? expand_number(v), threshold != 0 {
+            options.threshold = Int(threshold)
+            options.threshold_sign = threshold < 0 ? -1 : 1
+          } else {
+            throw CmdErr(1, "invalid threshold: \(v)")
+          }
+        case "x":
+          options.ftsoptions.insert(.XDEV)
+        case "si":
+          options.hflag = UNITS_SI
+        case "?":
+          fallthrough
+        default:
+          throw CmdErr(1)
+      }
+    }
 
-	if (aflag + dflag + sflag > 1)
-		usage();
-	if (sflag)
-		depth = 0;
+    options.args = go.remaining
 
-	if (!*argv) {
-		argv = save;
-		argv[0] = dot;
-		argv[1] = NULL;
-	}
+    if options.Hflag {
+      options.ftsoptions.insert(.COMFOLLOW)
+    }
+    if options.Lflag {
+      options.ftsoptions.remove(.PHYSICAL)
+      options.ftsoptions.insert(.LOGICAL)
+    }
 
-	if (blocksize == 0)
-		(void)getbsize(&notused, &blocksize);
+    if !options.Aflag && (options.cblocksize % Int(DEV_BSIZE)) != 0 {
+      options.cblocksize = howmany(options.cblocksize, Int(DEV_BSIZE) ) * Int(DEV_BSIZE)
+    }
 
-	if (!Aflag) {
-		cblocksize /= DEV_BSIZE;
-		blocksize /= DEV_BSIZE;
-	}
+    if (options.aflag ? 1 : 0) + (options.dflag ? 1 : 0) + (options.sflag ? 1 : 0) > 1 {
+      throw CmdErr(1)
+    }
+    if options.sflag {
+      options.depth = 0
+    }
 
-	if (threshold != 0)
-		threshold = howmany(threshold / DEV_BSIZE * cblocksize,
-		    blocksize);
+    if options.args.isEmpty {
+      options.args = ["."]
+    }
 
-#ifdef __APPLE__
-	// rdar://44903941
-	// "du" should not have any side effect on disk usage,
-	// so prevent materializing dataless directories upon traversal
-	rval = 1;
-	(void) sysctlbyname("vfs.nspace.prevent_materialization", NULL, NULL, &rval, sizeof(rval));
-#endif /* __APPLE__ */
+    if options.blocksize == 0 {
+      var notused : Int32 = 0
+      Darwin.getbsize(&notused, &options.blocksize)
+    }
 
-	rval = 0;
+    if !options.Aflag {
+      options.cblocksize /= Int(DEV_BSIZE)
+      options.blocksize /= Int(DEV_BSIZE)
+    }
 
-	(void)signal(SIGINFO, siginfo);
+    if options.threshold != 0 {
+      options.threshold = howmany(options.threshold / Int(DEV_BSIZE) * options.cblocksize, options.blocksize)
+    }
 
-	if ((fts = fts_open(argv, ftsoptions, NULL)) == NULL)
-		err(1, "fts_open");
+    return options
+  }
 
-	while ((void)(errno = 0), (p = fts_read(fts)) != NULL) {
-		switch (p->fts_info) {
-		case FTS_D:			/* Ignore. */
-			if (ignorep(p) || dirlinkchk(p))
-				fts_set(fts, p, FTS_SKIP);
-			break;
-		case FTS_DP:
-			if (ignorep(p))
-				break;
+  /*
+   * XXX
+   * Because of the way that fts(3) works, logical walks will not count
+   * the blocks actually used by symbolic links.  We rationalize this by
+   * noting that users computing logical sizes are likely to do logical
+   * copies, so not counting the links is correct.  The real reason is
+   * that we'd have to re-implement the kernel's symbolic link traversing
+   * algorithm to get this right.  If, for example, you have relative
+   * symbolic links referencing other relative symbolic links, it gets
+   * very nasty, very fast.  The bottom line is that it's documented in
+   * the man page, so it's a feature.
+   */
 
-			curblocks = Aflag ?
-			    howmany(p->fts_statp->st_size, cblocksize) :
-			    howmany(p->fts_statp->st_blocks, cblocksize);
-			COMPAT_FTS_BIGNUM(p->fts_parent) += COMPAT_FTS_BIGNUM(p) += curblocks;
+  func runCommand() async throws(CmdErr) {
 
-			if (p->fts_level <= depth && threshold <=
-			    threshold_sign * howmany(COMPAT_FTS_BIGNUM(p) *
-			    cblocksize, blocksize)) {
-				if (hflag > 0) {
-					prthumanval(COMPAT_FTS_BIGNUM(p));
-					(void)printf("\t%s\n", p->fts_path);
-				} else {
-					(void)printf("%jd\t%s\n",
-					    (intmax_t)howmany(COMPAT_FTS_BIGNUM(p) *
-					    cblocksize, blocksize),
-					    p->fts_path);
-				}
-			}
-			if (info) {
-				info = 0;
-				(void)printf("\t%s\n", p->fts_path);
-			}
-			break;
-		case FTS_DC:			/* Ignore. */
-			if (COMPAT_MODE("bin/du", "unix2003")) {
-				errx(1, "Can't follow symlink cycle from %s to %s", p->fts_path, p->fts_cycle->fts_path);
-			}
-			break;
-		case FTS_DNR:			/* Warn, continue. */
-		case FTS_ERR:
-		case FTS_NS:
-			warnx("%s: %s", p->fts_path, strerror(p->fts_errno));
-			rval = 1;
-			break;
-		case FTS_SLNONE:
-			if (COMPAT_MODE("bin/du", "unix2003")) {
-				struct stat sb;
-				int rc = stat(p->fts_path, &sb);
-				if (rc < 0 && errno == ELOOP) {
-					errx(1, "Too many symlinks at %s", p->fts_path);
-				}
-			}
-		default:
-			if (ignorep(p))
-				break;
 
-			if (lflag == 0 && p->fts_statp->st_nlink > 1 &&
-			    linkchk(p))
-				break;
+    //    #ifdef __APPLE__
+    // rdar://44903941
+    // "du" should not have any side effect on disk usage,
+    // so prevent materializing dataless directories upon traversal
+    var rval : Int32 = 1
+    Darwin.sysctlbyname("vfs.nspace.prevent_materialization", nil, nil, &rval, MemoryLayout.size(ofValue: rval))
+    // #endif /* __APPLE__ */
 
-			curblocks = Aflag ?
-			    howmany(p->fts_statp->st_size, cblocksize) :
-			    howmany(p->fts_statp->st_blocks, cblocksize);
+    rval = 0;
 
-			if (aflag || p->fts_level == 0) {
-				if (hflag > 0) {
-					prthumanval(curblocks);
-					(void)printf("\t%s\n", p->fts_path);
-				} else {
-					(void)printf("%jd\t%s\n",
-					    (intmax_t)howmany(curblocks *
-					    cblocksize, blocksize),
-					    p->fts_path);
-				}
-			}
+    signal(SIGINFO, siginfo)
 
-			COMPAT_FTS_BIGNUM(p->fts_parent) += curblocks;
-		}
-		savednumber = COMPAT_FTS_BIGNUM(p->fts_parent);
-	}
+    var savednumber = 0
 
-	if (errno)
-		err(1, "fts_read");
+    do {
+      let fts = try FTSWalker(path: options.args, options: options.ftsoptions, sort: nil)
 
-	if (cflag) {
-		if (hflag > 0) {
-			prthumanval(savednumber);
-			(void)printf("\ttotal\n");
-		} else {
-			(void)printf("%jd\ttotal\n", (intmax_t)howmany(
-			    savednumber * cblocksize, blocksize));
-		}
-	}
+      //    if ((fts = fts_open(argv, ftsoptions, NULL)) == NULL)  err(1, "fts_open");
 
-	ignoreclean();
-#ifdef __APPLE__
-	if (rval == 0 && (ferror(stdout) != 0 || fflush(stdout) != 0))
-		err(1, "stdout");
-#endif
-	exit(rval);
+      //    while ((void)(errno = 0), (p = fts_read(fts)) != NULL) {
+      for var p in fts {
+        switch p.info {
+          case .D:			/* Ignore. */
+            if ignorep(p) || dirlinkchk(p) {
+              p.setAction(.SKIP)
+//              fts_set(fts, p, FTS_SKIP)
+            }
+          case .DP:
+            if ignorep(p) {
+              break;
+            }
+
+            let curblocks = options.Aflag ?
+            howmany(Int(p.statp!.size), options.cblocksize) :
+            howmany(Int(p.statp!.blocks), options.cblocksize)
+            p.number += curblocks
+            p.parent?.pointee.fts_number += p.number
+
+            if (p.level <= options.depth && options.threshold <=
+                options.threshold_sign * howmany(p.number *
+                                         options.cblocksize, options.blocksize)) {
+              if options.hflag > 0 {
+                prthumanval(p.number)
+                print("\t\(p.path)")
+              } else {
+                let jd = howmany(p.number * options.cblocksize, options.blocksize)
+                print("\(jd)\t\(p.path)")
+              }
+            }
+            if info != 0 {
+              info = 0;
+              print("\t\(p.path)")
+            }
+          case .DC:			/* Ignore. */
+            if unix2003 {
+              // FIXME: need the cyle path
+              errx(1, "Can't follow symlink cycle from \(p.path)")
+//               errx(1, "Can't follow symlink cycle from \(p.path) to %s", p->fts_cycle->fts_path);
+            }
+          case .DNR, .ERR, .NS:			/* Warn, continue. */
+            warnx("\(p.path): \(p.errno.localizedDescription)")
+            rval = 1
+          case .SLNONE:
+            if unix2003 {
+              var sb = stat()
+              let rc = stat(p.path, &sb)
+              if (rc < 0 && errno == ELOOP) {
+                errx(1, "Too many symlinks at \(p.path)")
+              }
+            }
+            fallthrough
+          default:
+            if ignorep(p) {
+              break
+            }
+
+            if !options.lflag && p.statp!.links > 1 && linkchk(p) {
+              break
+            }
+
+            let curblocks = options.Aflag ?
+            howmany(Int(p.statp!.size), options.cblocksize) :
+            howmany(Int(p.statp!.blocks), options.cblocksize)
+
+            if options.aflag || p.level == 0 {
+              if options.hflag > 0 {
+                prthumanval(curblocks);
+                print("\t\(p.path)")
+              } else {
+                let jd = howmany(curblocks * options.cblocksize, options.blocksize)
+                print("\(jd)\t\(p.path)")
+              }
+            }
+
+            p.parent?.pointee.fts_number += curblocks
+        }
+        savednumber = p.parent!.pointee.fts_number
+      }
+    } catch(let e) {
+    throw CmdErr(1, "fts_read: \(e.localizedDescription)")
+  }
+
+    if options.cflag {
+      if options.hflag > 0 {
+        prthumanval(savednumber)
+        print("\ttotal")
+      } else {
+        let jd = howmany(savednumber * options.cblocksize, options.blocksize)
+        print("\(jd)\ttotal")
+
+      }
+    }
+
+    ignoreclean();
+//    #ifdef __APPLE__
+    if (rval == 0 && (ferror(stdout) != 0 || fflush(stdout) != 0)) {
+      err(1, "stdout");
+    }
+// #endif
+    exit(rval);
+  }
+
+  func linkchk(_ p : FtsEntry) -> Bool {
+/*    struct links_entry {
+      struct links_entry *next;
+      struct links_entry *previous;
+      int	 links;
+      dev_t	 dev;
+      ino_t	 ino;
+    };
+    static const size_t links_hash_initial_size = 8192;
+    static struct links_entry **buckets;
+    static struct links_entry *free_list;
+    static size_t number_buckets;
+    static unsigned long number_entries;
+//    static char stop_allocating;
+    struct links_entry *le, **new_buckets;
+    struct stat *st;
+    size_t i, new_size;
+    int hash;
+*/
+    let st = p.statp!
+
+    /* If necessary, initialize the hash table. */
+/*    if (buckets == NULL) {
+      number_buckets = links_hash_initial_size;
+      buckets = malloc(number_buckets * sizeof(buckets[0]));
+      if (buckets == NULL)
+          errx(1, "No memory for hardlink detection");
+      for (i = 0; i < number_buckets; i++)
+            buckets[i] = NULL;
+    }
+
+    /* If the hash table is getting too full, enlarge it. */
+    if (number_entries > number_buckets * 10 && !stop_allocating) {
+      new_size = number_buckets * 2;
+      new_buckets = calloc(new_size, sizeof(struct links_entry *));
+
+      /* Try releasing the free list to see if that helps. */
+      if (new_buckets == NULL && free_list != NULL) {
+        while (free_list != NULL) {
+          le = free_list;
+          free_list = le->next;
+          free(le);
+        }
+        new_buckets = calloc(new_size, sizeof(new_buckets[0]));
+      }
+
+      /*
+      if (new_buckets == NULL) {
+        stop_allocating = 1;
+        warnx("No more memory for tracking hard links");
+      } else {
+        for (i = 0; i < number_buckets; i++) {
+          while (buckets[i] != NULL) {
+            /* Remove entry from old bucket. */
+            le = buckets[i];
+            buckets[i] = le->next;
+
+            /* Add entry to new bucket. */
+            hash = (le->dev ^ le->ino) % new_size;
+
+            if (new_buckets[hash] != NULL)
+                new_buckets[hash]->previous =
+                le;
+            le->next = new_buckets[hash];
+            le->previous = NULL;
+            new_buckets[hash] = le;
+          }
+        }
+        free(buckets);
+        buckets = new_buckets;
+        number_buckets = new_size;
+      }
+      */
+    }
+*/
+
+    let le = links_entry(dev: st.device, ino: st.inode)
+    if buckets.f.contains(le) {
+      return true
+    }
+/*
+    /* Try to locate this entry in the hash table. */
+    hash = ( st->st_dev ^ st->st_ino ) % number_buckets;
+    for (le = buckets[hash]; le != NULL; le = le->next) {
+      if (le->dev == st->st_dev && le->ino == st->st_ino) {
+        /*
+         * Save memory by releasing an entry when we've seen
+         * all of its links.
+         */
+        if (--le->links <= 0) {
+          if (le->previous != NULL)
+              le->previous->next = le->next;
+          if (le->next != NULL)
+              le->next->previous = le->previous;
+          if (buckets[hash] == le)
+              buckets[hash] = le->next;
+          number_entries--;
+          /* Recycle this node through the free list */
+          if (stop_allocating) {
+            free(le);
+          } else {
+            le->next = free_list;
+            free_list = le;
+          }
+        }
+        return (1);
+      }
+    }
+*/
+
+/*    if (stop_allocating)
+        return (0);
+
+    /* Add this entry to the links cache. */
+    if (free_list != NULL) {
+      /* Pull a node from the free list if we can. */
+      le = free_list;
+      free_list = le->next;
+    } else
+    /* Malloc one if we have to. */
+      le = malloc(sizeof(struct links_entry));
+    if (le == NULL) {
+      stop_allocating = 1;
+      warnx("No more memory for tracking hard links");
+      return (0);
+    }
+    le->dev = st->st_dev;
+    le->ino = st->st_ino;
+    le->links = st->st_nlink - 1;
+    number_entries++;
+    le->next = buckets[hash];
+    le->previous = NULL;
+    if (buckets[hash] != NULL)
+        buckets[hash]->previous = le;
+ */
+    buckets.f.insert(le)
+    return false
+  }
+
+  struct links_entry : Hashable {
+/*      struct links_entry *next;
+    struct links_entry *previous;
+    int   links;
+*/
+    var dev : UInt
+    var ino : UInt
+  }
+
+  class Buckets {
+    var f : Set<links_entry> = []
+    var d : Set<links_entry> = []
+  }
+
+  var buckets = Buckets()
+
+  func dirlinkchk(_ p : FtsEntry) -> Bool {
+//    static const size_t links_hash_initial_size = 8192;
+//    static struct links_entry **buckets;
+//    static struct links_entry *free_list;
+//    static size_t number_buckets;
+//    static unsigned long number_entries;
+//    static char stop_allocating;
+//    struct links_entry *le, **new_buckets;
+//    struct stat *st;
+//    size_t i, new_size;
+//    int hash;
+    struct attrbuf {
+      var size : Int = 0
+      var linkcount : Int = 0
+    }
+    var buf = attrbuf()
+    var attrList = Darwin.attrlist()
+
+//    memset(&attrList, 0, sizeof(attrList));
+
+    attrList.bitmapcount = UInt16(ATTR_BIT_MAP_COUNT)
+    attrList.dirattr = UInt32(ATTR_DIR_LINKCOUNT)
+    if (-1 == getattrlist(p.path, &attrList, &buf, MemoryLayout<attrbuf>.size, 0)) {
+      return false
+    }
+    if (buf.linkcount == 1) {
+      return false
+    }
+    let st = p.statp!
+
+    /* If necessary, initialize the hash table. */
+    /*
+    if (buckets == NULL) {
+      number_buckets = links_hash_initial_size;
+      buckets = malloc(number_buckets * sizeof(buckets[0]));
+      if (buckets == NULL)
+          errx(1, "No memory for directory hardlink detection");
+      for (i = 0; i < number_buckets; i++)
+            buckets[i] = NULL;
+    }
+*/
+
+    /* If the hash table is getting too full, enlarge it. */
+/*    if (number_entries > number_buckets * 10 && !stop_allocating) {
+      new_size = number_buckets * 2;
+      new_buckets = calloc(new_size, sizeof(struct links_entry *));
+
+      /* Try releasing the free list to see if that helps. */
+      if (new_buckets == NULL && free_list != NULL) {
+        while (free_list != NULL) {
+          le = free_list;
+          free_list = le->next;
+          free(le);
+        }
+        new_buckets = calloc(new_size, sizeof(new_buckets[0]));
+      }
+*/
+
+/*      if (new_buckets == NULL) {
+        stop_allocating = 1;
+        warnx("No more memory for tracking directory hard links");
+      } else {
+ */
+/*        for (i = 0; i < number_buckets; i++) {
+          while (buckets[i] != NULL) {
+            /* Remove entry from old bucket. */
+            le = buckets[i];
+            buckets[i] = le->next;
+
+            /* Add entry to new bucket. */
+            hash = (le->dev ^ le->ino) % new_size;
+
+            if (new_buckets[hash] != NULL)
+                new_buckets[hash]->previous =
+                le;
+            le->next = new_buckets[hash];
+            le->previous = NULL;
+            new_buckets[hash] = le;
+          }
+        }
+        free(buckets);
+        buckets = new_buckets;
+        number_buckets = new_size;
+      }
+//    }
+*/
+
+    /* Try to locate this entry in the hash table. */
+    let le = links_entry(dev: st.device, ino: st.inode)
+
+    if buckets.d.contains(le) {
+      return true
+    }
+/*    hash = ( st->st_dev ^ st->st_ino ) % number_buckets;
+    for (le = buckets[hash]; le != NULL; le = le->next) {
+      if (le->dev == st->st_dev && le->ino == st->st_ino) {
+        /*
+         * Save memory by releasing an entry when we've seen
+         * all of its links.
+         */
+        if (--le->links <= 0) {
+          if (le->previous != NULL)
+              le->previous->next = le->next;
+          if (le->next != NULL)
+              le->next->previous = le->previous;
+          if (buckets[hash] == le)
+              buckets[hash] = le->next;
+          number_entries--;
+          /* Recycle this node through the free list */
+          if (stop_allocating) {
+            free(le);
+          } else {
+            le->next = free_list;
+            free_list = le;
+          }
+        }
+        return (1);
+      }
+    }
+ */
+/*
+    if (stop_allocating) {
+      return (0);
+    }
+*/
+    /* Add this entry to the links cache. */
+/*    if (free_list != NULL) {
+      /* Pull a node from the free list if we can. */
+      le = free_list;
+      free_list = le->next;
+    } else
+    /* Malloc one if we have to. */
+      le = malloc(sizeof(struct links_entry));
+    if (le == NULL) {
+      stop_allocating = 1;
+      warnx("No more memory for tracking hard links");
+      return (0);
+    }
+ */
+    buckets.d.insert(le)
+
+/*    le->links = buf.linkcount - 1;
+    number_entries++;
+    le->next = buckets[hash];
+    le->previous = NULL;
+    if (buckets[hash] != NULL)
+        buckets[hash]->previous = le;
+    buckets[hash] = le;
+ */
+    return false
+  }
+
+  func prthumanval(_ bytesx : Int) {
+    var bytes = bytesx * options.cblocksize
+//    char buf[5];
+//    int flags;
+
+    var flags : HumanizeFlags = [.b, .nospace, .decimal]
+    if !options.Aflag {
+      bytes *= Int(DEV_BSIZE)
+    }
+    if options.hflag == UNITS_SI {
+      flags.insert(.divisor_1000)
+    }
+
+    if let buf = humanize_number(4, bytes, "", nil, flags) {
+      print(buf, terminator: "")
+    } else {
+      print("????", terminator: "")
+    }
+  }
+
+  var usage : String = """
+usage: du [-Aclnx] [-H | -L | -P] [-g | -h | -k | -m] [-a | -s | -d depth] [-B blocksize] [-I mask] [-t threshold] [file ...]
+"""
+
+  func ignoreadd( _ mask : String) {
+    ignore.s.append(mask)
+  }
+
+  func ignoreclean() {
+    ignore.s = []
+  }
+
+  class Ignore {
+    var s : [String] = []
+  }
+  var ignore = Ignore()
+
+  func ignorep(_ ent : FtsEntry) -> Bool {
+//    #ifdef __APPLE__
+    if ent.statp?.fileType == .directory && "fd" == ent.name {
+      var sfsb = statfs()
+      let rc = statfs(ent.accpath, &sfsb)
+      let fstn = withUnsafePointer(to: sfsb.f_fstypename) {
+        $0.withMemoryRebound(to: CChar.self, capacity: Int(NAME_MAX)) {
+          String(cString: $0)
+        }
+      }
+      if rc >= 0 {
+        let fstn = withUnsafePointer(to: sfsb.f_fstypename) {
+          $0.withMemoryRebound(to: CChar.self, capacity: Int(NAME_MAX)) {
+            String(cString: $0)
+          }
+        }
+        if "devfs" == fstn {
+          /* Don't cd into /dev/fd/N since one of those is likely to be
+           the cwd as of the start of du which causes all manner of
+           unpleasant surprises */
+          return true
+        }
+      }
+    }
+
+// #endif /* __APPLE__ */
+    if options.nodumpflag && (ent.statp?.flags ?? []).contains(.NODUMP) {
+      return true
+    }
+
+    for ign in ignore.s {
+      if (fnmatch(ign, ent.name, 0) != FNM_NOMATCH) {
+        return true
+      }
+    }
+    return false
+  }
+
 }
 
-static int
-linkchk(FTSENT *p)
-{
-	struct links_entry {
-		struct links_entry *next;
-		struct links_entry *previous;
-		int	 links;
-		dev_t	 dev;
-		ino_t	 ino;
-	};
-	static const size_t links_hash_initial_size = 8192;
-	static struct links_entry **buckets;
-	static struct links_entry *free_list;
-	static size_t number_buckets;
-	static unsigned long number_entries;
-	static char stop_allocating;
-	struct links_entry *le, **new_buckets;
-	struct stat *st;
-	size_t i, new_size;
-	int hash;
+var info : sig_atomic_t = 0
 
-	st = p->fts_statp;
-
-	/* If necessary, initialize the hash table. */
-	if (buckets == NULL) {
-		number_buckets = links_hash_initial_size;
-		buckets = malloc(number_buckets * sizeof(buckets[0]));
-		if (buckets == NULL)
-			errx(1, "No memory for hardlink detection");
-		for (i = 0; i < number_buckets; i++)
-			buckets[i] = NULL;
-	}
-
-	/* If the hash table is getting too full, enlarge it. */
-	if (number_entries > number_buckets * 10 && !stop_allocating) {
-		new_size = number_buckets * 2;
-		new_buckets = calloc(new_size, sizeof(struct links_entry *));
-
-		/* Try releasing the free list to see if that helps. */
-		if (new_buckets == NULL && free_list != NULL) {
-			while (free_list != NULL) {
-				le = free_list;
-				free_list = le->next;
-				free(le);
-			}
-			new_buckets = calloc(new_size, sizeof(new_buckets[0]));
-		}
-
-		if (new_buckets == NULL) {
-			stop_allocating = 1;
-			warnx("No more memory for tracking hard links");
-		} else {
-			for (i = 0; i < number_buckets; i++) {
-				while (buckets[i] != NULL) {
-					/* Remove entry from old bucket. */
-					le = buckets[i];
-					buckets[i] = le->next;
-
-					/* Add entry to new bucket. */
-					hash = (le->dev ^ le->ino) % new_size;
-
-					if (new_buckets[hash] != NULL)
-						new_buckets[hash]->previous =
-						    le;
-					le->next = new_buckets[hash];
-					le->previous = NULL;
-					new_buckets[hash] = le;
-				}
-			}
-			free(buckets);
-			buckets = new_buckets;
-			number_buckets = new_size;
-		}
-	}
-
-	/* Try to locate this entry in the hash table. */
-	hash = ( st->st_dev ^ st->st_ino ) % number_buckets;
-	for (le = buckets[hash]; le != NULL; le = le->next) {
-		if (le->dev == st->st_dev && le->ino == st->st_ino) {
-			/*
-			 * Save memory by releasing an entry when we've seen
-			 * all of its links.
-			 */
-			if (--le->links <= 0) {
-				if (le->previous != NULL)
-					le->previous->next = le->next;
-				if (le->next != NULL)
-					le->next->previous = le->previous;
-				if (buckets[hash] == le)
-					buckets[hash] = le->next;
-				number_entries--;
-				/* Recycle this node through the free list */
-				if (stop_allocating) {
-					free(le);
-				} else {
-					le->next = free_list;
-					free_list = le;
-				}
-			}
-			return (1);
-		}
-	}
-
-	if (stop_allocating)
-		return (0);
-
-	/* Add this entry to the links cache. */
-	if (free_list != NULL) {
-		/* Pull a node from the free list if we can. */
-		le = free_list;
-		free_list = le->next;
-	} else
-		/* Malloc one if we have to. */
-		le = malloc(sizeof(struct links_entry));
-	if (le == NULL) {
-		stop_allocating = 1;
-		warnx("No more memory for tracking hard links");
-		return (0);
-	}
-	le->dev = st->st_dev;
-	le->ino = st->st_ino;
-	le->links = st->st_nlink - 1;
-	number_entries++;
-	le->next = buckets[hash];
-	le->previous = NULL;
-	if (buckets[hash] != NULL)
-		buckets[hash]->previous = le;
-	buckets[hash] = le;
-	return (0);
+func siginfo(_ sig : Int32 /* __unused */) {
+  info = 1;
 }
 
-static int
-dirlinkchk(FTSENT *p)
-{
-	struct links_entry {
-		struct links_entry *next;
-		struct links_entry *previous;
-		int	 links;
-		dev_t	 dev;
-		ino_t	 ino;
-	};
-	static const size_t links_hash_initial_size = 8192;
-	static struct links_entry **buckets;
-	static struct links_entry *free_list;
-	static size_t number_buckets;
-	static unsigned long number_entries;
-	static char stop_allocating;
-	struct links_entry *le, **new_buckets;
-	struct stat *st;
-	size_t i, new_size;
-	int hash;
-	struct attrbuf {
-		int size;
-		int linkcount;
-	} buf;
-	struct attrlist attrList;
-
-	memset(&attrList, 0, sizeof(attrList));
-	attrList.bitmapcount = ATTR_BIT_MAP_COUNT;
-	attrList.dirattr = ATTR_DIR_LINKCOUNT;
-	if (-1 == getattrlist(p->fts_path, &attrList, &buf, sizeof(buf), 0))
-		return 0;
-	if (buf.linkcount == 1)
-		return 0;
-	st = p->fts_statp;
-
-	/* If necessary, initialize the hash table. */
-	if (buckets == NULL) {
-		number_buckets = links_hash_initial_size;
-		buckets = malloc(number_buckets * sizeof(buckets[0]));
-		if (buckets == NULL)
-			errx(1, "No memory for directory hardlink detection");
-		for (i = 0; i < number_buckets; i++)
-			buckets[i] = NULL;
-	}
-
-	/* If the hash table is getting too full, enlarge it. */
-	if (number_entries > number_buckets * 10 && !stop_allocating) {
-		new_size = number_buckets * 2;
-		new_buckets = calloc(new_size, sizeof(struct links_entry *));
-
-		/* Try releasing the free list to see if that helps. */
-		if (new_buckets == NULL && free_list != NULL) {
-			while (free_list != NULL) {
-				le = free_list;
-				free_list = le->next;
-				free(le);
-			}
-			new_buckets = calloc(new_size, sizeof(new_buckets[0]));
-		}
-
-		if (new_buckets == NULL) {
-			stop_allocating = 1;
-			warnx("No more memory for tracking directory hard links");
-		} else {
-			for (i = 0; i < number_buckets; i++) {
-				while (buckets[i] != NULL) {
-					/* Remove entry from old bucket. */
-					le = buckets[i];
-					buckets[i] = le->next;
-
-					/* Add entry to new bucket. */
-					hash = (le->dev ^ le->ino) % new_size;
-
-					if (new_buckets[hash] != NULL)
-						new_buckets[hash]->previous =
-						    le;
-					le->next = new_buckets[hash];
-					le->previous = NULL;
-					new_buckets[hash] = le;
-				}
-			}
-			free(buckets);
-			buckets = new_buckets;
-			number_buckets = new_size;
-		}
-	}
-
-	/* Try to locate this entry in the hash table. */
-	hash = ( st->st_dev ^ st->st_ino ) % number_buckets;
-	for (le = buckets[hash]; le != NULL; le = le->next) {
-		if (le->dev == st->st_dev && le->ino == st->st_ino) {
-			/*
-			 * Save memory by releasing an entry when we've seen
-			 * all of its links.
-			 */
-			if (--le->links <= 0) {
-				if (le->previous != NULL)
-					le->previous->next = le->next;
-				if (le->next != NULL)
-					le->next->previous = le->previous;
-				if (buckets[hash] == le)
-					buckets[hash] = le->next;
-				number_entries--;
-				/* Recycle this node through the free list */
-				if (stop_allocating) {
-					free(le);
-				} else {
-					le->next = free_list;
-					free_list = le;
-				}
-			}
-			return (1);
-		}
-	}
-
-	if (stop_allocating)
-		return (0);
-
-	/* Add this entry to the links cache. */
-	if (free_list != NULL) {
-		/* Pull a node from the free list if we can. */
-		le = free_list;
-		free_list = le->next;
-	} else
-		/* Malloc one if we have to. */
-		le = malloc(sizeof(struct links_entry));
-	if (le == NULL) {
-		stop_allocating = 1;
-		warnx("No more memory for tracking hard links");
-		return (0);
-	}
-	le->dev = st->st_dev;
-	le->ino = st->st_ino;
-	le->links = buf.linkcount - 1;
-	number_entries++;
-	le->next = buckets[hash];
-	le->previous = NULL;
-	if (buckets[hash] != NULL)
-		buckets[hash]->previous = le;
-	buckets[hash] = le;
-	return (0);
-}
-
-static void
-prthumanval(int64_t bytes)
-{
-	char buf[5];
-	int flags;
-
-	bytes *= cblocksize;
-	flags = HN_B | HN_NOSPACE | HN_DECIMAL;
-	if (!Aflag)
-		bytes *= DEV_BSIZE;
-	if (hflag == UNITS_SI)
-		flags |= HN_DIVISOR_1000;
-
-	humanize_number(buf, sizeof(buf), bytes, "", HN_AUTOSCALE, flags);
-
-	(void)printf("%4s", buf);
-}
-
-static void
-usage(void)
-{
-	(void)fprintf(stderr,
-		"usage: du [-Aclnx] [-H | -L | -P] [-g | -h | -k | -m] "
-		"[-a | -s | -d depth] [-B blocksize] [-I mask] "
-		"[-t threshold] [file ...]\n");
-	exit(EX_USAGE);
-}
-
-static void
-ignoreadd(const char *mask)
-{
-	struct ignentry *ign;
-
-	ign = calloc(1, sizeof(*ign));
-	if (ign == NULL)
-		errx(1, "cannot allocate memory");
-	ign->mask = strdup(mask);
-	if (ign->mask == NULL)
-		errx(1, "cannot allocate memory");
-	SLIST_INSERT_HEAD(&ignores, ign, next);
-}
-
-static void
-ignoreclean(void)
-{
-	struct ignentry *ign;
-
-	while (!SLIST_EMPTY(&ignores)) {
-		ign = SLIST_FIRST(&ignores);
-		SLIST_REMOVE_HEAD(&ignores, next);
-		free(ign->mask);
-		free(ign);
-	}
-}
-
-static int
-ignorep(FTSENT *ent)
-{
-	struct ignentry *ign;
-
-#ifdef __APPLE__
-	if (S_ISDIR(ent->fts_statp->st_mode) && !strcmp("fd", ent->fts_name)) {
-		struct statfs sfsb;
-		int rc = statfs(ent->fts_accpath, &sfsb);
-		if (rc >= 0 && !strcmp("devfs", sfsb.f_fstypename)) {
-			/* Don't cd into /dev/fd/N since one of those is likely to be
-			  the cwd as of the start of du which causes all manner of
-			  unpleasant surprises */
-			return 1;
-		}
-	}
-#endif /* __APPLE__ */
-	if (nodumpflag && (ent->fts_statp->st_flags & UF_NODUMP))
-		return 1;
-	SLIST_FOREACH(ign, &ignores, next)
-		if (fnmatch(ign->mask, ent->fts_name, 0) != FNM_NOMATCH)
-			return 1;
-	return 0;
-}
-
-static void
-siginfo(int sig __unused)
-{
-
-	info = 1;
-}

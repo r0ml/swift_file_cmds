@@ -15,6 +15,139 @@
     {
       "target" : {
         "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E77400DC2F02D27800498517",
+        "name" : "mkdirTest"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E77402982F02E7BA00498517",
+        "name" : "installTest"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E77402CF2F02E87400498517",
+        "name" : "mvTest"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E774028D2F02E7AE00498517",
+        "name" : "gzipTest"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E77402A32F02E7C800498517",
+        "name" : "ipcrmTest"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E77402402F02E6F600498517",
+        "name" : "chmodTest"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E77402612F02E76500498517",
+        "name" : "cpTest"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E77402AE2F02E7D800498517",
+        "name" : "ipcsTest"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E77402FB2F02E8D300498517",
+        "name" : "statTest"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E77402562F02E75200498517",
+        "name" : "compressTest"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E774026C2F02E77E00498517",
+        "name" : "ddTest"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E77402822F02E7A300498517",
+        "name" : "duTest"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E77402B92F02E7E100498517",
+        "name" : "lnTest"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E77405522F09BB3800498517",
+        "name" : "linkTest"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E774031C2F02E90400498517",
+        "name" : "xattrTest"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E77402F02F02E8C500498517",
+        "name" : "rmdirTest"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E77402772F02E79800498517",
+        "name" : "dfTest"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E77403062F02E8E300498517",
+        "name" : "touchTest"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E77402E52F02E89700498517",
+        "name" : "rmTest"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
         "identifier" : "E78DE70C2E43A97E001E00CA",
         "name" : "chflagsTest"
       }
@@ -22,8 +155,29 @@
     {
       "target" : {
         "containerPath" : "container:swift_file_cmds.xcodeproj",
-        "identifier" : "E77400DC2F02D27800498517",
-        "name" : "mkdirTest"
+        "identifier" : "E774024B2F02E71B00498517",
+        "name" : "chownTest"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E77402DA2F02E88900498517",
+        "name" : "paxTest"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E77402C42F02E85A00498517",
+        "name" : "lsTest"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E77403112F02E8F400498517",
+        "name" : "truncateTest"
       }
     }
   ],

@@ -13,6 +13,7 @@
 			buildPhases = (
 			);
 			dependencies = (
+				E77405712F0AB8A200498517 /* PBXTargetDependency */,
 				E774FF2A2F0232C800498517 /* PBXTargetDependency */,
 				E77403512F0334AB00498517 /* PBXTargetDependency */,
 				E77403532F0334AB00498517 /* PBXTargetDependency */,
@@ -290,6 +291,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = E77400EB2F02D83000498517;
 			remoteInfo = xattr;
+		};
+		E77405702F0AB8A200498517 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E73707002E4273AC00246ED4 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E77405472F09BB2700498517;
+			remoteInfo = link;
 		};
 		E774FF292F0232C800498517 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -729,6 +737,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				du/du.swift,
+				du/humanize_number.swift,
 			);
 			target = E77401B12F02D9DE00498517 /* du */;
 		};
@@ -781,13 +790,6 @@
 			);
 			target = E77405472F09BB2700498517 /* link */;
 		};
-		E774056B2F09BBF000498517 /* Exceptions for "Tests" folder in "chflags" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				link/linkTest.swift,
-			);
-			target = E7A6AA552E428C1A001C9A44 /* chflags */;
-		};
 		E774056F2F09BF9600498517 /* Exceptions for "Tests" folder in "linkTest" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -806,6 +808,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				chflags/chflags.swift,
+				du/humanize_number.swift,
 			);
 			target = E7A6AA552E428C1A001C9A44 /* chflags */;
 		};
@@ -837,7 +840,6 @@
 		E7370AC92E42746700246ED4 /* Tests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				E774056B2F09BBF000498517 /* Exceptions for "Tests" folder in "chflags" target */,
 				E78DE71C2E43ABBD001E00CA /* Exceptions for "Tests" folder in "chflagsTest" target */,
 				E774056F2F09BF9600498517 /* Exceptions for "Tests" folder in "linkTest" target */,
 				E77405422F0788D700498517 /* Exceptions for "Tests" folder in "lnTest" target */,
@@ -3383,6 +3385,11 @@
 			isa = PBXTargetDependency;
 			target = E77400EB2F02D83000498517 /* xattr */;
 			targetProxy = E77403862F0334AB00498517 /* PBXContainerItemProxy */;
+		};
+		E77405712F0AB8A200498517 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E77405472F09BB2700498517 /* link */;
+			targetProxy = E77405702F0AB8A200498517 /* PBXContainerItemProxy */;
 		};
 		E774FF2A2F0232C800498517 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
