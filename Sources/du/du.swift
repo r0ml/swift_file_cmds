@@ -777,7 +777,7 @@ usage: du [-Aclnx] [-H | -L | -P] [-g | -h | -k | -m] [-a | -s | -d depth] [-B b
     }
 
 // #endif /* __APPLE__ */
-    if options.nodumpflag && (ent.statp?.flags ?? []).contains(.NODUMP) {
+    if options.nodumpflag && ent.statp!.flags.contains(.UF_NODUMP) {
       return true
     }
 
