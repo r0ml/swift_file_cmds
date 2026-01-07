@@ -63,6 +63,7 @@ import Darwin
 */
 
   func parseOptions() throws(CmdErr) -> CommandOptions {
+    // FIXME: split the command
 /*    if (!strcmp(p, "sum")) {
       cfncn = csum1;
       pfncn = psum1;

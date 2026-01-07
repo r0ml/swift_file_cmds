@@ -35,9 +35,9 @@
 static uid_t uid;
 static gid_t gid;
 static int ischown;
-#ifdef __APPLE__
+
 static int isnumeric = 0;
-#endif
+
 static const char *gname;
 static volatile sig_atomic_t siginfo;
 

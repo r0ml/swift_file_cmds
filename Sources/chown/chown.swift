@@ -32,326 +32,302 @@
  * SUCH DAMAGE.
  */
 
-static uid_t uid;
+import CMigration
+import Darwin
+
+/*static uid_t uid;
 static gid_t gid;
 static int ischown;
 #ifdef __APPLE__
 static int isnumeric = 0;
 #endif
 static const char *gname;
-static volatile sig_atomic_t siginfo;
+ */
 
-static void
-siginfo_handler(int sig __unused)
-{
+var siginfo : sig_atomic_t = 0
 
+func siginfo_handler(_ sig : Int32) {
 	siginfo = 1;
 }
 
+
+let unix2003_compat = true  // COMPAT_MODE("bin/chown", "Unix2003");
+
 @main struct chown : ShellCommand {
-	FTS *ftsp;
-	FTSENT *p;
-	int Hflag, Lflag, Pflag, Rflag, fflag, hflag, vflag, xflag;
-	int ch, fts_options, rval;
-	char *cp;
-	int unix2003_compat = 0;
+  //	FTS *ftsp;
+  //	FTSENT *p;
+  //	int ch, fts_options, rval;
+  //	char *cp;
 
-	if (argc < 1)
-		usage();
-	ischown = (strcmp(basename(argv[0]), "chown") == 0);
 
-	Hflag = Lflag = Pflag = Rflag = fflag = hflag = vflag = xflag = 0;
-#ifdef __APPLE__
-	while ((ch = getopt(argc, argv, "HLPRfhnvx")) != -1)
-#else
-	while ((ch = getopt(argc, argv, "HLPRfhvx")) != -1)
-#endif
-		switch (ch) {
-		case 'H':
-			Hflag = 1;
-			Lflag = Pflag = 0;
-			break;
-		case 'L':
-			Lflag = 1;
-			Hflag = Pflag = 0;
-			break;
-		case 'P':
-			Pflag = 1;
-			Hflag = Lflag = 0;
-			break;
-		case 'R':
-			Rflag = 1;
-			break;
-		case 'f':
-			fflag = 1;
-			break;
-		case 'h':
-			hflag = 1;
-	 		break;
-#ifdef __APPLE__
-		case 'n':
-			isnumeric = 1;
-			break;
-#endif
-		case 'v':
-			vflag++;
-			break;
-		case 'x':
-			xflag = 1;
-			break;
-		case '?':
-		default:
-			usage();
-		}
-	argv += optind;
-	argc -= optind;
+  //  ischown = (strcmp(basename(argv[0]), "chown") == 0);
 
-	if (argc < 2)
-		usage();
-	if (!Rflag && (Hflag || Lflag || Pflag))
-		warnx("options -H, -L, -P only useful with -R");
+  struct CommandOptions {
+    var Hflag = false
+    var Lflag = false
+    var Pflag = false
+    var Rflag = false
+    var fflag = false
+    var hflag = false
+    var vflag = 0
+    var xflag = false
+    var isnumeric = false
+    var fts : FTSFlags = []
+    var uid : uid_t?
+    var gid : gid_t?
+    var gname : String = ""
+    var args : [String] = []
+  }
 
-	(void)signal(SIGINFO, siginfo_handler);
+  var options : CommandOptions!
 
-	if (Rflag) {
-		if (hflag && (Hflag || Lflag))
-			errx(1, "the -R%c and -h options may not be "
-			    "specified together", Hflag ? 'H' : 'L');
-		if (Lflag) {
-			fts_options = FTS_LOGICAL;
-		} else {
-			fts_options = FTS_PHYSICAL;
+  func parseOptions() throws(CmdErr) -> CommandOptions {
+    var options = CommandOptions()
 
-			if (Hflag) {
-				fts_options |= FTS_COMFOLLOW;
-			}
-		}
-	} else if (hflag) {
-		fts_options = FTS_PHYSICAL;
-	} else {
-		fts_options = FTS_LOGICAL;
-	}
+    var go = BSDGetopt("HLPRfhnvx")
+    // #ifdef __APPLE__
+    while let (k, _) = try go.getopt() {
+      switch k {
+        case "H":
+          options.Hflag = true
+          options.Lflag = false
+          options.Pflag = false
+        case "L":
+          options.Lflag = true
+          options.Hflag = false
+          options.Pflag = false
+        case "P":
+          options.Pflag = true
+          options.Hflag = false
+          options.Lflag = false
+        case "R":
+          options.Rflag = true
+        case "f":
+          options.fflag = true
+        case "h":
+          options.hflag = true
+        case "n":
+          options.isnumeric = true
+        case "v":
+          options.vflag += 1
+        case "x":
+          options.xflag = true
+        case "?":
+          fallthrough
+        default:
+          throw CmdErr(1)
+      }
+    }
+    options.args = go.remaining
 
-	if (xflag)
-		fts_options |= FTS_XDEV;
+    if (options.args.count < 2) {
+      throw CmdErr(1)
+    }
+    if (!options.Rflag && (options.Hflag || options.Lflag || options.Pflag)) {
+      warnx("options -H, -L, -P only useful with -R")
+    }
 
-	uid = (uid_t)-1;
-	gid = (gid_t)-1;
-	if (ischown) {
-		unix2003_compat = COMPAT_MODE("bin/chown", "Unix2003");
-		if ((cp = strchr(*argv, ':')) != NULL) {
-			*cp++ = '\0';
-			a_gid(cp);
-		}
-#ifdef SUPPORT_DOT
-		else if ((cp = strchr(*argv, '.')) != NULL) {
-			warnx("separation of user and group with a period is deprecated");
-			*cp++ = '\0';
-			a_gid(cp);
-		}
-#endif
-		a_uid(*argv);
-	} else {
-		unix2003_compat = COMPAT_MODE("bin/chgrp", "Unix2003");
-		a_gid(*argv);
-	}
+    let k = options.args.removeFirst()
+    let j = k.split(separator: ":", maxSplits: 1)
+    if j.count == 1 {
+      options.uid = a_uid(String(j[0]), options.isnumeric)
+    } else {
+      options.gname = String(j[0])
+      options.gid = a_gid(options.gname, options.isnumeric)
+      options.uid = a_uid(String(j[1]), options.isnumeric)
+    }
 
-	if ((ftsp = fts_open(++argv, fts_options, NULL)) == NULL)
-		err(1, NULL);
+    signal(SIGINFO, siginfo_handler)
 
-	for (rval = 0; (void)(errno = 0), (p = fts_read(ftsp)) != NULL;) {
-		int atflag;
+    if options.Rflag {
+      if (options.hflag && (options.Hflag || options.Lflag)) {
+        errx(1, "the -R\(options.Hflag ? "H" : "L") and -h options may not be specified together")
+      }
+      if options.Lflag {
+        options.fts = .LOGICAL
+      } else {
+        options.fts = .PHYSICAL
 
-		if ((fts_options & FTS_LOGICAL) ||
-		    ((fts_options & FTS_COMFOLLOW) &&
-		    p->fts_level == FTS_ROOTLEVEL))
-			atflag = 0;
-		else
-			atflag = AT_SYMLINK_NOFOLLOW;
+        if (options.Hflag) {
+          options.fts.insert(.COMFOLLOW)
+        }
+      }
+    } else if (options.hflag) {
+      options.fts = .PHYSICAL
+    } else {
+      options.fts = .LOGICAL
+    }
 
-		switch (p->fts_info) {
-		case FTS_D:			/* Change it at FTS_DP. */
-			if (!Rflag)
-				fts_set(ftsp, p, FTS_SKIP);
-			continue;
-		case FTS_DNR:			/* Warn, chown. */
-			warnx("%s: %s", p->fts_path, strerror(p->fts_errno));
-			rval = 1;
-			break;
-		case FTS_ERR:			/* Warn, continue. */
-		case FTS_NS:
-			warnx("%s: %s", p->fts_path, strerror(p->fts_errno));
-			rval = 1;
-			continue;
-#ifdef __APPLE__
-		case FTS_SL:
-		case FTS_SLNONE:
-			/*
-			 * The only symlinks that end up here are ones that
-			 * don't point to anything and ones that we found
-			 * doing a physical walk.
-			 */
-			atflag = AT_SYMLINK_NOFOLLOW;
-			if (unix2003_compat) {
-				if (Hflag || Lflag) {       /* -H or -L was specified */
-					if (p->fts_errno) {
-						warnx("%s: %s", p->fts_name, strerror(p->fts_errno));
-						rval = 1;
-						continue;
-					}
-				}
-			}
+    if (options.xflag) {
+      options.fts.insert(.XDEV)
+    }
 
-			break;
-#endif
-		default:
-			break;
-		}
-		if (siginfo) {
-			print_info(p, 2);
-			siginfo = 0;
-		}
-		if (unix2003_compat) {
-			/* Can only avoid updating times if both uid and gid are -1 */
-			if ((uid == (uid_t)-1) && (gid == (gid_t)-1))
-				continue;
-		} else {
-			if ((uid == (uid_t)-1 || uid == p->fts_statp->st_uid) &&
-			    (gid == (gid_t)-1 || gid == p->fts_statp->st_gid))
-				continue;
-		}
-		if (fchownat(AT_FDCWD, p->fts_accpath, uid, gid, atflag)
-		    == -1 && !fflag) {
-			chownerr(p->fts_path);
-			rval = 1;
-		} else if (vflag)
-			print_info(p, vflag);
-	}
-	if (errno)
-		err(1, "fts_read");
-	exit(rval);
-}
+    return options
+  }
 
-static void
-a_gid(const char *s)
-{
-	struct group *gr;
 
-	if (*s == '\0')			/* Argument was "uid[:.]". */
-		return;
-	gname = s;
-#ifdef __APPLE__
-	gid = (!isnumeric && ((gr = getgrnam(s)) != NULL)) ? gr->gr_gid : id(s, "group");
-#else
-	gid = ((gr = getgrnam(s)) != NULL) ? gr->gr_gid : id(s, "group");
-#endif
-}
+  func runCommand() async throws(CmdErr) {
+    var rval : Int32 = 0
 
-static void
-a_uid(const char *s)
-{
-	struct passwd *pw;
+    do {
+      let ftsp = try FTSWalker(path: options.args, options: options.fts, sort: nil)
 
-	if (*s == '\0')			/* Argument was "[:.]gid". */
-		return;
-#ifdef __APPLE__
-	uid = (!isnumeric && ((pw = getpwnam(s)) != NULL)) ? pw->pw_uid : id(s, "user");
-#else
-	uid = ((pw = getpwnam(s)) != NULL) ? pw->pw_uid : id(s, "user");
-#endif
-}
+    for var p in ftsp {
 
-static uid_t
-id(const char *name, const char *type)
-{
-	unsigned long val;
-	char *ep;
+      var atflag : Int32 = 0
 
-	errno = 0;
-	val = strtoul(name, &ep, 10);
-	_Static_assert(UID_MAX >= GID_MAX, "UID MAX less than GID MAX");
-	if (errno || *ep != '\0' || val > UID_MAX)
-		errx(1, "%s: illegal %s name", name, type);
-	return (uid_t)val;
-}
+      if options.fts.contains(.LOGICAL) ||
+          (options.fts.contains(.COMFOLLOW) && p.level == FTS_ROOTLEVEL) {
+        atflag = 0
+      }
+      else {
+        atflag = AT_SYMLINK_NOFOLLOW;
+      }
 
-static void
-chownerr(const char *file)
-{
-	static uid_t euid = -1;
-	static int ngroups = -1;
-	static long ngroups_max;
-	gid_t *groups;
+      switch p.info {
+        case .D:			/* Change it at FTS_DP. */
+          if !options.Rflag {
+            p.setAction(.SKIP)
+          }
+          continue
+        case .DNR:			/* Warn, chown. */
+          warnx("\(p.path): \(p.errno.localizedDescription)")
+          rval = 1
+        case .ERR, .NS:			/* Warn, continue. */
+          warnx("\(p.path): \(p.errno.localizedDescription)")
+          rval = 1
+          continue
+          // #ifdef __APPLE__
+        case .SL, .SLNONE:
+          /*
+           * The only symlinks that end up here are ones that
+           * don't point to anything and ones that we found
+           * doing a physical walk.
+           */
+          atflag = AT_SYMLINK_NOFOLLOW
+          if (unix2003_compat) {
+            if (options.Hflag || options.Lflag) {       /* -H or -L was specified */
+              if p.errno.code != 0 {
+                warnx("\(p.name!): \(p.errno.localizedDescription)")
+                rval = 1
+                continue
+              }
+            }
+          }
 
-	/* Check for chown without being root. */
-	if (errno != EPERM || (uid != (uid_t)-1 &&
-	    euid == (uid_t)-1 && (euid = geteuid()) != 0)) {
-		warn("%s", file);
-		return;
-	}
+          // #endif
+        default:
+          break;
+      }
+      if (siginfo != 0) {
+        print_info(p, 2);
+        siginfo = 0
+      }
+      if (unix2003_compat) {
+        /* Can only avoid updating times if both uid and gid are -1 */
+        if ((options.uid == nil) && (options.gid == nil)) {
+          continue
+        }
+      } else {
+        if ((options.uid == nil || options.uid! == p.statp!.userId) &&
+            (options.gid == nil || options.gid! == p.statp!.groupId)) {
+          continue
+        }
+      }
+      if (fchownat(AT_FDCWD, p.accpath, options.uid!, options.gid!, atflag)
+          == -1 && !options.fflag) {
+        chownerr(p.path)
+        rval = 1
+      } else if options.vflag != 0 {
+        print_info(p, options.vflag)
+      }
+    }
+    } catch(let e) {
+      err(1, e.localizedDescription)
+    }
 
-	/* Check group membership; kernel just returns EPERM. */
-	if (gid != (gid_t)-1 && ngroups == -1 &&
-	    euid == (uid_t)-1 && (euid = geteuid()) != 0) {
-		ngroups_max = sysconf(_SC_NGROUPS_MAX) + 1;
-		if ((groups = malloc(sizeof(gid_t) * ngroups_max)) == NULL)
-			err(1, "malloc");
-		ngroups = getgroups(ngroups_max, groups);
-		while (--ngroups >= 0 && gid != groups[ngroups]);
-		free(groups);
-		if (ngroups < 0) {
-			warnx("you are not a member of group %s", gname);
-			return;
-		}
-	}
-	warn("%s", file);
-}
+    exit(rval)
+  }
 
-static void
-usage(void)
-{
+  func a_gid(_ s : String, _ isn : Bool) -> gid_t? {
+    if s.isEmpty { return nil }   /* Argument was "uid[:.]". */
 
-	if (ischown)
-		(void)fprintf(stderr, "%s\n%s\n",
-#ifdef __APPLE__
-		    "usage: chown [-fhnvx] [-R [-H | -L | -P]] owner[:group]"
-		    " file ...",
-		    "       chown [-fhnvx] [-R [-H | -L | -P]] :group file ...");
-#else
-		    "usage: chown [-fhvx] [-R [-H | -L | -P]] owner[:group]"
-		    " file ...",
-		    "       chown [-fhvx] [-R [-H | -L | -P]] :group file ...");
-#endif
-	else
-		(void)fprintf(stderr, "%s\n",
-#ifdef __APPLE__
-		    "usage: chgrp [-fhnvx] [-R [-H | -L | -P]] group file ...");
-#else
-		    "usage: chgrp [-fhvx] [-R [-H | -L | -P]] group file ...");
-#endif
-	exit(1);
-}
+    // #ifdef __APPLE__
+    if !isn {
+      if let gr = getgrnam(s) {
+        return gr.pointee.gr_gid
+      }
+    }
 
-static void
-print_info(const FTSENT *p, int vflag)
-{
+    return id(s, "group")
+    // #else
+    // 	gid = ((gr = getgrnam(s)) != NULL) ? gr->gr_gid : id(s, "group");
+    // #endif
+  }
 
-	printf("%s", p->fts_path);
-	if (vflag > 1) {
-		if (ischown) {
-			printf(": %ju:%ju -> %ju:%ju",
-			    (uintmax_t)p->fts_statp->st_uid, 
-			    (uintmax_t)p->fts_statp->st_gid,
-			    (uid == (uid_t)-1) ? 
-			    (uintmax_t)p->fts_statp->st_uid : (uintmax_t)uid,
-			    (gid == (gid_t)-1) ? 
-			    (uintmax_t)p->fts_statp->st_gid : (uintmax_t)gid);
-		} else {
-			printf(": %ju -> %ju", (uintmax_t)p->fts_statp->st_gid,
-			    (gid == (gid_t)-1) ? 
-			    (uintmax_t)p->fts_statp->st_gid : (uintmax_t)gid);
-		}
-	}
-	printf("\n");
-}
+  func a_uid(_ s : String, _ isn : Bool) -> uid_t? {
+    if s.isEmpty { return nil }			/* Argument was "[:.]gid". */
+
+    // #ifdef __APPLE__
+    if !isn {
+      if let pw = getpwnam(s) {
+        return pw.pointee.pw_uid
+      }
+    }
+    return id(s, "user")
+  }
+
+
+
+  func id(_ name : String, _ type : String) -> uid_t {
+    let UID_MAX = 2147483647  /* max value for a uid_t (2^31-2) */
+    if let val = Int(name) {
+      if val <= UID_MAX {
+        return uid_t(val)
+      }
+    }
+    errx(1, "\(name): illegal \(type) name")
+    // FIXME: should get out of here in a better way
+    fatalError()
+  }
+
+  var euid = geteuid()
+  var groups = {
+    let ngroups_max = Int(sysconf(_SC_NGROUPS_MAX) + 1)
+    var groups = Array(repeating: gid_t(0), count: ngroups_max)
+    let ngroups = getgroups(Int32(ngroups_max), &groups)
+    return groups[0..<Int(ngroups)]
+  }()
+
+  func chownerr(_ file : String) {
+
+    /* Check for chown without being root. */
+    if (errno != EPERM || (options.uid != nil && euid != 0)) {
+      warn(file);
+      return
+    }
+
+    /* Check group membership; kernel just returns EPERM. */
+    if let gid = options.gid {
+      if !groups.contains(gid) {
+        warnx("you are not a member of group \(options.gname)")
+        return
+      }
+    }
+    warn(file)
+  }
+
+  var usage = """
+usage: chown [-fhnvx] [-R [-H | -L | -P]] owner[:group] file ...
+       chown [-fhnvx] [-R [-H | -L | -P]] :group file ...
+"""
+
+  func print_info(_ p : FtsEntry, _ vflag : Int) {
+    print(p.path, terminator: "")
+    if (vflag > 1) {
+      print(": \(p.statp!.userId):\(p.statp!.groupId) -> \(options.uid == nil ? p.statp!.userId : UInt(options.uid!) ):\(options.gid == nil ? p.statp!.groupId : UInt(options.gid!) )",
+            terminator: "")
+    }
+    print("");
+  }
 }

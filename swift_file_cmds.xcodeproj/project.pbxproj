@@ -78,7 +78,6 @@
 		E77404FC2F06CF6F00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404FB2F06CF6F00498517 /* CMigration */; };
 		E77404FE2F06CF7600498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404FD2F06CF7600498517 /* CMigration */; };
 		E77405002F06CF7B00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404FF2F06CF7B00498517 /* CMigration */; };
-		E77405022F06CF7F00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77405012F06CF7F00498517 /* CMigration */; };
 		E77405042F06CF8300498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77405032F06CF8300498517 /* CMigration */; };
 		E77405062F06CF8700498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77405052F06CF8700498517 /* CMigration */; };
 		E77405082F06CF8B00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77405072F06CF8B00498517 /* CMigration */; };
@@ -92,6 +91,7 @@
 		E774054C2F09BB2700498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77405482F09BB2700498517 /* CMigration */; };
 		E77405592F09BB3800498517 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E77405532F09BB3800498517 /* ShellTesting */; };
 		E774055A2F09BB3800498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77405552F09BB3800498517 /* CMigration */; };
+		E77406882F0B93E600498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77406872F0B93E600498517 /* CMigration */; };
 		E78DE7162E43A989001E00CA /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E78DE7152E43A989001E00CA /* ShellTesting */; };
 /* End PBXBuildFile section */
 
@@ -797,6 +797,81 @@
 			);
 			target = E77405522F09BB3800498517 /* linkTest */;
 		};
+		E774068A2F0B959100498517 /* Exceptions for "Sources" folder in "stat" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				stat/stat.swift,
+			);
+			target = E774010C2F02D86100498517 /* stat */;
+		};
+		E774068C2F0B959B00498517 /* Exceptions for "Sources" folder in "rm" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				rm/rm.swift,
+				rm/strmode.swift,
+				rm/strtofflags.swift,
+			);
+			target = E77401222F02D87600498517 /* rm */;
+		};
+		E774068E2F0B95BD00498517 /* Exceptions for "Sources" folder in "mv" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				mv/mv.swift,
+			);
+			target = E77401432F02D8A800498517 /* mv */;
+		};
+		E77406902F0B960E00498517 /* Exceptions for "Sources" folder in "mkfifo" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				mkfifo/mkfifo.swift,
+			);
+			target = E77401642F02D8C500498517 /* mkfifo */;
+		};
+		E77406922F0B966000498517 /* Exceptions for "Sources" folder in "chmod" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				chmod/chmod_acl.swift,
+				chmod/chmod.swift,
+			);
+			target = E77401FE2F02DA5300498517 /* chmod */;
+		};
+		E77406952F0B967500498517 /* Exceptions for "Sources" folder in "compress" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				compress/compress.swift,
+				compress/zopen.swift,
+			);
+			target = E77401DD2F02DA0900498517 /* compress */;
+		};
+		E77406982F0B968300498517 /* Exceptions for "Sources" folder in "cp" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				cp/cp.swift,
+				cp/utils.swift,
+			);
+			target = E77401D22F02D9F900498517 /* cp */;
+		};
+		E774069B2F0B969400498517 /* Exceptions for "Sources" folder in "df" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				df/df.swift,
+			);
+			target = E77401BC2F02D9E600498517 /* df */;
+		};
+		E774069D2F0B96B600498517 /* Exceptions for "Sources" folder in "install" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				install/xinstall.swift,
+			);
+			target = E774019B2F02D91D00498517 /* install */;
+		};
+		E774069F2F0B96C100498517 /* Exceptions for "Sources" folder in "ipcs" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ipcs/ipcs.swift,
+			);
+			target = E77401852F02D90800498517 /* ipcs */;
+		};
 		E78DE71C2E43ABBD001E00CA /* Exceptions for "Tests" folder in "chflagsTest" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -819,20 +894,33 @@
 			exceptions = (
 				E7A6AA642E428C9A001C9A44 /* Exceptions for "Sources" folder in "chflags" target */,
 				E774034F2F03348000498517 /* Exceptions for "Sources" folder in "chgrp" target */,
+				E77406922F0B966000498517 /* Exceptions for "Sources" folder in "chmod" target */,
 				E774033F2F03335F00498517 /* Exceptions for "Sources" folder in "chown" target */,
 				E774032A2F03320500498517 /* Exceptions for "Sources" folder in "cksum" target */,
+				E77406952F0B967500498517 /* Exceptions for "Sources" folder in "compress" target */,
+				E77406982F0B968300498517 /* Exceptions for "Sources" folder in "cp" target */,
+				E774069B2F0B969400498517 /* Exceptions for "Sources" folder in "df" target */,
 				E774033D2F03335400498517 /* Exceptions for "Sources" folder in "du" target */,
+				E774069D2F0B96B600498517 /* Exceptions for "Sources" folder in "install" target */,
 				E774033B2F03334A00498517 /* Exceptions for "Sources" folder in "ipcrm" target */,
+				E774069F2F0B96C100498517 /* Exceptions for "Sources" folder in "ipcs" target */,
 				E77405652F09BBA800498517 /* Exceptions for "Sources" folder in "link" target */,
 				E77403392F03334100498517 /* Exceptions for "Sources" folder in "ln" target */,
 				E77400042F0239F900498517 /* Exceptions for "Sources" folder in "mkdir" target */,
+				E77406902F0B960E00498517 /* Exceptions for "Sources" folder in "mkfifo" target */,
 				E77403372F03333500498517 /* Exceptions for "Sources" folder in "mknod" target */,
+				E774068E2F0B95BD00498517 /* Exceptions for "Sources" folder in "mv" target */,
 				E774032E2F03323300498517 /* Exceptions for "Sources" folder in "pathchk" target */,
+				E774068C2F0B959B00498517 /* Exceptions for "Sources" folder in "rm" target */,
 				E774032C2F03321400498517 /* Exceptions for "Sources" folder in "rmdir" target */,
+				E774068A2F0B959100498517 /* Exceptions for "Sources" folder in "stat" target */,
 				E77403342F03331D00498517 /* Exceptions for "Sources" folder in "touch" target */,
 				E77403322F03331600498517 /* Exceptions for "Sources" folder in "truncate" target */,
 				E77403302F03330D00498517 /* Exceptions for "Sources" folder in "xattr" target */,
 			);
+			explicitFileTypes = {
+				mkfifo/mkfifo.swift = sourcecode.swift;
+			};
 			path = Sources;
 			sourceTree = "<group>";
 		};
@@ -927,7 +1015,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E77405022F06CF7F00498517 /* CMigration in Frameworks */,
+				E77406882F0B93E600498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1545,7 +1633,7 @@
 			);
 			name = pathchk;
 			packageProductDependencies = (
-				E77405012F06CF7F00498517 /* CMigration */,
+				E77406872F0B93E600498517 /* CMigration */,
 			);
 			productName = pathchk;
 			productReference = E77401392F02D89900498517 /* pathchk */;
@@ -5985,11 +6073,6 @@
 			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
 			productName = CMigration;
 		};
-		E77405012F06CF7F00498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
 		E77405032F06CF8300498517 /* CMigration */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
@@ -6053,6 +6136,11 @@
 		E77405552F09BB3800498517 /* CMigration */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E77405562F09BB3800498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77406872F0B93E600498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
 			productName = CMigration;
 		};
 		E78DE7152E43A989001E00CA /* ShellTesting */ = {

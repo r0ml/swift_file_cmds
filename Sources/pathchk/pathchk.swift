@@ -40,7 +40,7 @@
 import CMigration
 import Darwin
 
-struct pathchk : ShellCommand {
+@main struct pathchk : ShellCommand {
 
   struct CommandOptions {
     var pflag = false  /* Perform portability checks */
