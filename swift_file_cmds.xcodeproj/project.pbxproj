@@ -872,6 +872,80 @@
 			);
 			target = E77401852F02D90800498517 /* ipcs */;
 		};
+		E77406B52F0E0D4000498517 /* Exceptions for "Sources" folder in "pax" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				pax/ar_io.swift,
+				pax/ar_subs.swift,
+				pax/buf_subs.swift,
+				pax/cache.swift,
+				pax/cpio.swift,
+				pax/file_subs.swift,
+				pax/ftree.swift,
+				pax/gen_subs.swift,
+				pax/getoldopt.swift,
+				pax/options.swift,
+				pax/pat_rep.swift,
+				pax/pax_format.swift,
+				pax/pax.swift,
+				pax/sel_subs.swift,
+				pax/tables.swift,
+				pax/tar.swift,
+				pax/tty_subs.swift,
+			);
+			target = E774012D2F02D87D00498517 /* pax */;
+		};
+		E77406BF2F0E0D4F00498517 /* Exceptions for "Sources" folder in "mtree" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				mtree/compare.swift,
+				mtree/create.swift,
+				mtree/excludes.swift,
+				mtree/metrics.swift,
+				mtree/misc.swift,
+				mtree/mtree.swift,
+				mtree/spec.swift,
+				mtree/specspec.swift,
+				mtree/verify.swift,
+			);
+			target = E774014E2F02D8B200498517 /* mtree */;
+		};
+		E77406C42F0E0D5D00498517 /* Exceptions for "Sources" folder in "ls" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ls/cmp.swift,
+				ls/ls.swift,
+				ls/print.swift,
+				ls/util.swift,
+			);
+			target = E774016F2F02D8F900498517 /* ls */;
+		};
+		E77406CC2F0E0D6C00498517 /* Exceptions for "Sources" folder in "gzip" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				gzip/futimens.swift,
+				gzip/gzip.swift,
+				gzip/unbzip2.swift,
+				gzip/unlz.swift,
+				gzip/unpack.swift,
+				gzip/unxz.swift,
+				gzip/zuncompress.swift,
+			);
+			target = E77401A62F02D92700498517 /* gzip */;
+		};
+		E77406D42F0E0D7E00498517 /* Exceptions for "Sources" folder in "dd" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				dd/args.swift,
+				dd/conv_tab.swift,
+				dd/conv.swift,
+				dd/dd.swift,
+				dd/gen.swift,
+				dd/misc.swift,
+				dd/position.swift,
+			);
+			target = E77401C72F02D9F200498517 /* dd */;
+		};
 		E78DE71C2E43ABBD001E00CA /* Exceptions for "Tests" folder in "chflagsTest" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -899,18 +973,23 @@
 				E774032A2F03320500498517 /* Exceptions for "Sources" folder in "cksum" target */,
 				E77406952F0B967500498517 /* Exceptions for "Sources" folder in "compress" target */,
 				E77406982F0B968300498517 /* Exceptions for "Sources" folder in "cp" target */,
+				E77406D42F0E0D7E00498517 /* Exceptions for "Sources" folder in "dd" target */,
 				E774069B2F0B969400498517 /* Exceptions for "Sources" folder in "df" target */,
 				E774033D2F03335400498517 /* Exceptions for "Sources" folder in "du" target */,
+				E77406CC2F0E0D6C00498517 /* Exceptions for "Sources" folder in "gzip" target */,
 				E774069D2F0B96B600498517 /* Exceptions for "Sources" folder in "install" target */,
 				E774033B2F03334A00498517 /* Exceptions for "Sources" folder in "ipcrm" target */,
 				E774069F2F0B96C100498517 /* Exceptions for "Sources" folder in "ipcs" target */,
 				E77405652F09BBA800498517 /* Exceptions for "Sources" folder in "link" target */,
 				E77403392F03334100498517 /* Exceptions for "Sources" folder in "ln" target */,
+				E77406C42F0E0D5D00498517 /* Exceptions for "Sources" folder in "ls" target */,
 				E77400042F0239F900498517 /* Exceptions for "Sources" folder in "mkdir" target */,
 				E77406902F0B960E00498517 /* Exceptions for "Sources" folder in "mkfifo" target */,
 				E77403372F03333500498517 /* Exceptions for "Sources" folder in "mknod" target */,
+				E77406BF2F0E0D4F00498517 /* Exceptions for "Sources" folder in "mtree" target */,
 				E774068E2F0B95BD00498517 /* Exceptions for "Sources" folder in "mv" target */,
 				E774032E2F03323300498517 /* Exceptions for "Sources" folder in "pathchk" target */,
+				E77406B52F0E0D4000498517 /* Exceptions for "Sources" folder in "pax" target */,
 				E774068C2F0B959B00498517 /* Exceptions for "Sources" folder in "rm" target */,
 				E774032C2F03321400498517 /* Exceptions for "Sources" folder in "rmdir" target */,
 				E774068A2F0B959100498517 /* Exceptions for "Sources" folder in "stat" target */,
