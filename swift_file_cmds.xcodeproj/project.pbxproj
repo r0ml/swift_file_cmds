@@ -26,8 +26,6 @@
 				E77403612F0334AB00498517 /* PBXTargetDependency */,
 				E77403632F0334AB00498517 /* PBXTargetDependency */,
 				E77403652F0334AB00498517 /* PBXTargetDependency */,
-				E77403672F0334AB00498517 /* PBXTargetDependency */,
-				E77403692F0334AB00498517 /* PBXTargetDependency */,
 				E774036B2F0334AB00498517 /* PBXTargetDependency */,
 				E774036D2F0334AB00498517 /* PBXTargetDependency */,
 				E774036F2F0334AB00498517 /* PBXTargetDependency */,
@@ -172,20 +170,6 @@
 			proxyType = 1;
 			remoteGlobalIDString = E774019B2F02D91D00498517;
 			remoteInfo = install;
-		};
-		E77403662F0334AB00498517 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = E73707002E4273AC00246ED4 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = E77401902F02D91400498517;
-			remoteInfo = ipcrm;
-		};
-		E77403682F0334AB00498517 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = E73707002E4273AC00246ED4 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = E77401852F02D90800498517;
-			remoteInfo = ipcs;
 		};
 		E774036A2F0334AB00498517 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -3466,16 +3450,6 @@
 			isa = PBXTargetDependency;
 			target = E774019B2F02D91D00498517 /* install */;
 			targetProxy = E77403642F0334AB00498517 /* PBXContainerItemProxy */;
-		};
-		E77403672F0334AB00498517 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = E77401902F02D91400498517 /* ipcrm */;
-			targetProxy = E77403662F0334AB00498517 /* PBXContainerItemProxy */;
-		};
-		E77403692F0334AB00498517 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = E77401852F02D90800498517 /* ipcs */;
-			targetProxy = E77403682F0334AB00498517 /* PBXContainerItemProxy */;
 		};
 		E774036B2F0334AB00498517 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
