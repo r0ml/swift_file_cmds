@@ -721,7 +721,6 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				du/du.swift,
-				du/humanize_number.swift,
 			);
 			target = E77401B12F02D9DE00498517 /* du */;
 		};
@@ -792,8 +791,6 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				rm/rm.swift,
-				rm/strmode.swift,
-				rm/strtofflags.swift,
 			);
 			target = E77401222F02D87600498517 /* rm */;
 		};
@@ -3607,6 +3604,7 @@
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
 		};
@@ -3665,6 +3663,7 @@
 				SDKROOT = macosx;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
 		};

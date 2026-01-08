@@ -371,9 +371,7 @@ do_move(const char *from, const char *to)
 	    fastcopy(from, to, &sb) : copy(from, to));
 }
 
-static int
-fastcopy(const char *from, const char *to, struct stat *sbp)
-{
+func fastcopy(const char *from, const char *to, struct stat *sbp) -> Int {
 	struct timespec ts[2];
 	static u_int blen = MAXPHYS;
 	static char *bp = NULL;
