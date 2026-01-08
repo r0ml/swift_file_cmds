@@ -570,7 +570,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
           hilo = .unspecified
       }
 
-      let j = bb.count - statfmt.count + 1
+      let j = bb.count - statfmt.count
       let tf = String(bb.prefix(j))
 
       guard let what = WhatToShow(rawValue: subfmt) else {
@@ -954,7 +954,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
           lfmt.append("\(size)")
         }
         lfmt.append("lld")
-        let s = String(cString: fmtcheck(lfmt, "%lld"))
+        let s = String(cString: fmtcheck(strdup(lfmt), strdup("%lld")))
         return cFormat(s, tsp!.secs)
       }
 
@@ -1008,7 +1008,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
        * Use the format, and then tack on any zeroes that
        * might be required to make up the requested precision.
        */
-      let s = String(cString: fmtcheck(lfmt, "%lld %ld"))
+      let s = String(cString: fmtcheck(strdup(lfmt), strdup("%lld %ld")))
       var r = cFormat(s, Int64(tsp!.secs), Int32(tsp!.nanosecs))
       if prec > 9 { r.append(contentsOf: String(repeating: "0", count: prec-9))
         prec = 9
@@ -1034,7 +1034,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
         errx(1, "\(fmt): bad format")
       }
       lfmt.append("s")
-      let s = String(cString: fmtcheck(lfmt, "%s"))
+      let s = String(cString: fmtcheck(strdup(lfmt), strdup("%s")))
       return cFormat(s, sdata!)
     }
 
@@ -1060,7 +1060,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
         break
     }
 
-    let s = String(cString: fmtcheck(lfmt, "%llu"))
+    let s = String(cString: fmtcheck(strdup(lfmt), strdup("%llu")))
     return cFormat(s, data)
   }
 

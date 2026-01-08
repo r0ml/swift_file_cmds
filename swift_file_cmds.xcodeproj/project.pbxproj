@@ -90,6 +90,8 @@
 		E77405592F09BB3800498517 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E77405532F09BB3800498517 /* ShellTesting */; };
 		E774055A2F09BB3800498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77405552F09BB3800498517 /* CMigration */; };
 		E77406882F0B93E600498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77406872F0B93E600498517 /* CMigration */; };
+		E77408262F10147300498517 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E77408252F10147300498517 /* ShellTesting */; };
+		E77408282F10147500498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77408272F10147500498517 /* CMigration */; };
 		E78DE7162E43A989001E00CA /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E78DE7152E43A989001E00CA /* ShellTesting */; };
 /* End PBXBuildFile section */
 
@@ -927,6 +929,13 @@
 			);
 			target = E77401C72F02D9F200498517 /* dd */;
 		};
+		E77408242F10017C00498517 /* Exceptions for "Tests" folder in "statTest" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				stat/statTest.swift,
+			);
+			target = E77402FB2F02E8D300498517 /* statTest */;
+		};
 		E78DE71C2E43ABBD001E00CA /* Exceptions for "Tests" folder in "chflagsTest" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -991,6 +1000,7 @@
 				E774056F2F09BF9600498517 /* Exceptions for "Tests" folder in "linkTest" target */,
 				E77405422F0788D700498517 /* Exceptions for "Tests" folder in "lnTest" target */,
 				E77400E72F02D29900498517 /* Exceptions for "Tests" folder in "mkdirTest" target */,
+				E77408242F10017C00498517 /* Exceptions for "Tests" folder in "statTest" target */,
 				E77405122F070FED00498517 /* Exceptions for "Tests" folder in "touchTest" target */,
 				E77403BF2F038F0800498517 /* Exceptions for "Tests" folder in "truncateTest" target */,
 				E77404D12F05F30300498517 /* Exceptions for "Tests" folder in "xattrTest" target */,
@@ -1348,6 +1358,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E77408262F10147300498517 /* ShellTesting in Frameworks */,
+				E77408282F10147500498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2398,6 +2410,8 @@
 			);
 			name = statTest;
 			packageProductDependencies = (
+				E77408252F10147300498517 /* ShellTesting */,
+				E77408272F10147500498517 /* CMigration */,
 			);
 			productName = statTest;
 			productReference = E77402FC2F02E8D300498517 /* statTest.xctest */;
@@ -6191,6 +6205,16 @@
 			productName = CMigration;
 		};
 		E77406872F0B93E600498517 /* CMigration */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
+			productName = CMigration;
+		};
+		E77408252F10147300498517 /* ShellTesting */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E7A6AA602E428C8C001C9A44 /* XCRemoteSwiftPackageReference "ShellTesting" */;
+			productName = ShellTesting;
+		};
+		E77408272F10147500498517 /* CMigration */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
 			productName = CMigration;

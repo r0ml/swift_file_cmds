@@ -35,621 +35,569 @@
  * SUCH DAMAGE.
  */
 
-#if 0
-#ifndef lint
-static char const copyright[] =
-"@(#) Copyright (c) 1989, 1993, 1994\n\
-	The Regents of the University of California.  All rights reserved.\n";
-#endif /* not lint */
-
-#ifndef lint
-static char sccsid[] = "@(#)mv.c	8.2 (Berkeley) 4/2/94";
-#endif /* not lint */
-#endif
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
-
-#ifndef __APPLE__
-#include <sys/types.h>
-#include <sys/acl.h>
-#endif
-#include <sys/param.h>
-#include <sys/time.h>
-#include <sys/wait.h>
-#include <sys/stat.h>
-#include <sys/mount.h>
-
-#include <err.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <grp.h>
-#include <limits.h>
-#include <paths.h>
-#include <pwd.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sysexits.h>
-#include <unistd.h>
-#include <locale.h>
+import CMigration
+import Darwin
 
 /* Exit code for a failed exec. */
-#define EXEC_FAILED 127
+let EXEC_FAILED : Int32 = 127
 
-#ifdef __APPLE__
-#include <copyfile.h>
-#include <sys/mount.h>
-#endif
+@main struct mv : ShellCommand {
 
-#ifdef __APPLE__ 
-#include <get_compat.h>
+  struct CommandOptions {
+    var fflg = false
+    var hflg = false
+    var iflg = false
+    var nflg = false
+    var vflg = false
+    var args = [String]()
+  }
 
-#define	st_atim	st_atimespec
-#define	st_mtim	st_mtimespec
-#else   
-#define COMPAT_MODE(a,b) (1) 
-#endif /* __APPLE__ */ 
+  var options : CommandOptions!
 
-#include "pathnames.h"
+  func parseOptions() throws(CmdErr) -> CommandOptions {
+    /*
+     size_t baselen, len;
+     int rval;
+     char *p, *endp;
+     struct stat sb;
+     #ifdef __APPLE__
+     struct stat fsb, tsb;
+     #endif /* __APPLE__ */
+     int ch;
+     char path[PATH_MAX];
+     */
+    var options = CommandOptions()
+    let go = BSDGetopt("fhinv")
 
-static int	fflg, hflg, iflg, nflg, vflg;
+    while let (k, v) = try go.getopt() {
+      switch k {
+        case "h":
+          options.hflg = true
+        case "i":
+          options.iflg = true
+          options.fflg = false
+          options.nflg = false
+        case "f":
+          options.fflg = true
+          options.iflg = false
+          options.nflg = false
+        case "n":
+          options.nflg = true
+          options.fflg = false
+          options.iflg = false
+        case "v":
+          options.vflg = true
+        default:
+          throw CmdErr(1)
+      }
+    }
+    options.args = go.remaining
 
-static int	copy(const char *, const char *);
-static int	do_move(const char *, const char *);
-static int	fastcopy(const char *, const char *, struct stat *);
-static void	usage(void);
-#ifndef __APPLE__
-static void	preserve_fd_acls(int source_fd, int dest_fd, const char *source_path,
-		    const char *dest_path);
-#endif
+    if options.args.count < 2 {
+      throw CmdErr(1)
+    }
+  }
 
-int
-main(int argc, char *argv[])
-{
-	size_t baselen, len;
-	int rval;
-	char *p, *endp;
-	struct stat sb;
-#ifdef __APPLE__
-	struct stat fsb, tsb;
-#endif /* __APPLE__ */
-	int ch;
-	char path[PATH_MAX];
+  func runCommand() throws(CmdErr) {
+    /*
+     * If the stat on the target fails or the target isn't a directory,
+     * try the move.  More than 2 arguments is an error in this case.
+     */
+    let sb = try? FileMetadata(for: options.args.last!)
+    if sb == nil || sb!.fileType != .directory {
+//    if (stat(argv[argc - 1], &sb) || !S_ISDIR(sb.st_mode)) {
+      if options.args.count > 2 {
+        errx(1, "\(options.args.last!) is not a directory")
+      }
+      exit(Int32(do_move(options.args[0], options.args[1])))
+    }
 
-	while ((ch = getopt(argc, argv, "fhinv")) != -1)
-		switch (ch) {
-		case 'h':
-			hflg = 1;
-			break;
-		case 'i':
-			iflg = 1;
-			fflg = nflg = 0;
-			break;
-		case 'f':
-			fflg = 1;
-			iflg = nflg = 0;
-			break;
-		case 'n':
-			nflg = 1;
-			fflg = iflg = 0;
-			break;
-		case 'v':
-			vflg = 1;
-			break;
-		default:
-			usage();
-		}
-	argc -= optind;
-	argv += optind;
+    // #ifdef __APPLE__
+    let fsb = try? FileMetadata(for: options.args[0], followSymlinks: false)
+    let tsb = try? FileMetadata(for: options.args[1], followSymlinks: false)
 
-	if (argc < 2)
-		usage();
+    if options.args.count == 2,
+       let fsb,
+       let tsb,
+       fsb.inode == tsb.inode && fsb.device == tsb.device,
+      fsb.generation == tsb.generation {
+      /*
+       * We appear to be trying to move a directory into itself,
+       * but it may be that the filesystem is case insensitive and
+       * we are trying to rename the directory to a case-variant.
+       * Ignoring trailing slashes, we look for any difference in
+       * the directory names.  If there is a difference we do
+       * the rename, otherwise we fall-thru to the traditional
+       * error.  Note the lstat calls above (rather than stat)
+       * permit the renaming of symlinks to case-variants.
+       */
 
-	/*
-	 * If the stat on the target fails or the target isn't a directory,
-	 * try the move.  More than 2 arguments is an error in this case.
-	 */
-	if (stat(argv[argc - 1], &sb) || !S_ISDIR(sb.st_mode)) {
-		if (argc > 2)
-			errx(1, "%s is not a directory", argv[argc - 1]);
-		exit(do_move(argv[0], argv[1]));
-	}
-	
-#ifdef __APPLE__
-	if (argc == 2 && !lstat(argv[0], &fsb) && !lstat(argv[1], &tsb) &&
-		fsb.st_ino == tsb.st_ino && fsb.st_dev == tsb.st_dev &&
-		fsb.st_gen == tsb.st_gen) {
-		/*
-		 * We appear to be trying to move a directory into itself,
-		 * but it may be that the filesystem is case insensitive and
-		 * we are trying to rename the directory to a case-variant.
-		 * Ignoring trailing slashes, we look for any difference in
-		 * the directory names.  If there is a difference we do
-		 * the rename, otherwise we fall-thru to the traditional
-		 * error.  Note the lstat calls above (rather than stat)
-		 * permit the renaming of symlinks to case-variants.
-		 */
-		char *q;
-		
-		for (p = argv[0] + strlen(argv[0]); p != argv[0]; ) {
-			p--;
-			if (*p != '/')
-				break;
-		}
-		for (q = argv[1] + strlen(argv[1]); q != argv[1]; ) {
-			q--;
-			if (*q != '/')
-				break;
-		}
-		for ( ; ; p--, q--) {
-			if (*p != *q)
-				exit(do_move(argv[0], argv[1]));
-			if (*p == '/')
-				break;
-			if (p == argv[0]) {
-				if (q == argv[1] || *(q-1) == '/')
-					break;
-				exit(do_move(argv[0], argv[1]));
-			}
-			if (q == argv[1]) {
-				if (p == argv[0] || *(p-1) == '/')
-					break;
-				exit(do_move(argv[0], argv[1]));
-			}
-		}
-	}
-#endif /* __APPLE__ */
+      let p = options.args[0].split(separator: "/", omittingEmptySubsequences: true).last!
+      let q = options.args[1].split(separator: "/", omittingEmptySubsequences: true).last!
+      if p != q {
+        exit(Int32(do_move(options.args[0], options.args[1])))
+      }
+    }
+    // #endif /* __APPLE__ */
 
-	/*
-	 * If -h was specified, treat the target as a symlink instead of
-	 * directory.
-	 */
-	if (hflg) {
-		if (argc > 2)
-			usage();
-		if (lstat(argv[1], &sb) == 0 && S_ISLNK(sb.st_mode))
-			exit(do_move(argv[0], argv[1]));
-	}
+    /*
+     * If -h was specified, treat the target as a symlink instead of
+     * directory.
+     */
+    if options.hflg {
+      if options.args.count > 2 {
+        throw CmdErr(1, usage)
+      }
 
-	/* It's a directory, move each file into it. */
-	if (strlen(argv[argc - 1]) > sizeof(path) - 1)
-		errx(1, "%s: destination pathname too long", *argv);
-	(void)strcpy(path, argv[argc - 1]);
-	baselen = strlen(path);
-	endp = &path[baselen];
-	if (!baselen || *(endp - 1) != '/') {
-		*endp++ = '/';
-		++baselen;
-	}
-	for (rval = 0; --argc; ++argv) {
-		/*
-		 * Find the last component of the source pathname.  It
-		 * may have trailing slashes.
-		 */
-		p = *argv + strlen(*argv);
-		while (p != *argv && p[-1] == '/')
-			--p;
-		while (p != *argv && p[-1] != '/')
-			--p;
+      if let tsb, tsb.fileType == .symbolicLink {
+        exit(Int32(do_move(options.args[0], options.args[1])))
+      }
+    }
 
-		if ((baselen + (len = strlen(p))) >= PATH_MAX) {
-			warnx("%s: destination pathname too long", *argv);
-			rval = 1;
-		} else {
-			memmove(endp, p, (size_t)len + 1);
-			if (COMPAT_MODE("bin/mv", "unix2003")) {
-				/* 
-				 * For Unix 2003 compatibility, check if old and new are 
-				 * same file, and produce an error * (like on Sun) that 
-				 * conformance test 66 in mv.ex expects.
-				 */
-				if (!stat(*argv, &fsb) && !stat(path, &tsb) &&
-					fsb.st_ino == tsb.st_ino && 
-					fsb.st_dev == tsb.st_dev &&
-					fsb.st_gen == tsb.st_gen) {
-					(void)fprintf(stderr, "mv: %s and %s are identical\n", 
-								*argv, path);
-					rval = 2; /* Like the Sun */
-				} else {
-					if (do_move(*argv, path))
-						rval = 1;
-				}
-			} else {
-				if (do_move(*argv, path))
-					rval = 1;
-			}
-		}
-	}
-	exit(rval);
-}
+    /* It's a directory, move each file into it. */
+//    if (strlen(argv[argc - 1]) > sizeof(path) - 1) {
+//      errx(1, "%s: destination pathname too long", *argv);
+//    }
+    var path = options.args.last!
+    if path.last != "/" { path.append("/") }
+    var rval : Int32 = 0
+    for argv in options.args.dropLast() {
+      /*
+       * Find the last component of the source pathname.  It
+       * may have trailing slashes.
+       */
+      p = *argv + strlen(*argv);
+      while (p != *argv && p[-1] == '/')
+              --p;
+      while (p != *argv && p[-1] != '/')
+              --p;
 
-static int
-do_move(const char *from, const char *to)
-{
-	struct stat sb;
-	int ask, ch, first;
-	char modep[15];
-	char resp[] = {'\0', '\0'};
+      if ((baselen + (len = strlen(p))) >= PATH_MAX) {
+        warnx("%s: destination pathname too long", *argv);
+        rval = 1;
+      } else {
+        memmove(endp, p, (size_t)len + 1);
+        if (COMPAT_MODE("bin/mv", "unix2003")) {
+          /*
+           * For Unix 2003 compatibility, check if old and new are
+           * same file, and produce an error * (like on Sun) that
+           * conformance test 66 in mv.ex expects.
+           */
+          if (!stat(*argv, &fsb) && !stat(path, &tsb) &&
+              fsb.st_ino == tsb.st_ino &&
+              fsb.st_dev == tsb.st_dev &&
+              fsb.st_gen == tsb.st_gen) {
+            (void)fprintf(stderr, "mv: %s and %s are identical\n",
+                          *argv, path);
+            rval = 2; /* Like the Sun */
+          } else {
+            if (do_move(*argv, path)) {
+              rval = 1;
+            }
+          }
+        } else {
+          if (do_move(argv, path)) {
+            rval = 1;
+          }
+        }
+      }
+    }
+    exit(rval)
+  }
 
-	/*
-	 * Check access.  If interactive and file exists, ask user if it
-	 * should be replaced.  Otherwise if file exists but isn't writable
-	 * make sure the user wants to clobber it.
-	 */
-	if (!fflg && !access(to, F_OK)) {
+  func do_move(_ from : String, _ to : String) -> Bool {
+ //   struct stat sb;
+ //   int ask, ch, first;
+ //   char modep[15];
+ //   char resp[] = {'\0', '\0'};
 
-		/* prompt only if source exist */
-	        if (lstat(from, &sb) == -1) {
-			warn("%s", from);
-			return (1);
-		}
+    /*
+     * Check access.  If interactive and file exists, ask user if it
+     * should be replaced.  Otherwise if file exists but isn't writable
+     * make sure the user wants to clobber it.
+     */
+    var ask = 0
 
-#define YESNO "(y/n [n]) "
-		ask = 0;
-		if (nflg) {
-			if (vflg)
-				printf("%s not overwritten\n", to);
-			return (0);
-		} else if (iflg) {
-			(void)fprintf(stderr, "overwrite %s? %s", to, YESNO);
-			ask = 1;
-		} else if (access(to, W_OK) && !stat(to, &sb) && isatty(STDIN_FILENO)) {
-			strmode(sb.st_mode, modep);
-			(void)fprintf(stderr, "override %s%s%s/%s for %s? %s",
-			    modep + 1, modep[9] == ' ' ? "" : " ",
-			    user_from_uid((unsigned long)sb.st_uid, 0),
-			    group_from_gid((unsigned long)sb.st_gid, 0), to, YESNO);
-			ask = 1;
-		}
-		if (ask) {
-			/* Load user specified locale */
-			setlocale(LC_MESSAGES, "");
+    if (!options.fflg && !access(to, F_OK)) {
 
-			first = ch = getchar();
-			while (ch != '\n' && ch != EOF)
-				ch = getchar();
+      /* prompt only if source exist */
+      guard let sb = try? FileMetadata(for: from, followSymlinks: false) else {
+        warn(from)
+        return true
+      }
 
-			/* only care about the first character */
-			resp[0] = first;
+      let YESNO = "(y/n [n]) "
+      ask = 0
+      var stderr = FileDescriptor.standardError
+      if options.nflg {
+        if options.vflg {
+          print("\(to) not overwritten")
+        }
+        return false
+      } else if options.iflg {
+        print("overwrite \(to)? \(YESNO)", terminator: "", to: &stderr)
+        ask = 1
+      } else if (access(to, W_OK) && !stat(to, &sb) && isatty(STDIN_FILENO)) {
+        let modep = strmode(sb.fileType, sb.mode)
+        let u = Darwin.user_from_uid(UInt32(sb.userId), 0)!
+        let g = Darwin.group_from_gid(UInt32(sb.groupId), 0)!
+        print("override \(modep.dropFirst())\(modep.last == " " ? "" : " ")\(u)/\(g) for \(to)? \(YESNO)",
+              terminator: "", to: &stderr)
+        ask = 1
+      }
+      if ask != 0 {
+        /* Load user specified locale */
+        setlocale(LC_MESSAGES, "");
 
-			if (rpmatch(resp) != 1) {
-				(void)fprintf(stderr, "not overwritten\n");
-				return (0);
-			}
-		}
-	}
-	/*
-	 * Rename on FreeBSD will fail with EISDIR and ENOTDIR, before failing
-	 * with EXDEV.  Therefore, copy() doesn't have to perform the checks
-	 * specified in the Step 3 of the POSIX mv specification.
-	 */
-	if (!rename(from, to)) {
-		if (vflg)
-			printf("%s -> %s\n", from, to);
-		return (0);
-	}
+        first = ch = getchar();
+        while (ch != '\n' && ch != EOF)
+                ch = getchar();
 
-	if (errno == EXDEV) {
-		struct statfs sfs;
-		char path[PATH_MAX];
+        /* only care about the first character */
+        resp[0] = first;
 
-		/*
-		 * If the source is a symbolic link and is on another
-		 * filesystem, it can be recreated at the destination.
-		 */
-		if (lstat(from, &sb) == -1) {
-			warn("%s", from);
-			return (1);
-		}
-		if (!S_ISLNK(sb.st_mode)) {
-			/* Can't mv(1) a mount point. */
-			if (realpath(from, path) == NULL) {
-				warn("cannot resolve %s: %s", from, path);
-				return (1);
-			}
-			if (!statfs(path, &sfs) &&
-			    !strcmp(path, sfs.f_mntonname)) {
-				warnx("cannot rename a mount point");
-				return (1);
-			}
-		}
-	} else {
-		warn("rename %s to %s", from, to);
-		return (1);
-	}
+        if (rpmatch(resp) != 1) {
+          print("not overwritten", to: &stderr)
+          return false
+        }
+      }
+    }
+    /*
+     * Rename on FreeBSD will fail with EISDIR and ENOTDIR, before failing
+     * with EXDEV.  Therefore, copy() doesn't have to perform the checks
+     * specified in the Step 3 of the POSIX mv specification.
+     */
+    if (!rename(from, to)) {
+      if options.vflg {
+        print("\(from) -> \(to)")
+      }
+      return false
+    }
 
-	/*
-	 * If rename fails because we're trying to cross devices, and
-	 * it's a regular file, do the copy internally; otherwise, use
-	 * cp and rm.
-	 */
-	if (lstat(from, &sb)) {
-		warn("%s", from);
-		return (1);
-	}
-	return (S_ISREG(sb.st_mode) ?
-	    fastcopy(from, to, &sb) : copy(from, to));
-}
+    if (errno == EXDEV) {
+      /*
+       * If the source is a symbolic link and is on another
+       * filesystem, it can be recreated at the destination.
+       */
+      guard let sb = try? FileMetadata(for: from, followSymlinks: false) else {
+        warn(from)
+        return true
+      }
+      if sb.fileType != .symbolicLink {
+        /* Can't mv(1) a mount point. */
+        if (realpath(from, path) == nil) {
+          warn("cannot resolve \(from): \(path)")
+          return true
+        }
+        if (!statfs(path, &sfs) && !strcmp(path, sfs.f_mntonname)) {
+          warnx("cannot rename a mount point")
+          return true
+        }
+      }
+    } else {
+      warn("rename \(from) to \(to)")
+      return true
+    }
 
-func fastcopy(const char *from, const char *to, struct stat *sbp) -> Int {
-	struct timespec ts[2];
-	static u_int blen = MAXPHYS;
-	static char *bp = NULL;
-	mode_t oldmode;
-#ifdef __APPLE__
-	/* See rdar://problem/10819384 - implicit conversion precision loss */
-	ssize_t nread;
-	int from_fd, to_fd;
-#else
-	int nread, from_fd, to_fd;
-	struct stat tsb;
-#endif
+    /*
+     * If rename fails because we're trying to cross devices, and
+     * it's a regular file, do the copy internally; otherwise, use
+     * cp and rm.
+     */
+    guard let sb = try? FileMetadata(for: from, followSymlinks: false) else {
+      warn(from);
+      return true
+    }
+    return sb.fileType == .regular ? fastcopy(from, to, sb) : copy(from, to)
+  }
 
-	if ((from_fd = open(from, O_RDONLY, 0)) < 0) {
-		warn("fastcopy: open() failed (from): %s", from);
-		return (1);
-	}
-	if (bp == NULL && (bp = malloc((size_t)blen)) == NULL) {
-		warnx("malloc(%u) failed", blen);
-		(void)close(from_fd);
-		return (1);
-	}
-	while ((to_fd =
-	    open(to, O_CREAT | O_EXCL | O_TRUNC | O_WRONLY, 0)) < 0) {
-		if (errno == EEXIST && unlink(to) == 0)
-			continue;
-		warn("fastcopy: open() failed (to): %s", to);
-		(void)close(from_fd);
-		return (1);
-	}
-#ifdef __APPLE__
-       {
-               struct statfs sfs;
+  func fastcopy(_ from : String, _ to : String, _ sbp : FileMetadata) -> Bool {
+    struct timespec ts[2];
+    static u_int blen = MAXPHYS;
+    static char *bp = NULL;
+    mode_t oldmode;
+    // #ifdef __APPLE__
+    /* See rdar://problem/10819384 - implicit conversion precision loss */
+    ssize_t nread;
+    int from_fd, to_fd;
+    // #else
+    //	int nread, from_fd, to_fd;
+    // 	struct stat tsb;
+    // #endif
 
-               /*
-                * Pre-allocate blocks for the destination file if it
-                * resides on Xsan.
-                */
-               if (fstatfs(to_fd, &sfs) == 0 &&
-                   strcmp(sfs.f_fstypename, "acfs") == 0) {
-                       fstore_t fst;
+    if ((from_fd = open(from, O_RDONLY, 0)) < 0) {
+      warn("fastcopy: open() failed (from): %s", from);
+      return true
+    }
+    if (bp == NULL && (bp = malloc((size_t)blen)) == NULL) {
+      warnx("malloc(%u) failed", blen);
+      (void)close(from_fd);
+      return true
+    }
+    while ((to_fd =
+            open(to, O_CREAT | O_EXCL | O_TRUNC | O_WRONLY, 0)) < 0) {
+      if (errno == EEXIST && unlink(to) == 0) {
+        continue;
+      }
+      warn("fastcopy: open() failed (to): %s", to);
+      (void)close(from_fd);
+      return (1);
+    }
+    // #ifdef __APPLE__
+    {
+      struct statfs sfs;
 
-                       fst.fst_flags = 0;
-                       fst.fst_posmode = F_PEOFPOSMODE;
-                       fst.fst_offset = 0;
-                       fst.fst_length = sbp->st_size;
+      /*
+       * Pre-allocate blocks for the destination file if it
+       * resides on Xsan.
+       */
+      if (fstatfs(to_fd, &sfs) == 0 &&
+          strcmp(sfs.f_fstypename, "acfs") == 0) {
+        fstore_t fst;
 
-                       (void) fcntl(to_fd, F_PREALLOCATE, &fst);
-               }
-       }
-#endif /* __APPLE__ */
-	while ((nread = read(from_fd, bp, (size_t)blen)) > 0)
-		if (write(to_fd, bp, (size_t)nread) != nread) {
-			warn("fastcopy: write() failed: %s", to);
-			goto err;
-		}
-	if (nread < 0) {
-		warn("fastcopy: read() failed: %s", from);
-err:		if (unlink(to))
-			warn("%s: remove", to);
-		(void)close(from_fd);
-		(void)close(to_fd);
-		return (1);
-	}
-#ifdef __APPLE__
-	/* XATTR can fail if to_fd has mode 000 */
-	if (fcopyfile(from_fd, to_fd, NULL, COPYFILE_ACL | COPYFILE_XATTR) < 0) {
-		warn("%s: unable to move extended attributes and ACL from %s",
-		     to, from);
-	}
-#endif
+        fst.fst_flags = 0;
+        fst.fst_posmode = F_PEOFPOSMODE;
+        fst.fst_offset = 0;
+        fst.fst_length = sbp->st_size;
 
-	oldmode = sbp->st_mode & ALLPERMS;
-	if (fchown(to_fd, sbp->st_uid, sbp->st_gid)) {
-		warn("%s: set owner/group (was: %lu/%lu)", to,
-		    (u_long)sbp->st_uid, (u_long)sbp->st_gid);
-		if (oldmode & (S_ISUID | S_ISGID)) {
-			warnx(
-"%s: owner/group changed; clearing suid/sgid (mode was 0%03o)",
-			    to, oldmode);
-			sbp->st_mode &= ~(S_ISUID | S_ISGID);
-		}
-	}
-	if (fchmod(to_fd, sbp->st_mode))
-		warn("%s: set mode (was: 0%03o)", to, oldmode);
-#ifndef __APPLE__
-	/*
-	 * POSIX 1003.2c states that if _POSIX_ACL_EXTENDED is in effect
-	 * for dest_file, then its ACLs shall reflect the ACLs of the
-	 * source_file.
-	 */
-	preserve_fd_acls(from_fd, to_fd, from, to);
-#endif
-	(void)close(from_fd);
-	/*
-	 * XXX
-	 * NFS doesn't support chflags; ignore errors unless there's reason
-	 * to believe we're losing bits.  (Note, this still won't be right
-	 * if the server supports flags and we were trying to *remove* flags
-	 * on a file that we copied, i.e., that we didn't create.)
-	 */
-#ifdef __APPLE__
-	if (fchflags(to_fd, (u_int)sbp->st_flags))
-		if (errno != ENOTSUP || sbp->st_flags != 0)
-			warn("%s: set flags (was: 0%07o)", to, sbp->st_flags);
-#else
-	if (fstat(to_fd, &tsb) == 0) {
-		if ((sbp->st_flags  & ~UF_ARCHIVE) !=
-		    (tsb.st_flags & ~UF_ARCHIVE)) {
-			if (fchflags(to_fd,
-			    sbp->st_flags | (tsb.st_flags & UF_ARCHIVE)))
-				if (errno != EOPNOTSUPP ||
-				    ((sbp->st_flags & ~UF_ARCHIVE) != 0))
-					warn("%s: set flags (was: 0%07o)",
-					    to, sbp->st_flags);
-		}
-	} else
-		warn("%s: cannot stat", to);
-#endif
+        (void) fcntl(to_fd, F_PREALLOCATE, &fst);
+      }
+    }
+    // #endif /* __APPLE__ */
+    while ((nread = read(from_fd, bp, (size_t)blen)) > 0)
+            if (write(to_fd, bp, (size_t)nread) != nread) {
+      warn("fastcopy: write() failed: %s", to);
+      goto err;
+    }
+    if (nread < 0) {
+      warn("fastcopy: read() failed: %s", from);
+      err:		if (unlink(to)) {
+        warn("%s: remove", to);
+      }
+      (void)close(from_fd);
+      (void)close(to_fd);
+      return true
+    }
+    // #ifdef __APPLE__
+    /* XATTR can fail if to_fd has mode 000 */
+    if (fcopyfile(from_fd, to_fd, NULL, COPYFILE_ACL | COPYFILE_XATTR) < 0) {
+      warn("%s: unable to move extended attributes and ACL from %s",
+           to, from);
+    }
+    // #endif
 
-	ts[0] = sbp->st_atim;
-	ts[1] = sbp->st_mtim;
-	if (futimens(to_fd, ts))
-		warn("%s: set times", to);
+    oldmode = sbp->st_mode & ALLPERMS;
+    if (fchown(to_fd, sbp->st_uid, sbp->st_gid)) {
+      warn("%s: set owner/group (was: %lu/%lu)", to,
+           (u_long)sbp->st_uid, (u_long)sbp->st_gid);
+      if (oldmode & (S_ISUID | S_ISGID)) {
+        warnx(
+          "%s: owner/group changed; clearing suid/sgid (mode was 0%03o)",
+          to, oldmode);
+        sbp->st_mode &= ~(S_ISUID | S_ISGID);
+      }
+    }
+    if (fchmod(to_fd, sbp->st_mode)) {
+      warn("%s: set mode (was: 0%03o)", to, oldmode);
+    }
+    /* #ifndef __APPLE__
+     /*
+      * POSIX 1003.2c states that if _POSIX_ACL_EXTENDED is in effect
+      * for dest_file, then its ACLs shall reflect the ACLs of the
+      * source_file.
+      */
+     preserve_fd_acls(from_fd, to_fd, from, to);
+     #endif
+     */
+    (void)close(from_fd);
+    /*
+     * XXX
+     * NFS doesn't support chflags; ignore errors unless there's reason
+     * to believe we're losing bits.  (Note, this still won't be right
+     * if the server supports flags and we were trying to *remove* flags
+     * on a file that we copied, i.e., that we didn't create.)
+     */
+    // #ifdef __APPLE__
+    if (fchflags(to_fd, (u_int)sbp->st_flags)) {
+      if (errno != ENOTSUP || sbp->st_flags != 0) {
+        warn("%s: set flags (was: 0%07o)", to, sbp->st_flags);
+      }
+    }
+    /*
+     #else
+     if (fstat(to_fd, &tsb) == 0) {
+     if ((sbp->st_flags  & ~UF_ARCHIVE) !=
+     (tsb.st_flags & ~UF_ARCHIVE)) {
+     if (fchflags(to_fd,
+     sbp->st_flags | (tsb.st_flags & UF_ARCHIVE)))
+     if (errno != EOPNOTSUPP ||
+     ((sbp->st_flags & ~UF_ARCHIVE) != 0))
+     warn("%s: set flags (was: 0%07o)",
+     to, sbp->st_flags);
+     }
+     } else
+     warn("%s: cannot stat", to);
+     #endif
+     */
 
-	if (close(to_fd)) {
-		warn("%s", to);
-		return (1);
-	}
+    var ts = ( sbp.lastAccess, sbp.lastWrite )
+    if (Darwin.futimens(to_fd, &ts)) {
+      warn("\(to): set times")
+    }
 
-	if (unlink(from)) {
-		warn("%s: remove", from);
-		return (1);
-	}
-	if (vflg)
-		printf("%s -> %s\n", from, to);
-	return (0);
-}
+    if Darwin.close(to_fd) != 0 {
+      warn(to);
+      return true
+    }
 
-static int
-copy(const char *from, const char *to)
-{
-	struct stat sb;
-	int pid, status;
+    if Darwin.unlink(from) != 0 {
+      warn("\(from): remove")
+      return true
+    }
+    if options.vflg {
+      print("\(from) -> \(to)")
+    }
+    return false
+  }
 
-	if (lstat(to, &sb) == 0) {
-		/* Destination path exists. */
-		if (S_ISDIR(sb.st_mode)) {
-			if (rmdir(to) != 0) {
-				warn("rmdir %s", to);
-				return (1);
-			}
-		} else {
-			if (unlink(to) != 0) {
-				warn("unlink %s", to);
-				return (1);
-			}
-		}
-	} else if (errno != ENOENT) {
-		warn("%s", to);
-		return (1);
-	}
+  func copy(_ from : String, _ to : String) -> Bool {
 
-	/* Copy source to destination. */
-	if (!(pid = fork())) {
-		execl(_PATH_CP, "mv", vflg ? "-PRpv" : "-PRp", "--", from, to,
-		    (char *)NULL);
-		_exit(EXEC_FAILED);
-	}
-	if (waitpid(pid, &status, 0) == -1) {
-		warn("%s %s %s: waitpid", _PATH_CP, from, to);
-		return (1);
-	}
-	if (!WIFEXITED(status)) {
-		warnx("%s %s %s: did not terminate normally",
-		    _PATH_CP, from, to);
-		return (1);
-	}
-	switch (WEXITSTATUS(status)) {
-	case 0:
-		break;
-	case EXEC_FAILED:
-		warnx("%s %s %s: exec failed", _PATH_CP, from, to);
-		return (1);
-	default:
-		warnx("%s %s %s: terminated with %d (non-zero) status",
-		    _PATH_CP, from, to, WEXITSTATUS(status));
-		return (1);
-	}
+    do {
+    let sb = try FileMetadata(for: to, followSymlinks: false)
+      /* Destination path exists. */
+      if sb.fileType == .directory {
+        if Darwin.rmdir(to) != 0 {
+          warn("rmdir \(to)")
+          return true
+        }
+      } else {
+        if Darwin.unlink(to) != 0 {
+          warn("unlink \(to)")
+          return true
+        }
+      }
+    } catch(let e) {
+      if (e.code != ENOENT) {
+        warn(to)
+        return true
+      }
+    }
 
-	/* Delete the source. */
-	if (!(pid = fork())) {
-		execl(_PATH_RM, "mv", "-rf", "--", from, (char *)NULL);
-		_exit(EXEC_FAILED);
-	}
-	if (waitpid(pid, &status, 0) == -1) {
-		warn("%s %s: waitpid", _PATH_RM, from);
-		return (1);
-	}
-	if (!WIFEXITED(status)) {
-		warnx("%s %s: did not terminate normally", _PATH_RM, from);
-		return (1);
-	}
-	switch (WEXITSTATUS(status)) {
-	case 0:
-		break;
-	case EXEC_FAILED:
-		warnx("%s %s: exec failed", _PATH_RM, from);
-		return (1);
-	default:
-		warnx("%s %s: terminated with %d (non-zero) status",
-		    _PATH_RM, from, WEXITSTATUS(status));
-		return (1);
-	}
-	return (0);
-}
+    //FIXME: UGLY UGLY UGLY -- forks a call to CP
+    let _PATH_CP = "/bin/cp"
 
-#ifndef __APPLE__
-static void
-preserve_fd_acls(int source_fd, int dest_fd, const char *source_path,
-    const char *dest_path)
-{
-	acl_t acl;
-	acl_type_t acl_type;
-	int acl_supported = 0, ret, trivial;
+    /* Copy source to destination. */
+    if (!(pid = fork())) {
+      execl(_PATH_CP, "mv", vflg ? "-PRpv" : "-PRp", "--", from, to,
+            (char *)NULL);
+      _exit(EXEC_FAILED);
+    }
+    if (waitpid(pid, &status, 0) == -1) {
+      warn("%s %s %s: waitpid", _PATH_CP, from, to);
+      return true
+    }
+    if (!WIFEXITED(status)) {
+      warnx("%s %s %s: did not terminate normally",
+            _PATH_CP, from, to);
+      return true
+    }
+    switch (WEXITSTATUS(status)) {
+      case 0:
+        break;
+      case EXEC_FAILED:
+        warnx("%s %s %s: exec failed", _PATH_CP, from, to);
+        return true
+      default:
+        warnx("%s %s %s: terminated with %d (non-zero) status",
+              _PATH_CP, from, to, WEXITSTATUS(status));
+        return true
+    }
 
-	ret = fpathconf(source_fd, _PC_ACL_NFS4);
-	if (ret > 0 ) {
-		acl_supported = 1;
-		acl_type = ACL_TYPE_NFS4;
-	} else if (ret < 0 && errno != EINVAL) {
-		warn("fpathconf(..., _PC_ACL_NFS4) failed for %s",
-		    source_path);
-		return;
-	}
-	if (acl_supported == 0) {
-		ret = fpathconf(source_fd, _PC_ACL_EXTENDED);
-		if (ret > 0 ) {
-			acl_supported = 1;
-			acl_type = ACL_TYPE_ACCESS;
-		} else if (ret < 0 && errno != EINVAL) {
-			warn("fpathconf(..., _PC_ACL_EXTENDED) failed for %s",
-			    source_path);
-			return;
-		}
-	}
-	if (acl_supported == 0)
-		return;
+    /* Delete the source. */
+    if (!(pid = fork())) {
+      execl(_PATH_RM, "mv", "-rf", "--", from, (char *)NULL);
+      _exit(EXEC_FAILED);
+    }
+    if (waitpid(pid, &status, 0) == -1) {
+      warn("\(_PATH_RM) \(from): waitpid")
+      return true
+    }
+    if (!WIFEXITED(status)) {
+      warnx("\(_PATH_RM) \(from): did not terminate normally")
+      return true
+    }
+    switch (WEXITSTATUS(status)) {
+      case 0:
+        break;
+      case EXEC_FAILED:
+        warnx("\(_PATH_RM) \(from): exec failed")
+        return true
+      default:
+        warnx("\(_PATH_RM) \(from): terminated with \(WEXITSTATUS(status)) (non-zero) status")
+        return true
+    }
+    return false
+  }
 
-	acl = acl_get_fd_np(source_fd, acl_type);
-	if (acl == NULL) {
-		warn("failed to get acl entries for %s", source_path);
-		return;
-	}
-	if (acl_is_trivial_np(acl, &trivial)) {
-		warn("acl_is_trivial() failed for %s", source_path);
-		acl_free(acl);
-		return;
-	}
-	if (trivial) {
-		acl_free(acl);
-		return;
-	}
-	if (acl_set_fd_np(dest_fd, acl, acl_type) < 0) {
-		warn("failed to set acl entries for %s", dest_path);
-		acl_free(acl);
-		return;
-	}
-	acl_free(acl);
-}
-#endif
+  /*
+   #ifndef __APPLE__
+   static void
+   preserve_fd_acls(int source_fd, int dest_fd, const char *source_path,
+   const char *dest_path)
+   {
+   acl_t acl;
+   acl_type_t acl_type;
+   int acl_supported = 0, ret, trivial;
 
-static void
-usage(void)
-{
+   ret = fpathconf(source_fd, _PC_ACL_NFS4);
+   if (ret > 0 ) {
+   acl_supported = 1;
+   acl_type = ACL_TYPE_NFS4;
+   } else if (ret < 0 && errno != EINVAL) {
+   warn("fpathconf(..., _PC_ACL_NFS4) failed for %s",
+   source_path);
+   return;
+   }
+   if (acl_supported == 0) {
+   ret = fpathconf(source_fd, _PC_ACL_EXTENDED);
+   if (ret > 0 ) {
+   acl_supported = 1;
+   acl_type = ACL_TYPE_ACCESS;
+   } else if (ret < 0 && errno != EINVAL) {
+   warn("fpathconf(..., _PC_ACL_EXTENDED) failed for %s",
+   source_path);
+   return;
+   }
+   }
+   if (acl_supported == 0)
+   return;
 
-	(void)fprintf(stderr, "%s\n%s\n",
-		      "usage: mv [-f | -i | -n] [-hv] source target",
-		      "       mv [-f | -i | -n] [-v] source ... directory");
-	exit(EX_USAGE);
+   acl = acl_get_fd_np(source_fd, acl_type);
+   if (acl == NULL) {
+   warn("failed to get acl entries for %s", source_path);
+   return;
+   }
+   if (acl_is_trivial_np(acl, &trivial)) {
+   warn("acl_is_trivial() failed for %s", source_path);
+   acl_free(acl);
+   return;
+   }
+   if (trivial) {
+   acl_free(acl);
+   return;
+   }
+   if (acl_set_fd_np(dest_fd, acl, acl_type) < 0) {
+   warn("failed to set acl entries for %s", dest_path);
+   acl_free(acl);
+   return;
+   }
+   acl_free(acl);
+   }
+   #endif
+   */
+
+  var usage = """
+usage: mv [-f | -i | -n] [-hv] source target
+       mv [-f | -i | -n] [-v] source ... directory
+"""
 }

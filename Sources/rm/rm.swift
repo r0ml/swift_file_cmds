@@ -35,11 +35,13 @@
 import CMigration
 import Darwin
 
+// #ifndef AT_REMOVEDIR_DATALESS
+
+let AT_REMOVEDIR_DATALESS = Int32(0x0100)  /* Remove a dataless directory without materializing first */
+
+//#endif
 /*
-#ifndef AT_REMOVEDIR_DATALESS
-#define AT_REMOVEDIR_DATALESS   0x0100  /* Remove a dataless directory without materializing first */
-#endif
-#else
+ #else
 #define COMPAT_MODE(func, mode) 1
 #endif
 */
@@ -76,6 +78,7 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
     var rflag = false
     var Iflag = false
     var xflag = false
+    var ieval : Int32 = 0
     var uid : UInt32 = 0
     var args : [String] = []
   }
@@ -162,7 +165,11 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
         throw CmdErr(1)
       }
     }
-    checkdot(options.args)
+    let k = checkdot(options.args)
+    if k.count != options.args.count {
+      options.ieval = 1
+    }
+    options.args = k
     checkslash(&options.args)
     if options.args.isEmpty {
       if !options.fflag {
@@ -173,7 +180,7 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
   }
 
   func runCommand() async throws(CmdErr) {
-    var eval : Int32 = 0
+    var eval : Int32 = options.ieval
 
     if options.args.isEmpty {
       if options.fflag {
@@ -321,8 +328,7 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
          * message unless the remove fails.
          */
         switch (p.info) {
-          case .DP:
-          case .DNR:
+          case .DP, .DNR:
             // #if __APPLE__
             rval = unlinkat(AT_FDCWD, p.accpath, AT_REMOVEDIR_DATALESS);
             if (rval == -1 && errno == EINVAL) {
@@ -448,18 +454,18 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
         eval = 1
         continue
       }
-      if (!options.fflag && sb.fileType != .whiteOut && !check(f, f, &sb)) {
+      if (!options.fflag && sb.fileType != .whiteOut && !check(f, f, sb)) {
         continue
       }
       rval = 0
-      if (options.uid == 0 && !S_ISWHT(sb.st_mode) &&
+      if (options.uid == 0 && sb.fileType != .whiteOut &&
           (sb.flags.contains(.UF_APPEND) ||
            sb.flags.contains(.UF_IMMUTABLE)) &&
-          !(sb.flags & (SF_APPEND|SF_IMMUTABLE))) {
+          !(sb.flags.contains([.SF_APPEND, .SF_IMMUTABLE]))) {
         rval = lchflags(f, sb.flags.subtracting([.UF_APPEND, .UF_IMMUTABLE]).rawValue)
       }
       if (rval == 0) {
-        if (S_ISWHT(sb.st_mode)) {
+        if (sb.fileType == .whiteOut) {
           rval = undelete(f);
         }
         else if sb.fileType == .directory {
@@ -468,7 +474,7 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
         else {
           // #ifdef __APPLE__
           if options.Pflag {
-            if (removefile(f, NULL, REMOVEFILE_SECURE_7_PASS)) { /* overwrites and unlinks */
+            if (removefile(f, nil, REMOVEFILE_SECURE_7_PASS)) { /* overwrites and unlinks */
               eval = 1
               rval = 1
             }
@@ -535,20 +541,18 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
       if (!options.stdin_ok || sp.fileType == .symbolicLink ||
           (access(name, W_OK) == 0 &&
            !(sp.flags.contains(.SF_APPEND) || sp.flags.contains(.SF_IMMUTABLE)) &&
-           (!(sp.flags.contains(.APPEND) || sp.flags.contains(.IMMUTABLE)) || options.uid == 0))) {
+           (!(sp.flags.contains(.UF_APPEND) || sp.flags.contains(.UF_IMMUTABLE)) || options.uid == 0))) {
         return true
       }
       let modep = strmode(sp.fileType, sp.mode)
 
-      if ((flagsp = fflagstostr(sp->st_flags)) == NULL) {
-        err(1, "fflagstostr");
+      guard let flagsp = fflagstostr(sp.flags) else {
+        err(1, "fflagstostr")
       }
-      let u = user_from_uid( UInt32(sp.userId), 0)
-      let g = group_from_gid( UInt32(sp.groupId), 0)
+      let u = user_from_uid( UInt32(sp.userId), 0)!
+      let g = group_from_gid( UInt32(sp.groupId), 0)!
 
-      print("override %s%s\(u)/\(g) %s%sfor \(path)? ",
-            modep + 1, modep[10] == " " ? "" : " ",
-            *flagsp ? flagsp : "", *flagsp ? " " : "");
+      print("override \(modep.dropFirst())\(modep.last == " " ? "" : " ")\(u)/\(g) \(flagsp)\(flagsp.isEmpty ? " " : "")for \(path)? ")
     }
     return yes_or_no();
   }
@@ -603,60 +607,32 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
       print("? ", terminator: "", to: &stderr)
       //		fflush(stderr);
 
-      first = ch = getchar();
-      while (ch != "\n" && ch != EOF) {
-        ch = getchar();
+      guard let lin = readLine() else {
+        break
       }
-      if (ch == EOF) {
-        break;
-      }
+      first = String(lin.first ?? " ")
     }
     return first == "y" || first == "Y"
   }
 
 // #define ISDOT(a)	((a)[0] == '.' && (!(a)[1] || ((a)[1] == '.' && !(a)[2])))
 
-  func checkdot(_ args : [String]) {
-    char *p, **save, **t;
-    int complained;
-
-    complained = 0;
-    for (t = argv; *t;) {
-      size_t len = strlen(*t);
-      char truncated[len];
-
-      if ((p = strrchr(*t, '/')) != NULL) {
-        if (p[1] == '\0') { // one or more trailing / -- treat as if not present
-          for (; (p > *t) && (p[-1] == '/');) {
-            len--;
-            p--;
-          }
-          strlcpy(truncated, *t, len);
-          p = strrchr(truncated, '/');
-          if (p) {
-            ++p;
-          } else {
-            p = truncated;
-          }
-        } else {
-          ++p;
-        }
-      } else {
-        p = *t;
-      }
+  func checkdot(_ args : [String]) -> [String] {
+    var complained = false
+    var result : [String] = []
+    for t in args {
+      let p = t.split(separator: "/", omittingEmptySubsequences: true).last ?? ""
       if p == "." || p == ".." {
-        if (!complained++) {
+        if !complained {
+          complained = true
           warnx("\".\" and \"..\" may not be removed")
         }
-        eval = 1;
-        for (save = t; (t[0] = t[1]) != NULL; ++t) {
-          continue;
-        }
-        t = save;
+        continue
       } else {
-        ++t;
+        result.append(t)
       }
     }
+    return result
   }
 
 var usage = """
