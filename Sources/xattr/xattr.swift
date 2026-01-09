@@ -305,7 +305,7 @@ options:
     // First, we lstat() the path to find out if it's a symlink
     do {
       let fmd = try FileMetadata(for: filename /*, resolvingSymlinks: false) */ )
-      is_link = fmd.fileType == .symbolicLink
+      is_link = fmd.filetype == .symbolicLink
     } catch(let e) {
       print_errno(filename, nil, e.code)
     }

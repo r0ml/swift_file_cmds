@@ -636,8 +636,8 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
         var ssdata = (what == .st_dev) ?
         Darwin.devname(Int32(st.device), S_IFBLK) :
         Darwin.devname(Int32(st.rawDevice),
-                       st.fileType == .characterDevice ? S_IFCHR :
-                        st.fileType == .blockDevice ? S_IFBLK :
+                       st.filetype == .characterDevice ? S_IFCHR :
+                        st.filetype == .blockDevice ? S_IFBLK :
                   0)
         sdata = ssdata == nil ? "???" : String(cString: ssdata!)
 
@@ -664,8 +664,8 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
       case .st_mode, .st_mode2:
 //        small = (sizeof(st->st_mode) == 4);
         // FIXME: mode needs to be reconstructed from fileType and mode?
-        data = UInt(st.mode.rawValue) // | (UInt(st.fileType.rawValue) << 16)
-        var stmp = CMigration.strmode(st.fileType, st.mode)
+        data = UInt(st.permissions.rawValue) // | (UInt(st.fileType.rawValue) << 16)
+        var stmp = CMigration.strmode(st.filetype, st.permissions)
         if stmp.last == " " { stmp.removeLast() }
 
         // #ifdef __APPLE__
@@ -831,7 +831,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
       case .symlink:
 //        small = 0;
         data = 0;
-        if st.fileType == .symbolicLink {
+        if st.filetype == .symbolicLink {
           var path = Array(repeating: CChar(0), count: Int(PATH_MAX))
           let l = readlink(file, &path, Int(PATH_MAX)-1)
           let p = String(cString: path)
@@ -854,11 +854,11 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
         data = 0;
         sdata = "";
         if (hilo == .unspecified || hilo == .low) {
-          switch st.fileType {
+          switch st.filetype {
             case .fifo:	sdata = "|"
             case .directory:	sdata = "/"
             case .regular:
-              if st.mode.contains([.ownerExecute, .groupExecute, .otherExecute]) {
+              if st.permissions.contains([.ownerExecute, .groupExecute, .otherExecute]) {
                 sdata = "*"
               }
             case .symbolicLink:	sdata = "@"
@@ -872,7 +872,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
           hilo = .unspecified
         }
         else if (hilo == .high) {
-          switch st.fileType {
+          switch st.filetype {
             case .fifo:	sdata = "Fifo File"
             case .characterDevice:	sdata = "Character Device"
             case .directory:	sdata = "Directory"
@@ -901,7 +901,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
           ofmt = .STRING
         }
       case .sizerdev:
-        if st.fileType == .characterDevice || st.fileType == .blockDevice {
+        if st.filetype == .characterDevice || st.filetype == .blockDevice {
           let majdev = format1(st, file, fmt, flags, size, prec, ofmt, .high, .st_rdev)
           let mindev = format1(st, file, fmt, flags, size, prec, ofmt, .low, .st_rdev)
           return "\(majdev),\(mindev)"

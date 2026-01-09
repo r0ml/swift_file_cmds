@@ -135,7 +135,7 @@ import Darwin
     
     if options.hflag {
         if let fm = try? FileMetadata(for: targetdir!, followSymlinks: false),
-           fm.fileType == .symbolicLink {
+           fm.filetype == .symbolicLink {
           /*
            * We were asked not to follow symlinks, but found one at
            * the target--simulate "not a directory" error
@@ -146,7 +146,7 @@ import Darwin
     }
     do {
       let fm = try FileMetadata(for: targetdir!)
-      if fm.fileType != .directory {
+      if fm.filetype != .directory {
         throw CmdErr(1, usage)
       }
     } catch(let e) {
@@ -203,7 +203,7 @@ import Darwin
 
   func isDirectory(_ path : String, followSymlinks: Bool = true) -> Bool {
     if let fm = try? FileMetadata(for: path, followSymlinks: followSymlinks) {
-      if fm.fileType == .directory { return true }
+      if fm.filetype == .directory { return true }
     }
     return false
   }
@@ -225,7 +225,7 @@ import Darwin
         return 1
       }
       /* Only symbolic links to directories. */
-      if fm.fileType == .directory {
+      if fm.filetype == .directory {
         errno = EISDIR
         warn(source);
         return 1
@@ -292,7 +292,7 @@ import Darwin
      * and interactively if -i was specified.
      */
     if options.fflag && exists {
-      if options.Fflag && fm!.fileType == .directory {
+      if options.Fflag && fm!.filetype == .directory {
         if rmdir(target) != 0 {
           warn(target)
           return 1
@@ -313,7 +313,7 @@ import Darwin
         return 1
       }
 
-      if options.Fflag && fm!.fileType == .directory {
+      if options.Fflag && fm!.filetype == .directory {
         if rmdir(target) != 0 {
           warn(target)
           return 1

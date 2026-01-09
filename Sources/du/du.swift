@@ -753,7 +753,7 @@ usage: du [-Aclnx] [-H | -L | -P] [-g | -h | -k | -m] [-a | -s | -d depth] [-B b
 
   func ignorep(_ ent : FtsEntry) -> Bool {
 //    #ifdef __APPLE__
-    if ent.statp?.fileType == .directory && "fd" == ent.name {
+    if ent.statp?.filetype == .directory && "fd" == ent.name {
       var sfsb = statfs()
       let rc = statfs(ent.accpath, &sfsb)
       let fstn = withUnsafePointer(to: sfsb.f_fstypename) {

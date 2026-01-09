@@ -50,623 +50,675 @@
  * in "to") to form the final target path.
  */
 
-#include <sys/types.h>
-#include <sys/stat.h>
+import CMigration
+import Darwin
 
-#include <assert.h>
-#include <err.h>
-#include <errno.h>
-#include <fts.h>
-#include <limits.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-
-#ifdef __APPLE__
+/*#ifdef __APPLE__
 #include <copyfile.h>
 #include <get_compat.h>
 #else /* !__APPLE__ */
 #define COMPAT_MODE(a,b) (1)
 #endif /* __APPLE__ */
+*/
 
-#include "extern.h"
-
-#define	STRIP_TRAILING_SLASH(p) {					\
+/*#define	STRIP_TRAILING_SLASH(p) {					\
 	while ((p).p_end > (p).p_path + 1 && (p).p_end[-1] == '/')	\
 	*--(p).p_end = 0;						\
 }
+*/
 
+/*
 static char emptystring[] = "";
 
 PATH_T to = { to.p_path, emptystring, "" };
+*/
 
-int Nflag, fflag, iflag, lflag, nflag, pflag, sflag, vflag;
-#ifdef __APPLE__
-int unix2003_compat;
-int cflag;
-int Sflag;
-int Xflag;
-#endif /* __APPLE__ */
-static int Hflag, Lflag, Pflag, Rflag, rflag;
-volatile sig_atomic_t info;
+let unix2003 = true // COMPAT_MODE("bin/cp", "unix2003");
 
-enum op { FILE_TO_FILE, FILE_TO_DIR, DIR_TO_DNE };
+var info : sig_atomic_t = 0
 
-static int copy(char *[], enum op, int, struct stat *);
-static void siginfo(int __unused);
+@main struct cp : ShellCommand {
 
-int
-main(int argc, char *argv[])
-{
-	struct stat to_stat, tmp_stat;
-	enum op type;
-	int ch, fts_options, r, have_trailing_slash;
-	char *target;
+  struct CommandOptions {
+    var Nflag = false
+    var fflag = false
+    var iflag = false
+    var lflag = false
+    var nflag = false
+    var pflag = false
+    var sflag = false
+    var vflag = false
+    var cflag = false
+    var Sflag = false
+    var Xflag = false
+    var Hflag = false
+    var Lflag = false
+    var Pflag = false
+    var Rflag = false
+    var rflag = false
+    var target = ""
+    var to_path = ""
+    var fts_options : FTSFlags = []
+    var have_trailing_slash = false
+    var args = [String]()
+  }
 
-#ifdef __APPLE__
-	unix2003_compat = COMPAT_MODE("bin/cp", "unix2003");
-#endif /* __APPLE__ */
-	fts_options = FTS_NOCHDIR | FTS_PHYSICAL;
-#ifdef __APPLE__
-	while ((ch = getopt(argc, argv, "HLPRacfilNnprSsvXx")) != -1)
-#else /* !__APPLE__ */
-	while ((ch = getopt(argc, argv, "HLPRafilNnprsvx")) != -1)
-#endif /* __APPLE__ */
-		switch (ch) {
-#ifdef __APPLE__
-		case 'c':
-			cflag = 1;
-			break;
-#endif /* __APPLE__ */
-		case 'H':
-			Hflag = 1;
-			Lflag = Pflag = 0;
-			break;
-		case 'L':
-			Lflag = 1;
-			Hflag = Pflag = 0;
-			break;
-		case 'P':
-			Pflag = 1;
-			Hflag = Lflag = 0;
-			break;
-		case 'R':
-			Rflag = 1;
-			break;
-#ifdef __APPLE__
-		case 'X':
-			Xflag = 1;
-			break;
-#endif /* __APPLE__ */
-		case 'a':
-			pflag = 1;
-			Rflag = 1;
-			Pflag = 1;
-			Hflag = Lflag = 0;
-			break;
-		case 'f':
-			fflag = 1;
-#ifdef __APPLE__
-			/* Determine if the STD is SUSv3 or Legacy */
-			if (unix2003_compat)
-				nflag = 0;	/* reset nflag, but not iflag */
-			else
-#endif /* __APPLE__ */
-			iflag = nflag = 0;
-			break;
-		case 'i':
-			iflag = 1;
-#ifdef __APPLE__
-			if (unix2003_compat)
-				nflag = 0;	/* reset nflag, but not fflag */
-			else
-#endif /* __APPLE__ */
-			fflag = nflag = 0;
-			break;
-		case 'l':
-			lflag = 1;
-			break;
-		case 'N':
-			Nflag = 1;
-			break;
-		case 'n':
-			nflag = 1;
-			fflag = iflag = 0;
-			break;
-		case 'p':
-			pflag = 1;
-			break;
-		case 'r':
-			rflag = Lflag = 1;
-			Hflag = Pflag = 0;
-			break;
-#ifdef __APPLE__
-		case 'S':
-			Sflag = 1;
-			break;
-#endif /* __APPLE__ */
-		case 's':
-			sflag = 1;
-			break;
-		case 'v':
-			vflag = 1;
-			break;
-		case 'x':
-			fts_options |= FTS_XDEV;
-			break;
-		default:
-			usage();
-		}
-	argc -= optind;
-	argv += optind;
+  var options : CommandOptions!
 
-	if (argc < 2)
-		usage();
+  enum op {
+    case FILE_TO_FILE
+    case FILE_TO_DIR
+    case DIR_TO_DNE
+  }
 
-#ifdef __APPLE__
-	if (cflag && Xflag) {
-		errx(1, "the -c and -X options may not be specified together");
-	}
-#endif /* __APPLE__ */
+  func parseOptions() throws(CmdErr) -> CommandOptions {
 
-	if (Rflag && rflag)
-		errx(1, "the -R and -r options may not be specified together");
-	if (lflag && sflag)
-		errx(1, "the -l and -s options may not be specified together");
-	if (rflag)
-		Rflag = 1;
-	if (Rflag) {
-		if (Hflag)
-			fts_options |= FTS_COMFOLLOW;
-		if (Lflag) {
-			fts_options &= ~FTS_PHYSICAL;
-			fts_options |= FTS_LOGICAL;
-		}
-	} else if (!Pflag) {
-		fts_options &= ~FTS_PHYSICAL;
-		fts_options |= FTS_LOGICAL | FTS_COMFOLLOW;
-	}
-	(void)signal(SIGINFO, siginfo);
+    // 	struct stat to_stat, tmp_stat;
+    //	int ch, fts_options, r, have_trailing_slash;
+    // 	char *target;
 
-	/* Save the target base in "to". */
-	target = argv[--argc];
-	if (strlcpy(to.p_path, target, sizeof(to.p_path)) >= sizeof(to.p_path))
-		errx(1, "%s: name too long", target);
-	to.p_end = to.p_path + strlen(to.p_path);
-	if (to.p_path == to.p_end) {
-		*to.p_end++ = '.';
-		*to.p_end = 0;
-	}
-	have_trailing_slash = (to.p_end[-1] == '/');
-	if (have_trailing_slash)
-		STRIP_TRAILING_SLASH(to);
-	to.target_end = to.p_end;
+    var fts_options : FTSFlags = [.NOCHDIR, .PHYSICAL]
+    var type : op
 
-	/* Set end of argument list for fts(3). */
-	argv[argc] = NULL;
+    var options = CommandOptions()
+    let go = BSDGetopt("HLPRacfilNnprSsvXx")
+    while let (k,v) = try go.getopt() {
+      switch k {
+        case "c":
+          options.cflag = true
+        case "H":
+          options.Hflag = true
+          options.Lflag = false
+          options.Pflag = false
+        case "L":
+          options.Lflag = true
+          options.Hflag = false
+          options.Pflag = false
+        case "P":
+          options.Pflag = true
+          options.Hflag = false
+          options.Lflag = false
+        case "R":
+          options.Rflag = true
+        case "X":
+          options.Xflag = true
+        case "a":
+          options.pflag = true
+          options.Rflag = true
+          options.Pflag = true
+          options.Hflag = false
+          options.Lflag = false
+        case "f":
+          options.fflag = true
+          /* Determine if the STD is SUSv3 or Legacy */
+          if unix2003 {
+            options.nflag = false	/* reset nflag, but not iflag */
+          }
+          else {
+            options.iflag = false
+            options.nflag = false
+          }
+        case "i":
+          options.iflag = true
+          if unix2003 {
+            options.nflag = false	/* reset nflag, but not fflag */
+          }
+          else {
+            options.fflag = false
+            options.nflag = false
+          }
+        case "l":
+          options.lflag = true
+        case "N":
+          options.Nflag = true
+        case "n":
+          options.nflag = true
+          options.fflag = false
+          options.iflag = false
+        case "p":
+          options.pflag = true
+        case "r":
+          options.rflag = true
+          options.Lflag = true
+          options.Hflag = false
+          options.Pflag = false
+        case "S":
+          options.Sflag = true
+        case "s":
+          options.sflag = true
+        case "v":
+          options.vflag = true
+        case "x":
+          fts_options.insert(.XDEV)
+        default:
+          throw CmdErr(1)
+      }
+    }
+    options.args = go.remaining
+    if options.args.count < 2 {
+      throw CmdErr(1)
+    }
 
-	/*
-	 * Cp has two distinct cases:
-	 *
-	 * cp [-R] source target
-	 * cp [-R] source1 ... sourceN directory
-	 *
-	 * In both cases, source can be either a file or a directory.
-	 *
-	 * In (1), the target becomes a copy of the source. That is, if the
-	 * source is a file, the target will be a file, and likewise for
-	 * directories.
-	 *
-	 * In (2), the real target is not directory, but "directory/source".
-	 */
-	r = stat(to.p_path, &to_stat);
-	if (r == -1 && errno != ENOENT)
-		err(1, "%s", to.p_path);
-	if (r == -1 || !S_ISDIR(to_stat.st_mode)) {
-		/*
-		 * Case (1).  Target is not a directory.
-		 */
-		if (argc > 1)
-			errx(1, "%s is not a directory", to.p_path);
+    if options.cflag && options.Xflag {
+      errx(1, "the -c and -X options may not be specified together")
+    }
 
-		/*
-		 * Need to detect the case:
-		 *	cp -R dir foo
-		 * Where dir is a directory and foo does not exist, where
-		 * we want pathname concatenations turned on but not for
-		 * the initial mkdir().
-		 */
-		if (r == -1) {
-			if (Rflag && (Lflag || Hflag))
-				stat(*argv, &tmp_stat);
-			else
-				lstat(*argv, &tmp_stat);
+    if options.Rflag && options.rflag {
+      errx(1, "the -R and -r options may not be specified together")
+    }
+    if options.lflag && options.sflag {
+      errx(1, "the -l and -s options may not be specified together")
+    }
+    if options.rflag {
+      options.Rflag = true
+    }
+    if options.Rflag {
+      if options.Hflag {
+        fts_options.insert(.COMFOLLOW)
+      }
+      if options.Lflag {
+        fts_options.remove(.PHYSICAL)
+        fts_options.insert(.LOGICAL)
+      }
+    } else if !options.Pflag {
+      fts_options.remove(.PHYSICAL)
+      fts_options.insert([.LOGICAL, .COMFOLLOW])
+    }
 
-			if (S_ISDIR(tmp_stat.st_mode) && Rflag)
-				type = DIR_TO_DNE;
-			else
-				type = FILE_TO_FILE;
-		} else
-			type = FILE_TO_FILE;
+    var t  = options.args.removeLast()
+    if t.isEmpty { t = "." }
+    options.have_trailing_slash = t.last == "/"
+    while t.last == "/" { t.removeLast() }
+    options.target = t
+    options.to_path = t
+    options.fts_options = fts_options
+    return options
+  }
 
-		if (have_trailing_slash && type == FILE_TO_FILE) {
-			if (r == -1) {
-				errx(1, "directory %s does not exist",
-				    to.p_path);
-			} else
-				errx(1, "%s is not a directory", to.p_path);
-		}
-	} else
-		/*
-		 * Case (2).  Target is a directory.
-		 */
-		type = FILE_TO_DIR;
 
-	/*
-	 * For DIR_TO_DNE, we could provide copy() with the to_stat we've
-	 * already allocated on the stack here that isn't being used for
-	 * anything.  Not doing so, though, simplifies later logic a little bit
-	 * as we need to skip checking root_stat on the first iteration and
-	 * ensure that we set it with the first mkdir().
-	 */
-	exit (copy(argv, type, fts_options, (type == DIR_TO_DNE ? NULL :
-	    &to_stat)));
+  func runCommand() throws(CmdErr) {
+    signal(SIGINFO, siginfo)
+
+    /*
+     * Cp has two distinct cases:
+     *
+     * cp [-R] source target
+     * cp [-R] source1 ... sourceN directory
+     *
+     * In both cases, source can be either a file or a directory.
+     *
+     * In (1), the target becomes a copy of the source. That is, if the
+     * source is a file, the target will be a file, and likewise for
+     * directories.
+     *
+     * In (2), the real target is not directory, but "directory/source".
+     */
+    var to_stat : FileMetadata? = nil
+
+    var type : op
+
+    do {
+      to_stat = try FileMetadata(for: options.to_path)
+    } catch(let e) {
+      if e.code == ENOENT {
+        err(1, options.to_path)
+      }
+    }
+    if to_stat == nil || to_stat?.filetype != .directory {
+      /*
+       * Case (1).  Target is not a directory.
+       */
+      if options.args.count > 1 {
+        errx(1, "\(options.to_path) is not a directory")
+      }
+
+      /*
+       * Need to detect the case:
+       *	cp -R dir foo
+       * Where dir is a directory and foo does not exist, where
+       * we want pathname concatenations turned on but not for
+       * the initial mkdir().
+       */
+      if to_stat == nil {
+        var tmp_stat : FileMetadata?
+        if (options.Rflag && (options.Lflag || options.Hflag)) {
+          tmp_stat = try? FileMetadata(for: options.args[0])
+        }
+        else {
+          tmp_stat = try? FileMetadata(for: options.args[0], followSymlinks: false)
+        }
+        if (tmp_stat?.filetype == .directory && options.Rflag) {
+          type = .DIR_TO_DNE
+        }
+        else {
+          type = .FILE_TO_FILE
+        }
+      } else {
+        type = .FILE_TO_FILE
+      }
+
+      if (options.have_trailing_slash && type == .FILE_TO_FILE) {
+        if (to_stat == nil) {
+          errx(1, "directory \(options.to_path) does not exist")
+        } else {
+          errx(1, "\(options.to_path) is not a directory")
+        }
+      }
+    } else {
+      /*
+       * Case (2).  Target is a directory.
+       */
+      type = .FILE_TO_DIR
+    }
+
+    /*
+     * For DIR_TO_DNE, we could provide copy() with the to_stat we've
+     * already allocated on the stack here that isn't being used for
+     * anything.  Not doing so, though, simplifies later logic a little bit
+     * as we need to skip checking root_stat on the first iteration and
+     * ensure that we set it with the first mkdir().
+     */
+    let k = copy(options.args, type, (type == .DIR_TO_DNE ? nil : to_stat))
+    exit(k ? 1 : 0)
+  }
+
+  func copy(_ argv : [String], _ type : op, _ root_statx : FileMetadata?) -> Bool {
+
+    var rootname : String? = nil
+    var root_stat = root_statx
+    var rootIsCreated = false
+
+    /*
+     struct stat created_root_stat, to_stat;
+    FTS *ftsp;
+    FTSENT *curr;
+    int base = 0, dne, badcp, rval;
+    size_t nlen;
+    char *p, *recurse_path, *target_mid;
+    mode_t mask, mode;
+*/
+    /*
+     * Keep an inverted copy of the umask, for use in correcting
+     * permissions on created directories when not using -p.
+     */
+    let mask = ~umask(0777)
+    umask(~mask)
+
+    var recurse_path : String? = nil
+
+    var ftsp : FTSWalker! = nil
+
+    do {
+      ftsp = try FTSWalker(path: argv, options: options.fts_options, sort: nil)
+    } catch(let e) {
+      err(1, "fts_open")
+    }
+
+    var rval = false
+
+    for var curr in ftsp  {
+      var badcp = false
+      switch curr.info {
+        case .NS, .DNR, .ERR:
+          warnc(curr.errno.code, curr.path)
+          badcp = true
+          rval = true
+          continue
+        case .DC:			/* Warn, continue. */
+          warnx("\(curr.path): directory causes a cycle")
+          badcp = true
+          rval = true
+          continue
+        default:
+          break
+      }
+      /*#ifdef __APPLE__
+
+       #ifdef __clang__
+       #pragma clang diagnostic push
+       /* clang doesn't like fts_name[1], but we know better... */
+       #pragma clang diagnostic ignored "-Warray-bounds"
+       #endif
+       */
+      /* Skip ._<file> when using copyfile and <file> exists */
+      if ((options.pflag || !options.Xflag) && (curr.level != FTS_ROOTLEVEL) &&
+          curr.name == "._") {
+        /*#ifdef __clang__
+         #pragma clang diagnostic pop
+         #endif
+         */
+//        struct stat statbuf;
+//        char path[PATH_MAX];
+        var path : String
+
+//        char *p = strrchr(curr->fts_path, '/');
+        if (curr.path.contains("/")) {
+  /*        size_t s = p + 2 - curr->fts_path;
+          if (s > sizeof(path)) {
+            s = sizeof(path);
+          }
+   */
+          path = curr.path + curr.name.dropFirst(2)
+        } else {
+          path = String(curr.name.dropFirst(2))
+        }
+
+        if let statbuf = try? FileMetadata(for: path, followSymlinks: false) {
+          continue
+        }
+      }
+      // #endif /* __APPLE__ */
+
+      /*
+       * Stash the root basename off for detecting recursion later.
+       *
+       * This will be essential if the root is a symlink and we're
+       * rolling with -L or -H.  The later bits will need this bit in
+       * particular.
+       */
+
+      if (curr.level == FTS_ROOTLEVEL) {
+        rootname = curr.name
+      }
+
+      var target = options.to_path
+
+      /*
+       * If we are in case (2) or (3) above, we need to append the
+       * source name to the target name.
+       */
+      if (type != .FILE_TO_FILE) {
+        /*
+         * Need to remember the roots of traversals to create
+         * correct pathnames.  If there's a directory being
+         * copied to a non-existent directory, e.g.
+         *	cp -R a/dir noexist
+         * the resulting path name should be noexist/foo, not
+         * noexist/dir/foo (where foo is a file in dir), which
+         * is the case where the target exists.
+         *
+         * Also, check for "..".  This is for correct path
+         * concatenation for paths ending in "..", e.g.
+         *	cp -R .. /tmp
+         * Paths ending in ".." are changed to ".".  This is
+         * tricky, but seems the easiest way to fix the problem.
+         *
+         * XXX
+         * Since the first level MUST be FTS_ROOTLEVEL, base
+         * is always initialized.
+         */
+
+        var base = ""
+        if (curr.level == FTS_ROOTLEVEL) {
+          if (type != .DIR_TO_DNE) {
+//            let p = curr.path.split(separator: "/").last
+//            p = strrchr(curr->fts_path, '/');
+
+            base = curr.path.split(separator: "/").dropLast().joined(separator: "/")
+            if base == ".." { base = "." }
+          } else {
+            base = curr.path
+          }
+        }
+
+        let p = curr.path.split(separator: "/").last!
+
+        if (target.last != "/") {
+          target.append("/")
+        }
+        target.append(contentsOf: p)
+        if target.count >= PATH_MAX {
+          warnx("\(target): name too long (not copied)")
+          badcp = true
+          rval = true
+          continue
+        }
+//        STRIP_TRAILING_SLASH(to);
+
+        /*
+         * We're on the verge of recursing on ourselves.  Either
+         * we need to stop right here (we knowingly just created
+         * it), or we will in an immediate descendant.  Record
+         * the path of the immediate descendant to make our
+         * lives a little less complicated looking.
+         */
+        if let root_stat,
+            (curr.info == .D &&
+            root_stat.device == curr.statp!.device &&
+            root_stat.inode == curr.statp!.inode) {
+          assert(recurse_path == nil)
+
+          if (rootIsCreated) {
+            /*
+             * This directory didn't exist when we
+             * started, we created it as part of
+             * traversal.  Stop right here before we
+             * do something silly.
+             */
+            curr.setAction(.SKIP)
+            continue
+          }
+
+          // FIXME: target?
+          recurse_path = "\(options.to_path)/\(rootname!)"
+        }
+
+        // FIXME: target?
+        if recurse_path != nil && options.to_path == recurse_path {
+          curr.setAction(.SKIP)
+          continue;
+        }
+      }
+
+      if (curr.info == .DP) {
+        /*
+         * We are nearly finished with this directory.  If we
+         * didn't actually copy it, or otherwise don't need to
+         * change its attributes, then we are done.
+         */
+        if curr.number == 0 {
+          continue
+        }
+        /*
+         * If -p is in effect, set all the attributes.
+         * Otherwise, set the correct permissions, limited
+         * by the umask.  Optimise by avoiding a chmod()
+         * if possible (which is usually the case if we
+         * made the directory).  Note that mkdir() does not
+         * honour setuid, setgid and sticky bits, but we
+         * normally want to preserve them on directories.
+         */
+        if (options.pflag) {
+          if (setfile(curr.statp!, nil, target)) {
+            rval = true
+          }
+          // #ifdef __APPLE__
+          /* setfile will fail if writeattr is denied */
+          if (copyfile(curr.path, target, nil, UInt32(COPYFILE_ACL) ) < 0) {
+            warn("\(curr.path): unable to copy ACL to \(target)")
+            rval = true
+          }
+          /*#else  /* !__APPLE__ */
+           if (preserve_dir_acls(curr->fts_statp,
+           curr->fts_accpath, to.p_path) != 0)
+           rval = 1;
+           #endif /* __APPLE__ */
+           */
+        } else {
+          let mode = curr.statp!.permissions
+          if mode.contains([.setUserID, .setGroupID, .saveText]) ||
+              mode != [.ownerReadWriteExecute] {
+            if (chmod(target, mode.subtracting([.setUserID, .setGroupID, .saveText]).rawValue) != 0) {
+              warn("chmod: \(target)")
+              rval = true
+            }
+          }
+        }
+        continue;
+      }
+
+      /* Check if source and destination are identical. */
+      if let to_stat = try? FileMetadata(for: target),
+          to_stat.device == curr.statp!.device &&
+          to_stat.inode == curr.statp!.inode {
+        warnx("\(target) and \(curr.path) are identical (not copied).")
+        badcp = true
+        rval = true
+        if curr.statp!.filetype == .directory {
+          curr.setAction(.SKIP)
+        }
+        continue;
+      }
+
+      /* Not an error but need to remember it happened. */
+      var to_stat = try? FileMetadata(for: target, followSymlinks: false)
+      var dne = to_stat == nil
+
+      switch curr.statp!.filetype {
+        case .symbolicLink:
+          if (options.fts_options.contains(.LOGICAL) ||
+              (options.fts_options.contains(.COMFOLLOW) &&
+               curr.level == 0)) {
+            /*
+             * We asked FTS to follow links but got
+             * here anyway, which means the target is
+             * nonexistent or inaccessible.  Let
+             * copy_file() deal with the error.
+             */
+            if (copy_file(curr, dne, target)) {
+              badcp = true
+              rval = true
+            }
+          } else {
+            /* Copy the link. */
+            if (copy_link(curr, !dne, target)) {
+              badcp = true
+              rval = true
+            }
+          }
+        case .directory:
+          if (!options.Rflag) {
+            warnx("\(curr.path) is a directory (not copied).")
+            curr.setAction(.SKIP)
+            badcp = true
+            rval = true
+            break
+          }
+          /*
+           * If the directory doesn't exist, create the new
+           * one with the from file mode plus owner RWX bits,
+           * modified by the umask.  Trade-off between being
+           * able to write the directory (if from directory is
+           * 555) and not causing a permissions race.  If the
+           * umask blocks owner writes, we fail.
+           */
+          if (dne) {
+            let mode = curr.statp!.permissions.union([.ownerRead, .ownerWrite, .ownerExecute])
+            if (mkdir(target, mode.rawValue) != 0) {
+              warn(target)
+              curr.setAction(.SKIP)
+              badcp = true
+              rval = true
+              break;
+            }
+            /*
+             * First DNE with a NULL root_stat is the root
+             * path, so set root_stat.  We can't really
+             * tell in all cases if the target path is
+             * within the src path, so we just stat() the
+             * first directory we created and use that.
+             */
+            if root_stat == nil {
+              guard let created_root_stat = try? FileMetadata(for: target) else {
+//              stat(to.p_path, &created_root_stat) != 0) {
+                warn(target)
+                curr.setAction(.SKIP)
+                badcp = true
+                rval = true
+                break;
+              }
+              root_stat = created_root_stat
+              rootIsCreated = true
+
+            }
+
+          } else if to_stat?.filetype != .directory {
+            warnc(ENOTDIR, target)
+            curr.setAction(.SKIP)
+            badcp = true
+            rval = true
+            break
+          }
+          /*
+           * Arrange to correct directory attributes later
+           * (in the post-order phase) if this is a new
+           * directory, or if the -p flag is in effect.
+           */
+          curr.number = (options.pflag || dne) ? 1 : 0
+          // #ifdef __APPLE__
+          if (!options.Xflag) {
+            if (copyfile(curr.path, target, nil, UInt32(COPYFILE_XATTR)) < 0) {
+              warn("\(curr.path): unable to copy extended attributes to \(target)")
+              badcp = true
+              rval = true
+            }
+
+            /* ACL and mtime set in postorder traversal */
+          }
+          // #endif /* __APPLE__ */
+        case .blockDevice, .characterDevice:
+          if (options.Rflag && !options.sflag) {
+            if (copy_special(curr.statp!, !dne, target)) {
+              badcp = true
+              rval = true
+            }
+          } else {
+            if (copy_file(curr, dne, target)) {
+              badcp = true
+              rval = true
+            }
+          }
+        case .socket:
+          warnx("\(curr.path) is a socket (not copied).")
+        case .fifo:
+          if (options.Rflag && !options.sflag) {
+            if (copy_fifo(curr.statp!, !dne, target)) {
+              badcp = true
+              rval = true
+            }
+          } else {
+            if (copy_file(curr, dne, target)) {
+              badcp = true
+              rval = true
+            }
+          }
+          break;
+        default:
+          if (copy_file(curr, dne, target)) {
+            badcp = true
+            rval = true
+          }
+          break;
+      }
+      if (options.vflag && !badcp) {
+        print("\(curr.path) -> \(target)")
+      }
+    }
+    if (errno != 0) {
+      err(1, "fts_read")
+    }
+    return rval
+  }
+
+    var usage = unix2003 ? """
+usage: cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file target_file
+       cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file ... target_directory
+""" : """
+usage: cp [-R [-H | -L | -P]] [-f | -i | -n] [-aclpSsvXx] source_file target_file
+       cp [-R [-H | -L | -P]] [-f | -i | -n] [-aclpSsvXx] source_file ... target_directory
+"""
 }
 
-static int
-copy(char *argv[], enum op type, int fts_options, struct stat *root_stat)
-{
-	char rootname[NAME_MAX];
-	struct stat created_root_stat, to_stat;
-	FTS *ftsp;
-	FTSENT *curr;
-	int base = 0, dne, badcp, rval;
-	size_t nlen;
-	char *p, *recurse_path, *target_mid;
-	mode_t mask, mode;
-
-	/*
-	 * Keep an inverted copy of the umask, for use in correcting
-	 * permissions on created directories when not using -p.
-	 */
-	mask = ~umask(0777);
-	umask(~mask);
-
-	recurse_path = NULL;
-	if ((ftsp = fts_open(argv, fts_options, NULL)) == NULL)
-		err(1, "fts_open");
-	for (badcp = rval = 0; (curr = fts_read(ftsp)) != NULL; badcp = 0) {
-		switch (curr->fts_info) {
-		case FTS_NS:
-		case FTS_DNR:
-		case FTS_ERR:
-			warnc(curr->fts_errno, "%s", curr->fts_path);
-			badcp = rval = 1;
-			continue;
-		case FTS_DC:			/* Warn, continue. */
-			warnx("%s: directory causes a cycle", curr->fts_path);
-			badcp = rval = 1;
-			continue;
-		default:
-			;
-		}
-#ifdef __APPLE__
-
-#ifdef __clang__
-#pragma clang diagnostic push
-/* clang doesn't like fts_name[1], but we know better... */
-#pragma clang diagnostic ignored "-Warray-bounds"
-#endif
-		/* Skip ._<file> when using copyfile and <file> exists */
-		if ((pflag || !Xflag) && (curr->fts_level != FTS_ROOTLEVEL) &&
-		    (curr->fts_namelen > 2) && /* ._\0 is not AppleDouble */
-		    (curr->fts_name[0] == '.') && (curr->fts_name[1] == '_')) {
-#ifdef __clang__
-#pragma clang diagnostic pop
-#endif
-			struct stat statbuf;
-			char path[PATH_MAX];
-			char *p = strrchr(curr->fts_path, '/');
-			if (p) {
-				size_t s = p + 2 - curr->fts_path;
-				if (s > sizeof(path)) s = sizeof(path);
-				strlcpy(path, curr->fts_path, s);
-				strlcat(path, curr->fts_name+2, sizeof(path));
-			} else {
-				strlcpy(path, curr->fts_name+2, sizeof(path));
-			}
-			if (!lstat(path, &statbuf)) {
-				continue;
-			}
-		}
-#endif /* __APPLE__ */
-
-		/*
-		 * Stash the root basename off for detecting recursion later.
-		 *
-		 * This will be essential if the root is a symlink and we're
-		 * rolling with -L or -H.  The later bits will need this bit in
-		 * particular.
-		 */
-		if (curr->fts_level == FTS_ROOTLEVEL) {
-			strlcpy(rootname, curr->fts_name, sizeof(rootname));
-		}
-
-		/*
-		 * If we are in case (2) or (3) above, we need to append the
-		 * source name to the target name.
-		 */
-		if (type != FILE_TO_FILE) {
-			/*
-			 * Need to remember the roots of traversals to create
-			 * correct pathnames.  If there's a directory being
-			 * copied to a non-existent directory, e.g.
-			 *	cp -R a/dir noexist
-			 * the resulting path name should be noexist/foo, not
-			 * noexist/dir/foo (where foo is a file in dir), which
-			 * is the case where the target exists.
-			 *
-			 * Also, check for "..".  This is for correct path
-			 * concatenation for paths ending in "..", e.g.
-			 *	cp -R .. /tmp
-			 * Paths ending in ".." are changed to ".".  This is
-			 * tricky, but seems the easiest way to fix the problem.
-			 *
-			 * XXX
-			 * Since the first level MUST be FTS_ROOTLEVEL, base
-			 * is always initialized.
-			 */
-			if (curr->fts_level == FTS_ROOTLEVEL) {
-				if (type != DIR_TO_DNE) {
-					p = strrchr(curr->fts_path, '/');
-					base = (p == NULL) ? 0 :
-					    (int)(p - curr->fts_path + 1);
-
-					if (!strcmp(&curr->fts_path[base],
-					    ".."))
-						base += 1;
-				} else
-					base = curr->fts_pathlen;
-			}
-
-			p = &curr->fts_path[base];
-			nlen = curr->fts_pathlen - base;
-			target_mid = to.target_end;
-			if (*p != '/' && target_mid[-1] != '/')
-				*target_mid++ = '/';
-			*target_mid = 0;
-			if (target_mid - to.p_path + nlen >= PATH_MAX) {
-				warnx("%s%s: name too long (not copied)",
-				    to.p_path, p);
-				badcp = rval = 1;
-				continue;
-			}
-			(void)strncat(target_mid, p, nlen);
-			to.p_end = target_mid + nlen;
-			*to.p_end = 0;
-			STRIP_TRAILING_SLASH(to);
-
-			/*
-			 * We're on the verge of recursing on ourselves.  Either
-			 * we need to stop right here (we knowingly just created
-			 * it), or we will in an immediate descendant.  Record
-			 * the path of the immediate descendant to make our
-			 * lives a little less complicated looking.
-			 */
-			if (curr->fts_info == FTS_D && root_stat != NULL &&
-			    root_stat->st_dev == curr->fts_statp->st_dev &&
-			    root_stat->st_ino == curr->fts_statp->st_ino) {
-				assert(recurse_path == NULL);
-
-				if (root_stat == &created_root_stat) {
-					/*
-					 * This directory didn't exist when we
-					 * started, we created it as part of
-					 * traversal.  Stop right here before we
-					 * do something silly.
-					 */
-					fts_set(ftsp, curr, FTS_SKIP);
-					continue;
-				}
-
-				if (asprintf(&recurse_path, "%s/%s", to.p_path,
-				    rootname) == -1)
-					err(1, "asprintf");
-			}
-
-			if (recurse_path != NULL &&
-			    strcmp(to.p_path, recurse_path) == 0) {
-				fts_set(ftsp, curr, FTS_SKIP);
-				continue;
-			}
-		}
-
-		if (curr->fts_info == FTS_DP) {
-			/*
-			 * We are nearly finished with this directory.  If we
-			 * didn't actually copy it, or otherwise don't need to
-			 * change its attributes, then we are done.
-			 */
-			if (!curr->fts_number)
-				continue;
-			/*
-			 * If -p is in effect, set all the attributes.
-			 * Otherwise, set the correct permissions, limited
-			 * by the umask.  Optimise by avoiding a chmod()
-			 * if possible (which is usually the case if we
-			 * made the directory).  Note that mkdir() does not
-			 * honour setuid, setgid and sticky bits, but we
-			 * normally want to preserve them on directories.
-			 */
-			if (pflag) {
-				if (setfile(curr->fts_statp, -1))
-					rval = 1;
-#ifdef __APPLE__
-				/* setfile will fail if writeattr is denied */
-				if (copyfile(curr->fts_path, to.p_path, NULL,
-				    COPYFILE_ACL) < 0) {
-					warn("%s: unable to copy ACL to %s", curr->fts_path, to.p_path);
-					rval = 1;
-				}
-#else  /* !__APPLE__ */
-				if (preserve_dir_acls(curr->fts_statp,
-				    curr->fts_accpath, to.p_path) != 0)
-					rval = 1;
-#endif /* __APPLE__ */
-			} else {
-				mode = curr->fts_statp->st_mode;
-				if ((mode & (S_ISUID | S_ISGID | S_ISTXT)) ||
-				    ((mode | S_IRWXU) & mask) != (mode & mask))
-					if (chmod(to.p_path, mode & mask) !=
-					    0) {
-						warn("chmod: %s", to.p_path);
-						rval = 1;
-					}
-			}
-			continue;
-		}
-
-		/* Check if source and destination are identical. */
-		if (stat(to.p_path, &to_stat) == 0 &&
-		    to_stat.st_dev == curr->fts_statp->st_dev &&
-		    to_stat.st_ino == curr->fts_statp->st_ino) {
-			warnx("%s and %s are identical (not copied).",
-			    to.p_path, curr->fts_path);
-			badcp = rval = 1;
-			if (S_ISDIR(curr->fts_statp->st_mode))
-				(void)fts_set(ftsp, curr, FTS_SKIP);
-			continue;
-		}
-
-		/* Not an error but need to remember it happened. */
-		dne = lstat(to.p_path, &to_stat) != 0;
-
-		switch (curr->fts_statp->st_mode & S_IFMT) {
-		case S_IFLNK:
-			if ((fts_options & FTS_LOGICAL) ||
-			    ((fts_options & FTS_COMFOLLOW) &&
-			    curr->fts_level == 0)) {
-				/*
-				 * We asked FTS to follow links but got
-				 * here anyway, which means the target is
-				 * nonexistent or inaccessible.  Let
-				 * copy_file() deal with the error.
-				 */
-				if (copy_file(curr, dne))
-					badcp = rval = 1;
-			} else {
-				/* Copy the link. */
-				if (copy_link(curr, !dne))
-					badcp = rval = 1;
-			}
-			break;
-		case S_IFDIR:
-			if (!Rflag) {
-				warnx("%s is a directory (not copied).",
-				    curr->fts_path);
-				(void)fts_set(ftsp, curr, FTS_SKIP);
-				badcp = rval = 1;
-				break;
-			}
-			/*
-			 * If the directory doesn't exist, create the new
-			 * one with the from file mode plus owner RWX bits,
-			 * modified by the umask.  Trade-off between being
-			 * able to write the directory (if from directory is
-			 * 555) and not causing a permissions race.  If the
-			 * umask blocks owner writes, we fail.
-			 */
-			if (dne) {
-				mode = curr->fts_statp->st_mode | S_IRWXU;
-				if (mkdir(to.p_path, mode) != 0) {
-					warn("%s", to.p_path);
-					(void)fts_set(ftsp, curr, FTS_SKIP);
-					badcp = rval = 1;
-					break;
-				}
-				/*
-				 * First DNE with a NULL root_stat is the root
-				 * path, so set root_stat.  We can't really
-				 * tell in all cases if the target path is
-				 * within the src path, so we just stat() the
-				 * first directory we created and use that.
-				 */
-				if (root_stat == NULL &&
-				    stat(to.p_path, &created_root_stat) != 0) {
-					warn("%s", to.p_path);
-					(void)fts_set(ftsp, curr, FTS_SKIP);
-					badcp = rval = 1;
-					break;
-				}
-				if (root_stat == NULL)
-					root_stat = &created_root_stat;
-			} else if (!S_ISDIR(to_stat.st_mode)) {
-				warnc(ENOTDIR, "%s", to.p_path);
-				(void)fts_set(ftsp, curr, FTS_SKIP);
-				badcp = rval = 1;
-				break;
-			}
-			/*
-			 * Arrange to correct directory attributes later
-			 * (in the post-order phase) if this is a new
-			 * directory, or if the -p flag is in effect.
-			 */
-			curr->fts_number = pflag || dne;
-#ifdef __APPLE__
-			if (!Xflag) {
-				if (copyfile(curr->fts_path, to.p_path, NULL,
-				    COPYFILE_XATTR) < 0) {
-					warn("%s: unable to copy extended attributes to %s", curr->fts_path, to.p_path);
-					badcp = rval = 1;
-				}
-
-				/* ACL and mtime set in postorder traversal */
-			}
-#endif /* __APPLE__ */
-			break;
-		case S_IFBLK:
-		case S_IFCHR:
-			if (Rflag && !sflag) {
-				if (copy_special(curr->fts_statp, !dne))
-					badcp = rval = 1;
-			} else {
-				if (copy_file(curr, dne))
-					badcp = rval = 1;
-			}
-			break;
-		case S_IFSOCK:
-			warnx("%s is a socket (not copied).",
-			    curr->fts_path);
-			break;
-		case S_IFIFO:
-			if (Rflag && !sflag) {
-				if (copy_fifo(curr->fts_statp, !dne))
-					badcp = rval = 1;
-			} else {
-				if (copy_file(curr, dne))
-					badcp = rval = 1;
-			}
-			break;
-		default:
-			if (copy_file(curr, dne))
-				badcp = rval = 1;
-			break;
-		}
-		if (vflag && !badcp)
-			(void)printf("%s -> %s\n", curr->fts_path, to.p_path);
-	}
-	if (errno)
-		err(1, "fts_read");
-	fts_close(ftsp);
-	free(recurse_path);
-	return (rval);
-}
-
-static void
-siginfo(int sig __unused)
-{
-
-	info = 1;
+func siginfo(_ sig : Int32) {
+	info = 1
 }
