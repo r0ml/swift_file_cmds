@@ -925,7 +925,6 @@
 				dd/conv_tab.swift,
 				dd/conv.swift,
 				dd/dd.swift,
-				dd/gen.swift,
 				dd/misc.swift,
 				dd/position.swift,
 			);

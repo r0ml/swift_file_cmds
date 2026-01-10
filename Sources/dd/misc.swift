@@ -36,144 +36,87 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-#if 0
-static char sccsid[] = "@(#)misc.c	8.3 (Berkeley) 4/2/94";
-#endif
-#endif /* not lint */
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
+import CMigration
+import Darwin
 
-#include <sys/types.h>
+func secs_elapsed(_ st : STAT) -> Double {
+  var end = Darwin.timespec()
+  var ts_res = Darwin.timespec()
 
-#include <err.h>
-#include <errno.h>
-#include <inttypes.h>
-#include <libutil.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
-#include <unistd.h>
-
-#include "dd.h"
-#include "extern.h"
-
-double
-secs_elapsed(void)
-{
-	struct timespec end, ts_res;
-	double secs, res;
-
-	if (clock_gettime(CLOCK_MONOTONIC, &end))
-		err(1, "clock_gettime");
-	if (clock_getres(CLOCK_MONOTONIC, &ts_res))
-		err(1, "clock_getres");
-	secs = (end.tv_sec - st.start.tv_sec) + \
-	       (end.tv_nsec - st.start.tv_nsec) * 1e-9;
-	res = ts_res.tv_sec + ts_res.tv_nsec * 1e-9;
-	if (secs < res)
-		secs = res;
-
-	return (secs);
+  if 0 != Darwin.clock_gettime(CLOCK_MONOTONIC, &end) {
+    err(1, "clock_gettime")
+  }
+  if 0 != clock_getres(CLOCK_MONOTONIC, &ts_res) {
+    err(1, "clock_getres")
+  }
+  var secs = Double(end.tv_sec - st.start.tv_sec) + Double(end.tv_nsec - st.start.tv_nsec) * 1e-9
+	let res = Double(ts_res.tv_sec) + Double(ts_res.tv_nsec) * 1e-9;
+  if (secs < res) {
+    secs = res
+  }
+	return secs
 }
 
-void
-summary(void)
-{
-	double secs;
+func summary(_ ddflags : DDFlags, _ st : STAT) {
+  var stderr = FileDescriptor.standardError
 
-	if (ddflags & C_NOINFO)
-		return;
+  if ddflags.contains(.C_NOINFO) {
+    return
+  }
 
-	if (ddflags & C_PROGRESS)
-		fprintf(stderr, "\n");
+  if ddflags.contains(.C_PROGRESS) {
+    print("", to: &stderr)
+  }
 
-	secs = secs_elapsed();
+	let secs = secs_elapsed(st)
 
-	(void)fprintf(stderr,
-	    "%ju+%ju records in\n%ju+%ju records out\n",
+	print("%ju+%ju records in\n%ju+%ju records out",
 	    st.in_full, st.in_part, st.out_full, st.out_part);
-	if (st.swab)
-		(void)fprintf(stderr, "%ju odd length swab %s\n",
-#ifdef __APPLE__
-		     st.swab, (st.swab == 1) ? "record" : "records");
-#else
-		     st.swab, (st.swab == 1) ? "block" : "blocks");
-#endif
-	if (st.trunc)
-		(void)fprintf(stderr, "%ju truncated %s\n",
-#ifdef __APPLE__
-		     st.trunc, (st.trunc == 1) ? "record" : "records");
-#else
-		     st.trunc, (st.trunc == 1) ? "block" : "blocks");
-#endif
-	if (!(ddflags & C_NOXFER)) {
-		(void)fprintf(stderr,
-		    "%ju bytes transferred in %.6f secs (%.0f bytes/sec)\n",
-		    st.bytes, secs, st.bytes / secs);
+  if 0 != st.swab {
+    print("\(st.swab) odd length swab record\(st.swab == 1 ? "" : "s")", to: &stderr)
+  }
+  if 0 != st.trunc {
+    print("\(st.trunc) truncated record\(st.trunc == 1 ? "" : "s")", to: &stderr)
+  }
+  if !ddflags.contains(.C_NOXFER) {
+    print("\(st.bytes) bytes transferred in \(cFormat("%.6f", secs)) secs (\(cFormat("%.0f", Double(st.bytes) / secs)) bytes/sec)", to: &stderr)
 	}
 	need_summary = 0;
 }
 
-void
-progress(void)
-{
-	static int outlen;
-	char si[4 + 1 + 2 + 1];		/* 123 <space> <suffix> NUL */
-	char iec[4 + 1 + 3 + 1];	/* 123 <space> <suffix> NUL */
-	char persec[4 + 1 + 2 + 1];	/* 123 <space> <suffix> NUL */
-	char *buf;
-	double secs;
+func progress(_ st : STAT) {
+	let secs = secs_elapsed(st)
+  let si = humanize_number(8, Int(st.bytes), "B", nil, [.decimal, .divisor_1000])!
+  let iec = humanize_number(9, Int(st.bytes), "B", nil, [.decimal, .iec_prefixes])!
+  let persec = humanize_number(8, Int( Double(st.bytes) / secs), "B", nil, [.decimal, .divisor_1000])!
 
-	secs = secs_elapsed();
-	humanize_number(si, sizeof(si), (int64_t)st.bytes, "B", HN_AUTOSCALE,
-	    HN_DECIMAL | HN_DIVISOR_1000);
-	humanize_number(iec, sizeof(iec), (int64_t)st.bytes, "B", HN_AUTOSCALE,
-	    HN_DECIMAL | HN_IEC_PREFIXES);
-	humanize_number(persec, sizeof(persec), (int64_t)(st.bytes / secs), "B",
-	    HN_AUTOSCALE, HN_DECIMAL | HN_DIVISOR_1000);
-	asprintf(&buf, "  %'ju bytes (%s, %s) transferred %.3fs, %s/s",
-	    (uintmax_t)st.bytes, si, iec, secs, persec);
-	outlen = fprintf(stderr, "%-*s\r", outlen, buf) - 1;
-	fflush(stderr);
-	free(buf);
-	need_progress = 0;
+  let buf = "  \(cFormat("%'ju", st.bytes)) bytes (\(si), \(iec)) transferred \(cFormat("%.3f", secs))s, \(persec)/s"
+
+  var stderr = FileDescriptor.standardError
+  print(buf, terminator: "\r", to: &stderr)
+	need_progress = 0
 }
 
 /* ARGSUSED */
-void
-siginfo_handler(int signo __unused)
-{
-
-	need_summary = 1;
+func siginfo_handler(_ signo : Int32) {
+	need_summary = 1
 }
 
 /* ARGSUSED */
-void
-sigalarm_handler(int signo __unused)
-{
-
-	need_progress = 1;
+func sigalarm_handler(_ signo : Int32) {
+	need_progress = 1
 }
 
-void
-terminate(int signo)
-{
-
-	kill_signal = signo;
+func terminate(_ signo : Int32) {
+	kill_signal = signo
 }
 
-void
-check_terminate(void)
-{
-
+func check_terminate(_ dd : DDFlags, _ st : STAT) {
 	if (kill_signal) {
-		summary();
-		(void)fflush(stderr);
-		signal(kill_signal, SIG_DFL);
-		raise(kill_signal);
+		summary(dd, st)
+//		(void)fflush(stderr);
+		signal(kill_signal, SIG_DFL)
+		raise(kill_signal)
 		/* NOT REACHED */
 		_exit(128 + kill_signal);
 	}

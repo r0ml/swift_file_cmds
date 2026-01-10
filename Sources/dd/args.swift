@@ -36,471 +36,362 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-#if 0
-static char sccsid[] = "@(#)args.c	8.3 (Berkeley) 4/2/94";
-#endif
-#endif /* not lint */
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
+import CMigration
+import Darwin
 
-#include <sys/param.h>
+struct DDContext {
+  var inx : IO = IO()
+  var out : IO = IO()
+  var cbsz : ssize_t = 0
+  var cpy_cnt : UInt = 0
+  var oper : String = ""
+  var fill_char : Character = "\0"
+  var ddflags : DDFlags = []
+  var speed : Int = 0
+  var ctab : [UInt8]? = nil
+  var cfunc : ((inout DDContext) -> ())? = nil
+}
 
-#include <ctype.h>
-#include <err.h>
-#include <errno.h>
-#include <inttypes.h>
-#include <limits.h>
-#include <signal.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
+struct arg {
+  var f : (String, inout DDContext) -> ()
+  var set : DDFlags
+  var noset : DDFlags
 
-#include "dd.h"
-#include "extern.h"
+  init(_ a : @escaping (String, inout DDContext) -> (), _ b : DDFlags, _ c : DDFlags) {
+    f = a
+    set = b
+    noset = c
+  }
+}
 
-#if defined(__APPLE__) && !defined(nitems)
-#define	nitems(x)	(sizeof((x)) / sizeof((x)[0]))
-#endif
+let argmap : [String : arg] = [
+  "bs"    : .init(f_bs,		.C_BS,	 [.C_BS, .C_OSYNC]),
+  "cbs"   :	.init(f_cbs,	.C_CBS,	 .C_CBS ),
+  "conv"  :	.init(f_conv,		[],	 []),
+  "count" :	.init(f_count,	.C_COUNT, .C_COUNT),
+  "files" :	.init(f_files,	.C_FILES, .C_FILES),
+  "fillchar" : .init(f_fillchar, .C_FILL, .C_FILL),
 
-static int	c_arg(const void *, const void *);
-static int	c_conv(const void *, const void *);
-static int	c_iflag(const void *, const void *);
-static int	c_oflag(const void *, const void *);
-static void	f_bs(char *);
-static void	f_cbs(char *);
-static void	f_conv(char *);
-static void	f_count(char *);
-static void	f_files(char *);
-static void	f_fillchar(char *);
-static void	f_ibs(char *);
-static void	f_if(char *);
-static void	f_iflag(char *);
-static void	f_obs(char *);
-static void	f_of(char *);
-static void	f_oflag(char *);
-static void	f_seek(char *);
-static void	f_skip(char *);
-static void	f_speed(char *);
-static void	f_status(char *);
-static uintmax_t get_num(const char *);
-static off_t	get_off_t(const char *);
+  "ibs"   : .init(f_ibs, .C_IBS, .C_IBS),
 
-static const struct arg {
-	const char *name;
-	void (*f)(char *);
-	uint64_t set, noset;
-} args[] = {
-#ifdef __APPLE__
-	{ "bs",		f_bs,		C_BS,	 C_BS|C_OSYNC },
-#else
-	{ "bs",		f_bs,		C_BS,	 C_BS|C_IBS|C_OBS|C_OSYNC },
-#endif
-	{ "cbs",	f_cbs,		C_CBS,	 C_CBS },
-	{ "conv",	f_conv,		0,	 0 },
-	{ "count",	f_count,	C_COUNT, C_COUNT },
-	{ "files",	f_files,	C_FILES, C_FILES },
-	{ "fillchar",	f_fillchar,	C_FILL,	 C_FILL },
-#ifdef __APPLE__
-	{ "ibs",	f_ibs,		C_IBS,	 C_IBS },
-#else
-	{ "ibs",	f_ibs,		C_IBS,	 C_BS|C_IBS },
-#endif
-	{ "if",		f_if,		C_IF,	 C_IF },
-	{ "iflag",	f_iflag,	0,	 0 },
-	{ "iseek",	f_skip,		C_SKIP,	 C_SKIP },
-#ifdef __APPLE__
-	{ "obs",	f_obs,		C_OBS,	 C_OBS },
-#else
-	{ "obs",	f_obs,		C_OBS,	 C_BS|C_OBS },
-#endif
-	{ "of",		f_of,		C_OF,	 C_OF },
-	{ "oflag",	f_oflag,	0,	 0 },
-	{ "oseek",	f_seek,		C_SEEK,	 C_SEEK },
-	{ "seek",	f_seek,		C_SEEK,	 C_SEEK },
-	{ "skip",	f_skip,		C_SKIP,	 C_SKIP },
-	{ "speed",	f_speed,	0,	 0 },
-	{ "status",	f_status,	C_STATUS,C_STATUS },
-};
+  "if"    : .init(f_if, .C_IF, .C_IF),
+  "iflag" :	.init(f_iflag, [], []),
+  "iseek" : .init(f_skip, .C_SKIP, .C_SKIP),
 
-static char *oper;
+  "obs"   : .init(f_obs, .C_OBS, .C_OBS),
+
+  "of"    : .init(f_of, .C_OF, .C_OF),
+  "oflag" :	.init(f_oflag, [], []),
+  "oseek" :	.init(f_seek, .C_SEEK, .C_SEEK),
+  "seek"  : .init(f_seek, .C_SEEK, .C_SEEK),
+  "skip"  : .init(f_skip, .C_SKIP, .C_SKIP),
+  "speed" : .init(f_speed, [], []),
+  "status" : .init(f_status, .C_STATUS, .C_STATUS),
+]
 
 /*
  * args -- parse JCL syntax of dd.
  */
-void
-jcl(char **argv)
-{
-	struct arg *ap, tmp;
-	char *arg;
+func jcl(_ argv : [String], _ ddc : inout DDContext) {
+// 	struct arg *ap, tmp;
+// 	char *arg;
 
-	in.dbsz = out.dbsz = 512;
+  ddc.inx.dbsz = 512
+  ddc.out.dbsz = 512
 
-	if (argv[1] && !strcmp(argv[1], "--")) /* skip delimiter before operands */
-		argv++;
-	while ((oper = *++argv) != NULL) {
-		if ((oper = strdup(oper)) == NULL)
-			errx(1, "unable to allocate space for the argument \"%s\"", *argv);
-		if ((arg = strchr(oper, '=')) == NULL)
-			errx(1, "unknown operand %s", oper);
-		*arg++ = '\0';
-		if (!*arg)
-			errx(1, "no value specified for %s", oper);
-		tmp.name = oper;
-		if (!(ap = (struct arg *)bsearch(&tmp, args,
-		    sizeof(args)/sizeof(struct arg), sizeof(struct arg),
-		    c_arg)))
-			errx(1, "unknown operand %s", tmp.name);
-		if (ddflags & ap->noset)
-			errx(1, "%s: illegal argument combination or already set",
-			    tmp.name);
-		ddflags |= ap->set;
-		ap->f(arg);
+  var args = argv
+  args.removeFirst() // get rid of the command
+
+  if args.first == "--" { args.removeFirst() } // skip delimiter before operands
+
+  for oper in args {
+    ddc.oper = oper
+    if !oper.contains("=") {
+      errx(1, "unknown operand \(oper)")
+    }
+    let aa = oper.split(separator: "=", maxSplits: 1)
+    if (aa[1].isEmpty) {
+      errx(1, "no value specified for \(oper)")
+    }
+    guard let ap = argmap[String(aa[0])] else {
+      errx(1, "unknown operand \(args[0])")
+    }
+    if ddc.ddflags.contains(ap.noset) {
+      errx(1, "\(args[0]): illegal argument combination or already set")
+    }
+    ddc.ddflags.insert(ap.set)
+    ap.f(String(aa[1]), &ddc)
 	}
 
 	/* Final sanity checks. */
 
-	if (ddflags & C_BS) {
+  if ddc.ddflags.contains(.C_BS) {
 		/*
 		 * Bs is turned off by any conversion -- we assume the user
 		 * just wanted to set both the input and output block sizes
 		 * and didn't want the bs semantics, so we don't warn.
 		 */
-		if (ddflags & (C_BLOCK | C_LCASE | C_SWAB | C_UCASE |
-		    C_UNBLOCK))
-			ddflags &= ~C_BS;
+    if ddc.ddflags.contains([.C_BLOCK, .C_LCASE, .C_SWAB, .C_UCASE, .C_UNBLOCK]) {
+      ddc.ddflags.remove(.C_BS)
+    }
 
 		/* Bs supersedes ibs and obs. */
-		if (ddflags & C_BS && ddflags & (C_IBS | C_OBS))
-			warnx("bs supersedes ibs and obs");
+    if ddc.ddflags.contains(.C_BS) && ddc.ddflags.contains([.C_IBS, .C_OBS]) {
+      warnx("bs supersedes ibs and obs")
+    }
 	}
 
 	/*
 	 * Ascii/ebcdic and cbs implies block/unblock.
 	 * Block/unblock requires cbs and vice-versa.
 	 */
-	if (ddflags & (C_BLOCK | C_UNBLOCK)) {
-		if (!(ddflags & C_CBS))
-			errx(1, "record operations require cbs");
-		if (cbsz == 0)
-			errx(1, "cbs cannot be zero");
-		cfunc = ddflags & C_BLOCK ? block : unblock;
-	} else if (ddflags & C_CBS) {
-		if (ddflags & (C_ASCII | C_EBCDIC)) {
-			if (ddflags & C_ASCII) {
-				ddflags |= C_UNBLOCK;
-				cfunc = unblock;
+  if ddc.ddflags.contains([.C_BLOCK, .C_UNBLOCK]) {
+    if !ddc.ddflags.contains(.C_CBS) {
+      errx(1, "record operations require cbs")
+    }
+    if (ddc.cbsz == 0) {
+      errx(1, "cbs cannot be zero")
+    }
+    if ddc.ddflags.contains(.C_BLOCK) {
+      ddc.cfunc = block
+    } else {
+      ddc.cfunc = unblock
+    }
+  } else if ddc.ddflags.contains(.C_CBS) {
+    if ddc.ddflags.contains([.C_ASCII, .C_EBCDIC]) {
+      if ddc.ddflags.contains(.C_ASCII) {
+        ddc.ddflags.insert(.C_UNBLOCK)
+        ddc.cfunc = unblock
 			} else {
-				ddflags |= C_BLOCK;
-				cfunc = block;
+        ddc.ddflags.insert(.C_BLOCK)
+        ddc.cfunc = block
 			}
-		} else
-			errx(1, "cbs meaningless if not doing record operations");
-	} else
-		cfunc = def;
+    } else {
+      errx(1, "cbs meaningless if not doing record operations")
+    }
+  } else {
+    ddc.cfunc = def
+  }
 }
 
-static int
-c_arg(const void *a, const void *b)
-{
-
-	return (strcmp(((const struct arg *)a)->name,
-	    ((const struct arg *)b)->name));
+func f_bs(_ arg : String, _ ddc : inout DDContext) {
+  let res = get_num(arg, ddc);
+  if (res < 1 || res > SSIZE_MAX) {
+    errx(1, "bs must be between 1 and \(SSIZE_MAX)")
+  }
+  ddc.inx.dbsz = Int(res)
+  ddc.out.dbsz = Int(res)
 }
 
-static void
-f_bs(char *arg)
-{
-	uintmax_t res;
-
-	res = get_num(arg);
-	if (res < 1 || res > SSIZE_MAX)
-		errx(1, "bs must be between 1 and %zd", (ssize_t)SSIZE_MAX);
-	in.dbsz = out.dbsz = (size_t)res;
+func f_cbs(_ arg : String, _ ddc : inout DDContext) {
+	let res = get_num(arg, ddc)
+  if (res < 1 || res > SSIZE_MAX) {
+    errx(1, "cbs must be between 1 and \(SSIZE_MAX)")
+  }
+  ddc.cbsz = Int(res)
 }
 
-static void
-f_cbs(char *arg)
-{
-	uintmax_t res;
-
-	res = get_num(arg);
-	if (res < 1 || res > SSIZE_MAX)
-		errx(1, "cbs must be between 1 and %zd", (ssize_t)SSIZE_MAX);
-	cbsz = (size_t)res;
+func f_count(_ arg : String, _ ddc : inout DDContext) {
+	let res = get_num(arg, ddc)
+  if (res == UInt.max) {
+    err(1, "\(ddc.oper): \(POSIXErrno(ERANGE).localizedDescription)")
+  }
+  if (res == 0) {
+    ddc.cpy_cnt = UInt.max
+  }
+  else {
+    ddc.cpy_cnt = res
+  }
 }
 
-static void
-f_count(char *arg)
-{
-	uintmax_t res;
-
-	res = get_num(arg);
-	if (res == UINTMAX_MAX)
-		errc(1, ERANGE, "%s", oper);
-	if (res == 0)
-		cpy_cnt = UINTMAX_MAX;
-	else
-		cpy_cnt = res;
+func f_files(_ arg : String, _ ddc : inout DDContext) {
+	let files_cnt = get_num(arg, ddc);
+  if (files_cnt < 1) {
+    errx(1, "files must be between 1 and \(SIZE_MAX)")
+  }
 }
 
-static void
-f_files(char *arg)
-{
-
-	files_cnt = get_num(arg);
-	if (files_cnt < 1)
-		errx(1, "files must be between 1 and %zu", SIZE_MAX);
+func f_fillchar(_ arg : String, _ ddc : inout DDContext) {
+  if (strlen(arg) != 1) {
+    errx(1, "need exactly one fill char")
+  }
+  ddc.fill_char = arg.first!
 }
 
-static void
-f_fillchar(char *arg)
-{
-
-	if (strlen(arg) != 1)
-		errx(1, "need exactly one fill char");
-
-	fill_char = arg[0];
-}
-
-static void
-f_ibs(char *arg)
-{
-	uintmax_t res;
-
-	if (!(ddflags & C_BS)) {
-		res = get_num(arg);
-		if (res < 1 || res > SSIZE_MAX)
-			errx(1, "ibs must be between 1 and %zd",
-			    (ssize_t)SSIZE_MAX);
-		in.dbsz = (size_t)res;
+func f_ibs(_ arg : String, _ ddc : inout DDContext) {
+  if !ddc.ddflags.contains(.C_BS) {
+		let res = get_num(arg, ddc)
+    if (res < 1 || res > SSIZE_MAX) {
+      errx(1, "ibs must be between 1 and \(SSIZE_MAX)")
+    }
+    ddc.inx.dbsz = Int(res)
 	}
 }
 
-static void
-f_if(char *arg)
-{
-
-	in.name = arg;
+func f_if(_ arg : String, _ ddc : inout DDContext) {
+  ddc.inx.name = arg
 }
 
-static const struct iflag {
-	const char *name;
-	uint64_t set, noset;
-} ilist[] = {
-	{ "direct",	C_IDIRECT,	0 },
-	{ "fullblock",	C_IFULLBLOCK,	C_SYNC },
-};
+struct iflag {
+  var set : DDFlags
+  var noset : DDFlags
 
-static void
-f_iflag(char *arg)
-{
-	struct iflag *ip, tmp;
+  init(_ a : DDFlags, _ b : DDFlags) {
+    set = a
+    noset = b
+  }
+}
 
-	while (arg != NULL) {
-		tmp.name = strsep(&arg, ",");
-		ip = bsearch(&tmp, ilist, nitems(ilist), sizeof(struct iflag),
-		    c_iflag);
-		if (ip == NULL)
-			errx(1, "unknown iflag %s", tmp.name);
-		if (ddflags & ip->noset)
-			errx(1, "%s: illegal conversion combination", tmp.name);
-		ddflags |= ip->set;
+let ilist : [String : iflag] = [
+  "direct" : .init(.C_IDIRECT,	[]),
+  "fullblock" : .init(.C_IFULLBLOCK, .C_SYNC),
+]
+
+func f_iflag(_ arg : String, _ ddc : inout DDContext) {
+  var j = arg.split(separator: ",")
+  for tmp in j {
+    guard let ip = ilist[String(tmp)] else {
+      errx(1, "unknown iflag \(tmp)")
+    }
+    if ddc.ddflags.contains(ip.noset) {
+      errx(1, "\(tmp): illegal conversion combination")
+    }
+    ddc.ddflags.insert(ip.set)
 	}
 }
 
-static int
-c_iflag(const void *a, const void *b)
-{
-
-	return (strcmp(((const struct iflag *)a)->name,
-	    ((const struct iflag *)b)->name));
-}
-
-static void
-f_obs(char *arg)
-{
-	uintmax_t res;
-
-	if (!(ddflags & C_BS)) {
-		res = get_num(arg);
-		if (res < 1 || res > SSIZE_MAX)
-			errx(1, "obs must be between 1 and %zd",
-			    (ssize_t)SSIZE_MAX);
-		out.dbsz = (size_t)res;
+func f_obs(_ arg : String, _ ddc : inout DDContext) {
+  if !ddc.ddflags.contains(.C_BS) {
+		let res = get_num(arg, ddc);
+    if (res < 1 || res > SSIZE_MAX) {
+      errx(1, "obs must be between 1 and \(SSIZE_MAX)")
+    }
+    ddc.out.dbsz = Int(res)
 	}
 }
 
-static void
-f_of(char *arg)
-{
-
-	out.name = arg;
+func f_of(_ arg : String, _ ddc : inout DDContext) {
+  ddc.out.name = arg
 }
 
-static void
-f_seek(char *arg)
-{
-
-	out.offset = get_off_t(arg);
+func f_seek(_ arg : String, _ ddc : inout DDContext) {
+  ddc.out.offset = Int(get_off_t(arg, ddc))
 }
 
-static void
-f_skip(char *arg)
-{
-
-	in.offset = get_off_t(arg);
+func f_skip(_ arg : String, _ ddc : inout DDContext) {
+  ddc.inx.offset = Int(get_off_t(arg, ddc))
 }
 
-static void
-f_speed(char *arg)
-{
-
-	speed = get_num(arg);
+func f_speed(_ arg : String, _ ddc : inout DDContext) {
+  ddc.speed = Int(get_num(arg, ddc))
 }
 
-static void
-f_status(char *arg)
-{
-
-	if (strcmp(arg, "none") == 0)
-		ddflags |= C_NOINFO;
-	else if (strcmp(arg, "noxfer") == 0)
-		ddflags |= C_NOXFER;
-	else if (strcmp(arg, "progress") == 0)
-		ddflags |= C_PROGRESS;
-	else
-		errx(1, "unknown status %s", arg);
+func f_status(_ arg : String, _ ddc : inout DDContext) {
+  if arg  == "none" {
+    ddc.ddflags.insert(.C_NOINFO)
+  }
+  else if arg == "noxfer" {
+    ddc.ddflags.insert(.C_NOXFER)
+  }
+  else if arg == "progress" {
+    ddc.ddflags.insert(.C_PROGRESS)
+  }
+  else {
+    errx(1, "unknown status \(arg)")
+  }
 }
  
-static const struct conv {
-	const char *name;
-	uint64_t set, noset;
-	const u_char *ctab;
-} clist[] = {
-	{ "ascii",	C_ASCII,	C_EBCDIC,	e2a_POSIX },
-	{ "block",	C_BLOCK,	C_UNBLOCK,	NULL },
-	{ "ebcdic",	C_EBCDIC,	C_ASCII,	a2e_POSIX },
-#ifndef __APPLE__
-	{ "fdatasync",	C_FDATASYNC,	0,		NULL },
-#endif
-	{ "fsync",	C_FSYNC,	0,		NULL },
-	{ "ibm",	C_EBCDIC,	C_ASCII,	a2ibm_POSIX },
-	{ "lcase",	C_LCASE,	C_UCASE,	NULL },
-	{ "noerror",	C_NOERROR,	0,		NULL },
-	{ "notrunc",	C_NOTRUNC,	0,		NULL },
-	{ "oldascii",	C_ASCII,	C_EBCDIC,	e2a_32V },
-	{ "oldebcdic",	C_EBCDIC,	C_ASCII,	a2e_32V },
-	{ "oldibm",	C_EBCDIC,	C_ASCII,	a2ibm_32V },
-	{ "osync",	C_OSYNC,	C_BS,		NULL },
-	{ "pareven",	C_PAREVEN,	C_PARODD|C_PARSET|C_PARNONE, NULL},
-	{ "parnone",	C_PARNONE,	C_PARODD|C_PARSET|C_PAREVEN, NULL},
-	{ "parodd",	C_PARODD,	C_PAREVEN|C_PARSET|C_PARNONE, NULL},
-	{ "parset",	C_PARSET,	C_PARODD|C_PAREVEN|C_PARNONE, NULL},
-	{ "sparse",	C_SPARSE,	0,		NULL },
-	{ "swab",	C_SWAB,		0,		NULL },
-	{ "sync",	C_SYNC,		C_IFULLBLOCK,	NULL },
-	{ "ucase",	C_UCASE,	C_LCASE,	NULL },
-	{ "unblock",	C_UNBLOCK,	C_BLOCK,	NULL },
-};
+struct conv {
+  var set : DDFlags
+  var noset : DDFlags
+  var ctab : [UInt8]?
 
-static void
-f_conv(char *arg)
-{
-	struct conv *cp, tmp;
+  init(_ a : DDFlags, _ b : DDFlags, _ c : [UInt8]?) {
+    set = a
+    noset = b
+    ctab = c
+  }
+}
 
-	while (arg != NULL) {
-		tmp.name = strsep(&arg, ",");
-		cp = bsearch(&tmp, clist, nitems(clist), sizeof(struct conv),
-		    c_conv);
-		if (cp == NULL)
-			errx(1, "unknown conversion %s", tmp.name);
-		if (ddflags & cp->noset)
-			errx(1, "%s: illegal conversion combination", tmp.name);
-		ddflags |= cp->set;
-		if (cp->ctab)
-			ctab = cp->ctab;
+let clist : [String: conv] = [
+  "ascii" : .init(.C_ASCII,	.C_EBCDIC,	e2a_POSIX),
+  "block" : .init(.C_BLOCK, .C_UNBLOCK,	nil),
+  "ebcdic": .init(.C_EBCDIC, .C_ASCII, a2e_POSIX),
+
+//	"fdatasync",	C_FDATASYNC,	0,		NULL }, // ?
+
+  "fsync" :	.init(.C_FSYNC, [], nil),
+  "ibm"   :	.init(.C_EBCDIC,	.C_ASCII,	a2ibm_POSIX),
+  "lcase" : .init(.C_LCASE,	.C_UCASE,	nil),
+  "noerror" : .init(.C_NOERROR,	[],	nil),
+  "notrunc" : .init( .C_NOTRUNC, [], nil),
+  "oldascii" : .init(.C_ASCII,	.C_EBCDIC, e2a_32V),
+  "oldebcdic" : .init(.C_EBCDIC, .C_ASCII, a2e_32V),
+  "oldibm" : .init(.C_EBCDIC, .C_ASCII, a2ibm_32V),
+  "osync"  : .init(.C_OSYNC, .C_BS, nil),
+  "pareven" : .init(.C_PAREVEN, [.C_PARODD, .C_PARSET, .C_PARNONE], nil),
+  "parnone" : .init(.C_PARNONE, [.C_PARODD, .C_PARSET, .C_PAREVEN], nil),
+  "parodd"  : .init(.C_PARODD, [.C_PAREVEN, .C_PARSET, .C_PARNONE], nil),
+  "parset"  : .init(.C_PARSET, [.C_PARODD, .C_PAREVEN, .C_PARNONE], nil),
+  "sparse"  : .init(.C_SPARSE, [], nil),
+  "swab" : .init(.C_SWAB, [], nil),
+  "sync" : .init(.C_SYNC,	.C_IFULLBLOCK, nil),
+  "ucase" : .init(.C_UCASE, .C_LCASE, nil),
+  "unblock" : .init(.C_UNBLOCK, .C_BLOCK, nil),
+]
+
+func f_conv(_ arg : String, _ ddc : inout DDContext) {
+  let j = arg.split(separator: ".")
+  for tmp in j {
+    guard let cp = clist[String(tmp)] else {
+      errx(1, "unknown conversion \(tmp)")
+      fatalError()
+    }
+    if ddc.ddflags.contains(cp.noset) {
+      errx(1, "\(tmp): illegal conversion combination")
+    }
+    ddc.ddflags.insert(cp.set)
+    if let cc = cp.ctab {
+      ddc.ctab = cc
+    }
 	}
 }
 
-static int
-c_conv(const void *a, const void *b)
-{
+fileprivate var olist : [String : DDFlags] = [ // struct oflag ?
+  "direct" : .C_ODIRECT,
+  "fsync" : .C_OFSYNC,
+  "sync" : .C_OFSYNC,
+]
 
-	return (strcmp(((const struct conv *)a)->name,
-	    ((const struct conv *)b)->name));
-}
-
-static const struct oflag {
-	const char *name;
-	uint64_t set;
-} olist[] = {
-	{ "direct",	C_ODIRECT },
-	{ "fsync",	C_OFSYNC },
-	{ "sync",	C_OFSYNC },
-};
-
-static void
-f_oflag(char *arg)
-{
-	struct oflag *op, tmp;
-
-	while (arg != NULL) {
-		tmp.name = strsep(&arg, ",");
-		op = bsearch(&tmp, olist, nitems(olist), sizeof(struct oflag),
-		    c_oflag);
-		if (op == NULL)
-			errx(1, "unknown open flag %s", tmp.name);
-		ddflags |= op->set;
+func f_oflag(_ arg : String, _ ddc : inout DDContext) {
+  var j = arg.split(separator: ".")
+  for tmp in j {
+    guard let op = olist[String(tmp)] else {
+      errx(1, "unknown open flag \(tmp)")
+    }
+    ddc.ddflags.insert(op)
 	}
 }
 
-static int
-c_oflag(const void *a, const void *b)
-{
-
-	return (strcmp(((const struct oflag *)a)->name,
-	    ((const struct oflag *)b)->name));
-}
-
-static intmax_t
-postfix_to_mult(const char expr)
-{
-	intmax_t mult;
-
-	mult = 0;
-	switch (expr) {
-	case 'B':
-	case 'b':
-		mult = 512;
-		break;
-	case 'K':
-	case 'k':
-		mult = 1 << 10;
-		break;
-	case 'M':
-	case 'm':
-		mult = 1 << 20;
-		break;
-	case 'G':
-	case 'g':
-		mult = 1 << 30;
-		break;
-	case 'T':
-	case 't':
-		mult = (uintmax_t)1 << 40;
-		break;
-	case 'P':
-	case 'p':
-		mult = (uintmax_t)1 << 50;
-		break;
-	case 'W':
-	case 'w':
-		mult = sizeof(int);
-		break;
-	}
-
-	return (mult);
+func postfix_to_mult(_ expr : Character) -> Int {
+   switch expr {
+    case "B", "b":
+      return 512
+    case "K", "k":
+      return 1 << 10
+    case "M", "m":
+      return 1 << 20
+    case "G", "g":
+      return 1 << 30
+    case "T", "t":
+      return 1 << 40
+    case "P", "p":
+      return 1 << 50
+    case "W", "w":
+      return MemoryLayout<Int32>.size
+    default:
+      return 0
+  }
 }
 
 /*
@@ -517,45 +408,44 @@ postfix_to_mult(const char expr)
  *	   separated by 'x' or 'X' (also '*' for backwards compatibility),
  *	   specifying the product of the indicated values.
  */
-static uintmax_t
-get_num(const char *val)
-{
-	uintmax_t num, mult, prevnum;
-	char *expr;
+func get_num(_ valx : String, _ ddc : DDContext) -> UInt {
+//	uintmax_t num, mult, prevnum;
+//	char *expr;
 
 	errno = 0;
-	num = strtoumax(val, &expr, 0);
-	if (expr == val)			/* No valid digits. */
-		errx(1, "%s: invalid numeric value", oper);
-	if (errno != 0)
-		err(1, "%s", oper);
+  let val = valx.prefix { $0.isWholeNumber }
+  var expr = String(valx.dropFirst(val.count))
 
-	mult = postfix_to_mult(*expr);
+  guard var num = UInt(val) else {
+    errx(1, "\(ddc.oper): invalid numeric value")
+  }
+
+  let mult = UInt(postfix_to_mult(expr.first ?? " "))
 
 	if (mult != 0) {
-		prevnum = num;
+		let prevnum = num
 		num *= mult;
 		/* Check for overflow. */
-		if (num / mult != prevnum)
-			goto erange;
-		expr++;
+    if (num / mult != prevnum) {
+      errx(1, "\(ddc.oper): \(POSIXErrno(ERANGE).localizedDescription)")
+    }
+    expr.removeFirst()
 	}
 
-	switch (*expr) {
-		case '\0':
-			break;
-		case '*':			/* Backward compatible. */
-		case 'X':
-		case 'x':
-			mult = get_num(expr + 1);
-			prevnum = num;
-			num *= mult;
-			if (num / mult == prevnum)
-				break;
-erange:
-			errx(1, "%s: %s", oper, strerror(ERANGE));
+  switch expr.first {
+		case nil:
+			break
+    case "*", "X", "x":			/* Backward compatible. */
+      expr.removeFirst()
+      let mult = get_num(expr, ddc)
+			let prevnum = num
+			num *= mult
+      if (num / mult == prevnum) {
+        break
+      }
+      errx(1, "\(ddc.oper): \(POSIXErrno(ERANGE).localizedDescription)")
 		default:
-			errx(1, "%s: illegal numeric value", oper);
+      errx(1, "\(ddc.oper): illegal numeric value")
 	}
 	return (num);
 }
@@ -566,45 +456,135 @@ erange:
  *
  * The major problem here is that an off_t may not necessarily be a intmax_t.
  */
-static off_t
-get_off_t(const char *val)
-{
-	intmax_t num, mult, prevnum;
-	char *expr;
+func get_off_t(_ valx : String, _ ddc : DDContext) -> off_t {
+//	intmax_t num, mult, prevnum;
+//	char *expr;
 
-	errno = 0;
-	num = strtoimax(val, &expr, 0);
-	if (expr == val)			/* No valid digits. */
-		errx(1, "%s: invalid numeric value", oper);
-	if (errno != 0)
-		err(1, "%s", oper);
+	errno = 0
+  let val = valx.prefix { $0.isWholeNumber }
+  var expr = String(valx.dropFirst(val.count))
+  guard var num = Int(val) else {
+    errx(1, "\(ddc.oper): invalid numeric value");
+    fatalError()
+  }
 
-	mult = postfix_to_mult(*expr);
+  let mult = postfix_to_mult(expr.first ?? " ")
 
 	if (mult != 0) {
-		prevnum = num;
-		num *= mult;
+		let prevnum = num;
+		num *= mult
 		/* Check for overflow. */
-		if ((prevnum > 0) != (num > 0) || num / mult != prevnum)
-			goto erange;
-		expr++;
+    if ((prevnum > 0) != (num > 0) || num / mult != prevnum) {
+      errx(1, "\(ddc.oper): \(POSIXErrno(ERANGE).localizedDescription)")
+    }
+    expr.removeFirst()
 	}
 
-	switch (*expr) {
-		case '\0':
-			break;
-		case '*':			/* Backward compatible. */
-		case 'X':
-		case 'x':
-			mult = (intmax_t)get_off_t(expr + 1);
-			prevnum = num;
-			num *= mult;
-			if ((prevnum > 0) == (num > 0) && num / mult == prevnum)
-				break;
-erange:
-			errx(1, "%s: %s", oper, strerror(ERANGE));
+  switch expr.first {
+		case nil:
+			break
+    case "*", "X", "x":			/* Backward compatible. */
+      let mult = get_off_t(String(expr.dropFirst()), ddc)
+			let prevnum = num
+			num *= Int(mult)
+      if ((prevnum > 0) == (num > 0) && num / Int(mult) == prevnum) {
+        break
+      }
+      errx(1, "\(ddc.oper): \(POSIXErrno(ERANGE).localizedDescription)")
 		default:
-			errx(1, "%s: illegal numeric value", oper);
+      errx(1, "\(ddc.oper): illegal numeric value")
 	}
-	return (num);
+	return Int64(num)
+}
+
+// ==============================================================
+// from dd.h
+
+/* Flags (in ddflags). */
+struct DDFlags : OptionSet {
+  var rawValue : UInt
+
+  static var C_ASCII    = Self(rawValue: 1 << 0)
+  static var C_BLOCK    = Self(rawValue: 1 << 1)
+  static var C_BS       = Self(rawValue: 1 << 2)
+  static var C_CBS      = Self(rawValue: 1 << 3)
+  static var C_COUNT    = Self(rawValue: 1 << 4)
+  static var C_EBCDIC   = Self(rawValue: 1 << 5)
+  static var C_FILES    = Self(rawValue: 1 << 6)
+  static var C_IBS      = Self(rawValue: 1 << 7)
+  static var C_IF       = Self(rawValue: 1 << 8)
+  static var C_LCASE    = Self(rawValue: 1 << 9)
+  static var C_NOERROR  = Self(rawValue: 1 << 10)
+  static var C_NOTRUNC  = Self(rawValue: 1 << 11)
+  static var C_OBS      = Self(rawValue: 1 << 12)
+  static var C_OF       = Self(rawValue: 1 << 13)
+  static var C_OSYNC    = Self(rawValue: 1 << 14)
+  static var C_PAREVEN  = Self(rawValue: 1 << 15)
+  static var C_PARNONE  = Self(rawValue: 1 << 16)
+  static var C_PARODD   = Self(rawValue: 1 << 17)
+  static var C_PARSET   = Self(rawValue: 1 << 18)
+  static var C_SEEK     = Self(rawValue: 1 << 19)
+  static var C_SKIP     = Self(rawValue: 1 << 20)
+  static var C_SPARSE   = Self(rawValue: 1 << 21)
+  static var C_SWAB     = Self(rawValue: 1 << 22)
+  static var C_SYNC     = Self(rawValue: 1 << 23)
+  static var C_UCASE    = Self(rawValue: 1 << 24)
+  static var C_UNBLOCK  = Self(rawValue: 1 << 25)
+  static var C_FILL     = Self(rawValue: 1 << 26)
+  static var C_STATUS   = Self(rawValue: 1 << 27)
+  static var C_NOXFER   = Self(rawValue: 1 << 28)
+  static var C_NOINFO   = Self(rawValue: 1 << 29)
+  static var C_PROGRESS = Self(rawValue: 1 << 30)
+  static var C_FSYNC    = Self(rawValue: 1 << 31)
+
+  static var C_FDATASYNC = Self(rawValue: 1 << 32) // not used by Apple
+
+  static var C_OFSYNC   = Self(rawValue: 1 << 33)
+  static var C_IFULLBLOCK = Self(rawValue: 1 << 34)
+  static var C_IDIRECT  = Self(rawValue: 1 << 35)
+  static var C_ODIRECT  = Self(rawValue: 1 << 36)
+
+  static var C_PARITY : DDFlags = [.C_PAREVEN, .C_PARODD, .C_PARNONE, .C_PARSET]
+}
+
+/* Input/output stream state. */
+struct IO {
+//  u_char    *db;    /* buffer address */
+//  u_char    *dbp;    /* current buffer I/O address */
+  var dbcnt  : Int = 0 // current buffer byte count
+  var dbrcnt : Int = 0 // last read byte count
+  var dbsz   : Int = 0 // block size
+
+  var flags : IOFlags = []
+
+  var name : String = ""  // name
+  var fd : FileDescriptor = FileDescriptor(rawValue: -1) // file descriptor
+  var offset : Int        = 0 // # of blocks to skip
+  var seek_offset : Int   = 0 // offset of last seek past output hole
+}
+
+struct STAT {
+  var in_full : UInt  /* # of full input blocks */
+  var in_part : UInt  /* # of partial input blocks */
+  var out_full: UInt  /* # of full output blocks */
+  var out_part: UInt  /* # of partial output blocks */
+  var trunc : UInt    /* # of truncated records */
+  var swab : UInt    /* # of odd-length swab blocks */
+  var bytes : UInt    /* # of bytes written */
+  var start : timespec /* start time of dd */
+}
+
+struct IOFlags : OptionSet {
+  let rawValue: UInt8
+
+  init(rawValue: UInt8) {
+    self.rawValue = rawValue
+  }
+
+  static let ISCHR  = IOFlags(rawValue: 0x01) // character device (warn on short)
+  static let ISPIPE = IOFlags(rawValue: 0x02) // pipe-like (see position.c)
+  static let ISTAPE = IOFlags(rawValue: 0x04) // tape
+  static let ISSEEK = IOFlags(rawValue: 0x08) // valid to seek on
+  static let NOREAD = IOFlags(rawValue: 0x10) // not readable
+  static let ISTRUNC = IOFlags(rawValue: 0x20) // valid to ftruncate()
 }

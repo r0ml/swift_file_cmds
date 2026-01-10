@@ -36,42 +36,14 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-#if 0
-static char sccsid[] = "@(#)position.c	8.3 (Berkeley) 4/2/94";
-#endif
-#endif /* not lint */
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
+import CMigration
+import Darwin
 
-#include <sys/types.h>
+func seek_offset(_ io : IO) -> Int {
+  let n = io.offset
+  let sz = io.dbsz
 
-#ifdef __APPLE__
-#include <sys/ioctl.h>
-#else
-#include <sys/mtio.h>
-#endif
-
-#include <err.h>
-#include <errno.h>
-#include <inttypes.h>
-#include <limits.h>
-#include <signal.h>
-#include <unistd.h>
-
-#include "dd.h"
-#include "extern.h"
-
-static off_t
-seek_offset(IO *io)
-{
-	off_t n;
-	size_t sz;
-
-	n = io->offset;
-	sz = io->dbsz;
-
-	_Static_assert(sizeof(io->offset) == sizeof(int64_t), "64-bit off_t");
+//	_Static_assert(sizeof(io->offset) == sizeof(int64_t), "64-bit off_t");
 
 	/*
 	 * If the lseek offset will be negative, verify that this is a special
@@ -80,14 +52,14 @@ seek_offset(IO *io)
 	 *
 	 * Bail out if the calculation of a file offset would overflow.
 	 */
-	if ((io->flags & ISCHR) == 0 && (n < 0 || n > OFF_MAX / (ssize_t)sz))
-		errx(1, "seek offsets cannot be larger than %jd",
-		    (intmax_t)OFF_MAX);
-	else if ((io->flags & ISCHR) != 0 && (uint64_t)n > UINT64_MAX / sz)
-		errx(1, "seek offsets cannot be larger than %ju",
-		    (uintmax_t)UINT64_MAX);
+  if !io.flags.contains(.ISCHR) && (n < 0 || n > Int.max / sz) {
+    errx(1, "seek offsets cannot be larger than \(Int.max)")
+  }
+  else if io.flags.contains(.ISCHR) && n > UInt.max / UInt(sz) {
+    errx(1, "seek offsets cannot be larger than \(UInt.max)")
+  }
 
-	return ((off_t)( (uint64_t)n * sz ));
+	return  n * sz
 }
 
 /*
@@ -96,45 +68,48 @@ seek_offset(IO *io)
  * Seeking past the end of file can cause null blocks to be written to the
  * output.
  */
-void
-pos_in(void)
-{
-	off_t cnt;
-	int warned;
-	ssize_t nr;
-	size_t bcnt;
+func pos_in(_ ddc : inout DDContext) {
+//	off_t cnt;
+//	int warned;
+//	ssize_t nr;
+//	size_t bcnt;
 
 	/* If known to be seekable, try to seek on it. */
-	if (in.flags & ISSEEK) {
+  if ddc.inx.flags.contains(.ISSEEK) {
 		errno = 0;
-		if (lseek(in.fd, seek_offset(&in), SEEK_CUR) == -1 &&
-		    errno != 0)
-			err(1, "%s", in.name);
+    if (lseek(ddc.inx.fd.rawValue, Int64(seek_offset(inx)), SEEK_CUR) == -1 &&
+        errno != 0) {
+      err(1, ddc.inx.name)
+    }
 		return;
 	}
 
 	/* Don't try to read a really weird amount (like negative). */
-	if (in.offset < 0)
-		errx(1, "%s: illegal offset", "iseek/skip");
+  if (ddc.inx.offset < 0) {
+    errx(1, "iseek/skip: illegal offset")
+  }
 
 	/*
 	 * Read the data.  If a pipe, read until satisfy the number of bytes
 	 * being skipped.  No differentiation for reading complete and partial
 	 * blocks for other devices.
 	 */
-	for (bcnt = in.dbsz, cnt = in.offset, warned = 0; cnt;) {
-		if ((nr = read(in.fd, in.db, bcnt)) > 0) {
-			if (in.flags & ISPIPE) {
+  for (bcnt = ddc.inx.dbsz, cnt = ddc.inx.offset, warned = 0; cnt;) {
+    if ((nr = read(inx.fd, ddc.inx.db, bcnt)) > 0) {
+      if ddc.inx.flags.contains(.ISPIPE) {
 				if (!(bcnt -= nr)) {
-					bcnt = in.dbsz;
+          bcnt = ddc.inx.dbsz;
 					--cnt;
 				}
-			} else
-				--cnt;
-			if (need_summary)
-				summary();
-			if (need_progress)
-				progress();
+      } else {
+        --cnt
+      }
+      if (need_summary) {
+        summary(ddc.ddflags)
+      }
+      if (need_progress) {
+        progress()
+      }
 			continue;
 		}
 
@@ -143,7 +118,7 @@ pos_in(void)
 				--files_cnt;
 				continue;
 			}
-			errx(1, "skip reached end of input");
+			errx(1, "skip reached end of input")
 		}
 
 		/*
@@ -151,86 +126,64 @@ pos_in(void)
 		 * If noerror not set die.  POSIX requires that the warning
 		 * message be followed by an I/O display.
 		 */
-		if (ddflags & C_NOERROR) {
+    if ddflags.contains(.C_NOERROR) {
 			if (!warned) {
-				warn("%s", in.name);
+				warn("%s", inx.name);
 				warned = 1;
 				summary();
 			}
 			continue;
 		}
-		err(1, "%s", in.name);
+		err(1, inx.name)
 	}
 }
 
-void
-pos_out(void)
-{
-#ifndef __APPLE__
-	struct mtop t_op;
-#endif
-	off_t cnt;
-	ssize_t n;
-
-	/*
+func pos_out(_ out : IO) {
+  /*
 	 * If not a tape, try seeking on the file.  Seeking on a pipe is
 	 * going to fail, but don't protect the user -- they shouldn't
 	 * have specified the seek operand.
 	 */
-	if (out.flags & (ISSEEK | ISPIPE)) {
+  if out.flags.contains([.ISSEEK, .ISPIPE]) {
 		errno = 0;
-		if (lseek(out.fd, seek_offset(&out), SEEK_CUR) == -1 &&
-		    errno != 0)
-			err(1, "%s", out.name);
+    if (lseek(out.fd.rawValue, Int64(seek_offset(out)), SEEK_CUR) == -1 &&
+        errno != 0) {
+      err(1, out.name)
+    }
 		return;
 	}
 
 	/* Don't try to read a really weird amount (like negative). */
-	if (out.offset < 0)
-		errx(1, "%s: illegal offset", "oseek/seek");
-
-#ifndef __APPLE__
-	/* If no read access, try using mtio. */
-	if (out.flags & NOREAD) {
-		t_op.mt_op = MTFSR;
-		t_op.mt_count = out.offset;
-
-		if (ioctl(out.fd, MTIOCTOP, &t_op) == -1)
-			err(1, "%s", out.name);
-		return;
-	}
-#endif
+  if (out.offset < 0) {
+    errx(1, "oseek/seek: illegal offset")
+  }
 
 	/* Read it. */
-	for (cnt = 0; cnt < out.offset; ++cnt) {
+  var cnt = 0
+  while cnt < out.offset {
+    cnt += 1
 		check_terminate();
-		if ((n = read(out.fd, out.db, out.dbsz)) > 0)
-			continue;
+    let n = read(out.fd.rawValue, out.db, out.dbsz)
+    if n > 0 {
+      continue
+    }
 		check_terminate();
-		if (n == -1)
-			err(1, "%s", out.name);
+    if (n == -1) {
+      err(1, out.name)
+    }
 
-#ifndef __APPLE__
-		/*
-		 * If reach EOF, fill with NUL characters; first, back up over
-		 * the EOF mark.  Note, cnt has not yet been incremented, so
-		 * the EOF read does not count as a seek'd block.
-		 */
-		t_op.mt_op = MTBSR;
-		t_op.mt_count = 1;
-		if (ioctl(out.fd, MTIOCTOP, &t_op) == -1)
-			err(1, "%s", out.name);
-#endif
-
-		while (cnt++ < out.offset) {
+		while cnt < out.offset {
+      cnt += 1
 			check_terminate();
 			n = write(out.fd, out.db, out.dbsz);
 			check_terminate();
-			if (n == -1)
-				err(1, "%s", out.name);
-			if (n != out.dbsz)
-				errx(1, "%s: write failure", out.name);
+      if (n == -1) {
+        err(1, out.name)
+      }
+      if (n != out.dbsz) {
+        errx(1, "\(out.name): write failure")
+      }
 		}
-		break;
+		break
 	}
 }

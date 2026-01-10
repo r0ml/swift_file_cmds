@@ -36,62 +36,12 @@
  * SUCH DAMAGE.
  */
 
-#if 0
-#ifndef lint
-static char const copyright[] =
-"@(#) Copyright (c) 1991, 1993, 1994\n\
-	The Regents of the University of California.  All rights reserved.\n";
-#endif /* not lint */
+import CMigration
+import Darwin
 
-#ifndef lint
-static char sccsid[] = "@(#)dd.c	8.5 (Berkeley) 4/2/94";
-#endif /* not lint */
-#endif
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
+@main struct dd : ShellCommand {
 
-#include <sys/param.h>
-#include <sys/stat.h>
-#ifndef __APPLE__
-#include <sys/capsicum.h>
-#endif
-#include <sys/conf.h>
-#ifdef __APPLE__
-#include <sys/ioctl.h>
-#else
-#include <sys/disklabel.h>
-#endif
-#include <sys/filio.h>
-#ifndef __APPLE__
-#include <sys/mtio.h>
-#endif
-#include <sys/time.h>
-
-#include <assert.h>
-#ifndef __APPLE__
-#include <capsicum_helpers.h>
-#endif
-#include <ctype.h>
-#include <err.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <inttypes.h>
-#include <locale.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
-#include <unistd.h>
-
-#include "dd.h"
-#include "extern.h"
-
-static void dd_close(void);
-static void dd_in(void);
-static void getfdtype(IO *);
-static void setup(void);
-
+/*
 IO	in, out;		/* input/output state */
 STAT	st;			/* statistics */
 void	(*cfunc)(void);		/* conversion function */
@@ -106,6 +56,8 @@ size_t	speed = 0;		/* maximum speed, in bytes per second */
 volatile sig_atomic_t need_summary;
 volatile sig_atomic_t need_progress;
 volatile sig_atomic_t kill_signal;
+*/
+
 
 int
 main(int argc __unused, char *argv[])
@@ -115,26 +67,22 @@ main(int argc __unused, char *argv[])
 	(void)siginterrupt(SIGINT, 1);
 	(void)signal(SIGINT, terminate);
 
-	(void)setlocale(LC_CTYPE, "");
-	jcl(argv);
-	setup();
-
-#ifndef __APPLE__
-	caph_cache_catpages();
-	if (caph_enter() < 0)
-		err(1, "unable to enter capability mode");
-#endif
+//	(void)setlocale(LC_CTYPE, "");
+  var ddc = DDContext()
+	jcl(argv, &ddc)
+	setup(&ddc)
 
 	(void)signal(SIGINFO, siginfo_handler);
-	if (ddflags & C_PROGRESS) {
+  if ddc.ddflags.contains(.C_PROGRESS) {
 		(void)signal(SIGALRM, sigalarm_handler);
 		setitimer(ITIMER_REAL, &itv, NULL);
 	}
 
 	atexit(summary);
 
-	while (files_cnt--)
-		dd_in();
+  while (files_cnt--) {
+    dd_in(ddc)
+  }
 
 	dd_close();
 	/*
@@ -143,91 +91,72 @@ main(int argc __unused, char *argv[])
 	 * descriptor explicitly so that the summary handler (called
 	 * from an atexit() hook) includes this work.
 	 */
-	if (close(out.fd) == -1 && errno != EINTR)
-		err(1, "close");
+  if (close(out.fd) == -1 && errno != EINTR) {
+    err(1, "close");
+  }
 	exit(0);
 }
 
-static int
-parity(u_char c)
-{
-	int i;
-
-	i = c ^ (c >> 1) ^ (c >> 2) ^ (c >> 3) ^ 
+func parity( _ c : UInt8) -> Bool {
+	let i = c ^ (c >> 1) ^ (c >> 2) ^ (c >> 3) ^
 	    (c >> 4) ^ (c >> 5) ^ (c >> 6) ^ (c >> 7);
-	return (i & 1);
+	return (i & 1) == 1
 }
 
-static void
-setup(void)
-{
-	u_int cnt;
-	int iflags, oflags;
-#ifndef __APPLE__
-	cap_rights_t rights;
-	unsigned long cmds[] = { FIODTYPE, MTIOCTOP };
-#endif
+  func setup(_ ddc : inout DDContext) {
+//	u_int cnt;
+//	int iflags, oflags;
 
-	if (in.name == NULL) {
-		in.name = "stdin";
-		in.fd = STDIN_FILENO;
+    if ddc.inx.name == nil {
+      ddc.inx.name = "stdin";
+      ddc.inx.fd = FileDescriptor.standardInput
 	} else {
 		iflags = 0;
-#ifndef __APPLE__
-		if (ddflags & C_IDIRECT)
-			iflags |= O_DIRECT;
-#endif
+
 		check_terminate();
-		in.fd = open(in.name, O_RDONLY | iflags, 0);
+    ddc.inx.fd = open(ddc.inx.name, O_RDONLY | iflags, 0);
 		check_terminate();
-		if (in.fd == -1)
-			err(1, "%s", in.name);
-#ifdef __APPLE__
-		if (ddflags & C_IDIRECT)
-			(void)fcntl(in.fd, F_NOCACHE, 1);
-#endif
+    if (ddc.inx.fd == -1) {
+      err(1, ddc.inx.name);
+    }
+
+    if ddc.ddflags.contains(.C_IDIRECT) {
+      Darwin.fcntl(ddc.inx.fd, F_NOCACHE, 1);
+    }
+
 	}
 
-	getfdtype(&in);
+    getfdtype(&ddc.inx);
 
-#ifndef __APPLE__
-	cap_rights_init(&rights, CAP_READ, CAP_SEEK);
-	if (caph_rights_limit(in.fd, &rights) == -1)
-		err(1, "unable to limit capability rights");
-#endif
+    if (files_cnt > 1 && !ddc.inx.flags.contains(.ISTAPE)) {
+    errx(1, "files is not supported for non-tape devices")
+  }
 
-	if (files_cnt > 1 && !(in.flags & ISTAPE))
-		errx(1, "files is not supported for non-tape devices");
-
-#ifndef __APPLE__
-	cap_rights_set(&rights, CAP_FTRUNCATE, CAP_IOCTL, CAP_WRITE);
-	if (ddflags & (C_FDATASYNC | C_FSYNC))
-		cap_rights_set(&rights, CAP_FSYNC);
-#endif
-	if (out.name == NULL) {
+    if (ddc.out.name == nil) {
 		/* No way to check for read access here. */
-		out.fd = STDOUT_FILENO;
-		out.name = "stdout";
-		if (ddflags & C_OFSYNC) {
-			oflags = fcntl(out.fd, F_GETFL);
-			if (oflags == -1)
-				err(1, "unable to get fd flags for stdout");
+      ddc.out.fd = FileDescriptor.standardOutput
+      ddc.out.name = "stdout";
+      if ddc.ddflags.contains(.C_OFSYNC) {
+        oflags = fcntl(ddc.out.fd, F_GETFL);
+      if (oflags == -1) {
+        err(1, "unable to get fd flags for stdout");
+      }
 			oflags |= O_FSYNC;
-			if (fcntl(out.fd, F_SETFL, oflags) == -1)
-				err(1, "unable to set fd flags for stdout");
+        if (fcntl(ddc.out.fd, F_SETFL, oflags) == -1) {
+        err(1, "unable to set fd flags for stdout");
+      }
 		}
 	} else {
 		oflags = O_CREAT;
-		if (!(ddflags & (C_SEEK | C_NOTRUNC)))
-			oflags |= O_TRUNC;
-		if (ddflags & C_OFSYNC)
-			oflags |= O_FSYNC;
-#ifndef __APPLE__
-		if (ddflags & C_ODIRECT)
-			oflags |= O_DIRECT;
-#endif
+    if (!(ddflags & (C_SEEK | C_NOTRUNC))) {
+      oflags |= O_TRUNC;
+    }
+    if ddc.ddflags.contains(.C_OFSYNC) {
+      oflags |= O_FSYNC;
+    }
+
 		check_terminate();
-		out.fd = open(out.name, O_RDWR | oflags, DEFFILEMODE);
+    ddc.out.fd = open(ddc.out.name, O_RDWR | oflags, DEFFILEMODE);
 		check_terminate();
 		/*
 		 * May not have read access, so try again with write only.
@@ -235,168 +164,188 @@ setup(void)
 		 * not support seeks.
 		 */
 		if (out.fd == -1) {
-			out.fd = open(out.name, O_WRONLY | oflags, DEFFILEMODE);
+      ddc.out.fd = open(out.name, O_WRONLY | oflags, DEFFILEMODE);
 			check_terminate();
-			out.flags |= NOREAD;
-#ifndef __APPLE__
-			cap_rights_clear(&rights, CAP_READ);
-#endif
+      ddc.out.flags.insert(.NOREAD)
 		}
-#ifdef __APPLE__
-		if (ddflags & C_ODIRECT)
-			(void)fcntl(out.fd, F_NOCACHE, 1);
-#endif
-		if (out.fd == -1)
-			err(1, "%s", out.name);
+
+    if (ddflags & C_ODIRECT) {
+      (void)fcntl(out.fd, F_NOCACHE, 1);
+    }
+
+    if (out.fd == -1) {
+      err(1, "%s", out.name);
+    }
 	}
 
-	getfdtype(&out);
+    getfdtype(&ddc.out);
 
-#ifndef __APPLE__
-	if (caph_rights_limit(out.fd, &rights) == -1)
-		err(1, "unable to limit capability rights");
-	if (caph_ioctls_limit(out.fd, cmds, nitems(cmds)) == -1)
-		err(1, "unable to limit capability rights");
+/*#ifndef __APPLE__
+  if (caph_rights_limit(out.fd, &rights) == -1) {
+    err(1, "unable to limit capability rights");
+  }
+  if (caph_ioctls_limit(out.fd, cmds, nitems(cmds)) == -1) {
+    err(1, "unable to limit capability rights");
+  }
 
 	if (in.fd != STDIN_FILENO && out.fd != STDIN_FILENO) {
-		if (caph_limit_stdin() == -1)
-			err(1, "unable to limit capability rights");
+    if (caph_limit_stdin() == -1) {
+      err(1, "unable to limit capability rights");
+    }
 	}
 
 	if (in.fd != STDOUT_FILENO && out.fd != STDOUT_FILENO) {
-		if (caph_limit_stdout() == -1)
-			err(1, "unable to limit capability rights");
+    if (caph_limit_stdout() == -1) {
+      err(1, "unable to limit capability rights");
+    }
 	}
 
 	if (in.fd != STDERR_FILENO && out.fd != STDERR_FILENO) {
-		if (caph_limit_stderr() == -1)
-			err(1, "unable to limit capability rights");
+    if (caph_limit_stderr() == -1) {
+      err(1, "unable to limit capability rights");
+    }
 	}
 #endif
+ */
 
 	/*
 	 * Allocate space for the input and output buffers.  If not doing
 	 * record oriented I/O, only need a single buffer.
 	 */
 	if (!(ddflags & (C_BLOCK | C_UNBLOCK))) {
-		if ((in.db = malloc((size_t)out.dbsz + in.dbsz - 1)) == NULL)
-			err(1, "input buffer");
+    if ((in.db = malloc((size_t)out.dbsz + in.dbsz - 1)) == NULL) {
+      err(1, "input buffer");
+    }
 		out.db = in.db;
 	} else if ((in.db = malloc(MAX((size_t)in.dbsz, cbsz) + cbsz)) == NULL ||
-	    (out.db = malloc(out.dbsz + cbsz)) == NULL)
-		err(1, "output buffer");
+             (out.db = malloc(out.dbsz + cbsz)) == NULL) {
+    err(1, "output buffer");
+  }
 
 	/* dbp is the first free position in each buffer. */
 	in.dbp = in.db;
 	out.dbp = out.db;
 
 	/* Position the input/output streams. */
-	if (in.offset)
-		pos_in();
-	if (out.offset)
-		pos_out();
+  if (in.offset) {
+    pos_in();
+  }
+  if (out.offset) {
+    pos_out();
+  }
 
 	/*
 	 * Truncate the output file.  If it fails on a type of output file
 	 * that it should _not_ fail on, error out.
 	 */
 	if ((ddflags & (C_OF | C_SEEK | C_NOTRUNC)) == (C_OF | C_SEEK) &&
-	    out.flags & ISTRUNC)
-		if (ftruncate(out.fd, out.offset * out.dbsz) == -1)
-			err(1, "truncating %s", out.name);
+      out.flags & ISTRUNC) {
+    if (ftruncate(out.fd, out.offset * out.dbsz) == -1) {
+      err(1, "truncating %s", out.name);
+    }
+  }
 
 	if (ddflags & (C_LCASE  | C_UCASE | C_ASCII | C_EBCDIC | C_PARITY)) {
 		if (ctab != NULL) {
-			for (cnt = 0; cnt <= 0377; ++cnt)
-				casetab[cnt] = ctab[cnt];
+      for (cnt = 0; cnt <= 0377; ++cnt) {
+        casetab[cnt] = ctab[cnt];
+      }
 		} else {
-			for (cnt = 0; cnt <= 0377; ++cnt)
-				casetab[cnt] = cnt;
+      for (cnt = 0; cnt <= 0377; ++cnt) {
+        casetab[cnt] = cnt;
+      }
 		}
-		if ((ddflags & C_PARITY) && !(ddflags & C_ASCII)) {
+    if ddc.ddflags.contains(.C_PARITY) && !ddc.ddflags.contains(.C_ASCII) {
 			/*
 			 * If the input is not EBCDIC, and we do parity
 			 * processing, strip input parity.
 			 */
-			for (cnt = 200; cnt <= 0377; ++cnt)
-				casetab[cnt] = casetab[cnt & 0x7f];
+      for (cnt = 200; cnt <= 0377; ++cnt) {
+        casetab[cnt] = casetab[cnt & 0x7f];
+      }
 		}
-		if (ddflags & C_LCASE) {
-			for (cnt = 0; cnt <= 0377; ++cnt)
-				casetab[cnt] = tolower(casetab[cnt]);
-		} else if (ddflags & C_UCASE) {
-			for (cnt = 0; cnt <= 0377; ++cnt)
-				casetab[cnt] = toupper(casetab[cnt]);
+    if ddc.ddflags.contains(.C_LCASE) {
+      for (cnt = 0; cnt <= 0377; ++cnt) {
+        casetab[cnt] = tolower(casetab[cnt]);
+      }
+    } else if ddc.ddflags.contains(.C_UCASE) {
+      for (cnt = 0; cnt <= 0377; ++cnt) {
+        casetab[cnt] = toupper(casetab[cnt]);
+      }
 		}
-		if ((ddflags & C_PARITY)) {
+    if ddc.ddflags.contains(.C_PARITY) {
 			/*
 			 * This should strictly speaking be a no-op, but I
 			 * wonder what funny LANG settings could get us.
 			 */
-			for (cnt = 0; cnt <= 0377; ++cnt)
-				casetab[cnt] = casetab[cnt] & 0x7f;
+      for (cnt = 0; cnt <= 0377; ++cnt) {
+        casetab[cnt] = casetab[cnt] & 0x7f;
+      }
 		}
-		if ((ddflags & C_PARSET)) {
-			for (cnt = 0; cnt <= 0377; ++cnt)
-				casetab[cnt] = casetab[cnt] | 0x80;
+    if ddc.ddflags.contains(.C_PARSET) {
+      for (cnt = 0; cnt <= 0377; ++cnt) {
+        casetab[cnt] = casetab[cnt] | 0x80;
+      }
 		}
-		if ((ddflags & C_PAREVEN)) {
-			for (cnt = 0; cnt <= 0377; ++cnt)
-				if (parity(casetab[cnt]))
-					casetab[cnt] = casetab[cnt] | 0x80;
+    if ddc.ddflags.contains(.C_PAREVEN) {
+      for (cnt = 0; cnt <= 0377; ++cnt) {
+        if (parity(casetab[cnt])) {
+          casetab[cnt] = casetab[cnt] | 0x80;
+        }
+      }
 		}
-		if ((ddflags & C_PARODD)) {
-			for (cnt = 0; cnt <= 0377; ++cnt)
-				if (!parity(casetab[cnt]))
-					casetab[cnt] = casetab[cnt] | 0x80;
+    if ddc.ddflags.contains(.C_PARODD) {
+      for (cnt = 0; cnt <= 0377; ++cnt) {
+        if (!parity(casetab[cnt])) {
+          casetab[cnt] = casetab[cnt] | 0x80;
+        }
+      }
 		}
 
 		ctab = casetab;
 	}
 
-	if (clock_gettime(CLOCK_MONOTONIC, &st.start))
-		err(1, "clock_gettime");
+  if (clock_gettime(CLOCK_MONOTONIC, &st.start)) {
+    err(1, "clock_gettime");
+  }
 }
 
-static void
-getfdtype(IO *io)
-{
+  func getfdtype(_ io : inout IO) {
 	struct stat sb;
 	int type;
 
-	if (fstat(io->fd, &sb) == -1)
-		err(1, "%s", io->name);
-	if (S_ISREG(sb.st_mode))
-		io->flags |= ISTRUNC;
-	if (S_ISCHR(sb.st_mode) || S_ISBLK(sb.st_mode)) { 
+  if (fstat(io->fd, &sb) == -1) {
+    err(1, "%s", io->name);
+  }
+  if (S_ISREG(sb.st_mode)) {
+    io->flags |= ISTRUNC;
+  }
+	if (S_ISCHR(sb.st_mode) || S_ISBLK(sb.st_mode)) {
 		if (ioctl(io->fd, FIODTYPE, &type) == -1) {
 			err(1, "%s", io->name);
 		} else {
-#ifdef __APPLE__		/* MacOSX uses enumeration for type not a bitmask */
-			if (type == D_TAPE)
-				io->flags |= ISTAPE;
+		/* MacOSX uses enumeration for type not a bitmask */
+      if (type == D_TAPE) {
+        io->flags |= ISTAPE;
+      }
 			else if (type == D_DISK || type == D_TTY) {
-#else  /* !__APPLE__ */
-			if (type & D_TAPE)
-				io->flags |= ISTAPE;
-			else if (type & (D_DISK | D_MEM)) {
-#endif /* __APPLE__ */
+
 				io->flags |= ISSEEK;
 			}
-#ifdef __APPLE__
-			if (S_ISCHR(sb.st_mode) && (type != D_TAPE))
-#else  /* !__APPLE__ */
-			if (S_ISCHR(sb.st_mode) && (type & D_TAPE) == 0)
-#endif /* __APPLE__ */
-				io->flags |= ISCHR;
+
+        if (S_ISCHR(sb.st_mode) && (type != D_TAPE)) {
+          io->flags |= ISCHR;
+        }
 		}
 		return;
 	}
 	errno = 0;
-	if (lseek(io->fd, (off_t)0, SEEK_CUR) == -1 && errno == ESPIPE)
-		io->flags |= ISPIPE;
-	else
-		io->flags |= ISSEEK;
+    if (lseek(io->fd, (off_t)0, SEEK_CUR) == -1 && errno == ESPIPE) {
+      io->flags |= ISPIPE;
+    }
+    else {
+      io->flags |= ISSEEK;
+    }
 }
 
 /*
@@ -405,9 +354,7 @@ getfdtype(IO *io)
  * size and the specified speed limit (t_target) minus the time
  * spent on actual read and write operations (t_io).
  */
-static void
-speed_limit(void)
-{
+func speed_limit() {
 	static double t_prev, t_usleep;
 	double t_now, t_io, t_target;
 
@@ -415,16 +362,16 @@ speed_limit(void)
 	t_io = t_now - t_prev - t_usleep;
 	t_target = (double)in.dbsz / (double)speed;
 	t_usleep = t_target - t_io;
-	if (t_usleep > 0)
-		usleep(t_usleep * 1000000);
-	else
-		t_usleep = 0;
+  if (t_usleep > 0) {
+    usleep(t_usleep * 1000000);
+  }
+  else {
+    t_usleep = 0;
+  }
 	t_prev = t_now;
 }
 
-static void
-swapbytes(void *v, size_t len)
-{
+func swapbytes(void *v, size_t len) {
 	unsigned char *p = v;
 	unsigned char t;
 
@@ -437,48 +384,52 @@ swapbytes(void *v, size_t len)
 	}
 }
 
-static void
-dd_in(void)
-{
+  func dd_in(_ ddc : inout DDContext) {
 	ssize_t n;
 
-	for (;;) {
+  while true {
 		switch (cpy_cnt) {
 		case -1:			/* count=0 was specified */
 			return;
 		case 0:
 			break;
 		default:
-			if (st.in_full + st.in_part >= (uintmax_t)cpy_cnt)
-				return;
+        if (ddc.st.in_full + ddc.st.in_part >= cpy_cnt) {
+          return;
+        }
 			break;
 		}
 
-		if (speed > 0)
-			speed_limit();
+    if ddc.speed > 0 {
+      speed_limit()
+    }
 
 		/*
 		 * Zero the buffer first if sync; if doing block operations,
 		 * use spaces.
 		 */
-		if (ddflags & C_SYNC) {
-			if (ddflags & C_FILL)
-				memset(in.dbp, fill_char, in.dbsz);
-			else if (ddflags & (C_BLOCK | C_UNBLOCK))
-				memset(in.dbp, ' ', in.dbsz);
-			else
-				memset(in.dbp, 0, in.dbsz);
+    if ddc.ddflags.contains(.C_SYNC) {
+      if ddc.ddflags.contains(.C_FILL) {
+        memset(ddc.inx.dbp, fill_char, ddc.inx.dbsz);
+      }
+      else if ddc.ddflags.contains([.C_BLOCK, .C_UNBLOCK]) {
+        memset(ddc.inx.dbp, " ", ddc.inx.dbsz);
+      }
+      else {
+        memset(ddc.inx.dbp, 0, ddc.inx.dbsz);
+      }
 		}
 
 		in.dbrcnt = 0;
 fill:
 		check_terminate();
-		n = read(in.fd, in.dbp + in.dbrcnt, in.dbsz - in.dbrcnt);
+    n = read(ddc.inx.fd, ddc.inx.dbp + ddc.inx.dbrcnt, ddc.inx.dbsz - ddc.inx.dbrcnt);
 		check_terminate();
 
 		/* EOF */
-		if (n == 0 && in.dbrcnt == 0)
-			return;
+    if (n == 0 && ddc.inx.dbrcnt == 0) {
+      return;
+    }
 
 		/* Read error */
 		if (n == -1) {
@@ -486,9 +437,10 @@ fill:
 			 * If noerror not specified, die.  POSIX requires that
 			 * the warning message be followed by an I/O display.
 			 */
-			if (!(ddflags & C_NOERROR))
-				err(1, "%s", in.name);
-			warn("%s", in.name);
+      if (!(ddflags & C_NOERROR)) {
+        err(1, ddc.inx.name)
+      }
+      warn(ddc.inx.name)
 			summary();
 
 			/*
@@ -497,32 +449,38 @@ fill:
 			 * raw disks this section should be modified to re-read
 			 * in sector size chunks.
 			 */
-			if (in.flags & ISSEEK &&
-			    lseek(in.fd, (off_t)in.dbsz, SEEK_CUR))
-				warn("%s", in.name);
+      if (ddc.inx.flags.contains(.ISSEEK) &&
+          0 != lseek(ddc.inx.fd.rawValue, Int64(ddc.inx.dbsz), SEEK_CUR)) {
+        warn(ddc.inx.name);
+      }
 
 			/* If sync not specified, omit block and continue. */
-			if (!(ddflags & C_SYNC))
-				continue;
+      if (!ddc.ddflags.contains(.C_SYNC)) {
+        continue;
+      }
 		}
 
 		/* If conv=sync, use the entire block. */
-		if (ddflags & C_SYNC)
-			n = in.dbsz;
+    if ddc.ddflags.contains(.C_SYNC) {
+      n = ddc.inx.dbsz;
+    }
 
 		/* Count the bytes read for this block. */
-		in.dbrcnt += n;
+    ddc.inx.dbrcnt += n;
 
 		/* Count the number of full and partial blocks. */
-		if (in.dbrcnt == in.dbsz)
-			++st.in_full;
-		else if (ddflags & C_IFULLBLOCK && n != 0)
-			goto fill; /* these don't count */
-		else
-			++st.in_part;
+    if (in.dbrcnt == in.dbsz) {
+      ++st.in_full;
+    }
+    else if (ddflags & C_IFULLBLOCK && n != 0) {
+      goto fill; /* these don't count */
+    }
+    else {
+      ++st.in_part;
+    }
 
 		/* Count the total bytes read for this file. */
-		in.dbcnt += in.dbrcnt;
+    ddc.inx.dbcnt += ddc.inx.dbrcnt;
 
 		/*
 		 * POSIX states that if bs is set and no other conversions
@@ -532,25 +490,27 @@ fill:
 		if ((ddflags & ~(C_NOERROR | C_NOTRUNC | C_SYNC)) == C_BS) {
 			out.dbcnt = in.dbcnt;
 			dd_out(1);
-			in.dbcnt = 0;
+      ddc.inx.dbcnt = 0;
 			continue;
 		}
 
-		if (ddflags & C_SWAB) {
-			if ((n = in.dbrcnt) & 1) {
+    if ddc.ddflags.contains(.C_SWAB) {
+      if ((n = ddc.inx.dbrcnt) & 1) {
 				++st.swab;
 				--n;
 			}
-			swapbytes(in.dbp, (size_t)n);
+      swapbytes(ddc.inx.dbp, (size_t)n);
 		}
 
 		/* Advance to the next block. */
-		in.dbp += in.dbrcnt;
-		(*cfunc)();
-		if (need_summary)
-			summary();
-		if (need_progress)
-			progress();
+    ddc.inx.dbp += ddc.inx.dbrcnt;
+    ddc.cfunc(&ddc)
+    if (need_summary) {
+      summary();
+    }
+    if (need_progress) {
+      progress();
+    }
 	}
 }
 
@@ -558,55 +518,63 @@ fill:
  * Clean up any remaining I/O and flush output.  If necessary, the output file
  * is truncated.
  */
-static void
-dd_close(void)
-{
-	if (cfunc == def)
-		def_close();
-	else if (cfunc == block)
-		block_close();
-	else if (cfunc == unblock)
-		unblock_close();
-	if (ddflags & C_OSYNC && out.dbcnt && out.dbcnt < out.dbsz) {
-		if (ddflags & C_FILL)
-			memset(out.dbp, fill_char, out.dbsz - out.dbcnt);
-		else if (ddflags & (C_BLOCK | C_UNBLOCK))
-			memset(out.dbp, ' ', out.dbsz - out.dbcnt);
-		else
-			memset(out.dbp, 0, out.dbsz - out.dbcnt);
-		out.dbcnt = out.dbsz;
+  func dd_close(_ ddc : inout DDContext) {
+    if (ddc.cfunc == def) {
+    def_close(&ddc)
+  }
+  else if (cfunc == block) {
+    block_close();
+  }
+  else if (cfunc == unblock) {
+    unblock_close();
+  }
+
+    if (ddc.ddflags.contains(.C_OSYNC) && 0 != ddc.out.dbcnt && ddc.out.dbcnt < ddc.out.dbsz) {
+      if ddc.ddflags.contains(.C_FILL) {
+        memset(ddc.out.dbp, fill_char, ddc.out.dbsz - ddc.out.dbcnt)
+    }
+      else if ddc.ddflags.contains([.C_BLOCK, .C_UNBLOCK]) {
+        memset(ddc.out.dbp, ' ', ddc.out.dbsz - ddc.out.dbcnt);
+    }
+    else {
+      memset(ddc.out.dbp, 0, ddc.out.dbsz - ddc.out.dbcnt);
+    }
+      ddc.out.dbcnt = ddc.out.dbsz;
 	}
-	if (out.dbcnt || pending)
-		dd_out(1);
+    if (ddc.out.dbcnt || pending) {
+      dd_out(1);
+    }
 
 	/*
 	 * If the file ends with a hole, ftruncate it to extend its size
 	 * up to the end of the hole (without having to write any data).
 	 */
 	if (out.seek_offset > 0 && (out.flags & ISTRUNC)) {
-		if (ftruncate(out.fd, out.seek_offset) == -1)
-			err(1, "truncating %s", out.name);
+    if (ftruncate(out.fd, out.seek_offset) == -1) {
+      err(1, "truncating %s", out.name);
+    }
 	}
 
-	if (ddflags & C_FSYNC) {
-		if (fsync(out.fd) == -1)
-			err(1, "fsyncing %s", out.name);
-#ifndef __APPLE__
+    if ddc.ddflags.contains(.C_FSYNC) {
+      if (fsync(ddc.out.fd) == -1) {
+        err(1, "fsyncing %s", ddc.out.name);
+    }
+/*#ifndef __APPLE__
 	} else if (ddflags & C_FDATASYNC) {
-		if (fdatasync(out.fd) == -1)
-			err(1, "fdatasyncing %s", out.name);
+    if (fdatasync(out.fd) == -1) {
+      err(1, "fdatasyncing %s", out.name);
+    }
 #endif
+ */
 	}
 }
 
-void
-dd_out(int force)
-{
-	u_char *outp;
-	size_t cnt, n;
-	ssize_t nw;
-	static int warned;
-	int sparse;
+  func dd_out(_ force : Bool, _ ddc : inout DDContext) {
+//	u_char *outp;
+//	size_t cnt, n;
+//	ssize_t nw;
+//	static int warned;
+//	int sparse;
 
 	/*
 	 * Write one or more blocks out.  The common case is writing a full
@@ -651,9 +619,10 @@ dd_out(int force)
 					 * ftruncate to extend the file size.
 					 */
 					out.seek_offset = lseek(out.fd, pending, SEEK_CUR);
-					if (out.seek_offset == -1)
-						err(2, "%s: seek error creating sparse file",
-						    out.name);
+          if (out.seek_offset == -1) {
+            err(2, "%s: seek error creating sparse file",
+                out.name);
+          }
 					pending = 0;
 				}
 				if (cnt) {
@@ -669,23 +638,27 @@ dd_out(int force)
 			if (nw <= 0) {
 				if (nw == 0)
 					errx(1, "%s: end of device", out.name);
-				if (errno != EINTR)
-					err(1, "%s", out.name);
+        if (errno != EINTR) {
+          err(1, "%s", out.name);
+        }
 				nw = 0;
 			}
 
 			outp += nw;
 			st.bytes += nw;
 
-			if ((size_t)nw == n && n == (size_t)out.dbsz)
-				++st.out_full;
-			else
-				++st.out_part;
+      if ((size_t)nw == n && n == (size_t)out.dbsz) {
+        ++st.out_full
+      }
+      else {
+        ++st.out_part
+      }
 
 			if ((size_t) nw != cnt) {
-				if (out.flags & ISTAPE)
-					errx(1, "%s: short write on tape device",
-				    	out.name);
+        if (out.flags & ISTAPE) {
+          errx(1, "%s: short write on tape device",
+               out.name);
+        }
 				if (out.flags & ISCHR && !warned) {
 					warned = 1;
 					warnx("%s: short write on character device",
@@ -696,12 +669,14 @@ dd_out(int force)
 			cnt -= nw;
 		} while (cnt != 0);
 
-		if ((out.dbcnt -= n) < out.dbsz)
-			break;
+    if ((out.dbcnt -= n) < out.dbsz) {
+      break;
+    }
 	}
 
 	/* Reassemble the output block. */
-	if (out.dbcnt)
-		(void)memmove(out.db, out.dbp - out.dbcnt, out.dbcnt);
-	out.dbp = out.db + out.dbcnt;
+  if 0 != ddc.out.dbcnt {
+    (void)memmove(ddc.out.db, ddc.out.dbp - ddc.out.dbcnt, ddc.out.dbcnt)
+  }
+  ddc.out.dbp = ddc.out.db + ddc.out.dbcnt;
 }
