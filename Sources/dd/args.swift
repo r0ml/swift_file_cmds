@@ -39,552 +39,514 @@
 import CMigration
 import Darwin
 
-struct DDContext {
-  var inx : IO = IO()
-  var out : IO = IO()
-  var cbsz : ssize_t = 0
-  var cpy_cnt : UInt = 0
-  var oper : String = ""
-  var fill_char : Character = "\0"
-  var ddflags : DDFlags = []
-  var speed : Int = 0
-  var ctab : [UInt8]? = nil
-  var cfunc : ((inout DDContext) -> ())? = nil
-}
+extension dd {
 
-struct arg {
-  var f : (String, inout DDContext) -> ()
-  var set : DDFlags
-  var noset : DDFlags
-
-  init(_ a : @escaping (String, inout DDContext) -> (), _ b : DDFlags, _ c : DDFlags) {
-    f = a
-    set = b
-    noset = c
+  struct DDContext {
+    var inx : IO = IO()
+    var out : IO = IO()
+    var cbsz : ssize_t = 0
+    var cpy_cnt : Int = 0
+    var oper : String = ""
+    var fill_char : Character = "\0"
+    var ddflags : DDFlags = []
+    var speed : Int = 0
+    var ctab : [UInt8]? = nil
+    var cfunc : Function? = nil
+    var st : STAT = STAT()
+    var files_cnt = 1
+    var pending = 0
+    var intrunc = false
+    var t_prev : Double = 0
+    var t_usleep : Double = 0
   }
-}
 
-let argmap : [String : arg] = [
-  "bs"    : .init(f_bs,		.C_BS,	 [.C_BS, .C_OSYNC]),
-  "cbs"   :	.init(f_cbs,	.C_CBS,	 .C_CBS ),
-  "conv"  :	.init(f_conv,		[],	 []),
-  "count" :	.init(f_count,	.C_COUNT, .C_COUNT),
-  "files" :	.init(f_files,	.C_FILES, .C_FILES),
-  "fillchar" : .init(f_fillchar, .C_FILL, .C_FILL),
+  typealias CFunc = ((inout DDContext) -> ())
 
-  "ibs"   : .init(f_ibs, .C_IBS, .C_IBS),
+  enum Function {
+    case def(CFunc)
+    case block(CFunc)
+    case unblock(CFunc)
+  }
 
-  "if"    : .init(f_if, .C_IF, .C_IF),
-  "iflag" :	.init(f_iflag, [], []),
-  "iseek" : .init(f_skip, .C_SKIP, .C_SKIP),
+  struct arg {
+    var f : (String, inout DDContext) -> ()
+    var set : DDFlags
+    var noset : DDFlags
 
-  "obs"   : .init(f_obs, .C_OBS, .C_OBS),
-
-  "of"    : .init(f_of, .C_OF, .C_OF),
-  "oflag" :	.init(f_oflag, [], []),
-  "oseek" :	.init(f_seek, .C_SEEK, .C_SEEK),
-  "seek"  : .init(f_seek, .C_SEEK, .C_SEEK),
-  "skip"  : .init(f_skip, .C_SKIP, .C_SKIP),
-  "speed" : .init(f_speed, [], []),
-  "status" : .init(f_status, .C_STATUS, .C_STATUS),
-]
-
-/*
- * args -- parse JCL syntax of dd.
- */
-func jcl(_ argv : [String], _ ddc : inout DDContext) {
-// 	struct arg *ap, tmp;
-// 	char *arg;
-
-  ddc.inx.dbsz = 512
-  ddc.out.dbsz = 512
-
-  var args = argv
-  args.removeFirst() // get rid of the command
-
-  if args.first == "--" { args.removeFirst() } // skip delimiter before operands
-
-  for oper in args {
-    ddc.oper = oper
-    if !oper.contains("=") {
-      errx(1, "unknown operand \(oper)")
+    init(_ a : @escaping (String, inout DDContext) -> (), _ b : DDFlags, _ c : DDFlags) {
+      f = a
+      set = b
+      noset = c
     }
-    let aa = oper.split(separator: "=", maxSplits: 1)
-    if (aa[1].isEmpty) {
-      errx(1, "no value specified for \(oper)")
-    }
-    guard let ap = argmap[String(aa[0])] else {
-      errx(1, "unknown operand \(args[0])")
-    }
-    if ddc.ddflags.contains(ap.noset) {
-      errx(1, "\(args[0]): illegal argument combination or already set")
-    }
-    ddc.ddflags.insert(ap.set)
-    ap.f(String(aa[1]), &ddc)
-	}
+  }
 
-	/* Final sanity checks. */
 
-  if ddc.ddflags.contains(.C_BS) {
-		/*
-		 * Bs is turned off by any conversion -- we assume the user
-		 * just wanted to set both the input and output block sizes
-		 * and didn't want the bs semantics, so we don't warn.
-		 */
-    if ddc.ddflags.contains([.C_BLOCK, .C_LCASE, .C_SWAB, .C_UCASE, .C_UNBLOCK]) {
-      ddc.ddflags.remove(.C_BS)
+
+  /*
+   * args -- parse JCL syntax of dd.
+   */
+  func jcl(_ argv : [String], _ ddc : inout DDContext) {
+    // 	struct arg *ap, tmp;
+    // 	char *arg;
+
+    ddc.inx.dbsz = 512
+    ddc.out.dbsz = 512
+
+    var args = argv
+    args.removeFirst() // get rid of the command
+
+    if args.first == "--" { args.removeFirst() } // skip delimiter before operands
+
+    for oper in args {
+      ddc.oper = oper
+      if !oper.contains("=") {
+        errx(1, "unknown operand \(oper)")
+      }
+      let aa = oper.split(separator: "=", maxSplits: 1)
+      if (aa[1].isEmpty) {
+        errx(1, "no value specified for \(oper)")
+      }
+      guard let ap = argmap[String(aa[0])] else {
+        errx(1, "unknown operand \(args[0])")
+        fatalError()
+      }
+      if ddc.ddflags.contains(ap.noset) {
+        errx(1, "\(args[0]): illegal argument combination or already set")
+      }
+      ddc.ddflags.insert(ap.set)
+      ap.f(String(aa[1]), &ddc)
     }
 
-		/* Bs supersedes ibs and obs. */
-    if ddc.ddflags.contains(.C_BS) && ddc.ddflags.contains([.C_IBS, .C_OBS]) {
-      warnx("bs supersedes ibs and obs")
-    }
-	}
+    /* Final sanity checks. */
 
-	/*
-	 * Ascii/ebcdic and cbs implies block/unblock.
-	 * Block/unblock requires cbs and vice-versa.
-	 */
-  if ddc.ddflags.contains([.C_BLOCK, .C_UNBLOCK]) {
-    if !ddc.ddflags.contains(.C_CBS) {
-      errx(1, "record operations require cbs")
+    if ddc.ddflags.contains(.C_BS) {
+      /*
+       * Bs is turned off by any conversion -- we assume the user
+       * just wanted to set both the input and output block sizes
+       * and didn't want the bs semantics, so we don't warn.
+       */
+      if ddc.ddflags.containsAny(of: [.C_BLOCK, .C_LCASE, .C_SWAB, .C_UCASE, .C_UNBLOCK]) {
+        ddc.ddflags.remove(.C_BS)
+      }
+
+      /* Bs supersedes ibs and obs. */
+      if ddc.ddflags.contains(.C_BS) && ddc.ddflags.containsAny(of: [.C_IBS, .C_OBS]) {
+        warnx("bs supersedes ibs and obs")
+      }
     }
-    if (ddc.cbsz == 0) {
-      errx(1, "cbs cannot be zero")
-    }
-    if ddc.ddflags.contains(.C_BLOCK) {
-      ddc.cfunc = block
+
+    /*
+     * Ascii/ebcdic and cbs implies block/unblock.
+     * Block/unblock requires cbs and vice-versa.
+     */
+    if ddc.ddflags.containsAny(of: [.C_BLOCK, .C_UNBLOCK]) {
+      if !ddc.ddflags.contains(.C_CBS) {
+        errx(1, "record operations require cbs")
+      }
+      if (ddc.cbsz == 0) {
+        errx(1, "cbs cannot be zero")
+      }
+      if ddc.ddflags.contains(.C_BLOCK) {
+        ddc.cfunc = .block(block)
+      } else {
+        ddc.cfunc = .unblock(unblock)
+      }
+    } else if ddc.ddflags.contains(.C_CBS) {
+      if ddc.ddflags.containsAny(of: [.C_ASCII, .C_EBCDIC]) {
+        if ddc.ddflags.contains(.C_ASCII) {
+          ddc.ddflags.insert(.C_UNBLOCK)
+          ddc.cfunc = .unblock(unblock)
+        } else {
+          ddc.ddflags.insert(.C_BLOCK)
+          ddc.cfunc = .block(block)
+        }
+      } else {
+        errx(1, "cbs meaningless if not doing record operations")
+      }
     } else {
-      ddc.cfunc = unblock
+      ddc.cfunc = .def(def)
     }
-  } else if ddc.ddflags.contains(.C_CBS) {
-    if ddc.ddflags.contains([.C_ASCII, .C_EBCDIC]) {
-      if ddc.ddflags.contains(.C_ASCII) {
-        ddc.ddflags.insert(.C_UNBLOCK)
-        ddc.cfunc = unblock
-			} else {
-        ddc.ddflags.insert(.C_BLOCK)
-        ddc.cfunc = block
-			}
-    } else {
-      errx(1, "cbs meaningless if not doing record operations")
-    }
-  } else {
-    ddc.cfunc = def
   }
-}
 
-func f_bs(_ arg : String, _ ddc : inout DDContext) {
-  let res = get_num(arg, ddc);
-  if (res < 1 || res > SSIZE_MAX) {
-    errx(1, "bs must be between 1 and \(SSIZE_MAX)")
-  }
-  ddc.inx.dbsz = Int(res)
-  ddc.out.dbsz = Int(res)
-}
-
-func f_cbs(_ arg : String, _ ddc : inout DDContext) {
-	let res = get_num(arg, ddc)
-  if (res < 1 || res > SSIZE_MAX) {
-    errx(1, "cbs must be between 1 and \(SSIZE_MAX)")
-  }
-  ddc.cbsz = Int(res)
-}
-
-func f_count(_ arg : String, _ ddc : inout DDContext) {
-	let res = get_num(arg, ddc)
-  if (res == UInt.max) {
-    err(1, "\(ddc.oper): \(POSIXErrno(ERANGE).localizedDescription)")
-  }
-  if (res == 0) {
-    ddc.cpy_cnt = UInt.max
-  }
-  else {
-    ddc.cpy_cnt = res
-  }
-}
-
-func f_files(_ arg : String, _ ddc : inout DDContext) {
-	let files_cnt = get_num(arg, ddc);
-  if (files_cnt < 1) {
-    errx(1, "files must be between 1 and \(SIZE_MAX)")
-  }
-}
-
-func f_fillchar(_ arg : String, _ ddc : inout DDContext) {
-  if (strlen(arg) != 1) {
-    errx(1, "need exactly one fill char")
-  }
-  ddc.fill_char = arg.first!
-}
-
-func f_ibs(_ arg : String, _ ddc : inout DDContext) {
-  if !ddc.ddflags.contains(.C_BS) {
-		let res = get_num(arg, ddc)
+  func f_bs(_ arg : String, _ ddc : inout DDContext) {
+    let res = get_num(arg, ddc);
     if (res < 1 || res > SSIZE_MAX) {
-      errx(1, "ibs must be between 1 and \(SSIZE_MAX)")
+      errx(1, "bs must be between 1 and \(SSIZE_MAX)")
     }
     ddc.inx.dbsz = Int(res)
-	}
-}
-
-func f_if(_ arg : String, _ ddc : inout DDContext) {
-  ddc.inx.name = arg
-}
-
-struct iflag {
-  var set : DDFlags
-  var noset : DDFlags
-
-  init(_ a : DDFlags, _ b : DDFlags) {
-    set = a
-    noset = b
-  }
-}
-
-let ilist : [String : iflag] = [
-  "direct" : .init(.C_IDIRECT,	[]),
-  "fullblock" : .init(.C_IFULLBLOCK, .C_SYNC),
-]
-
-func f_iflag(_ arg : String, _ ddc : inout DDContext) {
-  var j = arg.split(separator: ",")
-  for tmp in j {
-    guard let ip = ilist[String(tmp)] else {
-      errx(1, "unknown iflag \(tmp)")
-    }
-    if ddc.ddflags.contains(ip.noset) {
-      errx(1, "\(tmp): illegal conversion combination")
-    }
-    ddc.ddflags.insert(ip.set)
-	}
-}
-
-func f_obs(_ arg : String, _ ddc : inout DDContext) {
-  if !ddc.ddflags.contains(.C_BS) {
-		let res = get_num(arg, ddc);
-    if (res < 1 || res > SSIZE_MAX) {
-      errx(1, "obs must be between 1 and \(SSIZE_MAX)")
-    }
     ddc.out.dbsz = Int(res)
-	}
-}
-
-func f_of(_ arg : String, _ ddc : inout DDContext) {
-  ddc.out.name = arg
-}
-
-func f_seek(_ arg : String, _ ddc : inout DDContext) {
-  ddc.out.offset = Int(get_off_t(arg, ddc))
-}
-
-func f_skip(_ arg : String, _ ddc : inout DDContext) {
-  ddc.inx.offset = Int(get_off_t(arg, ddc))
-}
-
-func f_speed(_ arg : String, _ ddc : inout DDContext) {
-  ddc.speed = Int(get_num(arg, ddc))
-}
-
-func f_status(_ arg : String, _ ddc : inout DDContext) {
-  if arg  == "none" {
-    ddc.ddflags.insert(.C_NOINFO)
   }
-  else if arg == "noxfer" {
-    ddc.ddflags.insert(.C_NOXFER)
+
+  func f_cbs(_ arg : String, _ ddc : inout DDContext) {
+    let res = get_num(arg, ddc)
+    if (res < 1 || res > SSIZE_MAX) {
+      errx(1, "cbs must be between 1 and \(SSIZE_MAX)")
+    }
+    ddc.cbsz = Int(res)
   }
-  else if arg == "progress" {
-    ddc.ddflags.insert(.C_PROGRESS)
+
+  func f_count(_ arg : String, _ ddc : inout DDContext) {
+    let res = get_num(arg, ddc)
+    if (res == UInt.max) {
+      err(1, "\(ddc.oper): \(POSIXErrno(ERANGE).localizedDescription)")
+    }
+    if (res == 0) {
+      ddc.cpy_cnt = Int.max
+    }
+    else {
+      ddc.cpy_cnt = Int(res)
+    }
   }
-  else {
-    errx(1, "unknown status \(arg)")
+
+  func f_files(_ arg : String, _ ddc : inout DDContext) {
+    ddc.files_cnt = Int(get_num(arg, ddc))
+    if (ddc.files_cnt < 1) {
+      errx(1, "files must be between 1 and \(SIZE_MAX)")
+    }
   }
-}
- 
-struct conv {
-  var set : DDFlags
-  var noset : DDFlags
-  var ctab : [UInt8]?
 
-  init(_ a : DDFlags, _ b : DDFlags, _ c : [UInt8]?) {
-    set = a
-    noset = b
-    ctab = c
+  func f_fillchar(_ arg : String, _ ddc : inout DDContext) {
+    if (strlen(arg) != 1) {
+      errx(1, "need exactly one fill char")
+    }
+    ddc.fill_char = arg.first!
   }
-}
 
-let clist : [String: conv] = [
-  "ascii" : .init(.C_ASCII,	.C_EBCDIC,	e2a_POSIX),
-  "block" : .init(.C_BLOCK, .C_UNBLOCK,	nil),
-  "ebcdic": .init(.C_EBCDIC, .C_ASCII, a2e_POSIX),
+  func f_ibs(_ arg : String, _ ddc : inout DDContext) {
+    if !ddc.ddflags.contains(.C_BS) {
+      let res = get_num(arg, ddc)
+      if (res < 1 || res > SSIZE_MAX) {
+        errx(1, "ibs must be between 1 and \(SSIZE_MAX)")
+      }
+      ddc.inx.dbsz = Int(res)
+    }
+  }
 
-//	"fdatasync",	C_FDATASYNC,	0,		NULL }, // ?
+  func f_if(_ arg : String, _ ddc : inout DDContext) {
+    ddc.inx.name = arg
+  }
 
-  "fsync" :	.init(.C_FSYNC, [], nil),
-  "ibm"   :	.init(.C_EBCDIC,	.C_ASCII,	a2ibm_POSIX),
-  "lcase" : .init(.C_LCASE,	.C_UCASE,	nil),
-  "noerror" : .init(.C_NOERROR,	[],	nil),
-  "notrunc" : .init( .C_NOTRUNC, [], nil),
-  "oldascii" : .init(.C_ASCII,	.C_EBCDIC, e2a_32V),
-  "oldebcdic" : .init(.C_EBCDIC, .C_ASCII, a2e_32V),
-  "oldibm" : .init(.C_EBCDIC, .C_ASCII, a2ibm_32V),
-  "osync"  : .init(.C_OSYNC, .C_BS, nil),
-  "pareven" : .init(.C_PAREVEN, [.C_PARODD, .C_PARSET, .C_PARNONE], nil),
-  "parnone" : .init(.C_PARNONE, [.C_PARODD, .C_PARSET, .C_PAREVEN], nil),
-  "parodd"  : .init(.C_PARODD, [.C_PAREVEN, .C_PARSET, .C_PARNONE], nil),
-  "parset"  : .init(.C_PARSET, [.C_PARODD, .C_PAREVEN, .C_PARNONE], nil),
-  "sparse"  : .init(.C_SPARSE, [], nil),
-  "swab" : .init(.C_SWAB, [], nil),
-  "sync" : .init(.C_SYNC,	.C_IFULLBLOCK, nil),
-  "ucase" : .init(.C_UCASE, .C_LCASE, nil),
-  "unblock" : .init(.C_UNBLOCK, .C_BLOCK, nil),
-]
+  struct iflag {
+    var set : DDFlags
+    var noset : DDFlags
 
-func f_conv(_ arg : String, _ ddc : inout DDContext) {
-  let j = arg.split(separator: ".")
-  for tmp in j {
-    guard let cp = clist[String(tmp)] else {
-      errx(1, "unknown conversion \(tmp)")
+    init(_ a : DDFlags, _ b : DDFlags) {
+      set = a
+      noset = b
+    }
+  }
+
+
+  func f_iflag(_ arg : String, _ ddc : inout DDContext) {
+    var j = arg.split(separator: ",")
+    for tmp in j {
+      guard let ip = ilist[String(tmp)] else {
+        errx(1, "unknown iflag \(tmp)")
+        fatalError()
+      }
+      if ddc.ddflags.containsAny(of: ip.noset) {
+        errx(1, "\(tmp): illegal conversion combination")
+      }
+      ddc.ddflags.insert(ip.set)
+    }
+  }
+
+  func f_obs(_ arg : String, _ ddc : inout DDContext) {
+    if !ddc.ddflags.contains(.C_BS) {
+      let res = get_num(arg, ddc);
+      if (res < 1 || res > SSIZE_MAX) {
+        errx(1, "obs must be between 1 and \(SSIZE_MAX)")
+      }
+      ddc.out.dbsz = Int(res)
+    }
+  }
+
+  func f_of(_ arg : String, _ ddc : inout DDContext) {
+    ddc.out.name = arg
+  }
+
+  func f_seek(_ arg : String, _ ddc : inout DDContext) {
+    ddc.out.offset = Int(get_off_t(arg, ddc))
+  }
+
+  func f_skip(_ arg : String, _ ddc : inout DDContext) {
+    ddc.inx.offset = Int(get_off_t(arg, ddc))
+  }
+
+  func f_speed(_ arg : String, _ ddc : inout DDContext) {
+    ddc.speed = Int(get_num(arg, ddc))
+  }
+
+  func f_status(_ arg : String, _ ddc : inout DDContext) {
+    if arg  == "none" {
+      ddc.ddflags.insert(.C_NOINFO)
+    }
+    else if arg == "noxfer" {
+      ddc.ddflags.insert(.C_NOXFER)
+    }
+    else if arg == "progress" {
+      ddc.ddflags.insert(.C_PROGRESS)
+    }
+    else {
+      errx(1, "unknown status \(arg)")
+    }
+  }
+
+  struct conv {
+    var set : DDFlags
+    var noset : DDFlags
+    var ctab : [UInt8]?
+
+    init(_ a : DDFlags, _ b : DDFlags, _ c : [UInt8]?) {
+      set = a
+      noset = b
+      ctab = c
+    }
+  }
+
+
+  func f_conv(_ arg : String, _ ddc : inout DDContext) {
+    let j = arg.split(separator: ".")
+    for tmp in j {
+      guard let cp = clist[String(tmp)] else {
+        errx(1, "unknown conversion \(tmp)")
+        fatalError()
+      }
+      if ddc.ddflags.containsAny(of: cp.noset) {
+        errx(1, "\(tmp): illegal conversion combination")
+      }
+      ddc.ddflags.insert(cp.set)
+      if let cc = cp.ctab {
+        ddc.ctab = cc
+      }
+    }
+  }
+
+  func f_oflag(_ arg : String, _ ddc : inout DDContext) {
+    var j = arg.split(separator: ".")
+    for tmp in j {
+      guard let op = olist[String(tmp)] else {
+        errx(1, "unknown open flag \(tmp)")
+        fatalError()
+      }
+      ddc.ddflags.insert(op)
+    }
+  }
+
+  func postfix_to_mult(_ expr : Character) -> Int {
+    switch expr {
+      case "B", "b":
+        return 512
+      case "K", "k":
+        return 1 << 10
+      case "M", "m":
+        return 1 << 20
+      case "G", "g":
+        return 1 << 30
+      case "T", "t":
+        return 1 << 40
+      case "P", "p":
+        return 1 << 50
+      case "W", "w":
+        return MemoryLayout<Int32>.size
+      default:
+        return 0
+    }
+  }
+
+  /*
+   * Convert an expression of the following forms to a uintmax_t.
+   * 	1) A positive decimal number.
+   *	2) A positive decimal number followed by a 'b' or 'B' (mult by 512).
+   *	3) A positive decimal number followed by a 'k' or 'K' (mult by 1 << 10).
+   *	4) A positive decimal number followed by a 'm' or 'M' (mult by 1 << 20).
+   *	5) A positive decimal number followed by a 'g' or 'G' (mult by 1 << 30).
+   *	6) A positive decimal number followed by a 't' or 'T' (mult by 1 << 40).
+   *	7) A positive decimal number followed by a 'p' or 'P' (mult by 1 << 50).
+   *	8) A positive decimal number followed by a 'w' or 'W' (mult by sizeof int).
+   *	9) Two or more positive decimal numbers (with/without [BbKkMmGgTtPpWw])
+   *	   separated by 'x' or 'X' (also '*' for backwards compatibility),
+   *	   specifying the product of the indicated values.
+   */
+  func get_num(_ valx : String, _ ddc : DDContext) -> UInt {
+    //	uintmax_t num, mult, prevnum;
+    //	char *expr;
+
+    errno = 0;
+    let val = valx.prefix { $0.isWholeNumber }
+    var expr = String(valx.dropFirst(val.count))
+
+    guard var num = UInt(val) else {
+      errx(1, "\(ddc.oper): invalid numeric value")
       fatalError()
     }
-    if ddc.ddflags.contains(cp.noset) {
-      errx(1, "\(tmp): illegal conversion combination")
-    }
-    ddc.ddflags.insert(cp.set)
-    if let cc = cp.ctab {
-      ddc.ctab = cc
-    }
-	}
-}
 
-fileprivate var olist : [String : DDFlags] = [ // struct oflag ?
-  "direct" : .C_ODIRECT,
-  "fsync" : .C_OFSYNC,
-  "sync" : .C_OFSYNC,
-]
+    let mult = UInt(postfix_to_mult(expr.first ?? " "))
 
-func f_oflag(_ arg : String, _ ddc : inout DDContext) {
-  var j = arg.split(separator: ".")
-  for tmp in j {
-    guard let op = olist[String(tmp)] else {
-      errx(1, "unknown open flag \(tmp)")
-    }
-    ddc.ddflags.insert(op)
-	}
-}
-
-func postfix_to_mult(_ expr : Character) -> Int {
-   switch expr {
-    case "B", "b":
-      return 512
-    case "K", "k":
-      return 1 << 10
-    case "M", "m":
-      return 1 << 20
-    case "G", "g":
-      return 1 << 30
-    case "T", "t":
-      return 1 << 40
-    case "P", "p":
-      return 1 << 50
-    case "W", "w":
-      return MemoryLayout<Int32>.size
-    default:
-      return 0
-  }
-}
-
-/*
- * Convert an expression of the following forms to a uintmax_t.
- * 	1) A positive decimal number.
- *	2) A positive decimal number followed by a 'b' or 'B' (mult by 512).
- *	3) A positive decimal number followed by a 'k' or 'K' (mult by 1 << 10).
- *	4) A positive decimal number followed by a 'm' or 'M' (mult by 1 << 20).
- *	5) A positive decimal number followed by a 'g' or 'G' (mult by 1 << 30).
- *	6) A positive decimal number followed by a 't' or 'T' (mult by 1 << 40).
- *	7) A positive decimal number followed by a 'p' or 'P' (mult by 1 << 50).
- *	8) A positive decimal number followed by a 'w' or 'W' (mult by sizeof int).
- *	9) Two or more positive decimal numbers (with/without [BbKkMmGgTtPpWw])
- *	   separated by 'x' or 'X' (also '*' for backwards compatibility),
- *	   specifying the product of the indicated values.
- */
-func get_num(_ valx : String, _ ddc : DDContext) -> UInt {
-//	uintmax_t num, mult, prevnum;
-//	char *expr;
-
-	errno = 0;
-  let val = valx.prefix { $0.isWholeNumber }
-  var expr = String(valx.dropFirst(val.count))
-
-  guard var num = UInt(val) else {
-    errx(1, "\(ddc.oper): invalid numeric value")
-  }
-
-  let mult = UInt(postfix_to_mult(expr.first ?? " "))
-
-	if (mult != 0) {
-		let prevnum = num
-		num *= mult;
-		/* Check for overflow. */
-    if (num / mult != prevnum) {
-      errx(1, "\(ddc.oper): \(POSIXErrno(ERANGE).localizedDescription)")
-    }
-    expr.removeFirst()
-	}
-
-  switch expr.first {
-		case nil:
-			break
-    case "*", "X", "x":			/* Backward compatible. */
+    if (mult != 0) {
+      let prevnum = num
+      num *= mult;
+      /* Check for overflow. */
+      if (num / mult != prevnum) {
+        errx(1, "\(ddc.oper): \(POSIXErrno(ERANGE).localizedDescription)")
+      }
       expr.removeFirst()
-      let mult = get_num(expr, ddc)
-			let prevnum = num
-			num *= mult
-      if (num / mult == prevnum) {
-        break
-      }
-      errx(1, "\(ddc.oper): \(POSIXErrno(ERANGE).localizedDescription)")
-		default:
-      errx(1, "\(ddc.oper): illegal numeric value")
-	}
-	return (num);
-}
-
-/*
- * Convert an expression of the following forms to an off_t.  This is the
- * same as get_num(), but it uses signed numbers.
- *
- * The major problem here is that an off_t may not necessarily be a intmax_t.
- */
-func get_off_t(_ valx : String, _ ddc : DDContext) -> off_t {
-//	intmax_t num, mult, prevnum;
-//	char *expr;
-
-	errno = 0
-  let val = valx.prefix { $0.isWholeNumber }
-  var expr = String(valx.dropFirst(val.count))
-  guard var num = Int(val) else {
-    errx(1, "\(ddc.oper): invalid numeric value");
-    fatalError()
-  }
-
-  let mult = postfix_to_mult(expr.first ?? " ")
-
-	if (mult != 0) {
-		let prevnum = num;
-		num *= mult
-		/* Check for overflow. */
-    if ((prevnum > 0) != (num > 0) || num / mult != prevnum) {
-      errx(1, "\(ddc.oper): \(POSIXErrno(ERANGE).localizedDescription)")
     }
-    expr.removeFirst()
-	}
 
-  switch expr.first {
-		case nil:
-			break
-    case "*", "X", "x":			/* Backward compatible. */
-      let mult = get_off_t(String(expr.dropFirst()), ddc)
-			let prevnum = num
-			num *= Int(mult)
-      if ((prevnum > 0) == (num > 0) && num / Int(mult) == prevnum) {
+    switch expr.first {
+      case nil:
         break
-      }
-      errx(1, "\(ddc.oper): \(POSIXErrno(ERANGE).localizedDescription)")
-		default:
-      errx(1, "\(ddc.oper): illegal numeric value")
-	}
-	return Int64(num)
-}
-
-// ==============================================================
-// from dd.h
-
-/* Flags (in ddflags). */
-struct DDFlags : OptionSet {
-  var rawValue : UInt
-
-  static var C_ASCII    = Self(rawValue: 1 << 0)
-  static var C_BLOCK    = Self(rawValue: 1 << 1)
-  static var C_BS       = Self(rawValue: 1 << 2)
-  static var C_CBS      = Self(rawValue: 1 << 3)
-  static var C_COUNT    = Self(rawValue: 1 << 4)
-  static var C_EBCDIC   = Self(rawValue: 1 << 5)
-  static var C_FILES    = Self(rawValue: 1 << 6)
-  static var C_IBS      = Self(rawValue: 1 << 7)
-  static var C_IF       = Self(rawValue: 1 << 8)
-  static var C_LCASE    = Self(rawValue: 1 << 9)
-  static var C_NOERROR  = Self(rawValue: 1 << 10)
-  static var C_NOTRUNC  = Self(rawValue: 1 << 11)
-  static var C_OBS      = Self(rawValue: 1 << 12)
-  static var C_OF       = Self(rawValue: 1 << 13)
-  static var C_OSYNC    = Self(rawValue: 1 << 14)
-  static var C_PAREVEN  = Self(rawValue: 1 << 15)
-  static var C_PARNONE  = Self(rawValue: 1 << 16)
-  static var C_PARODD   = Self(rawValue: 1 << 17)
-  static var C_PARSET   = Self(rawValue: 1 << 18)
-  static var C_SEEK     = Self(rawValue: 1 << 19)
-  static var C_SKIP     = Self(rawValue: 1 << 20)
-  static var C_SPARSE   = Self(rawValue: 1 << 21)
-  static var C_SWAB     = Self(rawValue: 1 << 22)
-  static var C_SYNC     = Self(rawValue: 1 << 23)
-  static var C_UCASE    = Self(rawValue: 1 << 24)
-  static var C_UNBLOCK  = Self(rawValue: 1 << 25)
-  static var C_FILL     = Self(rawValue: 1 << 26)
-  static var C_STATUS   = Self(rawValue: 1 << 27)
-  static var C_NOXFER   = Self(rawValue: 1 << 28)
-  static var C_NOINFO   = Self(rawValue: 1 << 29)
-  static var C_PROGRESS = Self(rawValue: 1 << 30)
-  static var C_FSYNC    = Self(rawValue: 1 << 31)
-
-  static var C_FDATASYNC = Self(rawValue: 1 << 32) // not used by Apple
-
-  static var C_OFSYNC   = Self(rawValue: 1 << 33)
-  static var C_IFULLBLOCK = Self(rawValue: 1 << 34)
-  static var C_IDIRECT  = Self(rawValue: 1 << 35)
-  static var C_ODIRECT  = Self(rawValue: 1 << 36)
-
-  static var C_PARITY : DDFlags = [.C_PAREVEN, .C_PARODD, .C_PARNONE, .C_PARSET]
-}
-
-/* Input/output stream state. */
-struct IO {
-//  u_char    *db;    /* buffer address */
-//  u_char    *dbp;    /* current buffer I/O address */
-  var dbcnt  : Int = 0 // current buffer byte count
-  var dbrcnt : Int = 0 // last read byte count
-  var dbsz   : Int = 0 // block size
-
-  var flags : IOFlags = []
-
-  var name : String = ""  // name
-  var fd : FileDescriptor = FileDescriptor(rawValue: -1) // file descriptor
-  var offset : Int        = 0 // # of blocks to skip
-  var seek_offset : Int   = 0 // offset of last seek past output hole
-}
-
-struct STAT {
-  var in_full : UInt  /* # of full input blocks */
-  var in_part : UInt  /* # of partial input blocks */
-  var out_full: UInt  /* # of full output blocks */
-  var out_part: UInt  /* # of partial output blocks */
-  var trunc : UInt    /* # of truncated records */
-  var swab : UInt    /* # of odd-length swab blocks */
-  var bytes : UInt    /* # of bytes written */
-  var start : timespec /* start time of dd */
-}
-
-struct IOFlags : OptionSet {
-  let rawValue: UInt8
-
-  init(rawValue: UInt8) {
-    self.rawValue = rawValue
+      case "*", "X", "x":			/* Backward compatible. */
+        expr.removeFirst()
+        let mult = get_num(expr, ddc)
+        let prevnum = num
+        num *= mult
+        if (num / mult == prevnum) {
+          break
+        }
+        errx(1, "\(ddc.oper): \(POSIXErrno(ERANGE).localizedDescription)")
+      default:
+        errx(1, "\(ddc.oper): illegal numeric value")
+    }
+    return (num);
   }
 
-  static let ISCHR  = IOFlags(rawValue: 0x01) // character device (warn on short)
-  static let ISPIPE = IOFlags(rawValue: 0x02) // pipe-like (see position.c)
-  static let ISTAPE = IOFlags(rawValue: 0x04) // tape
-  static let ISSEEK = IOFlags(rawValue: 0x08) // valid to seek on
-  static let NOREAD = IOFlags(rawValue: 0x10) // not readable
-  static let ISTRUNC = IOFlags(rawValue: 0x20) // valid to ftruncate()
+  /*
+   * Convert an expression of the following forms to an off_t.  This is the
+   * same as get_num(), but it uses signed numbers.
+   *
+   * The major problem here is that an off_t may not necessarily be a intmax_t.
+   */
+  func get_off_t(_ valx : String, _ ddc : DDContext) -> off_t {
+    //	intmax_t num, mult, prevnum;
+    //	char *expr;
+
+    errno = 0
+    let val = valx.prefix { $0.isWholeNumber }
+    var expr = String(valx.dropFirst(val.count))
+    guard var num = Int(val) else {
+      errx(1, "\(ddc.oper): invalid numeric value");
+      fatalError()
+    }
+
+    let mult = postfix_to_mult(expr.first ?? " ")
+
+    if (mult != 0) {
+      let prevnum = num;
+      num *= mult
+      /* Check for overflow. */
+      if ((prevnum > 0) != (num > 0) || num / mult != prevnum) {
+        errx(1, "\(ddc.oper): \(POSIXErrno(ERANGE).localizedDescription)")
+      }
+      expr.removeFirst()
+    }
+
+    switch expr.first {
+      case nil:
+        break
+      case "*", "X", "x":			/* Backward compatible. */
+        let mult = get_off_t(String(expr.dropFirst()), ddc)
+        let prevnum = num
+        num *= Int(mult)
+        if ((prevnum > 0) == (num > 0) && num / Int(mult) == prevnum) {
+          break
+        }
+        errx(1, "\(ddc.oper): \(POSIXErrno(ERANGE).localizedDescription)")
+      default:
+        errx(1, "\(ddc.oper): illegal numeric value")
+    }
+    return Int64(num)
+  }
+
+  // ==============================================================
+  // from dd.h
+
+  /* Flags (in ddflags). */
+  struct DDFlags : OptionSet {
+    var rawValue : UInt
+
+    static var C_ASCII    = Self(rawValue: 1 << 0)
+    static var C_BLOCK    = Self(rawValue: 1 << 1)
+    static var C_BS       = Self(rawValue: 1 << 2)
+    static var C_CBS      = Self(rawValue: 1 << 3)
+    static var C_COUNT    = Self(rawValue: 1 << 4)
+    static var C_EBCDIC   = Self(rawValue: 1 << 5)
+    static var C_FILES    = Self(rawValue: 1 << 6)
+    static var C_IBS      = Self(rawValue: 1 << 7)
+    static var C_IF       = Self(rawValue: 1 << 8)
+    static var C_LCASE    = Self(rawValue: 1 << 9)
+    static var C_NOERROR  = Self(rawValue: 1 << 10)
+    static var C_NOTRUNC  = Self(rawValue: 1 << 11)
+    static var C_OBS      = Self(rawValue: 1 << 12)
+    static var C_OF       = Self(rawValue: 1 << 13)
+    static var C_OSYNC    = Self(rawValue: 1 << 14)
+    static var C_PAREVEN  = Self(rawValue: 1 << 15)
+    static var C_PARNONE  = Self(rawValue: 1 << 16)
+    static var C_PARODD   = Self(rawValue: 1 << 17)
+    static var C_PARSET   = Self(rawValue: 1 << 18)
+    static var C_SEEK     = Self(rawValue: 1 << 19)
+    static var C_SKIP     = Self(rawValue: 1 << 20)
+    static var C_SPARSE   = Self(rawValue: 1 << 21)
+    static var C_SWAB     = Self(rawValue: 1 << 22)
+    static var C_SYNC     = Self(rawValue: 1 << 23)
+    static var C_UCASE    = Self(rawValue: 1 << 24)
+    static var C_UNBLOCK  = Self(rawValue: 1 << 25)
+    static var C_FILL     = Self(rawValue: 1 << 26)
+    static var C_STATUS   = Self(rawValue: 1 << 27)
+    static var C_NOXFER   = Self(rawValue: 1 << 28)
+    static var C_NOINFO   = Self(rawValue: 1 << 29)
+    static var C_PROGRESS = Self(rawValue: 1 << 30)
+    static var C_FSYNC    = Self(rawValue: 1 << 31)
+
+    static var C_FDATASYNC = Self(rawValue: 1 << 32) // not used by Apple
+
+    static var C_OFSYNC   = Self(rawValue: 1 << 33)
+    static var C_IFULLBLOCK = Self(rawValue: 1 << 34)
+    static var C_IDIRECT  = Self(rawValue: 1 << 35)
+    static var C_ODIRECT  = Self(rawValue: 1 << 36)
+
+    static var C_PARITY : DDFlags = [.C_PAREVEN, .C_PARODD, .C_PARNONE, .C_PARSET]
+  }
+
+  /* Input/output stream state. */
+  struct IO {
+    var db : [UInt8] = []    /* buffer address */
+    var dbp : Int = 0 /* current buffer I/O address */
+    var dbcnt  : Int = 0 // current buffer byte count
+    var dbrcnt : Int = 0 // last read byte count
+    var dbsz   : Int = 0 // block size
+
+    var flags : IOFlags = []
+
+    var name : String? = nil  // name
+    var fd : FileDescriptor = FileDescriptor(rawValue: -1) // file descriptor
+    var offset : Int        = 0 // # of blocks to skip
+    var seek_offset : Int   = 0 // offset of last seek past output hole
+  }
+
+  struct STAT {
+    var in_full : UInt = 0 /* # of full input blocks */
+    var in_part : UInt = 0 /* # of partial input blocks */
+    var out_full: UInt = 0 /* # of full output blocks */
+    var out_part: UInt = 0 /* # of partial output blocks */
+    var trunc : UInt = 0   /* # of truncated records */
+    var swab : UInt = 0    /* # of odd-length swab blocks */
+    var bytes : UInt = 0    /* # of bytes written */
+    var start : timespec = timespec() /* start time of dd */
+  }
+
+  struct IOFlags : OptionSet {
+    let rawValue: UInt8
+
+    init(rawValue: UInt8) {
+      self.rawValue = rawValue
+    }
+
+    static let ISCHR  = IOFlags(rawValue: 0x01) // character device (warn on short)
+    static let ISPIPE = IOFlags(rawValue: 0x02) // pipe-like (see position.c)
+    static let ISTAPE = IOFlags(rawValue: 0x04) // tape
+    static let ISSEEK = IOFlags(rawValue: 0x08) // valid to seek on
+    static let NOREAD = IOFlags(rawValue: 0x10) // not readable
+    static let ISTRUNC = IOFlags(rawValue: 0x20) // valid to ftruncate()
+  }
 }

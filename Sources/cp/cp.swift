@@ -118,7 +118,6 @@ var info : sig_atomic_t = 0
     // 	char *target;
 
     var fts_options : FTSFlags = [.NOCHDIR, .PHYSICAL]
-    var type : op
 
     var options = CommandOptions()
     let go = BSDGetopt("HLPRacfilNnprSsvXx")
@@ -546,7 +545,7 @@ var info : sig_atomic_t = 0
            */
         } else {
           let mode = curr.statp!.permissions
-          if mode.contains([.setUserID, .setGroupID, .saveText]) ||
+          if mode.containsAny(of: [.setUserID, .setGroupID, .saveText]) ||
               mode != [.ownerReadWriteExecute] {
             if (chmod(target, mode.subtracting([.setUserID, .setGroupID, .saveText]).rawValue) != 0) {
               warn("chmod: \(target)")

@@ -39,85 +39,89 @@
 import CMigration
 import Darwin
 
-func secs_elapsed(_ st : STAT) -> Double {
-  var end = Darwin.timespec()
-  var ts_res = Darwin.timespec()
+extension dd {
 
-  if 0 != Darwin.clock_gettime(CLOCK_MONOTONIC, &end) {
-    err(1, "clock_gettime")
-  }
-  if 0 != clock_getres(CLOCK_MONOTONIC, &ts_res) {
-    err(1, "clock_getres")
-  }
-  var secs = Double(end.tv_sec - st.start.tv_sec) + Double(end.tv_nsec - st.start.tv_nsec) * 1e-9
-	let res = Double(ts_res.tv_sec) + Double(ts_res.tv_nsec) * 1e-9;
-  if (secs < res) {
-    secs = res
-  }
-	return secs
-}
+  func secs_elapsed(_ st : STAT) -> Double {
+    var end = Darwin.timespec()
+    var ts_res = Darwin.timespec()
 
-func summary(_ ddflags : DDFlags, _ st : STAT) {
-  var stderr = FileDescriptor.standardError
-
-  if ddflags.contains(.C_NOINFO) {
-    return
+    if 0 != Darwin.clock_gettime(CLOCK_MONOTONIC, &end) {
+      err(1, "clock_gettime")
+    }
+    if 0 != clock_getres(CLOCK_MONOTONIC, &ts_res) {
+      err(1, "clock_getres")
+    }
+    var secs = Double(end.tv_sec - st.start.tv_sec) + Double(end.tv_nsec - st.start.tv_nsec) * 1e-9
+    let res = Double(ts_res.tv_sec) + Double(ts_res.tv_nsec) * 1e-9;
+    if (secs < res) {
+      secs = res
+    }
+    return secs
   }
 
-  if ddflags.contains(.C_PROGRESS) {
-    print("", to: &stderr)
+  func summary(_ ddflags : DDFlags, _ st : STAT) {
+    var stderr = FileDescriptor.standardError
+
+    if ddflags.contains(.C_NOINFO) {
+      return
+    }
+
+    if ddflags.contains(.C_PROGRESS) {
+      print("", to: &stderr)
+    }
+
+    let secs = secs_elapsed(st)
+
+    print("%ju+%ju records in\n%ju+%ju records out",
+          st.in_full, st.in_part, st.out_full, st.out_part);
+    if 0 != st.swab {
+      print("\(st.swab) odd length swab record\(st.swab == 1 ? "" : "s")", to: &stderr)
+    }
+    if 0 != st.trunc {
+      print("\(st.trunc) truncated record\(st.trunc == 1 ? "" : "s")", to: &stderr)
+    }
+    if !ddflags.contains(.C_NOXFER) {
+      print("\(st.bytes) bytes transferred in \(cFormat("%.6f", secs)) secs (\(cFormat("%.0f", Double(st.bytes) / secs)) bytes/sec)", to: &stderr)
+    }
+    need_summary = false
   }
 
-	let secs = secs_elapsed(st)
+  func progress(_ st : STAT) {
+    let secs = secs_elapsed(st)
+    let si = humanize_number(8, Int(st.bytes), "B", nil, [.decimal, .divisor_1000])!
+    let iec = humanize_number(9, Int(st.bytes), "B", nil, [.decimal, .iec_prefixes])!
+    let persec = humanize_number(8, Int( Double(st.bytes) / secs), "B", nil, [.decimal, .divisor_1000])!
 
-	print("%ju+%ju records in\n%ju+%ju records out",
-	    st.in_full, st.in_part, st.out_full, st.out_part);
-  if 0 != st.swab {
-    print("\(st.swab) odd length swab record\(st.swab == 1 ? "" : "s")", to: &stderr)
+    let buf = "  \(cFormat("%'ju", st.bytes)) bytes (\(si), \(iec)) transferred \(cFormat("%.3f", secs))s, \(persec)/s"
+
+    var stderr = FileDescriptor.standardError
+    print(buf, terminator: "\r", to: &stderr)
+    need_progress = false
   }
-  if 0 != st.trunc {
-    print("\(st.trunc) truncated record\(st.trunc == 1 ? "" : "s")", to: &stderr)
+
+  func check_terminate(_ dd : DDFlags, _ st : STAT) {
+    if 0 != kill_signal {
+      summary(dd, st)
+      //		(void)fflush(stderr);
+      signal(kill_signal, SIG_DFL)
+      raise(kill_signal)
+      /* NOT REACHED */
+      _exit(128 + kill_signal);
+    }
   }
-  if !ddflags.contains(.C_NOXFER) {
-    print("\(st.bytes) bytes transferred in \(cFormat("%.6f", secs)) secs (\(cFormat("%.0f", Double(st.bytes) / secs)) bytes/sec)", to: &stderr)
-	}
-	need_summary = 0;
-}
-
-func progress(_ st : STAT) {
-	let secs = secs_elapsed(st)
-  let si = humanize_number(8, Int(st.bytes), "B", nil, [.decimal, .divisor_1000])!
-  let iec = humanize_number(9, Int(st.bytes), "B", nil, [.decimal, .iec_prefixes])!
-  let persec = humanize_number(8, Int( Double(st.bytes) / secs), "B", nil, [.decimal, .divisor_1000])!
-
-  let buf = "  \(cFormat("%'ju", st.bytes)) bytes (\(si), \(iec)) transferred \(cFormat("%.3f", secs))s, \(persec)/s"
-
-  var stderr = FileDescriptor.standardError
-  print(buf, terminator: "\r", to: &stderr)
-	need_progress = 0
 }
 
 /* ARGSUSED */
 func siginfo_handler(_ signo : Int32) {
-	need_summary = 1
+  need_summary = true
 }
 
 /* ARGSUSED */
 func sigalarm_handler(_ signo : Int32) {
-	need_progress = 1
+  need_progress = true
 }
 
 func terminate(_ signo : Int32) {
-	kill_signal = signo
+  kill_signal = signo
 }
 
-func check_terminate(_ dd : DDFlags, _ st : STAT) {
-	if (kill_signal) {
-		summary(dd, st)
-//		(void)fflush(stderr);
-		signal(kill_signal, SIG_DFL)
-		raise(kill_signal)
-		/* NOT REACHED */
-		_exit(128 + kill_signal);
-	}
-}

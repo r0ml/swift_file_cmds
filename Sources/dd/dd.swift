@@ -39,644 +39,760 @@
 import CMigration
 import Darwin
 
-@main struct dd : ShellCommand {
+var need_summary : Bool = false
+var need_progress : Bool = false
 
-/*
-IO	in, out;		/* input/output state */
-STAT	st;			/* statistics */
-void	(*cfunc)(void);		/* conversion function */
-uintmax_t cpy_cnt;		/* # of blocks to copy */
-static off_t	pending = 0;	/* pending seek if sparse */
-uint64_t	ddflags = 0;	/* conversion options */
-size_t	cbsz;			/* conversion block size */
-uintmax_t files_cnt = 1;	/* # of files to copy */
-const	u_char *ctab;		/* conversion table */
-char	fill_char;		/* Character to fill with if defined */
-size_t	speed = 0;		/* maximum speed, in bytes per second */
-volatile sig_atomic_t need_summary;
-volatile sig_atomic_t need_progress;
-volatile sig_atomic_t kill_signal;
-*/
+var kill_signal : Int32 = 0
+
+@main class dd {
+
+  /*
+   IO	in, out;		/* input/output state */
+   STAT	st;			/* statistics */
+   void	(*cfunc)(void);		/* conversion function */
+   uintmax_t cpy_cnt;		/* # of blocks to copy */
+   static off_t	pending = 0;	/* pending seek if sparse */
+   uint64_t	ddflags = 0;	/* conversion options */
+   size_t	cbsz;			/* conversion block size */
+   uintmax_t files_cnt = 1;	/* # of files to copy */
+   const	u_char *ctab;		/* conversion table */
+   char	fill_char;		/* Character to fill with if defined */
+   size_t	speed = 0;		/* maximum speed, in bytes per second */
+   */
 
 
-int
-main(int argc __unused, char *argv[])
-{
-	struct itimerval itv = { { 1, 0 }, { 1, 0 } }; /* SIGALARM every second, if needed */
 
-	(void)siginterrupt(SIGINT, 1);
-	(void)signal(SIGINT, terminate);
-
-//	(void)setlocale(LC_CTYPE, "");
-  var ddc = DDContext()
-	jcl(argv, &ddc)
-	setup(&ddc)
-
-	(void)signal(SIGINFO, siginfo_handler);
-  if ddc.ddflags.contains(.C_PROGRESS) {
-		(void)signal(SIGALRM, sigalarm_handler);
-		setitimer(ITIMER_REAL, &itv, NULL);
-	}
-
-	atexit(summary);
-
-  while (files_cnt--) {
-    dd_in(ddc)
+  static func main() {
+    let m = Self()
+    m.main()
   }
 
-	dd_close();
-	/*
-	 * Some devices such as cfi(4) may perform significant amounts
-	 * of work when a write descriptor is closed.  Close the out
-	 * descriptor explicitly so that the summary handler (called
-	 * from an atexit() hook) includes this work.
-	 */
-  if (close(out.fd) == -1 && errno != EINTR) {
-    err(1, "close");
-  }
-	exit(0);
-}
+  var argmap : [String : arg]! = nil
 
-func parity( _ c : UInt8) -> Bool {
-	let i = c ^ (c >> 1) ^ (c >> 2) ^ (c >> 3) ^
-	    (c >> 4) ^ (c >> 5) ^ (c >> 6) ^ (c >> 7);
-	return (i & 1) == 1
-}
+  required init() {
+
+    argmap  = [
+      "bs"    : .init(f_bs,    .C_BS,   [.C_BS, .C_OSYNC]),
+      "cbs"   :  .init(f_cbs,  .C_CBS,   .C_CBS ),
+      "conv"  :  .init(f_conv,    [],   []),
+      "count" :  .init(f_count,  .C_COUNT, .C_COUNT),
+      "files" :  .init(f_files,  .C_FILES, .C_FILES),
+      "fillchar" : .init(f_fillchar, .C_FILL, .C_FILL),
+
+      "ibs"   : .init(f_ibs, .C_IBS, .C_IBS),
+
+      "if"    : .init(f_if, .C_IF, .C_IF),
+      "iflag" :  .init(f_iflag, [], []),
+      "iseek" : .init(f_skip, .C_SKIP, .C_SKIP),
+
+      "obs"   : .init(f_obs, .C_OBS, .C_OBS),
+
+      "of"    : .init(f_of, .C_OF, .C_OF),
+      "oflag" :  .init(f_oflag, [], []),
+      "oseek" :  .init(f_seek, .C_SEEK, .C_SEEK),
+      "seek"  : .init(f_seek, .C_SEEK, .C_SEEK),
+      "skip"  : .init(f_skip, .C_SKIP, .C_SKIP),
+      "speed" : .init(f_speed, [], []),
+      "status" : .init(f_status, .C_STATUS, .C_STATUS),
+    ]
+  }
+
+
+  let ilist : [String : iflag] = [
+    "direct" : .init(.C_IDIRECT,  []),
+    "fullblock" : .init(.C_IFULLBLOCK, .C_SYNC),
+  ]
+
+  let clist : [String: conv] = [
+    "ascii" : .init(.C_ASCII,  .C_EBCDIC,  e2a_POSIX),
+    "block" : .init(.C_BLOCK, .C_UNBLOCK,  nil),
+    "ebcdic": .init(.C_EBCDIC, .C_ASCII, a2e_POSIX),
+
+    //  "fdatasync",  C_FDATASYNC,  0,    NULL }, // ?
+
+    "fsync" :  .init(.C_FSYNC, [], nil),
+    "ibm"   :  .init(.C_EBCDIC,  .C_ASCII,  a2ibm_POSIX),
+    "lcase" : .init(.C_LCASE,  .C_UCASE,  nil),
+    "noerror" : .init(.C_NOERROR,  [],  nil),
+    "notrunc" : .init( .C_NOTRUNC, [], nil),
+    "oldascii" : .init(.C_ASCII,  .C_EBCDIC, e2a_32V),
+    "oldebcdic" : .init(.C_EBCDIC, .C_ASCII, a2e_32V),
+    "oldibm" : .init(.C_EBCDIC, .C_ASCII, a2ibm_32V),
+    "osync"  : .init(.C_OSYNC, .C_BS, nil),
+    "pareven" : .init(.C_PAREVEN, [.C_PARODD, .C_PARSET, .C_PARNONE], nil),
+    "parnone" : .init(.C_PARNONE, [.C_PARODD, .C_PARSET, .C_PAREVEN], nil),
+    "parodd"  : .init(.C_PARODD, [.C_PAREVEN, .C_PARSET, .C_PARNONE], nil),
+    "parset"  : .init(.C_PARSET, [.C_PARODD, .C_PAREVEN, .C_PARNONE], nil),
+    "sparse"  : .init(.C_SPARSE, [], nil),
+    "swab" : .init(.C_SWAB, [], nil),
+    "sync" : .init(.C_SYNC,  .C_IFULLBLOCK, nil),
+    "ucase" : .init(.C_UCASE, .C_LCASE, nil),
+    "unblock" : .init(.C_UNBLOCK, .C_BLOCK, nil),
+  ]
+
+
+  var olist : [String : DDFlags] = [ // struct oflag ?
+    "direct" : .C_ODIRECT,
+    "fsync" : .C_OFSYNC,
+    "sync" : .C_OFSYNC,
+  ]
+
+
+
+  func main() {
+
+    var t1 = timeval(tv_sec: 1, tv_usec: 0)
+    var t2 = timeval(tv_sec: 1, tv_usec: 0)
+
+    var itv : itimerval = .init(it_interval: t1, it_value: t2 ) /* SIGALARM every second, if needed */
+
+    siginterrupt(SIGINT, 1)
+    signal(SIGINT, terminate);
+
+    //	(void)setlocale(LC_CTYPE, "");
+    var ddc = DDContext()
+    let argv = CommandLine.arguments
+    jcl(argv, &ddc)
+    setup(&ddc)
+
+    signal(SIGINFO, siginfo_handler);
+    if ddc.ddflags.contains(.C_PROGRESS) {
+      signal(SIGALRM, sigalarm_handler);
+      setitimer(ITIMER_REAL, &itv, nil);
+    }
+
+
+    // FIXME: i had to comment this out
+//    atexit(
+//      { self.summary(ddc.ddflags, ddc.st) }
+//    )
+
+    while ddc.files_cnt != 0 {
+      ddc.files_cnt -= 1
+      dd_in(&ddc)
+    }
+
+    dd_close(&ddc)
+    /*
+     * Some devices such as cfi(4) may perform significant amounts
+     * of work when a write descriptor is closed.  Close the out
+     * descriptor explicitly so that the summary handler (called
+     * from an atexit() hook) includes this work.
+     */
+    if (close(ddc.out.fd.rawValue) == -1 && errno != EINTR) {
+      err(1, "close")
+    }
+    // FIXME: not if it does it "atexit"
+    self.summary(ddc.ddflags, ddc.st)
+    exit(0)
+  }
+
+  func parity( _ c : UInt8) -> Bool {
+    let i = c ^ (c >> 1) ^ (c >> 2) ^ (c >> 3) ^
+    (c >> 4) ^ (c >> 5) ^ (c >> 6) ^ (c >> 7);
+    return (i & 1) == 1
+  }
 
   func setup(_ ddc : inout DDContext) {
-//	u_int cnt;
-//	int iflags, oflags;
+    //	u_int cnt;
+    //	int iflags, oflags;
+    var iflags = 0
 
     if ddc.inx.name == nil {
       ddc.inx.name = "stdin";
       ddc.inx.fd = FileDescriptor.standardInput
-	} else {
-		iflags = 0;
+    } else {
+      iflags = 0;
 
-		check_terminate();
-    ddc.inx.fd = open(ddc.inx.name, O_RDONLY | iflags, 0);
-		check_terminate();
-    if (ddc.inx.fd == -1) {
-      err(1, ddc.inx.name);
+      check_terminate(ddc.ddflags, ddc.st)
+      do {
+        ddc.inx.fd = try FileDescriptor.open(ddc.inx.name!, .readOnly, options: [])
+        //        ddc.inx.fd = open(ddc.inx.name, O_RDONLY | iflags, 0);
+        check_terminate(ddc.ddflags, ddc.st)
+      } catch(let e) {
+        err(1, ddc.inx.name);
+      }
+
+      if ddc.ddflags.contains(.C_IDIRECT) {
+        Darwin.fcntl(ddc.inx.fd.rawValue, F_NOCACHE, 1)
+      }
+
     }
-
-    if ddc.ddflags.contains(.C_IDIRECT) {
-      Darwin.fcntl(ddc.inx.fd, F_NOCACHE, 1);
-    }
-
-	}
 
     getfdtype(&ddc.inx);
 
-    if (files_cnt > 1 && !ddc.inx.flags.contains(.ISTAPE)) {
-    errx(1, "files is not supported for non-tape devices")
-  }
+    if (ddc.files_cnt > 1 && !ddc.inx.flags.contains(.ISTAPE)) {
+      errx(1, "files is not supported for non-tape devices")
+    }
+
+    var oflags : FileDescriptor.OpenOptions = []
 
     if (ddc.out.name == nil) {
-		/* No way to check for read access here. */
+      /* No way to check for read access here. */
       ddc.out.fd = FileDescriptor.standardOutput
       ddc.out.name = "stdout";
       if ddc.ddflags.contains(.C_OFSYNC) {
-        oflags = fcntl(ddc.out.fd, F_GETFL);
-      if (oflags == -1) {
-        err(1, "unable to get fd flags for stdout");
+        let ooflags = fcntl(ddc.out.fd.rawValue, F_GETFL);
+        if (ooflags == -1) {
+          err(1, "unable to get fd flags for stdout");
+        }
+        oflags = FileDescriptor.OpenOptions(rawValue: ooflags)
+
+        // FIXME: supposedly  .synchronousWrites -- but doesn't exist
+        oflags.insert( FileDescriptor.OpenOptions(rawValue: O_SYNC) )
+
+        if (fcntl(ddc.out.fd.rawValue, F_SETFL, oflags.rawValue) == -1) {
+          err(1, "unable to set fd flags for stdout");
+        }
       }
-			oflags |= O_FSYNC;
-        if (fcntl(ddc.out.fd, F_SETFL, oflags) == -1) {
-        err(1, "unable to set fd flags for stdout");
+    } else {
+      oflags = [.create]
+      if !ddc.ddflags.containsAny(of: [.C_SEEK, .C_NOTRUNC]) {
+        oflags.insert(.truncate)
       }
-		}
-	} else {
-		oflags = O_CREAT;
-    if (!(ddflags & (C_SEEK | C_NOTRUNC))) {
-      oflags |= O_TRUNC;
-    }
-    if ddc.ddflags.contains(.C_OFSYNC) {
-      oflags |= O_FSYNC;
-    }
+      if ddc.ddflags.contains(.C_OFSYNC) {
+        oflags.insert( FileDescriptor.OpenOptions(rawValue: O_SYNC) )
+      }
 
-		check_terminate();
-    ddc.out.fd = open(ddc.out.name, O_RDWR | oflags, DEFFILEMODE);
-		check_terminate();
-		/*
-		 * May not have read access, so try again with write only.
-		 * Without read we may have a problem if output also does
-		 * not support seeks.
-		 */
-		if (out.fd == -1) {
-      ddc.out.fd = open(out.name, O_WRONLY | oflags, DEFFILEMODE);
-			check_terminate();
-      ddc.out.flags.insert(.NOREAD)
-		}
+      let DEFFILEMODE : FilePermissions = [.ownerRead, .ownerWrite, .groupRead, .groupWrite, .otherRead, .otherWrite]
 
-    if (ddflags & C_ODIRECT) {
-      (void)fcntl(out.fd, F_NOCACHE, 1);
-    }
+      check_terminate(ddc.ddflags, ddc.st)
 
-    if (out.fd == -1) {
-      err(1, "%s", out.name);
+      do {
+        ddc.out.fd = try FileDescriptor.open(ddc.out.name!, .readWrite, options: oflags, permissions: DEFFILEMODE)
+        //      ddc.out.fd = open(ddc.out.name, O_RDWR | oflags, DEFFILEMODE);
+        check_terminate(ddc.ddflags, ddc.st)
+      } catch(let e) {
+        /*
+         * May not have read access, so try again with write only.
+         * Without read we may have a problem if output also does
+         * not support seeks.
+         */
+        do {
+          ddc.out.fd = try FileDescriptor.open(ddc.out.name!, .writeOnly, options: oflags, permissions: DEFFILEMODE)
+          //        ddc.out.fd = open(ddc.out.name, O_WRONLY | oflags, DEFFILEMODE);
+          check_terminate(ddc.ddflags, ddc.st);
+          ddc.out.flags.insert(.NOREAD)
+        } catch(let e) {
+          err(1, ddc.out.name ?? "(stdout)")
+        }
+      }
+
+        if ddc.ddflags.contains(.C_ODIRECT) {
+          Darwin.fcntl(ddc.out.fd.rawValue, F_NOCACHE, 1)
+        }
+
+
     }
-	}
 
     getfdtype(&ddc.out);
 
-/*#ifndef __APPLE__
-  if (caph_rights_limit(out.fd, &rights) == -1) {
-    err(1, "unable to limit capability rights");
-  }
-  if (caph_ioctls_limit(out.fd, cmds, nitems(cmds)) == -1) {
-    err(1, "unable to limit capability rights");
-  }
+    /*#ifndef __APPLE__
+     if (caph_rights_limit(out.fd, &rights) == -1) {
+     err(1, "unable to limit capability rights");
+     }
+     if (caph_ioctls_limit(out.fd, cmds, nitems(cmds)) == -1) {
+     err(1, "unable to limit capability rights");
+     }
 
-	if (in.fd != STDIN_FILENO && out.fd != STDIN_FILENO) {
-    if (caph_limit_stdin() == -1) {
-      err(1, "unable to limit capability rights");
+     if (in.fd != STDIN_FILENO && out.fd != STDIN_FILENO) {
+     if (caph_limit_stdin() == -1) {
+     err(1, "unable to limit capability rights");
+     }
+     }
+
+     if (in.fd != STDOUT_FILENO && out.fd != STDOUT_FILENO) {
+     if (caph_limit_stdout() == -1) {
+     err(1, "unable to limit capability rights");
+     }
+     }
+
+     if (in.fd != STDERR_FILENO && out.fd != STDERR_FILENO) {
+     if (caph_limit_stderr() == -1) {
+     err(1, "unable to limit capability rights");
+     }
+     }
+     #endif
+     */
+
+    /*
+     * Allocate space for the input and output buffers.  If not doing
+     * record oriented I/O, only need a single buffer.
+     */
+    if !ddc.ddflags.containsAny(of: [.C_BLOCK, .C_UNBLOCK]) {
+      ddc.inx.db = Array(repeating: UInt8(0), count: ddc.out.dbsz + ddc.inx.dbsz - 1)
+      ddc.out.db = ddc.inx.db
+    } else {
+      ddc.inx.db = Array(repeating: UInt8(0), count: max(ddc.inx.dbsz, ddc.cbsz) + ddc.cbsz)
+      ddc.out.db = Array(repeating: UInt8(0), count: ddc.out.dbsz + ddc.cbsz)
     }
-	}
 
-	if (in.fd != STDOUT_FILENO && out.fd != STDOUT_FILENO) {
-    if (caph_limit_stdout() == -1) {
-      err(1, "unable to limit capability rights");
+    /* dbp is the first free position in each buffer. */
+    ddc.inx.dbp = 0 // ddc.inx.db;
+    ddc.out.dbp = 0 // ddc.out.db;
+
+    /* Position the input/output streams. */
+    if 0 != ddc.inx.offset {
+      pos_in(&ddc);
     }
-	}
-
-	if (in.fd != STDERR_FILENO && out.fd != STDERR_FILENO) {
-    if (caph_limit_stderr() == -1) {
-      err(1, "unable to limit capability rights");
+    if 0 != ddc.out.offset {
+      pos_out(&ddc)
     }
-	}
-#endif
- */
 
-	/*
-	 * Allocate space for the input and output buffers.  If not doing
-	 * record oriented I/O, only need a single buffer.
-	 */
-	if (!(ddflags & (C_BLOCK | C_UNBLOCK))) {
-    if ((in.db = malloc((size_t)out.dbsz + in.dbsz - 1)) == NULL) {
-      err(1, "input buffer");
+    /*
+     * Truncate the output file.  If it fails on a type of output file
+     * that it should _not_ fail on, error out.
+     */
+    if ddc.ddflags.contains(.C_OF) && ddc.ddflags.contains(.C_SEEK) && !ddc.ddflags.contains(.C_NOTRUNC) &&
+        ddc.out.flags.contains(.ISTRUNC) {
+      if (ftruncate(ddc.out.fd.rawValue, Int64(ddc.out.offset * ddc.out.dbsz) ) == -1) {
+        err(1, "truncating \(ddc.out.name ?? "(stdout)")")
+      }
     }
-		out.db = in.db;
-	} else if ((in.db = malloc(MAX((size_t)in.dbsz, cbsz) + cbsz)) == NULL ||
-             (out.db = malloc(out.dbsz + cbsz)) == NULL) {
-    err(1, "output buffer");
-  }
 
-	/* dbp is the first free position in each buffer. */
-	in.dbp = in.db;
-	out.dbp = out.db;
+    if ddc.ddflags.containsAny(of: [.C_LCASE, .C_UCASE, .C_ASCII, .C_EBCDIC, .C_PARITY]) {
+      var casetab = ddc.ctab ?? Array(UInt8(0)...UInt8(0o377))
 
-	/* Position the input/output streams. */
-  if (in.offset) {
-    pos_in();
-  }
-  if (out.offset) {
-    pos_out();
-  }
-
-	/*
-	 * Truncate the output file.  If it fails on a type of output file
-	 * that it should _not_ fail on, error out.
-	 */
-	if ((ddflags & (C_OF | C_SEEK | C_NOTRUNC)) == (C_OF | C_SEEK) &&
-      out.flags & ISTRUNC) {
-    if (ftruncate(out.fd, out.offset * out.dbsz) == -1) {
-      err(1, "truncating %s", out.name);
-    }
-  }
-
-	if (ddflags & (C_LCASE  | C_UCASE | C_ASCII | C_EBCDIC | C_PARITY)) {
-		if (ctab != NULL) {
-      for (cnt = 0; cnt <= 0377; ++cnt) {
-        casetab[cnt] = ctab[cnt];
-      }
-		} else {
-      for (cnt = 0; cnt <= 0377; ++cnt) {
-        casetab[cnt] = cnt;
-      }
-		}
-    if ddc.ddflags.contains(.C_PARITY) && !ddc.ddflags.contains(.C_ASCII) {
-			/*
-			 * If the input is not EBCDIC, and we do parity
-			 * processing, strip input parity.
-			 */
-      for (cnt = 200; cnt <= 0377; ++cnt) {
-        casetab[cnt] = casetab[cnt & 0x7f];
-      }
-		}
-    if ddc.ddflags.contains(.C_LCASE) {
-      for (cnt = 0; cnt <= 0377; ++cnt) {
-        casetab[cnt] = tolower(casetab[cnt]);
-      }
-    } else if ddc.ddflags.contains(.C_UCASE) {
-      for (cnt = 0; cnt <= 0377; ++cnt) {
-        casetab[cnt] = toupper(casetab[cnt]);
-      }
-		}
-    if ddc.ddflags.contains(.C_PARITY) {
-			/*
-			 * This should strictly speaking be a no-op, but I
-			 * wonder what funny LANG settings could get us.
-			 */
-      for (cnt = 0; cnt <= 0377; ++cnt) {
-        casetab[cnt] = casetab[cnt] & 0x7f;
-      }
-		}
-    if ddc.ddflags.contains(.C_PARSET) {
-      for (cnt = 0; cnt <= 0377; ++cnt) {
-        casetab[cnt] = casetab[cnt] | 0x80;
-      }
-		}
-    if ddc.ddflags.contains(.C_PAREVEN) {
-      for (cnt = 0; cnt <= 0377; ++cnt) {
-        if (parity(casetab[cnt])) {
-          casetab[cnt] = casetab[cnt] | 0x80;
+      if ddc.ddflags.contains(.C_PARITY) && !ddc.ddflags.contains(.C_ASCII) {
+        /*
+         * If the input is not EBCDIC, and we do parity
+         * processing, strip input parity.
+         */
+        for cnt in 200..<0o377 {
+          casetab[cnt] = casetab[cnt & 0x7f]
         }
       }
-		}
-    if ddc.ddflags.contains(.C_PARODD) {
-      for (cnt = 0; cnt <= 0377; ++cnt) {
-        if (!parity(casetab[cnt])) {
-          casetab[cnt] = casetab[cnt] | 0x80;
-        }
+      if ddc.ddflags.contains(.C_LCASE) {
+        casetab = casetab.map { UInt8(tolower(Int32($0))) }
+      } else if ddc.ddflags.contains(.C_UCASE) {
+        casetab = casetab.map { UInt8(toupper(Int32($0))) }
       }
-		}
+      if ddc.ddflags.contains(.C_PARITY) {
+        /*
+         * This should strictly speaking be a no-op, but I
+         * wonder what funny LANG settings could get us.
+         */
+        casetab = casetab.map { $0 & 0x7f }
+      }
+      if ddc.ddflags.contains(.C_PARSET) {
+        casetab = casetab.map { $0 | 0x80 }
+      }
+      if ddc.ddflags.contains(.C_PAREVEN) {
+        casetab = casetab.map { parity($0) ? $0 | 0x80 : $0 }
+      }
+      if ddc.ddflags.contains(.C_PARODD) {
+        casetab = casetab.map { !parity($0) ? $0 | 0x80 : $0 }
+      }
 
-		ctab = casetab;
-	}
+      ddc.ctab = casetab;
+    }
 
-  if (clock_gettime(CLOCK_MONOTONIC, &st.start)) {
-    err(1, "clock_gettime");
+    if 0 != clock_gettime(CLOCK_MONOTONIC, &ddc.st.start) {
+      err(1, "clock_gettime");
+    }
   }
-}
 
   func getfdtype(_ io : inout IO) {
-	struct stat sb;
-	int type;
 
-  if (fstat(io->fd, &sb) == -1) {
-    err(1, "%s", io->name);
-  }
-  if (S_ISREG(sb.st_mode)) {
-    io->flags |= ISTRUNC;
-  }
-	if (S_ISCHR(sb.st_mode) || S_ISBLK(sb.st_mode)) {
-		if (ioctl(io->fd, FIODTYPE, &type) == -1) {
-			err(1, "%s", io->name);
-		} else {
-		/* MacOSX uses enumeration for type not a bitmask */
-      if (type == D_TAPE) {
-        io->flags |= ISTAPE;
-      }
-			else if (type == D_DISK || type == D_TTY) {
+    guard let sb = try? FileMetadata(for: io.fd) else {
+      // FIXME: not stdin?
+      err(1, io.name ?? "(stdout)")
+      fatalError()
+    }
 
-				io->flags |= ISSEEK;
-			}
+    if sb.filetype == .regular {
+      io.flags.insert(.ISTRUNC)
+    }
+    if sb.filetype == .characterDevice || sb.filetype == .blockDevice {
+      var type : Int32 = 0
 
-        if (S_ISCHR(sb.st_mode) && (type != D_TAPE)) {
-          io->flags |= ISCHR;
+      // FIXME: no way to do this ioctl without writing a C helper !!!!
+      let FIODTYPE : UInt = 0x4004667a
+      if (ioctl(io.fd.rawValue, FIODTYPE, &type) == -1) {
+        // FIXME: or stdin?
+        err(1, io.name ?? "(stdout)")
+      } else {
+        /* MacOSX uses enumeration for type not a bitmask */
+        if (type == D_TAPE) {
+          io.flags.insert(.ISTAPE)
         }
-		}
-		return;
-	}
-	errno = 0;
-    if (lseek(io->fd, (off_t)0, SEEK_CUR) == -1 && errno == ESPIPE) {
-      io->flags |= ISPIPE;
-    }
-    else {
-      io->flags |= ISSEEK;
-    }
-}
-
-/*
- * Limit the speed by adding a delay before every block read.
- * The delay (t_usleep) is equal to the time computed from block
- * size and the specified speed limit (t_target) minus the time
- * spent on actual read and write operations (t_io).
- */
-func speed_limit() {
-	static double t_prev, t_usleep;
-	double t_now, t_io, t_target;
-
-	t_now = secs_elapsed();
-	t_io = t_now - t_prev - t_usleep;
-	t_target = (double)in.dbsz / (double)speed;
-	t_usleep = t_target - t_io;
-  if (t_usleep > 0) {
-    usleep(t_usleep * 1000000);
-  }
-  else {
-    t_usleep = 0;
-  }
-	t_prev = t_now;
-}
-
-func swapbytes(void *v, size_t len) {
-	unsigned char *p = v;
-	unsigned char t;
-
-	while (len > 1) {
-		t = p[0];
-		p[0] = p[1];
-		p[1] = t;
-		p += 2;
-		len -= 2;
-	}
-}
-
-  func dd_in(_ ddc : inout DDContext) {
-	ssize_t n;
-
-  while true {
-		switch (cpy_cnt) {
-		case -1:			/* count=0 was specified */
-			return;
-		case 0:
-			break;
-		default:
-        if (ddc.st.in_full + ddc.st.in_part >= cpy_cnt) {
-          return;
+        else if (type == D_DISK || type == D_TTY) {
+          io.flags.insert(.ISSEEK)
         }
-			break;
-		}
 
-    if ddc.speed > 0 {
-      speed_limit()
-    }
-
-		/*
-		 * Zero the buffer first if sync; if doing block operations,
-		 * use spaces.
-		 */
-    if ddc.ddflags.contains(.C_SYNC) {
-      if ddc.ddflags.contains(.C_FILL) {
-        memset(ddc.inx.dbp, fill_char, ddc.inx.dbsz);
+        if sb.filetype == .characterDevice && (type != D_TAPE) {
+          io.flags.insert(.ISCHR)
+        }
       }
-      else if ddc.ddflags.contains([.C_BLOCK, .C_UNBLOCK]) {
-        memset(ddc.inx.dbp, " ", ddc.inx.dbsz);
-      }
-      else {
-        memset(ddc.inx.dbp, 0, ddc.inx.dbsz);
-      }
-		}
-
-		in.dbrcnt = 0;
-fill:
-		check_terminate();
-    n = read(ddc.inx.fd, ddc.inx.dbp + ddc.inx.dbrcnt, ddc.inx.dbsz - ddc.inx.dbrcnt);
-		check_terminate();
-
-		/* EOF */
-    if (n == 0 && ddc.inx.dbrcnt == 0) {
       return;
     }
-
-		/* Read error */
-		if (n == -1) {
-			/*
-			 * If noerror not specified, die.  POSIX requires that
-			 * the warning message be followed by an I/O display.
-			 */
-      if (!(ddflags & C_NOERROR)) {
-        err(1, ddc.inx.name)
-      }
-      warn(ddc.inx.name)
-			summary();
-
-			/*
-			 * If it's a seekable file descriptor, seek past the
-			 * error.  If your OS doesn't do the right thing for
-			 * raw disks this section should be modified to re-read
-			 * in sector size chunks.
-			 */
-      if (ddc.inx.flags.contains(.ISSEEK) &&
-          0 != lseek(ddc.inx.fd.rawValue, Int64(ddc.inx.dbsz), SEEK_CUR)) {
-        warn(ddc.inx.name);
-      }
-
-			/* If sync not specified, omit block and continue. */
-      if (!ddc.ddflags.contains(.C_SYNC)) {
-        continue;
-      }
-		}
-
-		/* If conv=sync, use the entire block. */
-    if ddc.ddflags.contains(.C_SYNC) {
-      n = ddc.inx.dbsz;
-    }
-
-		/* Count the bytes read for this block. */
-    ddc.inx.dbrcnt += n;
-
-		/* Count the number of full and partial blocks. */
-    if (in.dbrcnt == in.dbsz) {
-      ++st.in_full;
-    }
-    else if (ddflags & C_IFULLBLOCK && n != 0) {
-      goto fill; /* these don't count */
+    errno = 0;
+    if (lseek(io.fd.rawValue, 0, SEEK_CUR) == -1 && errno == ESPIPE) {
+      io.flags.insert(.ISPIPE)
     }
     else {
-      ++st.in_part;
+      io.flags.insert(.ISSEEK)
     }
+  }
 
-		/* Count the total bytes read for this file. */
-    ddc.inx.dbcnt += ddc.inx.dbrcnt;
+  /*
+   * Limit the speed by adding a delay before every block read.
+   * The delay (t_usleep) is equal to the time computed from block
+   * size and the specified speed limit (t_target) minus the time
+   * spent on actual read and write operations (t_io).
+   */
+  func speed_limit(_ ddc : inout DDContext) {
+//    static double t_prev, t_usleep;
+//    double t_now, t_io, t_target;
 
-		/*
-		 * POSIX states that if bs is set and no other conversions
-		 * than noerror, notrunc or sync are specified, the block
-		 * is output without buffering as it is read.
-		 */
-		if ((ddflags & ~(C_NOERROR | C_NOTRUNC | C_SYNC)) == C_BS) {
-			out.dbcnt = in.dbcnt;
-			dd_out(1);
-      ddc.inx.dbcnt = 0;
-			continue;
-		}
-
-    if ddc.ddflags.contains(.C_SWAB) {
-      if ((n = ddc.inx.dbrcnt) & 1) {
-				++st.swab;
-				--n;
-			}
-      swapbytes(ddc.inx.dbp, (size_t)n);
-		}
-
-		/* Advance to the next block. */
-    ddc.inx.dbp += ddc.inx.dbrcnt;
-    ddc.cfunc(&ddc)
-    if (need_summary) {
-      summary();
+    let t_now = secs_elapsed(ddc.st)
+    let t_io = t_now - ddc.t_prev - ddc.t_usleep;
+    let t_target : Double = Double(ddc.inx.dbsz) / Double(ddc.speed)
+    ddc.t_usleep = t_target - t_io
+    if (ddc.t_usleep > 0) {
+      usleep(UInt32(ddc.t_usleep * 1000000))
     }
-    if (need_progress) {
-      progress();
+    else {
+      ddc.t_usleep = 0
     }
-	}
-}
+    ddc.t_prev = t_now;
+  }
 
-/*
- * Clean up any remaining I/O and flush output.  If necessary, the output file
- * is truncated.
- */
+  func swapbytes(_ v : inout [UInt8], _ start : Int, _ lenx : Int) {
+    var len = lenx
+    for i in stride(from: start, to: start+len, by: 2) {
+      let t = v[i]
+      v[i] = v[i+1]
+      v[i+1] = t
+    }
+  }
+
+  func dd_in(_ ddc : inout DDContext) {
+//    ssize_t n;
+
+    while true {
+      switch ddc.cpy_cnt {
+        case -1:			/* count=0 was specified */
+          return;
+        case 0:
+          break;
+        default:
+          if (ddc.st.in_full + ddc.st.in_part >= ddc.cpy_cnt) {
+            return;
+          }
+          break;
+      }
+
+      if ddc.speed > 0 {
+        speed_limit(&ddc)
+      }
+
+      /*
+       * Zero the buffer first if sync; if doing block operations,
+       * use spaces.
+       */
+      if ddc.ddflags.contains(.C_SYNC) {
+        var f : UInt8 = 0
+        if ddc.ddflags.contains(.C_FILL) {
+          f = ddc.fill_char.asciiValue!
+        }
+        else if ddc.ddflags.containsAny(of: [.C_BLOCK, .C_UNBLOCK]) {
+          f = " ".first!.asciiValue!
+        }
+        for i in ddc.inx.dbp..<(ddc.inx.dbp+ddc.inx.dbsz) {
+          ddc.inx.db[i] = f
+        }
+//          memset(ddc.inx.dbp, 0, ddc.inx.dbsz);
+      }
+
+      ddc.inx.dbrcnt = 0
+
+//    fill:
+      while true {
+        check_terminate(ddc.ddflags, ddc.st)
+        var n = read(ddc.inx.fd.rawValue, &ddc.inx.db[ddc.inx.dbp + ddc.inx.dbrcnt], ddc.inx.dbsz - ddc.inx.dbrcnt);
+        check_terminate(ddc.ddflags, ddc.st);
+
+        /* EOF */
+        if (n == 0 && ddc.inx.dbrcnt == 0) {
+          return;
+        }
+
+        /* Read error */
+        if (n == -1) {
+          /*
+           * If noerror not specified, die.  POSIX requires that
+           * the warning message be followed by an I/O display.
+           */
+          if !ddc.ddflags.contains(.C_NOERROR) {
+            err(1, ddc.inx.name ?? "(stdin)")
+          }
+          warn(ddc.inx.name ?? "(stdin)")
+          summary(ddc.ddflags, ddc.st)
+
+          /*
+           * If it's a seekable file descriptor, seek past the
+           * error.  If your OS doesn't do the right thing for
+           * raw disks this section should be modified to re-read
+           * in sector size chunks.
+           */
+          if (ddc.inx.flags.contains(.ISSEEK) &&
+              0 != lseek(ddc.inx.fd.rawValue, Int64(ddc.inx.dbsz), SEEK_CUR)) {
+            warn(ddc.inx.name ?? "(stdin)");
+          }
+
+          /* If sync not specified, omit block and continue. */
+          if (!ddc.ddflags.contains(.C_SYNC)) {
+            continue;
+          }
+        }
+
+        /* If conv=sync, use the entire block. */
+        if ddc.ddflags.contains(.C_SYNC) {
+          n = ddc.inx.dbsz;
+        }
+
+        /* Count the bytes read for this block. */
+        ddc.inx.dbrcnt += n;
+
+        /* Count the number of full and partial blocks. */
+        if (ddc.inx.dbrcnt == ddc.inx.dbsz) {
+          ddc.st.in_full += 1
+          break
+        }
+        else if ddc.ddflags.contains(.C_IFULLBLOCK) && n != 0 {
+//          goto fill; /* these don't count */
+          continue
+        }
+        else {
+          ddc.st.in_part += 1
+          break
+        }
+      }
+      /* Count the total bytes read for this file. */
+      ddc.inx.dbcnt += ddc.inx.dbrcnt;
+
+      /*
+       * POSIX states that if bs is set and no other conversions
+       * than noerror, notrunc or sync are specified, the block
+       * is output without buffering as it is read.
+       */
+      if ddc.ddflags.subtracting([.C_NOERROR, .C_NOTRUNC, .C_SYNC]) == .C_BS {
+        ddc.out.dbcnt = ddc.inx.dbcnt
+        dd_out(true, &ddc)
+        ddc.inx.dbcnt = 0
+        continue
+      }
+
+      if ddc.ddflags.contains(.C_SWAB) {
+        var n = ddc.inx.dbrcnt
+        if 0 != (n & 1) {
+          ddc.st.swab += 1
+          n -= 1
+        }
+        swapbytes(&ddc.inx.db, ddc.inx.dbp, n);
+      }
+
+      /* Advance to the next block. */
+      ddc.inx.dbp += ddc.inx.dbrcnt;
+      if let d = ddc.cfunc {
+        switch d {
+          case .block(let f): f(&ddc)
+          case .unblock(let f): f(&ddc)
+          case .def(let f): f(&ddc)
+        }
+      }
+      if need_summary {
+        summary(ddc.ddflags, ddc.st)
+      }
+      if need_progress {
+        progress(ddc.st)
+      }
+    }
+  }
+
+  /*
+   * Clean up any remaining I/O and flush output.  If necessary, the output file
+   * is truncated.
+   */
   func dd_close(_ ddc : inout DDContext) {
-    if (ddc.cfunc == def) {
-    def_close(&ddc)
-  }
-  else if (cfunc == block) {
-    block_close();
-  }
-  else if (cfunc == unblock) {
-    unblock_close();
-  }
+    switch ddc.cfunc {
+      case .def:
+      def_close(&ddc)
+      case .block:
+      block_close(&ddc)
+      case .unblock:
+          unblock_close(&ddc)
+      default:
+        break
+    }
 
     if (ddc.ddflags.contains(.C_OSYNC) && 0 != ddc.out.dbcnt && ddc.out.dbcnt < ddc.out.dbsz) {
+      var f : UInt8 = 0
       if ddc.ddflags.contains(.C_FILL) {
-        memset(ddc.out.dbp, fill_char, ddc.out.dbsz - ddc.out.dbcnt)
-    }
-      else if ddc.ddflags.contains([.C_BLOCK, .C_UNBLOCK]) {
-        memset(ddc.out.dbp, ' ', ddc.out.dbsz - ddc.out.dbcnt);
-    }
-    else {
-      memset(ddc.out.dbp, 0, ddc.out.dbsz - ddc.out.dbcnt);
-    }
+        f = ddc.fill_char.asciiValue!
+//        memset(ddc.out.dbp, ddc.fill_char, ddc.out.dbsz - ddc.out.dbcnt)
+      }
+      else if ddc.ddflags.containsAny(of: [.C_BLOCK, .C_UNBLOCK]) {
+        f = " ".first!.asciiValue!
+//        memset(ddc.out.dbp, ' ', ddc.out.dbsz - ddc.out.dbcnt);
+      }
+      for i in ddc.out.dbp..<(ddc.out.dbp+ddc.out.dbsz-ddc.out.dbcnt) {
+        ddc.out.db[i]=f
+      }
+//        memset(ddc.out.dbp, 0, ddc.out.dbsz - ddc.out.dbcnt);
       ddc.out.dbcnt = ddc.out.dbsz;
-	}
-    if (ddc.out.dbcnt || pending) {
-      dd_out(1);
+    }
+    if (0 != ddc.out.dbcnt || 0 != ddc.pending) {
+      dd_out(true, &ddc)
     }
 
-	/*
-	 * If the file ends with a hole, ftruncate it to extend its size
-	 * up to the end of the hole (without having to write any data).
-	 */
-	if (out.seek_offset > 0 && (out.flags & ISTRUNC)) {
-    if (ftruncate(out.fd, out.seek_offset) == -1) {
-      err(1, "truncating %s", out.name);
+    /*
+     * If the file ends with a hole, ftruncate it to extend its size
+     * up to the end of the hole (without having to write any data).
+     */
+    if ddc.out.seek_offset > 0 && ddc.out.flags.contains(.ISTRUNC) {
+      if ftruncate(ddc.out.fd.rawValue, Int64(ddc.out.seek_offset)) == -1 {
+        err(1, "truncating \(ddc.out.name ?? "(stdout)")")
+      }
     }
-	}
 
     if ddc.ddflags.contains(.C_FSYNC) {
-      if (fsync(ddc.out.fd) == -1) {
-        err(1, "fsyncing %s", ddc.out.name);
+      if fsync(ddc.out.fd.rawValue) == -1 {
+        err(1, "fsyncing \(ddc.out.name ?? "(stdout)")")
+      }
+      /*#ifndef __APPLE__
+       } else if (ddflags & C_FDATASYNC) {
+       if (fdatasync(out.fd) == -1) {
+       err(1, "fdatasyncing %s", out.name);
+       }
+       #endif
+       */
     }
-/*#ifndef __APPLE__
-	} else if (ddflags & C_FDATASYNC) {
-    if (fdatasync(out.fd) == -1) {
-      err(1, "fdatasyncing %s", out.name);
-    }
-#endif
- */
-	}
-}
+  }
 
   func dd_out(_ force : Bool, _ ddc : inout DDContext) {
-//	u_char *outp;
-//	size_t cnt, n;
-//	ssize_t nw;
-//	static int warned;
-//	int sparse;
+    //	u_char *outp;
+    //	size_t cnt, n;
+    //	ssize_t nw;
+    //	static int warned;
+    //	int sparse;
 
-	/*
-	 * Write one or more blocks out.  The common case is writing a full
-	 * output block in a single write; increment the full block stats.
-	 * Otherwise, we're into partial block writes.  If a partial write,
-	 * and it's a character device, just warn.  If a tape device, quit.
-	 *
-	 * The partial writes represent two cases.  1: Where the input block
-	 * was less than expected so the output block was less than expected.
-	 * 2: Where the input block was the right size but we were forced to
-	 * write the block in multiple chunks.  The original versions of dd(1)
-	 * never wrote a block in more than a single write, so the latter case
-	 * never happened.
-	 *
-	 * One special case is if we're forced to do the write -- in that case
-	 * we play games with the buffer size, and it's usually a partial write.
-	 */
-	outp = out.db;
+    var warned = false
 
-	/*
-	 * If force, first try to write all pending data, else try to write
-	 * just one block. Subsequently always write data one full block at
-	 * a time at most.
-	 */
-	for (n = force ? out.dbcnt : out.dbsz;; n = out.dbsz) {
-		cnt = n;
-		do {
-			sparse = 0;
-			if (ddflags & C_SPARSE) {
-				/* Is buffer sparse? */
-				sparse = BISZERO(outp, cnt);
-			}
-			if (sparse && !force) {
-				pending += cnt;
-				nw = cnt;
-			} else {
-				if (pending != 0) {
-					/*
-					 * Seek past hole.  Note that we need to record the
-					 * reached offset, because we might have no more data
-					 * to write, in which case we'll need to call
-					 * ftruncate to extend the file size.
-					 */
-					out.seek_offset = lseek(out.fd, pending, SEEK_CUR);
-          if (out.seek_offset == -1) {
-            err(2, "%s: seek error creating sparse file",
-                out.name);
+    /*
+     * Write one or more blocks out.  The common case is writing a full
+     * output block in a single write; increment the full block stats.
+     * Otherwise, we're into partial block writes.  If a partial write,
+     * and it's a character device, just warn.  If a tape device, quit.
+     *
+     * The partial writes represent two cases.  1: Where the input block
+     * was less than expected so the output block was less than expected.
+     * 2: Where the input block was the right size but we were forced to
+     * write the block in multiple chunks.  The original versions of dd(1)
+     * never wrote a block in more than a single write, so the latter case
+     * never happened.
+     *
+     * One special case is if we're forced to do the write -- in that case
+     * we play games with the buffer size, and it's usually a partial write.
+     */
+    var outp = 0
+
+    /*
+     * If force, first try to write all pending data, else try to write
+     * just one block. Subsequently always write data one full block at
+     * a time at most.
+     */
+    var n = force ? ddc.out.dbcnt : ddc.out.dbsz
+    while true {
+      var cnt = n
+      repeat {
+        var sparse = false
+        if ddc.ddflags.contains(.C_SPARSE) {
+          /* Is buffer sparse? */
+          sparse = true
+          for i in outp ..< (outp+cnt) {
+            if ddc.out.db[i] != 0 {
+              sparse = false
+              break
+            }
           }
-					pending = 0;
-				}
-				if (cnt) {
-					check_terminate();
-					nw = write(out.fd, outp, cnt);
-					check_terminate();
-					out.seek_offset = 0;
-				} else {
-					return;
-				}
-			}
-
-			if (nw <= 0) {
-				if (nw == 0)
-					errx(1, "%s: end of device", out.name);
-        if (errno != EINTR) {
-          err(1, "%s", out.name);
         }
-				nw = 0;
-			}
-
-			outp += nw;
-			st.bytes += nw;
-
-      if ((size_t)nw == n && n == (size_t)out.dbsz) {
-        ++st.out_full
-      }
-      else {
-        ++st.out_part
-      }
-
-			if ((size_t) nw != cnt) {
-        if (out.flags & ISTAPE) {
-          errx(1, "%s: short write on tape device",
-               out.name);
+        var nw = 0
+        if (sparse && !force) {
+          ddc.pending += cnt;
+          nw = cnt;
+        } else {
+          if (ddc.pending != 0) {
+            /*
+             * Seek past hole.  Note that we need to record the
+             * reached offset, because we might have no more data
+             * to write, in which case we'll need to call
+             * ftruncate to extend the file size.
+             */
+            ddc.out.seek_offset = Int(lseek(ddc.out.fd.rawValue, Int64(ddc.pending), SEEK_CUR))
+            if (ddc.out.seek_offset == -1) {
+              err(2, "\(ddc.out.name ?? "(stdout)"): seek error creating sparse file")
+            }
+            ddc.pending = 0;
+          }
+          if (0 != cnt) {
+            check_terminate(ddc.ddflags, ddc.st);
+            nw = write(ddc.out.fd.rawValue, &ddc.out.db[outp], cnt);
+            check_terminate(ddc.ddflags, ddc.st);
+            ddc.out.seek_offset = 0;
+          } else {
+            return;
+          }
         }
-				if (out.flags & ISCHR && !warned) {
-					warned = 1;
-					warnx("%s: short write on character device",
-				    	out.name);
-				}
-			}
 
-			cnt -= nw;
-		} while (cnt != 0);
+        if (nw <= 0) {
+          if (nw == 0) {
+            errx(1, "\(ddc.out.name ?? "(stdout)"): end of device")
+          }
+          if (errno != EINTR) {
+            err(1, ddc.out.name ?? "(stdout)")
+          }
+          nw = 0;
+        }
 
-    if ((out.dbcnt -= n) < out.dbsz) {
-      break;
+        outp += nw
+        ddc.st.bytes += UInt(nw)
+
+        if (nw == n && n == ddc.out.dbsz) {
+          ddc.st.out_full += 1
+        }
+        else {
+          ddc.st.out_part += 1
+        }
+
+        if (nw != cnt) {
+          if ddc.out.flags.contains(.ISTAPE) {
+            errx(1, "\(ddc.out.name ?? "(stdout)"): short write on tape device")
+          }
+          if ddc.out.flags.contains(.ISCHR) && !warned {
+            warned = true
+            warnx("\(ddc.out.name ?? "(stdout)"): short write on character device")
+          }
+        }
+
+        cnt -= nw;
+      } while (cnt != 0);
+
+      ddc.out.dbcnt -= n
+      if ddc.out.dbcnt < ddc.out.dbsz {
+        break;
+      }
+      n = ddc.out.dbsz
     }
-	}
 
-	/* Reassemble the output block. */
-  if 0 != ddc.out.dbcnt {
-    (void)memmove(ddc.out.db, ddc.out.dbp - ddc.out.dbcnt, ddc.out.dbcnt)
+    /* Reassemble the output block. */
+    if 0 != ddc.out.dbcnt {
+      for i in 0 ..< ddc.out.dbcnt {
+        ddc.out.db[i] = ddc.out.db[ddc.out.dbp - ddc.out.dbcnt + i]
+//        memmove(&ddc.out.db, &ddc.out.db[ddc.out.dbp - ddc.out.dbcnt], ddc.out.dbcnt)
+      }
+    }
+    ddc.out.dbp = /* ddc.out.db + */ ddc.out.dbcnt
   }
-  ddc.out.dbp = ddc.out.db + ddc.out.dbcnt;
 }

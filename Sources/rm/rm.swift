@@ -461,7 +461,7 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
       if (options.uid == 0 && sb.fileType != .whiteOut &&
           (sb.flags.contains(.UF_APPEND) ||
            sb.flags.contains(.UF_IMMUTABLE)) &&
-          !(sb.flags.contains([.SF_APPEND, .SF_IMMUTABLE]))) {
+          !(sb.flags.containsAny(of: [.SF_APPEND, .SF_IMMUTABLE]))) {
         rval = lchflags(f, sb.flags.subtracting([.UF_APPEND, .UF_IMMUTABLE]).rawValue)
       }
       if (rval == 0) {

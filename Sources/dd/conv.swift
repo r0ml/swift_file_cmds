@@ -38,239 +38,296 @@
 
 import CMigration
 
-/*
- * def --
- * Copy input to output.  Input is buffered until reaches obs, and then
- * output until less than obs remains.  Only a single buffer is used.
- * Worst case buffer calculation is (ibs + obs - 1).
- */
-func def(_ ddc : inout DDContext) {
-//	u_char *inp;
-//	const u_char *t;
-//	size_t cnt;
+extension dd {
+  /*
+   * def --
+   * Copy input to output.  Input is buffered until reaches obs, and then
+   * output until less than obs remains.  Only a single buffer is used.
+   * Worst case buffer calculation is (ibs + obs - 1).
+   */
+  func def(_ ddc : inout DDContext) {
+    //	u_char *inp;
+    //	const u_char *t;
+    //	size_t cnt;
 
-  if let t = ddc.ctab {
-    var cnt = ddc.inx.dbrcnt
-    var inp = ddc.inx.dbp - cnt
+    if let t = ddc.ctab {
+      var cnt = ddc.inx.dbrcnt
+      var inp = ddc.inx.dbp - cnt
 
-    for (; cnt--; ++inp) {
-      *inp = t[*inp];
+      for inp in (ddc.inx.dbp - cnt) ..< ddc.inx.dbp {
+        ddc.inx.db[inp] = t[inp]
+      }
     }
-  }
 
-	/* Make the output buffer look right. */
-  ddc.out.dbp = ddc.inx.dbp
-  ddc.out.dbcnt = ddc.inx.dbcnt
-
-  if ddc.inx.dbcnt >= ddc.out.dbsz {
-		/* If the output buffer is full, write it. */
-		dd_out(0);
-
-		/*
-		 * dd_out copies the leftover output to the beginning of
-		 * the buffer and resets the output buffer.  Reset the
-		 * input buffer to match it.
-	 	 */
-    ddc.inx.dbp = ddc.out.dbp;
-    ddc.inx.dbcnt = ddc.out.dbcnt;
-	}
-}
-
-func def_close(_ ddc : inout DDContext) {
-	// Just update the count, everything is already in the buffer.
-  if 0 != ddc.inx.dbcnt {
+    /* Make the output buffer look right. */
+    ddc.out.dbp = ddc.inx.dbp
     ddc.out.dbcnt = ddc.inx.dbcnt
+
+    if ddc.inx.dbcnt >= ddc.out.dbsz {
+      /* If the output buffer is full, write it. */
+      dd_out(false, &ddc)
+
+      /*
+       * dd_out copies the leftover output to the beginning of
+       * the buffer and resets the output buffer.  Reset the
+       * input buffer to match it.
+       */
+      ddc.inx.dbp = ddc.out.dbp;
+      ddc.inx.dbcnt = ddc.out.dbcnt;
+    }
   }
-}
 
-/*
- * Copy variable length newline terminated records with a max size cbsz
- * bytes to output.  Records less than cbs are padded with spaces.
- *
- * max in buffer:  MAX(ibs, cbsz)
- * max out buffer: obs + cbsz
- */
-func block(_ ddc : inout DDContext) {
-//	u_char *inp, *outp;
-//	const u_char *t;
-//	size_t cnt, maxlen;
-  static int intrunc;
-//	int ch;
-
-	/*
-	 * Record truncation can cross block boundaries.  If currently in a
-	 * truncation state, keep tossing characters until reach a newline.
-	 * Start at the beginning of the buffer, as the input buffer is always
-	 * left empty.
-	 */
-	if (intrunc) {
-    var cnt = ddc.inx.dbrcnt
-    var inp  ddc.inx.db
-    for (; cnt && *inp++ != '\n'; --cnt) {
-      ;
+  func def_close(_ ddc : inout DDContext) {
+    // Just update the count, everything is already in the buffer.
+    if 0 != ddc.inx.dbcnt {
+      ddc.out.dbcnt = ddc.inx.dbcnt
     }
-		if cnt == 0 {
-      ddc.inx.dbcnt = 0;
-      ddc.inx.dbp = ddc.inx.db
-			return
-		}
-		intrunc = 0;
-		/* Adjust the input buffer numbers. */
-    ddc.inx.dbcnt = cnt - 1
-    ddc.inx.dbp = inp + cnt - 1
-	}
+  }
 
-	/*
-	 * Copy records (max cbsz size chunks) into the output buffer.  The
-	 * translation is done as we copy into the output buffer.
-	 */
-	ch = 0;
-	for (inp = in.dbp - in.dbcnt, outp = out.dbp; in.dbcnt;) {
-		maxlen = MIN(cbsz, (size_t)in.dbcnt);
-    if ((t = ctab) != NULL) {
-      for (cnt = 0; cnt < maxlen && (ch = *inp++) != '\n';
-           ++cnt) {
-        *outp++ = t[ch];
+  /*
+   * Copy variable length newline terminated records with a max size cbsz
+   * bytes to output.  Records less than cbs are padded with spaces.
+   *
+   * max in buffer:  MAX(ibs, cbsz)
+   * max out buffer: obs + cbsz
+   */
+  func block(_ ddc : inout DDContext) {
+    //	u_char *inp, *outp;
+    //	const u_char *t;
+    //	size_t cnt, maxlen;
+    //  static int intrunc;
+    //	int ch;
+
+    /*
+     * Record truncation can cross block boundaries.  If currently in a
+     * truncation state, keep tossing characters until reach a newline.
+     * Start at the beginning of the buffer, as the input buffer is always
+     * left empty.
+     */
+    var cnt : Int = 0
+    if ddc.intrunc {
+      cnt = ddc.inx.dbrcnt
+      var inp = 0
+      while cnt != 0 && ddc.inx.db[inp] != "\n".first!.asciiValue! {
+        cnt -= 1
+        inp += 1
       }
-    }
-    else {
-      for (cnt = 0; cnt < maxlen && (ch = *inp++) != '\n';
-           ++cnt) {
-        *outp++ = ch;
-      }
-    }
-		/*
-		 * Check for short record without a newline.  Reassemble the
-		 * input block.
-		 */
-		if (ch != '\n' && (size_t)in.dbcnt < cbsz) {
-			(void)memmove(in.db, in.dbp - in.dbcnt, in.dbcnt);
-			break;
-		}
+      inp += 1
 
-		/* Adjust the input buffer numbers. */
-		in.dbcnt -= cnt;
-    if (ch == '\n') {
-      --in.dbcnt;
+//      for (; cnt && *inp++ != '\n'; --cnt) {}
+
+      if cnt == 0 {
+        ddc.inx.dbcnt = 0
+        ddc.inx.dbp = 0
+        return
+      }
+      ddc.intrunc = false
+      /* Adjust the input buffer numbers. */
+      ddc.inx.dbcnt = cnt - 1
+      ddc.inx.dbp = inp + cnt - 1
     }
 
-		/* Pad short records with spaces. */
-    if (cnt < cbsz) {
-      (void)memset(outp, ctab ? ctab[' '] : ' ', cbsz - cnt);
-    }
-		else {
-			/*
-			 * If the next character wouldn't have ended the
-			 * block, it's a truncation.
-			 */
-      if (!in.dbcnt || *inp != '\n') {
-        ++st.trunc;
-      }
-
-			/* Toss characters to a newline. */
-      for (; in.dbcnt && *inp++ != '\n'; --in.dbcnt) {
-        ;
-      }
-      if (!in.dbcnt) {
-        intrunc = 1;
+    /*
+     * Copy records (max cbsz size chunks) into the output buffer.  The
+     * translation is done as we copy into the output buffer.
+     */
+    var ch : UInt8 = 0
+    var inp = ddc.inx.dbp - ddc.inx.dbcnt
+    var outp = 0
+    while 0 != ddc.inx.dbcnt {
+      let maxlen = min(ddc.cbsz, ddc.inx.dbcnt)
+      if let t = ddc.ctab {
+//      if ((t = ctab) != NULL) {
+        for cntx in 0 ..< maxlen {
+          ch = ddc.inx.db[inp+cntx]
+          inp += 1
+          if ch == "\n".first!.asciiValue! {
+            break
+          }
+//        for (cnt = 0; cnt < maxlen && (ch = *inp++) != '\n'; ++cnt) {
+          ddc.out.db[outp] = t[Int(ch)]
+          outp += 1
+        }
       }
       else {
-        --in.dbcnt;
+        var cnt = 0
+        for cntx in 0 ..< maxlen {
+          ch = ddc.inx.db[inp+cntx]
+          inp += 1
+          if ch == "\n".first!.asciiValue! {
+            break
+          }
+          ddc.out.db[outp] = ch
+          outp += 1
+        }
       }
-		}
+      /*
+       * Check for short record without a newline.  Reassemble the
+       * input block.
+       */
+      if (ch != "\n".first!.asciiValue! && ddc.inx.dbcnt < ddc.cbsz) {
+        for i in 0..<ddc.inx.dbcnt {
+          ddc.inx.db[ddc.inx.dbp+i] = ddc.inx.db[ddc.inx.dbp - ddc.inx.dbcnt + i]
+          //        memmove(ddc.inx.db, ddc.inx.dbp - ddc.inx.dbcnt, ddc.inx.dbcnt);
+        }
+        break;
+      }
 
-		/* Adjust output buffer numbers. */
-    ddc.out.dbp += ddc.cbsz
-    ddc.out.dbcnt += ddc.cbsz
-    if (ddc.out.dbcnt >= ddc.out.dbsz) {
-      dd_out(0)
+      /* Adjust the input buffer numbers. */
+      ddc.inx.dbcnt -= cnt
+      if (ch == "\n".first!.asciiValue!) {
+        ddc.inx.dbcnt -= 1
+      }
+
+      /* Pad short records with spaces. */
+      if (cnt < ddc.cbsz) {
+        let sp = " ".first!.asciiValue!
+        let spx = ddc.ctab == nil ? sp : ddc.ctab![Int(sp)]
+        for i in 0 ..< (ddc.cbsz - cnt) {
+          ddc.out.db[outp+i]=UInt8(spx)
+//          (void)memset(outp, ctab ? ctab[' '] : ' ', ddc.cbsz - cnt);
+        }
+      }
+      else {
+        /*
+         * If the next character wouldn't have ended the
+         * block, it's a truncation.
+         */
+        if 0 == ddc.inx.dbcnt || ddc.inx.db[inp] != "\n".first!.asciiValue! {
+          ddc.st.trunc += 1
+        }
+
+        /* Toss characters to a newline. */
+
+        while ddc.inx.dbcnt != 0 && ddc.inx.db[inp] != "\n".first!.asciiValue! {
+          ddc.inx.dbcnt -= 1
+          inp += 1
+        }
+        if ddc.inx.dbcnt == 0 { inp += 1 }
+
+        if 0 == ddc.inx.dbcnt {
+          ddc.intrunc = true
+        }
+        else {
+          ddc.inx.dbcnt -= 1
+        }
+      }
+
+      /* Adjust output buffer numbers. */
+      ddc.out.dbp += ddc.cbsz
+      ddc.out.dbcnt += ddc.cbsz
+      if (ddc.out.dbcnt >= ddc.out.dbsz) {
+        dd_out(false, &ddc)
+      }
+      outp = ddc.out.dbp
     }
-    outp = ddc.out.dbp
-	}
-  ddc.inx.dbp = ddc.inx.db + ddc.inx.dbcnt
-}
+    ddc.inx.dbp = ddc.inx.dbcnt
+  }
 
-func block_close(_ ddc : inout DDContext) {
-	/*
-	 * Copy any remaining data into the output buffer and pad to a record.
-	 * Don't worry about truncation or translation, the input buffer is
-	 * always empty when truncating, and no characters have been added for
-	 * translation.  The bottom line is that anything left in the input
-	 * buffer is a truncated record.  Anything left in the output buffer
-	 * just wasn't big enough.
-	 */
-  if 0 != ddc.inx.dbcnt {
-		++st.trunc;
-		(void)memmove(out.dbp, in.dbp - in.dbcnt, in.dbcnt);
-		(void)memset(out.dbp + in.dbcnt, ctab ? ctab[' '] : ' ',
-		    cbsz - in.dbcnt);
-    ddc.out.dbcnt += ddc.cbsz
-	}
-}
-
-/*
- * Convert fixed length (cbsz) records to variable length.  Deletes any
- * trailing blanks and appends a newline.
- *
- * max in buffer:  MAX(ibs, cbsz) + cbsz
- * max out buffer: obs + cbsz
- */
-func unblock(_ ddc : inout DDContext) {
-//	u_char *inp;
-//	const u_char *t;
-//	size_t cnt;
-
-	/* Translation and case conversion. */
-  if let t = ddc.ctab {
-    var cnt = ddc.inx.dbrcnt
-    var inp = ddc.inx.dbp - cnt
-    for (; cnt--; ++inp) {
-      *inp = t[*inp];
+  func block_close(_ ddc : inout DDContext) {
+    /*
+     * Copy any remaining data into the output buffer and pad to a record.
+     * Don't worry about truncation or translation, the input buffer is
+     * always empty when truncating, and no characters have been added for
+     * translation.  The bottom line is that anything left in the input
+     * buffer is a truncated record.  Anything left in the output buffer
+     * just wasn't big enough.
+     */
+    if 0 != ddc.inx.dbcnt {
+      ddc.st.trunc += 1
+      for i in 0..<ddc.inx.dbcnt {
+        ddc.out.db[i+ddc.out.dbp] = ddc.inx.db[ ddc.inx.dbp - ddc.inx.dbcnt + i]
+      }
+//        (void)memmove(out.dbp, in.dbp - in.dbcnt, in.dbcnt);
+      let sp = " ".first!.asciiValue!
+      let spx = ddc.ctab == nil ? sp : ddc.ctab![Int(sp)]
+      for i in 0..<ddc.cbsz - ddc.inx.dbcnt {
+        ddc.out.db[ddc.out.dbp + ddc.inx.dbcnt + i] = spx
+        //       (void)memset(out.dbp + in.dbcnt, ctab ? ctab[' '] : ' ', ddc.cbsz - in.dbcnt);
+      }
+      ddc.out.dbcnt += ddc.cbsz
     }
   }
-	/*
-	 * Copy records (max cbsz size chunks) into the output buffer.  The
-	 * translation has to already be done or we might not recognize the
-	 * spaces.
-	 */
-  for (inp = ddc.inx.db; ddc.inx.dbcnt >= cbsz; inp += cbsz, ddc.inx.dbcnt -= ddc.cbsz) {
-    for (t = inp + cbsz - 1; t >= inp && *t == ' '; --t) {
-      ;
+
+  /*
+   * Convert fixed length (cbsz) records to variable length.  Deletes any
+   * trailing blanks and appends a newline.
+   *
+   * max in buffer:  MAX(ibs, cbsz) + cbsz
+   * max out buffer: obs + cbsz
+   */
+  func unblock(_ ddc : inout DDContext) {
+    //	u_char *inp;
+    //	const u_char *t;
+    //	size_t cnt;
+
+    /* Translation and case conversion. */
+    if let t = ddc.ctab {
+      var cnt = ddc.inx.dbrcnt
+      var inp = ddc.inx.dbp - cnt
+      for i in 0..<cnt {
+        ddc.inx.db[i] = t[Int(ddc.inx.db[i])]
+      }
     }
-		if (t >= inp) {
-			var cnt = t - inp + 1;
-			memmove(out.dbp, inp, cnt);
-			out.dbp += cnt;
-			out.dbcnt += cnt;
-		}
-		*out.dbp++ = '\n';
-    if (++out.dbcnt >= ddc.out.dbsz) {
-      dd_out(0);
+    /*
+     * Copy records (max cbsz size chunks) into the output buffer.  The
+     * translation has to already be done or we might not recognize the
+     * spaces.
+     */
+    var inp = 0
+    while ddc.inx.dbcnt >= ddc.cbsz {
+      var t = inp + ddc.cbsz - 1
+      while t >= inp && ddc.inx.db[t] == " ".first!.asciiValue! {
+        t -= 1
+      }
+      if (t >= inp) {
+        var cnt = t - inp + 1
+        for i in 0 ..< cnt {
+          ddc.out.db[ddc.out.dbp + i] = ddc.out.db[inp + i]
+        }
+        ddc.out.dbp += cnt;
+        ddc.out.dbcnt += cnt;
+      }
+      ddc.out.db[ddc.out.dbp] = "\n".first!.asciiValue!
+      ddc.out.dbp += 1
+      ddc.out.dbcnt += 1
+      if ddc.out.dbcnt >= ddc.out.dbsz {
+        dd_out(false, &ddc)
+      }
+      inp += ddc.cbsz
+      ddc.inx.dbcnt -= ddc.cbsz
+
     }
-	}
-  if 0 != ddc.inx.dbcnt {
-    memmove(ddc.inx.db, ddc.inx.dbp - ddc.inx.dbcnt, ddc.inx.dbcnt)
+    if 0 != ddc.inx.dbcnt {
+      for i in 0..<ddc.inx.dbcnt {
+        ddc.inx.db[i]=ddc.inx.db[ddc.inx.dbp-ddc.inx.dbcnt+i]
+      }
+//      memmove(ddc.inx.db, ddc.inx.dbp - ddc.inx.dbcnt, ddc.inx.dbcnt)
+    }
+    ddc.inx.dbp = ddc.inx.dbcnt
   }
-  ddc.inx.dbp = ddc.inx.db + ddc.inx.dbcnt
-}
 
-func unblock_close(_ ddc : inout DDContext) {
-//	u_char *t;
-//	size_t cnt;
+  func unblock_close(_ ddc : inout DDContext) {
+    //	u_char *t;
+    //	size_t cnt;
 
-  if 0 != ddc.inx.dbcnt {
-    warnx("\(ddc.inx.name): short input record")
-    var t = ddc.inx.db + ddc.inx.dbcnt - 1
-    for (; t >= ddc.inx.db && *t == ' '; --t) {
-      ;
+    if 0 != ddc.inx.dbcnt {
+      warnx("\(ddc.inx.name ?? "(stdin)"): short input record")
+      var t = ddc.inx.dbcnt - 1
+      while t >= 0 && ddc.inx.db[t] == " ".first!.asciiValue! { // remove trailing blanks
+        t -= 1
+      }
+      if t >= 0 {
+        let cnt = t + 1
+        for i in 0..<cnt {
+          ddc.inx.db[ddc.out.dbp + i] = ddc.inx.db[i]
+        }
+        ddc.out.dbp += cnt
+        ddc.out.dbcnt += cnt
+      }
+      ddc.out.dbcnt += 1
+      ddc.out.db[ddc.out.dbp] = "\n".first!.asciiValue!
+      ddc.out.dbp += 1
     }
-    if (t >= ddc.inx.db) {
-      let cnt = t - ddc.inx.db + 1;
-      memmove(ddc.out.dbp, ddc.inx.db, cnt)
-      ddc.out.dbp += cnt;
-      ddc.out.dbcnt += cnt;
-		}
-    ddc.out.dbcnt += 1
-    ddc.out.dbp++ = '\n';
-	}
+  }
 }

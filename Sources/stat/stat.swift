@@ -858,7 +858,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
             case .fifo:	sdata = "|"
             case .directory:	sdata = "/"
             case .regular:
-              if st.permissions.contains([.ownerExecute, .groupExecute, .otherExecute]) {
+              if st.permissions.containsAny(of: [.ownerExecute, .groupExecute, .otherExecute]) {
                 sdata = "*"
               }
             case .symbolicLink:	sdata = "@"

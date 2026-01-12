@@ -39,151 +39,157 @@
 import CMigration
 import Darwin
 
-func seek_offset(_ io : IO) -> Int {
-  let n = io.offset
-  let sz = io.dbsz
-
-//	_Static_assert(sizeof(io->offset) == sizeof(int64_t), "64-bit off_t");
-
-	/*
-	 * If the lseek offset will be negative, verify that this is a special
-	 * device file.  Some such files (e.g. /dev/kmem) permit "negative"
-	 * offsets.
-	 *
-	 * Bail out if the calculation of a file offset would overflow.
-	 */
-  if !io.flags.contains(.ISCHR) && (n < 0 || n > Int.max / sz) {
-    errx(1, "seek offsets cannot be larger than \(Int.max)")
-  }
-  else if io.flags.contains(.ISCHR) && n > UInt.max / UInt(sz) {
-    errx(1, "seek offsets cannot be larger than \(UInt.max)")
-  }
-
-	return  n * sz
-}
-
-/*
- * Position input/output data streams before starting the copy.  Device type
- * dependent.  Seekable devices use lseek, and the rest position by reading.
- * Seeking past the end of file can cause null blocks to be written to the
- * output.
- */
-func pos_in(_ ddc : inout DDContext) {
-//	off_t cnt;
-//	int warned;
-//	ssize_t nr;
-//	size_t bcnt;
-
-	/* If known to be seekable, try to seek on it. */
-  if ddc.inx.flags.contains(.ISSEEK) {
-		errno = 0;
-    if (lseek(ddc.inx.fd.rawValue, Int64(seek_offset(inx)), SEEK_CUR) == -1 &&
-        errno != 0) {
-      err(1, ddc.inx.name)
+extension dd {
+  func seek_offset(_ io : IO) -> Int {
+    let n = io.offset
+    let sz = io.dbsz
+    
+    //	_Static_assert(sizeof(io->offset) == sizeof(int64_t), "64-bit off_t");
+    
+    /*
+     * If the lseek offset will be negative, verify that this is a special
+     * device file.  Some such files (e.g. /dev/kmem) permit "negative"
+     * offsets.
+     *
+     * Bail out if the calculation of a file offset would overflow.
+     */
+    if !io.flags.contains(.ISCHR) && (n < 0 || n > Int.max / sz) {
+      errx(1, "seek offsets cannot be larger than \(Int.max)")
     }
-		return;
-	}
-
-	/* Don't try to read a really weird amount (like negative). */
-  if (ddc.inx.offset < 0) {
-    errx(1, "iseek/skip: illegal offset")
+    else if io.flags.contains(.ISCHR) && n > UInt.max / UInt(sz) {
+      errx(1, "seek offsets cannot be larger than \(UInt.max)")
+    }
+    
+    return  n * sz
   }
-
-	/*
-	 * Read the data.  If a pipe, read until satisfy the number of bytes
-	 * being skipped.  No differentiation for reading complete and partial
-	 * blocks for other devices.
-	 */
-  for (bcnt = ddc.inx.dbsz, cnt = ddc.inx.offset, warned = 0; cnt;) {
-    if ((nr = read(inx.fd, ddc.inx.db, bcnt)) > 0) {
-      if ddc.inx.flags.contains(.ISPIPE) {
-				if (!(bcnt -= nr)) {
-          bcnt = ddc.inx.dbsz;
-					--cnt;
-				}
-      } else {
-        --cnt
-      }
-      if (need_summary) {
-        summary(ddc.ddflags)
-      }
-      if (need_progress) {
-        progress()
-      }
-			continue;
-		}
-
-		if (nr == 0) {
-			if (files_cnt > 1) {
-				--files_cnt;
-				continue;
-			}
-			errx(1, "skip reached end of input")
-		}
-
-		/*
-		 * Input error -- either EOF with no more files, or I/O error.
-		 * If noerror not set die.  POSIX requires that the warning
-		 * message be followed by an I/O display.
-		 */
-    if ddflags.contains(.C_NOERROR) {
-			if (!warned) {
-				warn("%s", inx.name);
-				warned = 1;
-				summary();
-			}
-			continue;
-		}
-		err(1, inx.name)
-	}
-}
-
-func pos_out(_ out : IO) {
+  
   /*
-	 * If not a tape, try seeking on the file.  Seeking on a pipe is
-	 * going to fail, but don't protect the user -- they shouldn't
-	 * have specified the seek operand.
-	 */
-  if out.flags.contains([.ISSEEK, .ISPIPE]) {
-		errno = 0;
-    if (lseek(out.fd.rawValue, Int64(seek_offset(out)), SEEK_CUR) == -1 &&
-        errno != 0) {
-      err(1, out.name)
+   * Position input/output data streams before starting the copy.  Device type
+   * dependent.  Seekable devices use lseek, and the rest position by reading.
+   * Seeking past the end of file can cause null blocks to be written to the
+   * output.
+   */
+  func pos_in(_ ddc : inout DDContext) {
+    //	off_t cnt;
+    //	ssize_t nr;
+    //	size_t bcnt;
+    
+    /* If known to be seekable, try to seek on it. */
+    if ddc.inx.flags.contains(.ISSEEK) {
+      errno = 0;
+      if (lseek(ddc.inx.fd.rawValue, Int64(seek_offset(ddc.inx)), SEEK_CUR) == -1 &&
+          errno != 0) {
+        err(1, ddc.inx.name)
+      }
+      return;
     }
-		return;
-	}
-
-	/* Don't try to read a really weird amount (like negative). */
-  if (out.offset < 0) {
-    errx(1, "oseek/seek: illegal offset")
+    
+    /* Don't try to read a really weird amount (like negative). */
+    if (ddc.inx.offset < 0) {
+      errx(1, "iseek/skip: illegal offset")
+    }
+    
+    /*
+     * Read the data.  If a pipe, read until satisfy the number of bytes
+     * being skipped.  No differentiation for reading complete and partial
+     * blocks for other devices.
+     */
+    var warned = false
+    var bcnt = ddc.inx.dbsz
+    var cnt = ddc.inx.offset
+    while cnt > 0 {
+      let nr = read(ddc.inx.fd.rawValue, &ddc.inx.db, bcnt)
+      if nr > 0 {
+        if ddc.inx.flags.contains(.ISPIPE) {
+          bcnt -= nr
+          if bcnt == 0 {
+            bcnt = ddc.inx.dbsz
+            cnt -= 1
+          }
+        } else {
+          cnt -= 1
+        }
+        if need_summary {
+          summary(ddc.ddflags, ddc.st)
+        }
+        if need_progress {
+          progress(ddc.st)
+        }
+        continue;
+      }
+      
+      if (nr == 0) {
+        if ddc.files_cnt > 1 {
+          ddc.files_cnt -= 1
+          continue
+        }
+        errx(1, "skip reached end of input")
+      }
+      
+      /*
+       * Input error -- either EOF with no more files, or I/O error.
+       * If noerror not set die.  POSIX requires that the warning
+       * message be followed by an I/O display.
+       */
+      if ddc.ddflags.contains(.C_NOERROR) {
+        if !warned {
+          warn(ddc.inx.name ?? "(stdin)")
+          warned = true
+          summary(ddc.ddflags, ddc.st);
+        }
+        continue
+      }
+      err(1, ddc.inx.name ?? "(stdin)")
+    }
   }
-
-	/* Read it. */
-  var cnt = 0
-  while cnt < out.offset {
-    cnt += 1
-		check_terminate();
-    let n = read(out.fd.rawValue, out.db, out.dbsz)
-    if n > 0 {
-      continue
+  
+  func pos_out(_ ddc : inout DDContext) {
+    /*
+     * If not a tape, try seeking on the file.  Seeking on a pipe is
+     * going to fail, but don't protect the user -- they shouldn't
+     * have specified the seek operand.
+     */
+    if ddc.out.flags.containsAny(of: [.ISSEEK, .ISPIPE]) {
+      errno = 0;
+      if (lseek(ddc.out.fd.rawValue, Int64(seek_offset(ddc.out)), SEEK_CUR) == -1 &&
+          errno != 0) {
+        err(1, ddc.out.name)
+      }
+      return;
     }
-		check_terminate();
-    if (n == -1) {
-      err(1, out.name)
+    
+    /* Don't try to read a really weird amount (like negative). */
+    if (ddc.out.offset < 0) {
+      errx(1, "oseek/seek: illegal offset")
     }
-
-		while cnt < out.offset {
+    
+    /* Read it. */
+    var cnt = 0
+    while cnt < ddc.out.offset {
       cnt += 1
-			check_terminate();
-			n = write(out.fd, out.db, out.dbsz);
-			check_terminate();
+      check_terminate(ddc.ddflags, ddc.st)
+      let n = read(ddc.out.fd.rawValue, &ddc.out.db, ddc.out.dbsz)
+      if n > 0 {
+        continue
+      }
+      check_terminate(ddc.ddflags, ddc.st)
       if (n == -1) {
-        err(1, out.name)
+        err(1, ddc.out.name)
       }
-      if (n != out.dbsz) {
-        errx(1, "\(out.name): write failure")
+      
+      while cnt < ddc.out.offset {
+        cnt += 1
+        check_terminate(ddc.ddflags, ddc.st);
+        let n = try? ddc.out.fd.write(ddc.out.db)  //  write(ddc.out.fd.rawValue, &ddc.out.buff, ddc.out.dbsz);
+        check_terminate(ddc.ddflags, ddc.st);
+        if (n == -1) {
+          err(1, ddc.out.name)
+        }
+        if (n != ddc.out.dbsz) {
+          errx(1, "\(ddc.out.name): write failure")
+        }
       }
-		}
-		break
-	}
+      break
+    }
+  }
 }
