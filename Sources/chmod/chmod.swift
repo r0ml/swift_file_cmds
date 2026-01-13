@@ -35,18 +35,15 @@
 import CMigration
 import Darwin
 
-/* Needed by chmod_acl.c. */
-int fflag = 0;
-#endif /*__APPLE__*/
-
 var siginfo : Int32 = 0
 
 func siginfo_handler(_ sig : Int32) {
 	siginfo = 1
 }
 
+@main struct chmod : ShellCommand {
+  let MAX_INHERITANCE_LEVEL = 1024
 
-struct chmod : ShellCommand {
   struct CommandOptions {
     var Hflag = false
     var Lflag = false
@@ -58,6 +55,11 @@ struct chmod : ShellCommand {
     var fts_options = FTSFlags()
     var acloptflags : ACLOptions = []
     var ace_arg_not_required = false
+    var inheritance_level = 0
+    var acl_input : acl_t? = nil
+    var aclpos : Int = -1
+    var mode : String? = nil
+    var sett : mode_t? = nil
     var args : [String] = []
   }
 
@@ -108,9 +110,11 @@ struct chmod : ShellCommand {
 
   func parseOptions() throws(CmdErr) -> CommandOptions {
     var options = CommandOptions()
-    var go = BSDGetopt("ACEHILNPRVXafghinorstuvwx")
-    optloop:
-    while let (k, v) = try go.getopt() {
+    let go = BSDGetopt("ACEHILNPRVXafghinorstuvwx")
+    var backup : String? = nil
+
+  optloop:
+    while let (k, _) = try go.getopt() {
       switch k {
         case "H":
           options.Hflag = true
@@ -138,9 +142,7 @@ struct chmod : ShellCommand {
            */
           options.hflag = true
         case "a":
-          if (argv[optind - 1][0] == '-' &&
-              argv[optind - 1][1] == ch)
-              --optind;
+          backup = "-a"
           break optloop
         case "A":
           //			acloptflags |= ACL_FLAG | ACL_TO_STDOUT;
@@ -181,11 +183,8 @@ struct chmod : ShellCommand {
            * Regardless, we're done argument processing.
            */
         case "g", "o", "r", "s",  "t", "u", "w", "X", "x":
-          if (argv[optind - 1][0] == '-' &&
-              argv[optind - 1][1] == ch &&
-              argv[optind - 1][2] == '\0')
-              --optind;
-          goto done;
+          backup = "-\(k)"
+          break optloop
         case "v":
           options.vflag += 1
         case "?":
@@ -194,8 +193,8 @@ struct chmod : ShellCommand {
           throw CmdErr(1)
       }
     }
-//  done:
-    options.args = go.remaining
+    //  done:
+    options.args = backup == nil ? go.remaining : [backup!]+go.remaining
 
     if (options.args.count < (options.acloptflags.contains(.FLAG) ? 1 : 2)) {
       throw CmdErr(1)
@@ -206,76 +205,84 @@ struct chmod : ShellCommand {
 
     signal(SIGINFO, siginfo_handler)
 
-    if (!options.acloptflags.contains(.FLAG) && ((acloptlen = strlen(argv[0])) > 1) && (argv[0][1] == 'a')) {
-      options.acloptflags.insert(.FLAG)
-      var skipall = false
-      switch (argv[0][0]) {
-        case "+":
-          options.acloptflags.insert(.SET_FLAG)
-        case "-":
-          options.acloptflags.insert(.DELETE_FLAG)
-        case "=":
-          options.acloptflags.insert(.REWRITE_FLAG)
-        default:
-          options.acloptflags.remove(.FLAG)
-          skipall = true
-      }
-
-      if !skipall {
-        if options.args.count < 3 {
-          throw CmdErr(1)
+    if !options.acloptflags.contains(.FLAG) {
+      let av0 = options.args[0]
+      let acloptlen = av0.count
+      if acloptlen > 1 && av0.dropFirst().first == "a" {
+        options.acloptflags.insert(.FLAG)
+        var skipall = false
+        switch av0.first {
+          case "+":
+            options.acloptflags.insert(.SET_FLAG)
+          case "-":
+            options.acloptflags.insert(.DELETE_FLAG)
+          case "=":
+            options.acloptflags.insert(.REWRITE_FLAG)
+          default:
+            options.acloptflags.remove(.FLAG)
+            skipall = true
         }
 
-        if (acloptlen > 2) {
-        sploop:
-          for (index = 2; index < acloptlen; index++) {
-            switch (argv[0][index]) {
-              case "#":
-                options.acloptflags.insert(.ORDER_FLAG)
+        if !skipall {
+          if options.args.count < 3 {
+            throw CmdErr(1)
+          }
 
-                if (options.args.count < (options.acloptflags.contains(.DELETE_FLAG) ? 3 : 4)) {
-                  throw CmdErr(1)
-                }
-                options.args.removeFirst()
-                errno = 0
-                aclpos = strtol(argv[0], &ep, 0);
+          if (acloptlen > 2) {
+          sploop:
+            for ch in options.args[0] {
+              switch ch {
+                case "#":
+                  options.acloptflags.insert(.ORDER_FLAG)
 
-                if (aclpos > ACL_MAX_ENTRIES || aclpos < 0) {
-                  errno = ERANGE;
-                }
-                if (errno || *ep) {
-                  errx(1, "Invalid ACL entry number: %ld", aclpos);
-                }
-                if options.acloptflags.contains(.DELETE_FLAG) {
-                  options.ace_arg_not_required = true
-                }
-                break sploop
-              case "i":
-                options.acloptflags.insert(.INHERIT_FLAG)
-                /* The +aii.. syntax to specify
-                 * inheritance level is rather unwieldy,
-                 * find an alternative.
-                 */
-                inheritance_level++;
-                if (inheritance_level > 1) {
-                  warnx("Inheritance across more than one generation is not currently supported");
-                }
-                if (inheritance_level >= MAX_INHERITANCE_LEVEL) {
+                  if (options.args.count < (options.acloptflags.contains(.DELETE_FLAG) ? 3 : 4)) {
+                    throw CmdErr(1)
+                  }
+                  options.args.removeFirst()
+                  errno = 0
+                  guard let aclpos = Int(options.args[0]) else {
+                    errx(1, "Invalid ACL entry number: \(options.args[0])")
+                    fatalError()
+                  }
+
+                  if aclpos > ACL_MAX_ENTRIES || aclpos < 0 {
+                    errno = ERANGE
+                  }
+                  options.aclpos = aclpos
+
+                  if options.acloptflags.contains(.DELETE_FLAG) {
+                    options.ace_arg_not_required = true
+                  }
                   break sploop
-                }
-                break;
-              default:
-                errno = EINVAL;
-                throw CmdErr(1)
+                case "i":
+                  options.acloptflags.insert(.INHERIT_FLAG)
+                  /* The +aii.. syntax to specify
+                   * inheritance level is rather unwieldy,
+                   * find an alternative.
+                   */
+                  options.inheritance_level += 1
+                  if options.inheritance_level > 1 {
+                    warnx("Inheritance across more than one generation is not currently supported")
+                  }
+                  if options.inheritance_level >= MAX_INHERITANCE_LEVEL {
+                    break sploop
+                  }
+                  break;
+                default:
+                  errno = EINVAL;
+                  throw CmdErr(1)
+              }
             }
           }
+          //      apdone:
+          options.args.removeFirst()
         }
-//      apdone:
-        options.args.removeFirst()
       }
     }
-  apnoacl:
+//  apnoacl:
 
+
+    var mode : String? = nil
 
     if options.Rflag {
       if options.hflag {
@@ -298,32 +305,33 @@ struct chmod : ShellCommand {
 
 
     if options.acloptflags.contains(.FROM_STDIN) {
-//      ssize_t readval = 0;
-//      size_t readtotal = 0;
+      //      ssize_t readval = 0;
+      //      size_t readtotal = 0;
 
       let MAX_ACL_TEXT_SIZE = 4096
-      let mode = Array(repeating: UInt8(0), count: MAX_ACL_TEXT_SIZE)
 
       /* Read the ACEs from STDIN */
-      repeat {
-        readtotal += readval;
-        readval = read(STDIN_FILENO, mode + readtotal,
-                       MAX_ACL_TEXT_SIZE);
-      } while ((readval > 0) && (readtotal <= MAX_ACL_TEXT_SIZE));
+      var mode = Array<UInt8>()
+      while true {
+        do {
+          let k = try FileDescriptor.standardInput.readUpToCount(MAX_ACL_TEXT_SIZE)
+          //        read(STDIN_FILENO, mode + readtotal, MAX_ACL_TEXT_SIZE)
+          if k.isEmpty { break }
+          mode.append(contentsOf: k)
+        } catch {
+          errx(1, "-E specified, but read from STDIN failed")
+        }
+      }
 
-      if (0 == readtotal) {
+      if mode.isEmpty {
         errx(1, "-E specified, but read from STDIN failed");
       }
-      else {
-        mode[readtotal - 1] = '\0';
-      }
-      --argv;
     }
     else {
-      mode = *argv;
+      mode = options.args.removeFirst()
     }
 
-    if options.acloptflags.contains(.FLAG) {
+    if options.acloptflags.contains(.FLAG) {
 
       /* Are we deleting by entry number, verifying
        * canonicity or performing some other operation that
@@ -331,21 +339,25 @@ struct chmod : ShellCommand {
        * entry to convert.
        */
       if options.ace_arg_not_required {
-        --argv;
+        // FIXME: what happens here?
+//        --argv;
       }
       else {
         /* Parse the text into an ACL*/
-        acl_input = parse_acl_entries(mode);
-        if (acl_input == NULL) {
-          errx(1, "Invalid ACL specification: %s", mode);
+        let k = parse_acl_entries(mode!)
+        guard let k else {
+          errx(1, "Invalid ACL specification: \(mode!)")
+          fatalError()
         }
+        options.acl_input = k
       }
     }
     else {
-
-      if ((set = setmode(mode)) == NULL) {
-        errx(1, "Invalid file mode: %s", mode);
+      guard let sett = setmode(mode) else {
+        errx(1, "Invalid file mode: \(mode!)")
+        fatalError()
       }
+      options.sett = sett.assumingMemoryBound(to: UInt16.self).pointee
 
     }
     return options
@@ -354,7 +366,7 @@ struct chmod : ShellCommand {
   func runCommand() async throws(CmdErr) {
 
     guard let ftsp = try? FTSWalker(path: options.args, options: options.fts_options, sort: nil) else {
-//    if ((ftsp = fts_open(++argv, fts_options, 0)) == NULL) {
+      //    if ((ftsp = fts_open(++argv, fts_options, 0)) == NULL) {
       err(1, "fts_open");
       fatalError()
     }
@@ -403,19 +415,21 @@ struct chmod : ShellCommand {
 
       /* If an ACL manipulation option was specified, manipulate */
       if options.acloptflags.contains(.FLAG)	{
-        if (0 != modify_file_acl(acloptflags, p->fts_accpath, acl_input, (int)aclpos, inheritance_level, !hflag)) {
+        if try 0 != modify_file_acl(options.acloptflags, p.accpath, options.acl_input, options.aclpos, options.inheritance_level, !options.hflag) {
           rval = 1;
         }
       }
       else {
 
-        let newmode = getmode(set, p.statp!.permissions)
+        let newmode = withUnsafePointer(to: options.sett) {
+          getmode($0, p.statp!.permissions.rawValue)
+        }
         /*
          * With NFSv4 ACLs, it is possible that applying a mode
          * identical to the one computed from an ACL will change
          * that ACL.
          */
-        if newmode /* & ALLPERMS) */ == p.statp.permissions /* & ALLPERMS)) */ {
+        if newmode /* & ALLPERMS) */ == p.statp!.permissions.rawValue /* & ALLPERMS)) */ {
           continue
         }
         if (fchmodat(AT_FDCWD, p.accpath, newmode, atflag) == -1 && !options.fflag) {
@@ -426,7 +440,7 @@ struct chmod : ShellCommand {
 
           if options.vflag > 1 || 0 != siginfo {
             let m1 = strmode(p.statp!.filetype, p.statp!.permissions)
-            let m2 = strmode(p.statp!.filetype, newmode)
+            let m2 = strmode(p.statp!.filetype, FilePermissions(rawValue: newmode))
 
             let a = String(p.statp!.permissions.rawValue, radix: 8)
             // FIXME: filetype does not save the rawValue
@@ -444,10 +458,6 @@ struct chmod : ShellCommand {
       err(1, "fts_read")
     }
 
-    if (mode && (acloptflags & ACL_FROM_STDIN)) {
-      free(mode);
-    }
-
     exit(rval);
   }
 
@@ -457,3 +467,4 @@ usage:\tchmod [-fhv] [-R [-H | -L | -P]] [-a | +a | =a  [i][# [ n]]] mode|entry 
 """ /* add -A and -V when implemented */
 
 
+}

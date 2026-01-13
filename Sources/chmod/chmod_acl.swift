@@ -36,53 +36,64 @@
 
 import CMigration
 import Darwin
+import Darwin.membership
 
 extension chmod {
 
+  struct ACLPermType : OptionSet {
+    var rawValue : Int32
 
-  struct {
-    acl_perm_t	perm;
-    char		*name;
-    int		flags;
-    #define ACL_PERM_DIR	(1<<0)
-    #define ACL_PERM_FILE	(1<<1)
+    static var DIR = Self(rawValue: 1)
+    static var FILE = Self(rawValue: 2)
   }
 
-  var acl_perms[] = {
-    {ACL_READ_DATA,		"read",		ACL_PERM_FILE},
-    {ACL_LIST_DIRECTORY,	"list",		ACL_PERM_DIR},
-    {ACL_WRITE_DATA,	"write",	ACL_PERM_FILE},
-    {ACL_ADD_FILE,		"add_file",	ACL_PERM_DIR},
-    {ACL_EXECUTE,		"execute",	ACL_PERM_FILE},
-    {ACL_SEARCH,		"search",	ACL_PERM_DIR},
-    {ACL_DELETE,		"delete",	ACL_PERM_FILE | ACL_PERM_DIR},
-    {ACL_APPEND_DATA,	"append",	ACL_PERM_FILE},
-    {ACL_ADD_SUBDIRECTORY,	"add_subdirectory", ACL_PERM_DIR},
-    {ACL_DELETE_CHILD,	"delete_child",	ACL_PERM_DIR},
-    {ACL_READ_ATTRIBUTES,	"readattr",	ACL_PERM_FILE | ACL_PERM_DIR},
-    {ACL_WRITE_ATTRIBUTES,	"writeattr",	ACL_PERM_FILE | ACL_PERM_DIR},
-    {ACL_READ_EXTATTRIBUTES, "readextattr",	ACL_PERM_FILE | ACL_PERM_DIR},
-    {ACL_WRITE_EXTATTRIBUTES, "writeextattr", ACL_PERM_FILE | ACL_PERM_DIR},
-    {ACL_READ_SECURITY,	"readsecurity",	ACL_PERM_FILE | ACL_PERM_DIR},
-    {ACL_WRITE_SECURITY,	"writesecurity", ACL_PERM_FILE | ACL_PERM_DIR},
-    {ACL_CHANGE_OWNER,	"chown",	ACL_PERM_FILE | ACL_PERM_DIR},
-    {0, NULL, 0}
-  };
+  struct ACLPerm {
+    var perm : acl_perm_t
+    var flags : ACLPermType
 
-  struct {
-    acl_flag_t	flag;
-    char		*name;
-    int		flags;
+    init(_ a : acl_perm_t, _ b : ACLPermType) {
+      perm = a
+      flags = b
+    }
   }
 
-  var acl_flags[] = {
-    {ACL_ENTRY_INHERITED,		"inherited",		ACL_PERM_FILE | ACL_PERM_DIR},
-    {ACL_ENTRY_FILE_INHERIT, 	"file_inherit",		ACL_PERM_DIR},
-    {ACL_ENTRY_DIRECTORY_INHERIT,	"directory_inherit",	ACL_PERM_DIR},
-    {ACL_ENTRY_LIMIT_INHERIT,	"limit_inherit",	ACL_PERM_FILE | ACL_PERM_DIR},
-    {ACL_ENTRY_ONLY_INHERIT,	"only_inherit",		ACL_PERM_DIR},
-    {0, NULL, 0}
-  };
+  static var acl_perms : [String:ACLPerm] = [
+    "read" : .init(ACL_READ_DATA, .FILE),
+    "llist": .init(ACL_LIST_DIRECTORY, .DIR),
+    "write": .init(ACL_WRITE_DATA, .FILE),
+    "add_file" : .init(ACL_ADD_FILE, .DIR),
+    "execute" : .init(ACL_EXECUTE, .FILE),
+    "search" : .init(ACL_SEARCH, .DIR),
+    "delete" : .init(ACL_DELETE,	[.FILE, .DIR]),
+    "append" : .init(ACL_APPEND_DATA,	.FILE),
+    "add_subdirectory" : .init(ACL_ADD_SUBDIRECTORY,	.DIR),
+    "delete_child" : .init(ACL_DELETE_CHILD, .DIR),
+    "readattr" : .init(ACL_READ_ATTRIBUTES,	[.FILE, .DIR]),
+    "writeattr" : .init(ACL_WRITE_ATTRIBUTES,	[.FILE, .DIR]),
+    "readextattr" : .init(ACL_READ_EXTATTRIBUTES, [.FILE, .DIR]),
+    "writeextattr" : .init(ACL_WRITE_EXTATTRIBUTES, [.FILE, .DIR ] ),
+    "readsecurity" : .init(ACL_READ_SECURITY,	[.FILE, .DIR]),
+    "writesecurity" : .init(ACL_WRITE_SECURITY,	[.FILE, .DIR]),
+    "chown" : .init(ACL_CHANGE_OWNER,	[.FILE, .DIR]),
+  ]
+
+  struct ACLFlag {
+    var flag : acl_flag_t
+    var flags : ACLPermType
+
+    init(_ a : acl_flag_t, _ b : ACLPermType) {
+      flag = a
+      flags = b
+    }
+  }
+
+  static var acl_flags : [String:ACLFlag] = [
+    "inherited" : .init(ACL_ENTRY_INHERITED, [.FILE, .DIR] ),
+    "file_inherit" : .init(ACL_ENTRY_FILE_INHERIT, .DIR),
+    "directory_inherit" : .init(ACL_ENTRY_DIRECTORY_INHERIT,	.DIR),
+    "limit_inherit" : .init(ACL_ENTRY_LIMIT_INHERIT,	[.FILE, .DIR]),
+    "only_inherit" : .init(ACL_ENTRY_ONLY_INHERIT, .DIR),
+]
 
   /* TBD - Many of these routines could potentially be considered for
    * inclusion in a library. If that is done, either avoid use of "err"
@@ -90,30 +101,34 @@ extension chmod {
    * or use err_set_exit() and make various structures globals.
    */
 
-  #define NAME_USER   (1)
-  #define NAME_GROUP  (2)
-  #define NAME_EITHER (NAME_USER | NAME_GROUP)
+  enum NameType : Int {
+    case USER = 1
+    case GROUP = 2
+    case EITHER = 3
+  }
 
   /* Perform a name to uuid mapping - calls through to memberd */
 
-  uuid_t *
-  name_to_uuid(char *tok, int nametype) {
-    uuid_t *entryg = NULL;
-    size_t len = strlen(tok);
+  func name_to_uuid(_ tok : String, _ nametype : NameType) -> [UInt8] {
+//    uuid_t *entryg = NULL;
+//    size_t len = strlen(tok);
 
-    if ((entryg = (uuid_t *) calloc(1, sizeof(uuid_t))) == NULL) {
-      errx(1, "Unable to allocate a uuid");
-    }
+//    if ((entryg = (uuid_t *) calloc(1, sizeof(uuid_t))) == NULL) {
+//      errx(1, "Unable to allocate a uuid");
+//    }
 
-    if ((nametype & NAME_USER) && mbr_identifier_to_uuid(ID_TYPE_USERNAME, tok, len, *entryg) == 0) {
+    var entryg = Array(repeating: UInt8(0), count: MemoryLayout<uuid_t>.size)
+
+    if (nametype == .USER || nametype == .EITHER) && mbr_identifier_to_uuid(ID_TYPE_USERNAME, tok, tok.count, &entryg) == 0 {
       return entryg;
     }
 
-    if ((nametype & NAME_GROUP) && mbr_identifier_to_uuid(ID_TYPE_GROUPNAME, tok, len, *entryg) == 0) {
-      return entryg;
+    if (nametype == .GROUP || nametype == .EITHER) && mbr_identifier_to_uuid(ID_TYPE_GROUPNAME, tok, tok.count, &entryg) == 0 {
+      return entryg
     }
 
-    errx(1, "Unable to translate '%s' to a UUID", tok);
+    errx(1, "Unable to translate '\(tok)' to a UUID")
+    fatalError()
   }
 
   enum Match : Int {
@@ -124,133 +139,134 @@ extension chmod {
     case SUPERSET = -3
   }
 
+  enum ACLTag : UInt32 {
+    case UNDEFINED_TAG = 0
+    case EXTENDED_ALLOW = 1
+    case EXTENDED_DENY = 2
+  }
+
   /* Convert an acl entry in string form to an acl_entry_t */
-  func parse_entry(char *entrybuf, acl_entry_t newent) {
-    char *tok;
+  func parse_entry(_ entrybuf : String, _ newent : acl_entry_t?) {
+/*    char *tok;
     char *pebuf;
     uuid_t *entryg;
-
-    acl_tag_t	tag;
-    acl_permset_t	perms;
-    acl_flagset_t	flags;
+*/
+    var perms : acl_permset_t?
+    var flags : acl_flagset_t?
+    /*
     unsigned permcount = 0;
     unsigned pindex = 0;
     char *delimiter = " ";
     int nametype = NAME_EITHER;
-
+*/
     acl_get_permset(newent, &perms);
-    acl_get_flagset_np(newent, &flags);
+    acl_get_flagset_np(UnsafeMutableRawPointer(newent), &flags);
 
-    pebuf = entrybuf;
+    var pebuf = entrybuf
+    var nametype : NameType = .EITHER
 
-    if (0 == strncmp(entrybuf, "user:", 5)) {
-      nametype = NAME_USER;
-      pebuf += 5;
-    } else if (0 == strncmp(entrybuf, "group:", 6)) {
-      nametype = NAME_GROUP;
-      pebuf += 6;
+    if entrybuf.hasPrefix("user:") {
+      nametype = .USER
+      pebuf.removeFirst(5)
+    } else if entrybuf.hasPrefix("group:") {
+      nametype = .GROUP
+      pebuf.removeFirst(6)
     }
 
-    if (strchr(pebuf, ':')) /* User/Group names can have spaces */
-        delimiter = ":";
-    tok = strsep(&pebuf, delimiter);
+    let delimiter = pebuf.contains(":") ? ":" : " "
+    let tok = pebuf.split(separator: delimiter, maxSplits: 2)
 
-    if ((tok == NULL) || *tok == '\0') {
-      errx(1, "Invalid entry format -- expected user or group name");
+    if tok[0].isEmpty {
+      errx(1, "Invalid entry format -- expected user or group name")
     }
 
     /* parse the name into a qualifier */
-    entryg = name_to_uuid(tok, nametype);
+    var entryg = name_to_uuid(String(tok[0]), nametype)
 
-    tok = strsep(&pebuf, ": "); /* Stick with delimiter? */
-    if ((tok == NULL) || *tok == '\0') {
-      errx(1, "Invalid entry format -- expected allow or deny");
+    if tok.count < 2 || tok[1].isEmpty {
+      errx(1, "Invalid entry format -- expected allow or deny")
     }
 
+    var tag : ACLTag = ACLTag.UNDEFINED_TAG
+
     /* is the verb 'allow' or 'deny'? */
-    if (!strcmp(tok, "allow")) {
-      tag = ACL_EXTENDED_ALLOW;
-    } else if (!strcmp(tok, "deny")) {
-      tag = ACL_EXTENDED_DENY;
+    if tok[1] == "allow" {
+      tag = .EXTENDED_ALLOW
+    } else if tok[1] == "deny" {
+      tag = .EXTENDED_DENY
     } else {
-      errx(1, "Unknown tag type '%s'", tok);
+      errx(1, "Unknown tag type '\(tok[1])'")
     }
 
     /* parse permissions */
-    for (; (tok = strsep(&pebuf, ",")) != NULL;) {
-      if (*tok != '\0') {
+    var permcount = 0
+    pebuf = tok.count > 2 ? String(tok[2]) : ""
+
+    outerloop:
+    for tok in pebuf.split(separator: ",", omittingEmptySubsequences: true) {
         /* is it a permission? */
-        for (pindex = 0; acl_perms[pindex].name != NULL; pindex++) {
-          if (!strcmp(acl_perms[pindex].name, tok)) {
+      if let k = Self.acl_perms[String(tok)] {
             /* got one */
-            acl_add_perm(perms, acl_perms[pindex].perm);
-            permcount++;
-            goto found;
+        acl_add_perm(perms, k.perm)
+            permcount += 1
+            continue outerloop
           }
-        }
+
         /* is it a flag? */
-        for (pindex = 0; acl_flags[pindex].name != NULL; pindex++) {
-          if (!strcmp(acl_flags[pindex].name, tok)) {
+
+      if let k = Self.acl_flags[String(tok)] {
             /* got one */
-            acl_add_flag_np(flags, acl_flags[pindex].flag);
-            permcount++;
-            goto found;
+        acl_add_flag_np(flags, k.flag)
+            permcount += 1
+            continue outerloop
           }
-        }
-        errx(1,"Invalid permission type '%s'", tok);
-      found:
+        errx(1,"Invalid permission type '\(tok)'")
+//      found:
         continue;
-      }
     }
-    if (0 == permcount) {
+    if 0 == permcount {
       errx(1, "No permissions specified");
     }
-    acl_set_tag_type(newent, tag);
-    acl_set_qualifier(newent, entryg);
+    acl_set_tag_type(newent, acl_tag_t(tag.rawValue));
+    acl_set_qualifier(newent, &entryg);
     acl_set_permset(newent, perms);
-    acl_set_flagset_np(newent, flags);
-    free(entryg);
+    acl_set_flagset_np(UnsafeMutableRawPointer(newent), flags);
+    free(&entryg);
   }
 
   /* Convert one or more acl entries in string form to an acl_t */
-  func parse_acl_entries(const char *input) -> acl_t {
-    acl_t acl_input;
+  func parse_acl_entries(_ input : String) -> acl_t? {
+/*    acl_t acl_input;
     acl_entry_t newent;
     char *inbuf;
     char *oinbuf;
 
     char **bufp, *entryv[ACL_MAX_ENTRIES];
+*/
 
-    inbuf = malloc(MAX_ACL_TEXT_SIZE);
+    let inbuf = input // strncpy(inbuf, input, MAX_ACL_TEXT_SIZE);
+//    inbuf[MAX_ACL_TEXT_SIZE - 1] = '\0';
 
-    if (inbuf == NULL)
-        err(1, "malloc() failed");
-    strncpy(inbuf, input, MAX_ACL_TEXT_SIZE);
-    inbuf[MAX_ACL_TEXT_SIZE - 1] = '\0';
-
-    if ((acl_input = acl_init(1)) == NULL)
-        err(1, "acl_init() failed");
-
-    oinbuf = inbuf;
-
-    for (bufp = entryv; (*bufp = strsep(&oinbuf, "\n")) != NULL;)
-          if (**bufp != '\0') {
-      if (0 != acl_create_entry(&acl_input, &newent))
-          err(1, "acl_create_entry() failed");
-      if (0 != parse_entry(*bufp, newent)) {
-        errx(1, "Failed parsing entry '%s'", *bufp);
-      }
-      if (++bufp >= &entryv[ACL_MAX_ENTRIES - 1]) {
-        errx(1, "Too many entries");
-      }
+    var acl_input = acl_init(1)
+    if acl_input == nil {
+      err(1, "acl_init() failed")
     }
 
-    free(inbuf);
-    return acl_input;
+    let oinbuf = inbuf.split(separator: "\n", omittingEmptySubsequences: true)
+    for bufp in oinbuf {
+      var newent : acl_entry_t?
+      if 0 != acl_create_entry(&acl_input, &newent) {
+        err(1, "acl_create_entry() failed")
+      }
+      parse_entry(String(bufp), newent)
+//        errx(1, "Failed parsing entry '%s'", *bufp);
+//      }
+    }
+    return acl_input
   }
 
   /* XXX No Libc support for inherited entries and generation determination yet */
-  func get_inheritance_level(acl_entry_t entry) -> UInt {
+  func get_inheritance_level(_ entry : acl_entry_t) -> UInt {
     /* XXX to be implemented */
     return 1
   }
@@ -260,39 +276,43 @@ extension chmod {
    * than inherited entries.
    */
 
-  func score_acl_entry(acl_entry_t entry) -> Int {
+  func score_acl_entry(_ entry : acl_entry_t?) -> Int {
+    let MINIMUM_TIER = -1000
+    let INHERITANCE_TIER = -5
+    var score = 0;
 
-    acl_tag_t	tag;
-    acl_flagset_t	flags;
-    acl_permset_t	perms;
-
-    int score = 0;
-
-    if (entry == NULL)
-        return (MINIMUM_TIER);
-
-    if (acl_get_tag_type(entry, &tag) != 0) {
-      err(1, "Malformed ACL entry, no tag present");
+    guard let entry else {
+      return (MINIMUM_TIER)
     }
-    if (acl_get_flagset_np(entry, &flags) != 0){
-      err(1, "Unable to obtain flagset");
-    }
-    if (acl_get_permset(entry, &perms) != 0)
-        err(1, "Malformed ACL entry, no permset present");
 
-    switch(tag) {
-      case ACL_EXTENDED_ALLOW:
-        break;
-      case ACL_EXTENDED_DENY:
-        score++;
-        break;
+    var tag : acl_tag_t = acl_tag_t(0)
+    if acl_get_tag_type(entry, &tag) != 0 {
+      err(1, "Malformed ACL entry, no tag present")
+    }
+
+    var flags : acl_flagset_t?
+    if acl_get_flagset_np(UnsafeMutableRawPointer(entry), &flags) != 0 {
+      err(1, "Unable to obtain flagset")
+    }
+
+    var perms : acl_permset_t?
+    if acl_get_permset(entry, &perms) != 0 {
+      err(1, "Malformed ACL entry, no permset present")
+    }
+
+    switch ACLTag(rawValue: tag.rawValue) {
+      case .EXTENDED_ALLOW:
+        break
+      case .EXTENDED_DENY:
+        score += 1
       default:
-        errx(1, "Unknown tag type %d present in ACL entry", tag);
-        /* NOTREACHED */
+        errx(1, "Unknown tag type \(tag) present in ACL entry")
     }
 
-    if (acl_get_flag_np(flags, ACL_ENTRY_INHERITED))
-        score += get_inheritance_level(entry) * INHERITANCE_TIER;
+    // FIXME: acl_flag_t
+    if 0 != acl_get_flag_np(flags, acl_flag_t(UInt32(ACLEntry.ENTRY_INHERITED.rawValue))) {
+      score += Int(get_inheritance_level(entry)) * INHERITANCE_TIER
+    }
 
     return score;
   }
@@ -310,70 +330,80 @@ extension chmod {
    *  MATCH_NONE if they are disjoint
    */
 
-  func compare_acl_permsets(acl_permset_t aperms, acl_permset_t bperms) -> Int {
-    int i;
+  func compare_acl_permsets(_ aperms : acl_permset_t?, _ bperms : acl_permset_t?) -> Match {
+    var i = 0
     /* TBD Implement other match levels as needed */
-    for (i = 0; acl_perms[i].name != NULL; i++) {
-      if (acl_get_perm_np(aperms, acl_perms[i].perm) !=
-          acl_get_perm_np(bperms, acl_perms[i].perm))
-          return MATCH_NONE;
+    for (_, p) in Self.acl_perms {
+      if acl_get_perm_np(aperms, p.perm) !=
+          acl_get_perm_np(bperms, p.perm) {
+        return .NONE
+      }
+      i += 1
     }
-    return MATCH_EXACT;
+    return .EXACT
   }
 
-  func compare_acl_flagsets(acl_flagset_t aflags, acl_flagset_t bflags) -> Int {
-    int i;
+  func compare_acl_flagsets(_ aflags : acl_flagset_t?, _ bflags : acl_flagset_t?) -> Match {
+    var i = 0
     /* TBD Implement other match levels as needed */
-    for (i = 0; acl_flags[i].name != NULL; i++) {
-      if (acl_get_flag_np(aflags, acl_flags[i].flag) !=
-          acl_get_flag_np(bflags, acl_flags[i].flag)) {
-        return MATCH_NONE;
+    for (_, p) in Self.acl_flags {
+      if acl_get_flag_np(aflags, p.flag) !=
+          acl_get_flag_np(bflags, p.flag) {
+        return .NONE
       }
+      i += 1
     }
-    return MATCH_EXACT;
+    return .EXACT
   }
 
   /* Compares two ACL entries for equality */
-  func compare_acl_entries(_ a : acl_entry_t, _ b : acl_entry_t) -> Match {
+  func compare_acl_entries(_ a : acl_entry_t?, _ b : acl_entry_t?) -> Match {
 /*    acl_tag_t atag, btag;
     acl_permset_t aperms, bperms;
     acl_flagset_t aflags, bflags;
     int pcmp = 0, fcmp = 0;
     void *aqual, *bqual;
 */
-    let aqual = acl_get_qualifier(a)
-    let bqual = acl_get_qualifier(b)
+    let aqual = acl_get_qualifier(a).assumingMemoryBound(to: uuid_t.self)
+    let bqual = acl_get_qualifier(b).assumingMemoryBound(to: uuid_t.self)
 
     let comparex = compare_acl_qualifiers(aqual, bqual)
     acl_free(aqual)
     acl_free(bqual)
 
-    if compare != 0 {
+    if comparex != 0 {
       return .NONE
     }
 
-    if (0 != acl_get_tag_type(a, &atag)) {
-      err(1, "No tag type present in entry");
+    var atag : acl_tag_t = acl_tag_t(0)
+    var btag : acl_tag_t = acl_tag_t(0)
+
+    if 0 != acl_get_tag_type(a, &atag) {
+      err(1, "No tag type present in entry")
     }
-    if (0!= acl_get_tag_type(b, &btag)) {
-      err(1, "No tag type present in entry");
+    if 0 != acl_get_tag_type(b, &btag) {
+      err(1, "No tag type present in entry")
     }
 
-    if (atag != btag) {
+    if atag != btag {
       return .NONE
     }
 
-    if ((acl_get_permset(a, &aperms) != 0) ||
-        (acl_get_flagset_np(a, &aflags) != 0) ||
+    var aperms : acl_permset_t?
+    var bperms : acl_permset_t?
+    var aflags : acl_flagset_t?
+    var bflags : acl_flagset_t?
+    if (acl_get_permset(a, &aperms) != 0) ||
+        (acl_get_flagset_np(UnsafeMutableRawPointer(a), &aflags) != 0) ||
         (acl_get_permset(b, &bperms) != 0) ||
-        (acl_get_flagset_np(b, &bflags) != 0)) {
+        (acl_get_flagset_np(UnsafeMutableRawPointer(b), &bflags) != 0) {
       err(1, "error fetching permissions");
     }
 
-    pcmp = compare_acl_permsets(aperms, bperms);
-    fcmp = compare_acl_flagsets(aflags, bflags);
+    let pcmp = compare_acl_permsets(aperms, bperms);
+    let fcmp = compare_acl_flagsets(aflags, bflags);
 
-    if ((pcmp == MATCH_NONE) || (fcmp == MATCH_NONE)) {
+    if pcmp == Match.NONE || fcmp == .NONE {
       return .PARTIAL
     }
     else {
@@ -391,7 +421,7 @@ extension chmod {
    * inherited allow (grandparent)
    * ...
    */
-  func is_canonical(_ acl : acl_t) -> Bool {
+  func is_canonical(_ acl : acl_t?) -> Bool {
     var entry : acl_entry_t?
     var next_score = 0
 
@@ -401,10 +431,9 @@ extension chmod {
     }
 
     var score = score_acl_entry(entry);
-    var aindex = 0
     while acl_get_entry(acl, ACLEntry.NEXT_ENTRY.rawValue, &entry) == 0 {
-         aindex += 1
-        if (score < (next_score = score_acl_entry(entry))) {
+      next_score = score_acl_entry(entry)
+        if score < next_score {
           return false
       }
       score = next_score
@@ -416,167 +445,170 @@ extension chmod {
   /* Iterate through an ACL, and find the canonical position for the
    * specified entry
    */
-  func find_canonical_position(acl_t acl, acl_entry_t modifier) -> UInt {
-
+  func find_canonical_position(_ acl : acl_t?, _ modifier : acl_entry_t) -> Int32 {
+/*
     acl_entry_t entry;
     int mscore = 0;
     unsigned mpos = 0;
-
+*/
     /* Check if there's an entry with the same qualifier
      * and tag type; if not, find the appropriate slot
      * for the score.
      */
 
-    if (0 != acl_get_entry(acl, ACL_FIRST_ENTRY, &entry)) {
-      return 0;
+    var entry : acl_entry_t?
+    if 0 != acl_get_entry(acl, ACLEntry.FIRST_ENTRY.rawValue, &entry) {
+      return 0
     }
 
-    mscore = score_acl_entry(modifier);
+    let mscore = score_acl_entry(modifier);
 
-    while (mscore < score_acl_entry(entry)) {
-
-      mpos++;
-
-      if (0 != acl_get_entry(acl, ACL_NEXT_ENTRY, &entry)) {
-        break;
+    var mpos : Int32 = 0
+    while mscore < score_acl_entry(entry) {
+      mpos += 1
+      if 0 != acl_get_entry(acl, ACLEntry.NEXT_ENTRY.rawValue, &entry) {
+        break
       }
-
     }
-    return mpos;
+    return mpos
   }
-
-  int canonicalize_acl_entries(acl_t acl);
 
   /* For a given acl_entry_t "modifier", find the first exact or
    * partially matching entry from the specified acl_t acl
    */
 
-  func find_matching_entry (acl_t acl, acl_entry_t modifier, acl_entry_t *rentryp,
-                       unsigned match_inherited) -> Int {
+  func find_matching_entry (_ acl : acl_t?, _ modifier : acl_entry_t, _ rentryp : inout acl_entry_t?,
+                            _ match_inherited : UInt) -> Match {
 
-    acl_entry_t entry = NULL;
+    var entry : acl_entry_t?
+    var fcmp = Match.NONE
 
-    unsigned aindex;
-    int cmp, fcmp = MATCH_NONE;
+    while acl_get_entry(acl, (entry == nil ? ACLEntry.FIRST_ENTRY : .NEXT_ENTRY).rawValue, &entry) == 0 {
+      let cmp = compare_acl_entries(entry!, modifier);
+      if cmp == Match.EXACT || cmp == Match.PARTIAL {
+        if 0 != match_inherited {
+          var eflags : acl_flagset_t?
+          var mflags : acl_flagset_t?
+          if 0 != acl_get_flagset_np(UnsafeMutableRawPointer(modifier), &mflags) {
+            err(1, "Unable to get flagset")
+          }
 
-    for (aindex = 0;
-         acl_get_entry(acl, entry == NULL ? ACL_FIRST_ENTRY :
-                        ACL_NEXT_ENTRY, &entry) == 0;
-         aindex++)	{
-      cmp = compare_acl_entries(entry, modifier);
-      if ((cmp == Match.EXACT) || (cmp == Match.PARTIAL)) {
-        if (match_inherited) {
-          acl_flagset_t eflags, mflags;
-
-          if (0 != acl_get_flagset_np(modifier, &mflags)) {
+          if 0 != acl_get_flagset_np(&entry, &eflags) {
             err(1, "Unable to get flagset");
           }
 
-          if (0 != acl_get_flagset_np(entry, &eflags)) {
-            err(1, "Unable to get flagset");
-          }
-
-          if (compare_acl_flagsets(mflags, eflags) == MATCH_EXACT) {
-            *rentryp = entry;
-            fcmp = cmp;
+          if compare_acl_flagsets(mflags!, eflags!) == .EXACT {
+            rentryp = entry
+            fcmp = cmp
           }
         }
         else {
-          *rentryp = entry;
+          rentryp = entry
           fcmp = cmp;
         }
       }
-      if (fcmp == MATCH_EXACT) {
+      if fcmp == .EXACT {
         break;
       }
     }
-    return fcmp;
+    return fcmp
   }
 
   /* Remove all perms specified in modifier from rentry*/
-  func subtract_from_entry(acl_entry_t rentry, acl_entry_t  modifier, int* valid_perms) -> Int {
-    acl_permset_t rperms, mperms;
-    acl_flagset_t rflags, mflags;
-    if (valid_perms) {
-      *valid_perms = 0;
+  func subtract_from_entry(_ rentry : inout acl_entry_t?, _ modifier : acl_entry_t, _ valid_perms : inout Int) {
+    var rperms : acl_permset_t?
+    var mperms : acl_permset_t?
+
+    var rflags : acl_flagset_t?
+    var mflags : acl_flagset_t?
+
+    if 0 != valid_perms {
+      valid_perms = 0
     }
-    int i;
 
     if ((acl_get_permset(rentry, &rperms) != 0) ||
-        (acl_get_flagset_np(rentry, &rflags) != 0) ||
+        (acl_get_flagset_np(UnsafeMutableRawPointer(rentry), &rflags) != 0) ||
         (acl_get_permset(modifier, &mperms) != 0) ||
-        (acl_get_flagset_np(modifier, &mflags) != 0)) {
+        (acl_get_flagset_np(UnsafeMutableRawPointer(modifier), &mflags) != 0)) {
       err(1, "error computing ACL modification");
     }
 
-    for (i = 0; acl_perms[i].name != NULL; i++) {
-      if (acl_get_perm_np(mperms, acl_perms[i].perm)) {
-        acl_delete_perm(rperms, acl_perms[i].perm);
+    for (_, p) in Self.acl_perms {
+      if 0 != acl_get_perm_np(mperms, p.perm) {
+        acl_delete_perm(rperms, p.perm)
       }
-      else if (valid_perms && acl_get_perm_np(rperms, acl_perms[i].perm)) {
-        (*valid_perms)++;
+      else if (0 != valid_perms && 0 != acl_get_perm_np(rperms, p.perm)) {
+        valid_perms += 1
       }
     }
-    for (i = 0; acl_flags[i].name != NULL; i++) {
-      if (acl_get_flag_np(mflags, acl_flags[i].flag)) {
-        acl_delete_flag_np(rflags, acl_flags[i].flag);
+
+    for(_, p) in Self.acl_flags {
+      if 0 != acl_get_flag_np(mflags, p.flag) {
+        acl_delete_flag_np(rflags, p.flag)
       }
     }
     acl_set_permset(rentry, rperms);
-    acl_set_flagset_np(rentry, rflags);
-    return 0;
+    acl_set_flagset_np(&rentry, rflags);
   }
+
   /* Add the perms specified in modifier to rentry */
-  func merge_entry_perms(acl_entry_t rentry, acl_entry_t  modifier) -> Int {
-    acl_permset_t rperms, mperms;
-    acl_flagset_t rflags, mflags;
-    int i;
+  func merge_entry_perms(_ rentry : inout acl_entry_t?, _ modifier : acl_entry_t) {
+    var rperms : acl_permset_t?
+    var mperms : acl_permset_t?
+    var rflags : acl_flagset_t?
+    var mflags : acl_flagset_t?
 
     if ((acl_get_permset(rentry, &rperms) != 0) ||
-        (acl_get_flagset_np(rentry, &rflags) != 0) ||
-        (acl_get_permset(modifier, &mperms) != 0) ||
-        (acl_get_flagset_np(modifier, &mflags) != 0)) {
+        acl_get_flagset_np(UnsafeMutableRawPointer(rentry), &rflags) != 0 ||
+        acl_get_permset(modifier, &mperms) != 0 ||
+        acl_get_flagset_np(UnsafeMutableRawPointer(modifier), &mflags) != 0) {
       err(1, "error computing ACL modification");
     }
 
-    for (i = 0; acl_perms[i].name != NULL; i++) {
-      if (acl_get_perm_np(mperms, acl_perms[i].perm)) {
-        acl_add_perm(rperms, acl_perms[i].perm);
+    for (_, p) in Self.acl_perms {
+      if 0 != acl_get_perm_np(mperms, p.perm) {
+        acl_add_perm(rperms, p.perm)
       }
     }
-    for (i = 0; acl_flags[i].name != NULL; i++) {
-      if (acl_get_flag_np(mflags, acl_flags[i].flag)) {
-        acl_add_flag_np(rflags, acl_flags[i].flag);
+
+    for (_, p) in Self.acl_flags {
+      if 0 != acl_get_flag_np(mflags, p.flag) {
+        acl_add_flag_np(rflags, p.flag)
       }
     }
-    acl_set_permset(rentry, rperms);
-    acl_set_flagset_np(rentry, rflags);
-    return 0;
+    acl_set_permset(rentry, rperms)
+    acl_set_flagset_np(&rentry, rflags)
   }
 
-  func modify_acl(acl_t *oaclp, acl_entry_t modifier, unsigned int optflags,
-             int position, int inheritance_level,
-             unsigned flag_new_acl, const char* path) -> Int {
-
+  func modify_acl(_ oacl : inout acl_t?, _ modifierx : acl_entry_t?, _ optflags : ACLOptions,
+                  _ position : Int32, _ inheritance_level : Int,
+                  _ flag_new_acl : Bool, _ path : String) throws(CmdErr) -> Int {
+/*
     unsigned cpos = 0;
     acl_entry_t newent = NULL;
     int dmatch = 0;
     acl_entry_t rentry = NULL;
     unsigned retval = 0;
     acl_t oacl = *oaclp;
+*/
+
+    var modifier = modifierx
+
 
     /* Add the inherited flag if requested by the user*/
-    if (modifier && (optflags & ACL_INHERIT_FLAG)) {
-      acl_flagset_t mflags;
-
-      acl_get_flagset_np(modifier, &mflags);
-      acl_add_flag_np(mflags, ACL_ENTRY_INHERITED);
-      acl_set_flagset_np(modifier, mflags);
+    if nil != modifier && optflags.contains(.INHERIT_FLAG) {
+      var mflags : acl_flagset_t?
+      acl_get_flagset_np(&modifier, &mflags)
+      acl_add_flag_np(mflags, acl_flag_t(UInt32(ACLEntry.ENTRY_INHERITED.rawValue)))
+      acl_set_flagset_np(&modifier, mflags)
     }
 
-    if (optflags & ACL_SET_FLAG) {
+    var newent : acl_entry_t?
+    var retval = 0
+
+    if optflags.contains(.SET_FLAG) {
       if (position != -1) {
-        if (0 != acl_create_entry_np(&oacl, &newent, position)) {
+        if 0 != acl_create_entry_np(&oacl, &newent, position) {
           err(1, "acl_create_entry() failed");
         }
         acl_copy_entry(newent, modifier);
@@ -585,94 +617,94 @@ extension chmod {
          * entry in the canonical position.
          */
 
-        /* First, check for a matching entry - if one exists, merge flags */
-        dmatch = find_matching_entry(oacl, modifier, &rentry, 1);
+        var rentry : acl_entry_t?
 
-        if (dmatch != MATCH_NONE) {
-          if (dmatch == MATCH_EXACT) {
+        /* First, check for a matching entry - if one exists, merge flags */
+        let dmatch = find_matching_entry(oacl, modifier!, &rentry, 1);
+
+        if dmatch != Match.NONE {
+          if dmatch == .EXACT {
             /* Nothing to be done */
-            goto ma_exit;
+            // Assign oacl?
+            return retval
           }
 
-          if (dmatch == MATCH_PARTIAL) {
-            merge_entry_perms(rentry, modifier);
-            goto ma_exit;
+          if dmatch == .PARTIAL {
+            merge_entry_perms(&rentry, modifier!)
+            // Assign oacl?
+            return retval
           }
         }
         /* Insert the entry in canonical order */
-        cpos = find_canonical_position(oacl, modifier);
-        if (0!= acl_create_entry_np(&oacl, &newent, cpos)) {
-          err(1, "acl_create_entry() failed");
+        let cpos = find_canonical_position(oacl, modifier!);
+        if 0 != acl_create_entry_np(&oacl, &newent, cpos) {
+          err(1, "acl_create_entry() failed")
         }
         acl_copy_entry(newent, modifier);
       }
-    } else if (optflags & ACL_DELETE_FLAG) {
-      if (flag_new_acl) {
-        warnx("No ACL present '%s'", path);
+    } else if optflags.contains(.DELETE_FLAG) {
+      var rentry : acl_entry_t?
+
+      if flag_new_acl {
+        warnx("No ACL present '\(path)'")
         retval = 1;
       } else if (position != -1 ) {
         if (0 != acl_get_entry(oacl, position, &rentry)) {
-          warnx("Invalid entry number '%s'", path);
-          retval = 1;
+          warnx("Invalid entry number '\(path)'")
+          retval = 1
         } else {
           acl_delete_entry(oacl, rentry);
         }
       } else {
-        unsigned match_found = 0, aindex;
-        for (aindex = 0;
-             acl_get_entry(oacl, rentry == NULL ?
-                           ACL_FIRST_ENTRY :
-                            ACL_NEXT_ENTRY, &rentry) == 0;
-             aindex++)	{
-          unsigned cmp;
-          cmp = compare_acl_entries(rentry, modifier);
-          if ((cmp == MATCH_EXACT) ||
-              (cmp == MATCH_PARTIAL)) {
-            match_found++;
-            if (cmp == MATCH_EXACT) {
-              acl_delete_entry(oacl, rentry);
+        var match_found = 0
+
+        while acl_get_entry(oacl, (rentry == nil ? ACLEntry.FIRST_ENTRY : .NEXT_ENTRY).rawValue, &rentry) == 0 {
+          let cmp = compare_acl_entries(rentry, modifier!)
+          if cmp == .EXACT || cmp == .PARTIAL {
+            match_found += 1
+            if cmp == .EXACT {
+              acl_delete_entry(oacl, rentry)
             }
             else {
-              int valid_perms;
+              var valid_perms = 0
               /* In the event of a partial match, remove the specified perms from the
                * entry */
-              subtract_from_entry(rentry, modifier, &valid_perms);
+              subtract_from_entry(&rentry, modifier!, &valid_perms)
               /* if no perms survived then delete the entry */
-              if (valid_perms == 0) {
+              if valid_perms == 0 {
                 acl_delete_entry(oacl, rentry);
               }
             }
           }
         }
-        if (0 == match_found) {
-          warnx("Entry not found when attempting delete '%s'",path);
-          retval = 1;
+        if 0 == match_found {
+          warnx("Entry not found when attempting delete '\(path)'")
+          retval = 1
         }
       }
-    } else if (optflags & ACL_REWRITE_FLAG) {
-      acl_entry_t rentry;
+    } else if optflags.contains(.REWRITE_FLAG) {
+      var rentry : acl_entry_t?
 
-      if (-1 == position) {
-        usage();
+      if -1 == position {
+        throw CmdErr(1)
       }
-      if (0 == flag_new_acl) {
-        if (0 != acl_get_entry(oacl, position,
-                               &rentry)) {
-          err(1, "Invalid entry number '%s'", path);
+      if !flag_new_acl {
+        if 0 != acl_get_entry(oacl, position, &rentry) {
+          err(1, "Invalid entry number '\(path)'")
         }
 
-        if (0 != acl_delete_entry(oacl, rentry)) {
-          err(1, "Unable to delete entry '%s'", path);
+        if 0 != acl_delete_entry(oacl, rentry) {
+          err(1, "Unable to delete entry '\(path)'")
         }
       }
-      if (0!= acl_create_entry_np(&oacl, &newent, position)) {
+      if 0 != acl_create_entry_np(&oacl, &newent, position) {
         err(1, "acl_create_entry() failed");
       }
       acl_copy_entry(newent, modifier);
     }
-  ma_exit:
-    *oaclp = oacl;
-    return retval;
+//  ma_exit:
+//    *oaclp = oacl;
+    return retval
   }
 
   enum ACLEntry : Int32 {
@@ -692,7 +724,7 @@ extension chmod {
   func modify_file_acl(_ optflags : ACLOptions, _ path : String?, _ modifier : acl_t?, _ positionx : Int, _ inheritance_level : Int, _ follow : Bool) throws(CmdErr) -> Int {
 /*
     acl_t oacl = NULL;
-    unsigned aindex  = 0, flag_new_acl = 0;
+    unsigned  flag_new_acl = 0;
     acl_entry_t newent = NULL;
     acl_entry_t entry = NULL;
     unsigned retval = 0;
@@ -788,9 +820,7 @@ extension chmod {
           err(1, "acl_init() failed")
         }
 
-        var aindex = 0
         while acl_get_entry(oacl, (entry == nil ? ACLEntry.FIRST_ENTRY : .NEXT_ENTRY).rawValue, &entry) == 0 {
-          aindex += 1
           var eflags : acl_flagset_t? = nil
           var fent : acl_entry_t? = nil
           if (acl_get_flagset_np(&entry, &eflags) != 0) {
@@ -825,12 +855,12 @@ extension chmod {
         if flag_new_acl {
           warnx("No ACL currently associated with file '\(path)'")
         }
-        retval = is_canonical(oacl)
+        retval = is_canonical(oacl) ? 1 : 0
       } else if optflags.contains(.SET_FLAG) && (position == -1) && !is_canonical(oacl) {
         warnx("The specified file '\(path)' does not have an ACL in canonical order, please specify a position with +a# ")
         retval = 1
       } else if (optflags.contains(.DELETE_FLAG) && position != -1) || optflags.contains(.CHECK_CANONICITY) {
-        retval = modify_acl(&oacl, 0, optflags, position, inheritance_level, flag_new_acl, path);
+        retval = try modify_acl(&oacl, nil, optflags, Int32(position), inheritance_level, flag_new_acl, path);
       } else if optflags.containsAny(of: [.REMOVE_INHERIT_FLAG, .REMOVE_INHERITED_ENTRIES]) && flag_new_acl {
         warnx("No ACL currently associated with file '\(path)'")
         retval = 1
@@ -838,10 +868,8 @@ extension chmod {
         if modifier == nil { /* avoid bus error in acl_get_entry */
           errx(1, "Internal error: modifier should not be NULL");
         }
-        var aindex = 0
         while acl_get_entry(modifier, (entry == nil ? ACLEntry.FIRST_ENTRY : .NEXT_ENTRY).rawValue, &entry) == 0 {
-          aindex += 1
-          retval += modify_acl(&oacl, entry, optflags, position, inheritance_level, flag_new_acl, path)
+          retval += try modify_acl(&oacl, entry, optflags, Int32(position), inheritance_level, flag_new_acl, path)
         }
       }
     }
