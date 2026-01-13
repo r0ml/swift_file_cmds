@@ -116,6 +116,14 @@ extension chmod {
     errx(1, "Unable to translate '%s' to a UUID", tok);
   }
 
+  enum Match : Int {
+    case EXACT = 2
+    case PARTIAL = 1
+    case NONE = -1
+    case SUBSET = -2
+    case SUPERSET = -3
+  }
+
   /* Convert an acl entry in string form to an acl_entry_t */
   func parse_entry(char *entrybuf, acl_entry_t newent) {
     char *tok;
@@ -289,8 +297,8 @@ extension chmod {
     return score;
   }
 
-  func compare_acl_qualifiers(uuid_t *qa, uuid_t *qb) -> Int {
-    return bcmp(qa, qb, sizeof(uuid_t));
+  func compare_acl_qualifiers(_ qa : UnsafePointer<uuid_t>, _ qb : UnsafePointer<uuid_t>) -> Int32 {
+    return bcmp(qa, qb, MemoryLayout<uuid_t>.size)
   }
 
   /* Compare two ACL permsets.
@@ -326,22 +334,22 @@ extension chmod {
   }
 
   /* Compares two ACL entries for equality */
-  func compare_acl_entries(acl_entry_t a, acl_entry_t b) -> Int {
-    acl_tag_t atag, btag;
+  func compare_acl_entries(_ a : acl_entry_t, _ b : acl_entry_t) -> Match {
+/*    acl_tag_t atag, btag;
     acl_permset_t aperms, bperms;
     acl_flagset_t aflags, bflags;
     int pcmp = 0, fcmp = 0;
     void *aqual, *bqual;
+*/
+    let aqual = acl_get_qualifier(a)
+    let bqual = acl_get_qualifier(b)
 
-    aqual = acl_get_qualifier(a);
-    bqual = acl_get_qualifier(b);
+    let comparex = compare_acl_qualifiers(aqual, bqual)
+    acl_free(aqual)
+    acl_free(bqual)
 
-    int compare = compare_acl_qualifiers(aqual, bqual);
-    acl_free(aqual);
-    acl_free(bqual);
-
-    if (compare != 0) {
-      return MATCH_NONE
+    if compare != 0 {
+      return .NONE
     }
 
     if (0 != acl_get_tag_type(a, &atag)) {
@@ -352,7 +360,7 @@ extension chmod {
     }
 
     if (atag != btag) {
-      return MATCH_NONE;
+      return .NONE
     }
 
     if ((acl_get_permset(a, &aperms) != 0) ||
@@ -366,10 +374,10 @@ extension chmod {
     fcmp = compare_acl_flagsets(aflags, bflags);
 
     if ((pcmp == MATCH_NONE) || (fcmp == MATCH_NONE)) {
-      return(MATCH_PARTIAL);
+      return .PARTIAL
     }
     else {
-      return(MATCH_EXACT);
+      return .EXACT
     }
   }
 
@@ -383,27 +391,25 @@ extension chmod {
    * inherited allow (grandparent)
    * ...
    */
-  func is_canonical(acl_t acl) -> Bool {
-
-    unsigned aindex;
-    acl_entry_t entry;
-    int score = 0, next_score = 0;
+  func is_canonical(_ acl : acl_t) -> Bool {
+    var entry : acl_entry_t?
+    var next_score = 0
 
     /* XXX - is a zero entry ACL in canonical form? */
-    if (0 != acl_get_entry(acl, ACL_FIRST_ENTRY, &entry)) {
-      return 1;
+    if (0 != acl_get_entry(acl, ACLEntry.FIRST_ENTRY.rawValue, &entry)) {
+      return true
     }
 
-    score = score_acl_entry(entry);
-
-    for (aindex = 0; acl_get_entry(acl, ACL_NEXT_ENTRY, &entry) == 0;
-         aindex++)	{
-      if (score < (next_score = score_acl_entry(entry))) {
-        return 0;
+    var score = score_acl_entry(entry);
+    var aindex = 0
+    while acl_get_entry(acl, ACLEntry.NEXT_ENTRY.rawValue, &entry) == 0 {
+         aindex += 1
+        if (score < (next_score = score_acl_entry(entry))) {
+          return false
       }
-      score = next_score;
+      score = next_score
     }
-    return 1;
+    return true
   }
 
 
@@ -458,7 +464,7 @@ extension chmod {
                         ACL_NEXT_ENTRY, &entry) == 0;
          aindex++)	{
       cmp = compare_acl_entries(entry, modifier);
-      if ((cmp == MATCH_EXACT) || (cmp == MATCH_PARTIAL)) {
+      if ((cmp == Match.EXACT) || (cmp == Match.PARTIAL)) {
         if (match_inherited) {
           acl_flagset_t eflags, mflags;
 
@@ -669,7 +675,21 @@ extension chmod {
     return retval;
   }
 
-  func modify_file_acl(_ optflags : ACLOptions, _ path : String?, _ modifier : acl_t, _ position : Int, _ inheritance_level : Int, _ follow : Int) throws(CmdErr) -> Int {
+  enum ACLEntry : Int32 {
+    case FIRST_ENTRY = 0
+    case NEXT_ENTRY = -1
+    case LAST_ENTRY = -2
+    // Nonstandard ACL / entry flags
+    case FLAG_DEFER_INHERIT = 1
+    case FLAG_NO_INHERIT = 0x20000
+    case ENTRY_INHERITED = 0x10
+    case ENTRY_FILE_INHERIT = 0x20
+    case ENTRY_DIRECTORY_INHERIT = 0x40
+    case ENTRY_LIMIT_INHERIT = 0x80
+    case ENTRY_ONLY_INHERIT = 0x100
+  }
+
+  func modify_file_acl(_ optflags : ACLOptions, _ path : String?, _ modifier : acl_t?, _ positionx : Int, _ inheritance_level : Int, _ follow : Bool) throws(CmdErr) -> Int {
 /*
     acl_t oacl = NULL;
     unsigned aindex  = 0, flag_new_acl = 0;
@@ -694,88 +714,95 @@ extension chmod {
      * a zero-entry ACL for a delete or check canonicity operation?
      */
 
+    var retval : Int = 0
     guard let path else {
       throw CmdErr(1)
     }
 
     if optflags.contains(.CLEAR_FLAG) {
-      filesec_t fsec = filesec_init();
-      if (fsec == NULL) {
-        err(1, "filesec_init() failed");
+      guard let fsec = filesec_init() else {
+        err(1, "filesec_init() failed")
+        fatalError()
       }
+      defer { filesec_free(fsec) }
+
+      let _FILESEC_REMOVE_ACL = UnsafeRawPointer(bitPattern: 1)
       if (filesec_set_property(fsec, FILESEC_ACL, _FILESEC_REMOVE_ACL) != 0) {
         err(1, "filesec_set_property() failed");
       }
-      if (follow) {
+      if follow {
         if (chmodx_np(path, fsec) != 0) {
-          if (!fflag) {
-            warn("Failed to clear ACL on file %s", path);
+          if !options.fflag {
+            warn("Failed to clear ACL on file \(path)")
           }
-          retval = 1;
+          retval = 1
         }
       } else {
-        int fd = open(path, O_SYMLINK);
-        if (fd != -1) {
-          if (fchmodx_np(fd, fsec) != 0) {
-            if (!fflag) {
-              warn("Failed to clear ACL on file %s", path);
+        if let fd = try? FileDescriptor.open(path, .readOnly, options: .symlink) { // open( path,  O_SYMLINK   );
+          if fchmodx_np(fd.rawValue, fsec) != 0 {
+            if !options.fflag {
+              warn("Failed to clear ACL on file \(path)")
             }
-            retval = 1;
+            retval = 1
           }
-          close(fd);
+          try? fd.close()
         } else {
-          if (!fflag) {
-            warn("Failed to open file %s", path);
+          if !options.fflag {
+            warn("Failed to open file \(path)")
           }
-          retval = 1;
+          retval = 1
         }
       }
-      filesec_free(fsec);
-      return (retval);
+      return retval
     }
+
+    var oacl : acl_t?
+    var newent : acl_entry_t? = nil
+    var entry : acl_entry_t? = nil
+    var flag_new_acl = false
+    var position = positionx
 
     if optflags.contains(.FROM_STDIN) {
       oacl = acl_dup(modifier);
     } else {
-      if (follow) {
+      if follow {
         oacl = acl_get_file(path, ACL_TYPE_EXTENDED);
       } else {
-        int fd = open(path, O_SYMLINK);
-        if (fd != -1) {
-          oacl = acl_get_fd_np(fd, ACL_TYPE_EXTENDED);
-          close(fd);
+        if let fd = try? FileDescriptor.open(path, .readOnly, options: .symlink) {
+          oacl = acl_get_fd_np(fd.rawValue, ACL_TYPE_EXTENDED)
+          try? fd.close()
         }
       }
-      if ((oacl == NULL) ||
-          (acl_get_entry(oacl,ACL_FIRST_ENTRY, &newent) != 0)) {
-        if ((oacl = acl_init(1)) == NULL) {
+      if oacl == nil || acl_get_entry(oacl, ACLEntry.FIRST_ENTRY.rawValue, &newent) != 0 {
+        oacl = acl_init(1)
+        if oacl == nil {
           err(1, "acl_init() failed");
         }
-        flag_new_acl = 1;
-        position = 0;
+        flag_new_acl = true
+        position = 0
       }
 
-      if ((0 == flag_new_acl) && optflags.containsAny(of: [.REMOVE_INHERIT_FLAG, .REMOVE_INHERITED_ENTRIES])) {
-        acl_t facl = NULL;
-        if ((facl = acl_init(1)) == NULL) {
-          err(1, "acl_init() failed");
+      if !flag_new_acl && optflags.containsAny(of: [.REMOVE_INHERIT_FLAG, .REMOVE_INHERITED_ENTRIES]) {
+        var facl = acl_init(1)
+        if facl == nil {
+          err(1, "acl_init() failed")
         }
-        for (aindex = 0;
-             acl_get_entry(oacl,
-                           (entry == NULL ? ACL_FIRST_ENTRY :
-                              ACL_NEXT_ENTRY), &entry) == 0;
-             aindex++) {
-          acl_flagset_t eflags;
-          acl_entry_t fent = NULL;
-          if (acl_get_flagset_np(entry, &eflags) != 0) {
-            err(1, "Unable to obtain flagset");
+
+        var aindex = 0
+        while acl_get_entry(oacl, (entry == nil ? ACLEntry.FIRST_ENTRY : .NEXT_ENTRY).rawValue, &entry) == 0 {
+          aindex += 1
+          var eflags : acl_flagset_t? = nil
+          var fent : acl_entry_t? = nil
+          if (acl_get_flagset_np(&entry, &eflags) != 0) {
+            err(1, "Unable to obtain flagset")
           }
 
-          if (acl_get_flag_np(eflags, ACL_ENTRY_INHERITED)) {
-            if (optflags & ACL_REMOVE_INHERIT_FLAG) {
-              acl_delete_flag_np(eflags, ACL_ENTRY_INHERITED);
-              acl_set_flagset_np(entry, eflags);
-              acl_create_entry(&facl, &fent);
+          // FIXME: the UInt32 gets problematic for ACL_NEXT_ENTRY and ACL_LAST_ENTRY
+          if 0 != acl_get_flag_np(eflags, acl_flag_t(UInt32(ACLEntry.ENTRY_INHERITED.rawValue))) {
+            if optflags.contains(.REMOVE_INHERIT_FLAG) {
+              acl_delete_flag_np(eflags, acl_flag_t(UInt32(ACLEntry.ENTRY_INHERITED.rawValue)))
+              acl_set_flagset_np(&entry, eflags)
+              acl_create_entry(&facl, &fent)
               acl_copy_entry(fent, entry);
             }
           }
@@ -784,44 +811,37 @@ extension chmod {
             acl_copy_entry(fent, entry);
           }
         }
-        if (oacl) {
-          acl_free(oacl);
+
+        if oacl != nil {
+          acl_free(UnsafeMutableRawPointer(oacl!))
         }
-        oacl = facl;
-      } else if (optflags & ACL_TO_STDOUT) {
-        ssize_t len; /* need to get printacl() from ls(1) */
-        char *text = acl_to_text(oacl, &len);
-        puts(text);
-        acl_free(text);
-      } else if (optflags & ACL_CHECK_CANONICITY) {
-        if (flag_new_acl) {
-          warnx("No ACL currently associated with file '%s'", path);
+        oacl = facl
+      } else if optflags.contains(.TO_STDOUT) {
+        var len = 0 /* need to get printacl() from ls(1) */
+        let text = acl_to_text(oacl, &len);
+        puts(text)
+        acl_free(text)
+      } else if optflags.contains(.CHECK_CANONICITY) {
+        if flag_new_acl {
+          warnx("No ACL currently associated with file '\(path)'")
         }
-        retval = is_canonical(oacl);
-      } else if ((optflags & ACL_SET_FLAG) && (position == -1) &&
-                 (!is_canonical(oacl))) {
-        warnx("The specified file '%s' does not have an ACL in canonical order, please specify a position with +a# ", path);
-        retval = 1;
-      } else if (((optflags & ACL_DELETE_FLAG) && (position != -1))
-                 || (optflags & ACL_CHECK_CANONICITY)) {
-        retval = modify_acl(&oacl, NULL, optflags, position,
-                            inheritance_level, flag_new_acl, path);
-      } else if ((optflags & (ACL_REMOVE_INHERIT_FLAG|ACL_REMOVE_INHERITED_ENTRIES)) && flag_new_acl) {
-        warnx("No ACL currently associated with file '%s'", path);
-        retval = 1;
+        retval = is_canonical(oacl)
+      } else if optflags.contains(.SET_FLAG) && (position == -1) && !is_canonical(oacl) {
+        warnx("The specified file '\(path)' does not have an ACL in canonical order, please specify a position with +a# ")
+        retval = 1
+      } else if (optflags.contains(.DELETE_FLAG) && position != -1) || optflags.contains(.CHECK_CANONICITY) {
+        retval = modify_acl(&oacl, 0, optflags, position, inheritance_level, flag_new_acl, path);
+      } else if optflags.containsAny(of: [.REMOVE_INHERIT_FLAG, .REMOVE_INHERITED_ENTRIES]) && flag_new_acl {
+        warnx("No ACL currently associated with file '\(path)'")
+        retval = 1
       } else {
-        if (!modifier) { /* avoid bus error in acl_get_entry */
+        if modifier == nil { /* avoid bus error in acl_get_entry */
           errx(1, "Internal error: modifier should not be NULL");
         }
-        for (aindex = 0;
-             acl_get_entry(modifier,
-                           (entry == NULL ? ACL_FIRST_ENTRY :
-                              ACL_NEXT_ENTRY), &entry) == 0;
-             aindex++) {
-
-          retval += modify_acl(&oacl, entry, optflags,
-                               position, inheritance_level,
-                               flag_new_acl, path);
+        var aindex = 0
+        while acl_get_entry(modifier, (entry == nil ? ACLEntry.FIRST_ENTRY : .NEXT_ENTRY).rawValue, &entry) == 0 {
+          aindex += 1
+          retval += modify_acl(&oacl, entry, optflags, position, inheritance_level, flag_new_acl, path)
         }
       }
     }
@@ -834,16 +854,14 @@ extension chmod {
      * "changeset" mechanism, common locking  strategy, or kernel
      * supplied reservation mechanism to prevent this race.
      */
-    if (!(optflags & (ACL_TO_STDOUT|ACL_CHECK_CANONICITY))) {
-      int status = -1;
+    if !optflags.contains(.TO_STDOUT) && !optflags.contains(.CHECK_CANONICITY) {
+      var status : Int32 = -1
       if (follow) {
-        status = acl_set_file(path, ACL_TYPE_EXTENDED, oacl);
+        status = acl_set_file(path, ACL_TYPE_EXTENDED, oacl)
       } else {
-        int fd = open(path, O_SYMLINK);
-        if (fd != -1) {
-          status = acl_set_fd_np(fd, oacl,
-                                 ACL_TYPE_EXTENDED);
-          close(fd);
+        if let fd = try? FileDescriptor.open(path, .readOnly, options: .symlink) {
+          status = acl_set_fd_np(fd.rawValue, oacl, ACL_TYPE_EXTENDED);
+          try? fd.close()
         }
       }
       if (status != 0) {
@@ -854,8 +872,8 @@ extension chmod {
       }
     }
 
-    if (oacl) {
-      acl_free(oacl);
+    if oacl != nil {
+      acl_free(UnsafeMutableRawPointer(oacl!))
     }
 
     return retval;
