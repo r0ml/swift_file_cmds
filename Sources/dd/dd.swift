@@ -738,7 +738,9 @@ var kill_signal : Int32 = 0
           }
           if (0 != cnt) {
             check_terminate(ddc.ddflags, ddc.st);
-            nw = write(ddc.out.fd.rawValue, &ddc.out.db[outp], cnt);
+            let kk = try? ddc.out.fd.write(Array(ddc.out.db[outp..<cnt]))
+            nw = kk ?? -1
+//            nw = write(ddc.out.fd.rawValue, &ddc.out.db[outp], cnt);
             check_terminate(ddc.ddflags, ddc.st);
             ddc.out.seek_offset = 0;
           } else {

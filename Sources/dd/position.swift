@@ -186,7 +186,7 @@ extension dd {
           err(1, ddc.out.name)
         }
         if (n != ddc.out.dbsz) {
-          errx(1, "\(ddc.out.name): write failure")
+          errx(1, "\(ddc.out.name ?? "(stdout)"): write failure")
         }
       }
       break

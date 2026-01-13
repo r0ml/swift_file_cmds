@@ -39,6 +39,9 @@
 import CMigration
 import Darwin
 
+let NEWLINE = "\n".first!.asciiValue!
+let SPACE = " ".first!.asciiValue!
+
 extension dd {
 
   func secs_elapsed(_ st : STAT) -> Double {
@@ -72,7 +75,7 @@ extension dd {
 
     let secs = secs_elapsed(st)
 
-    print("%ju+%ju records in\n%ju+%ju records out",
+    print("\(st.in_full)+\(st.in_part) records in\n\(st.out_full)+\(st.out_part) records out",
           st.in_full, st.in_part, st.out_full, st.out_part);
     if 0 != st.swab {
       print("\(st.swab) odd length swab record\(st.swab == 1 ? "" : "s")", to: &stderr)

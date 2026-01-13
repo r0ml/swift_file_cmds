@@ -108,7 +108,7 @@ extension dd {
     if ddc.intrunc {
       cnt = ddc.inx.dbrcnt
       var inp = 0
-      while cnt != 0 && ddc.inx.db[inp] != "\n".first!.asciiValue! {
+      while cnt != 0 && ddc.inx.db[inp] != NEWLINE {
         cnt -= 1
         inp += 1
       }
@@ -141,7 +141,7 @@ extension dd {
         for cntx in 0 ..< maxlen {
           ch = ddc.inx.db[inp+cntx]
           inp += 1
-          if ch == "\n".first!.asciiValue! {
+          if ch == NEWLINE {
             break
           }
 //        for (cnt = 0; cnt < maxlen && (ch = *inp++) != '\n'; ++cnt) {
@@ -150,11 +150,10 @@ extension dd {
         }
       }
       else {
-        var cnt = 0
         for cntx in 0 ..< maxlen {
           ch = ddc.inx.db[inp+cntx]
           inp += 1
-          if ch == "\n".first!.asciiValue! {
+          if ch == NEWLINE {
             break
           }
           ddc.out.db[outp] = ch
@@ -165,7 +164,7 @@ extension dd {
        * Check for short record without a newline.  Reassemble the
        * input block.
        */
-      if (ch != "\n".first!.asciiValue! && ddc.inx.dbcnt < ddc.cbsz) {
+      if (ch != NEWLINE && ddc.inx.dbcnt < ddc.cbsz) {
         for i in 0..<ddc.inx.dbcnt {
           ddc.inx.db[ddc.inx.dbp+i] = ddc.inx.db[ddc.inx.dbp - ddc.inx.dbcnt + i]
           //        memmove(ddc.inx.db, ddc.inx.dbp - ddc.inx.dbcnt, ddc.inx.dbcnt);
@@ -175,13 +174,13 @@ extension dd {
 
       /* Adjust the input buffer numbers. */
       ddc.inx.dbcnt -= cnt
-      if (ch == "\n".first!.asciiValue!) {
+      if (ch == NEWLINE) {
         ddc.inx.dbcnt -= 1
       }
 
       /* Pad short records with spaces. */
       if (cnt < ddc.cbsz) {
-        let sp = " ".first!.asciiValue!
+        let sp = SPACE
         let spx = ddc.ctab == nil ? sp : ddc.ctab![Int(sp)]
         for i in 0 ..< (ddc.cbsz - cnt) {
           ddc.out.db[outp+i]=UInt8(spx)
@@ -193,13 +192,13 @@ extension dd {
          * If the next character wouldn't have ended the
          * block, it's a truncation.
          */
-        if 0 == ddc.inx.dbcnt || ddc.inx.db[inp] != "\n".first!.asciiValue! {
+        if 0 == ddc.inx.dbcnt || ddc.inx.db[inp] != NEWLINE {
           ddc.st.trunc += 1
         }
 
         /* Toss characters to a newline. */
 
-        while ddc.inx.dbcnt != 0 && ddc.inx.db[inp] != "\n".first!.asciiValue! {
+        while ddc.inx.dbcnt != 0 && ddc.inx.db[inp] != NEWLINE {
           ddc.inx.dbcnt -= 1
           inp += 1
         }
@@ -239,7 +238,7 @@ extension dd {
         ddc.out.db[i+ddc.out.dbp] = ddc.inx.db[ ddc.inx.dbp - ddc.inx.dbcnt + i]
       }
 //        (void)memmove(out.dbp, in.dbp - in.dbcnt, in.dbcnt);
-      let sp = " ".first!.asciiValue!
+      let sp = SPACE
       let spx = ddc.ctab == nil ? sp : ddc.ctab![Int(sp)]
       for i in 0..<ddc.cbsz - ddc.inx.dbcnt {
         ddc.out.db[ddc.out.dbp + ddc.inx.dbcnt + i] = spx
@@ -277,7 +276,7 @@ extension dd {
     var inp = 0
     while ddc.inx.dbcnt >= ddc.cbsz {
       var t = inp + ddc.cbsz - 1
-      while t >= inp && ddc.inx.db[t] == " ".first!.asciiValue! {
+      while t >= inp && ddc.inx.db[t] == SPACE {
         t -= 1
       }
       if (t >= inp) {
@@ -288,7 +287,7 @@ extension dd {
         ddc.out.dbp += cnt;
         ddc.out.dbcnt += cnt;
       }
-      ddc.out.db[ddc.out.dbp] = "\n".first!.asciiValue!
+      ddc.out.db[ddc.out.dbp] = NEWLINE
       ddc.out.dbp += 1
       ddc.out.dbcnt += 1
       if ddc.out.dbcnt >= ddc.out.dbsz {
@@ -308,13 +307,10 @@ extension dd {
   }
 
   func unblock_close(_ ddc : inout DDContext) {
-    //	u_char *t;
-    //	size_t cnt;
-
     if 0 != ddc.inx.dbcnt {
       warnx("\(ddc.inx.name ?? "(stdin)"): short input record")
       var t = ddc.inx.dbcnt - 1
-      while t >= 0 && ddc.inx.db[t] == " ".first!.asciiValue! { // remove trailing blanks
+      while t >= 0 && ddc.inx.db[t] == SPACE { // remove trailing blanks
         t -= 1
       }
       if t >= 0 {
@@ -326,7 +322,7 @@ extension dd {
         ddc.out.dbcnt += cnt
       }
       ddc.out.dbcnt += 1
-      ddc.out.db[ddc.out.dbp] = "\n".first!.asciiValue!
+      ddc.out.db[ddc.out.dbp] = NEWLINE
       ddc.out.dbp += 1
     }
   }

@@ -33,7 +33,7 @@ import ShellTesting
 import CMigration
 import Darwin
 
-struct statTest : ShellTest {
+struct cpTest : ShellTest {
   var cmd = "cp"
   var suiteBundle = "cpTest"
 

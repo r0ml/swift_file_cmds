@@ -32,474 +32,428 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-static char sccsid[] = "@(#)chmod.c	8.8 (Berkeley) 4/1/94";
-#endif /* not lint */
-#endif
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
-
-#include <sys/param.h>
-#include <sys/stat.h>
-
-#include <err.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <fts.h>
-#include <limits.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-
-#ifdef __APPLE__
-#include "chmod_acl.h"
+import CMigration
+import Darwin
 
 /* Needed by chmod_acl.c. */
 int fflag = 0;
 #endif /*__APPLE__*/
 
-static volatile sig_atomic_t siginfo;
+var siginfo : Int32 = 0
 
-#ifdef __APPLE__
-void usage(void);
-#else
-static void usage(void);
-#endif
-static int may_have_nfs4acl(const FTSENT *ent, int hflag);
-
-static void
-siginfo_handler(int sig __unused)
-{
-
-	siginfo = 1;
+func siginfo_handler(_ sig : Int32) {
+	siginfo = 1
 }
 
-int
-main(int argc, char *argv[])
-{
-	FTS *ftsp;
-	FTSENT *p;
-	mode_t *set;
-#ifdef __APPLE__
-	int Hflag, Lflag, Pflag, Rflag, ch, fts_options, hflag, rval;
-#else
-	int Hflag, Lflag, Rflag, ch, fflag, fts_options, hflag, rval;
-#endif
-	int vflag;
-	char *ep, *mode;
-	mode_t newmode;
-#ifdef __APPLE__
-	unsigned int acloptflags = 0;
-	long aclpos = -1;
-	int inheritance_level = 0;
-	int index = 0;
-	size_t acloptlen = 0;
-	int ace_arg_not_required = 0;
-	acl_t acl_input = NULL;
-#endif /* __APPLE__*/
 
-	ftsp = NULL;
-	p = NULL;
-	set = NULL;
-	Hflag = Lflag = Pflag = Rflag = fflag = hflag = vflag = 0;
-#ifndef __APPLE__
-	while ((ch = getopt(argc, argv, "HLPRXfghorstuvwx")) != -1)
-#else
-	while ((ch = getopt(argc, argv, "ACEHILNPRVXafghinorstuvwx")) != -1)
-#endif
-		switch (ch) {
-		case 'H':
-			Hflag = 1;
-			Lflag = 0;
-			Pflag = 0;
-			break;
-		case 'L':
-			Lflag = 1;
-			Hflag = 0;
-			Pflag = 0;
-			break;
-		case 'P':
-			Hflag = Lflag = 0;
-			Pflag = 1;
-			break;
-		case 'R':
-			Rflag = 1;
-			break;
-		case 'f':
-			fflag = 1;
-			break;
-		case 'h':
-			/*
-			 * In System V the -h option causes chmod to change
-			 * the mode of the symbolic link. 4.4BSD's symbolic
-			 * links didn't have modes, so it was an undocumented
-			 * noop.  In FreeBSD 3.0, lchmod(2) is introduced and
-			 * this option does real work.
-			 */
-			hflag = 1;
-			break;
-#ifdef __APPLE__
-		case 'a':
-			if (argv[optind - 1][0] == '-' &&
-			    argv[optind - 1][1] == ch)
-				--optind;
-			goto done;
-		case 'A':
-//			acloptflags |= ACL_FLAG | ACL_TO_STDOUT;
-//			ace_arg_not_required = 1;
-			errx(1, "-A not implemented");
-//			goto done;
-		case 'E':
-			acloptflags |= ACL_FLAG | ACL_FROM_STDIN;
-			goto done;
-		case 'C':
-			acloptflags |= ACL_FLAG | ACL_CHECK_CANONICITY;
-			ace_arg_not_required = 1;
-			goto done;
-		case 'i':
-			acloptflags |= ACL_FLAG | ACL_REMOVE_INHERIT_FLAG;
-			ace_arg_not_required = 1;
-			goto done;
-		case 'I':
-			acloptflags |= ACL_FLAG | ACL_REMOVE_INHERITED_ENTRIES;
-			ace_arg_not_required = 1;
-			goto done;
-		case 'n':
-			acloptflags |= ACL_FLAG | ACL_NO_TRANSLATE;
-			break;
-		case 'N':
-			acloptflags |= ACL_FLAG | ACL_CLEAR_FLAG;
-			ace_arg_not_required = 1;
-			goto done;
-		case 'V':
-//			acloptflags |= ACL_FLAG | ACL_INVOKE_EDITOR;
-//			ace_arg_not_required = 1;
-			errx(1, "-V not implemented");
-//			goto done;
-#endif /* __APPLE__ */
-		/*
-		 * XXX
-		 * "-[rwx]" are valid mode commands.  If they are the entire
-		 * argument, getopt has moved past them, so decrement optind.
-		 * Regardless, we're done argument processing.
-		 */
-		case 'g': case 'o': case 'r': case 's':
-		case 't': case 'u': case 'w': case 'X': case 'x':
-			if (argv[optind - 1][0] == '-' &&
-			    argv[optind - 1][1] == ch &&
-			    argv[optind - 1][2] == '\0')
-				--optind;
-			goto done;
-		case 'v':
-			vflag++;
-			break;
-		case '?':
-		default:
-			usage();
-		}
-done:	argv += optind;
-	argc -= optind;
+struct chmod : ShellCommand {
+  struct CommandOptions {
+    var Hflag = false
+    var Lflag = false
+    var Rflag = false
+    var Pflag = false
+    var hflag = false
+    var fflag = false
+    var vflag = 0
+    var fts_options = FTSFlags()
+    var acloptflags : ACLOptions = []
+    var ace_arg_not_required = false
+    var args : [String] = []
+  }
 
-#ifdef __APPLE__
-	if (argc < ((acloptflags & ACL_FLAG) ? 1 : 2))
-		usage();
-	if (!Rflag && (Hflag || Lflag || Pflag))
-		warnx("options -H, -L, -P only useful with -R");
-#else  /* !__APPLE__ */
-	if (argc < 2)
-		usage();
-#endif	/* __APPLE__ */
+  struct ACLOptions : OptionSet {
+    var rawValue : Int32
 
-	(void)signal(SIGINFO, siginfo_handler);
-#ifdef __APPLE__
-	if (!(acloptflags & ACL_FLAG) && ((acloptlen = strlen(argv[0])) > 1) && (argv[0][1] == 'a')) {
-		acloptflags |= ACL_FLAG;
-		switch (argv[0][0]) {
-		case '+':
-			acloptflags |= ACL_SET_FLAG;
-			break;
-		case '-':
-			acloptflags |= ACL_DELETE_FLAG;
-			break;
-		case '=':
-			acloptflags |= ACL_REWRITE_FLAG;
-			break;
-		default:
-			acloptflags &= ~ACL_FLAG;
-			goto apnoacl;
-		}
-		
-		if (argc < 3)
-			usage();
+    static var FLAG = Self(rawValue: 1 << 0)
+    static var SET_FLAG = Self(rawValue: 1 << 1)
+    static var DELETE_FLAG = Self(rawValue: 1 << 2)
+    static var REWRITE_FLAG = Self(rawValue: 1 << 3)
+    static var ORDER_FLAG = Self(rawValue: 1 << 4)
+    static var INHERIT_FLAG = Self(rawValue: 1 << 5)
+    static var FOLLOW_LINK = Self(rawValue: 1 << 6)
+    static var FROM_STDIN = Self(rawValue: 1 << 7)
+    static var CHECK_CANONICITY = Self(rawValue: 1 << 8)
+    static var REMOVE_INHERIT_FLAG = Self(rawValue: 1 << 9)
+    static var REMOVE_INHERITED_ENTRIES = Self(rawValue: 1 << 10)
+    static var NO_TRANSLATE = Self(rawValue: 1 << 11)
+    static var INVOKE_EDITOR = Self(rawValue: 1 << 12)
+    static var TO_STDOUT = Self(rawValue: 1 << 13)
+    static var CLEAR_FLAG = Self(rawValue: 1 << 14)
+  }
 
-		if (acloptlen > 2) {
-			for (index = 2; index < acloptlen; index++) {
-				switch (argv[0][index]) {
-				case '#':
-					acloptflags |= ACL_ORDER_FLAG;
+  /*
+   FTS *ftsp;
+   FTSENT *p;
+   mode_t *set;
+   char *ep, *mode;
+   mode_t newmode;
 
-					if (argc < ((acloptflags & ACL_DELETE_FLAG)
-						    ? 3 : 4))
-						usage();
-					argv++;
-					argc--;
-					errno = 0;
-					aclpos = strtol(argv[0], &ep, 0);
+   unsigned int acloptflags = 0;
+   long aclpos = -1;
+   int inheritance_level = 0;
+   int index = 0;
+   size_t acloptlen = 0;
+   int ace_arg_not_required = 0;
+   acl_t acl_input = NULL;
 
-					if (aclpos > ACL_MAX_ENTRIES
-					    || aclpos < 0)
-						errno = ERANGE;
-					if (errno || *ep)
-						errx(1, "Invalid ACL entry number: %ld", aclpos);
-					if (acloptflags & ACL_DELETE_FLAG)
-						ace_arg_not_required = 1;
 
-					goto apdone;
-				case 'i':
-					acloptflags |= ACL_INHERIT_FLAG;
-					/* The +aii.. syntax to specify
-					 * inheritance level is rather unwieldy,
-					 * find an alternative.
-					 */
-					inheritance_level++;
-					if (inheritance_level > 1)
-						warnx("Inheritance across more than one generation is not currently supported");
-					if (inheritance_level >= MAX_INHERITANCE_LEVEL)
-						goto apdone;
-					break;
-				default:
-					errno = EINVAL;
-					usage();
-				}
-			}
-		}
-apdone:
-		argv++;
-		argc--;
-	}
-apnoacl:
-#endif /*__APPLE__*/
 
-	if (Rflag) {
-		if (hflag)
-			errx(1, "the -R and -h options may not be "
-			    "specified together.");
-		if (Lflag) {
-			fts_options = FTS_LOGICAL;
-		} else {
-			fts_options = FTS_PHYSICAL;
+   ftsp = NULL;
+   p = NULL;
+   set = NULL;
+   Hflag = Lflag = Pflag = Rflag = fflag = hflag = vflag = 0;
+   */
 
-			if (Hflag) {
-				fts_options |= FTS_COMFOLLOW;
-			}
-		}
-	} else if (hflag) {
-		fts_options = FTS_PHYSICAL;
-	} else {
-		fts_options = FTS_LOGICAL;
-	}
+  var options : CommandOptions!
 
-#ifdef __APPLE__
-	if (acloptflags & ACL_FROM_STDIN) {
-		ssize_t readval = 0;
-		size_t readtotal = 0;
-		
-		mode = (char *) malloc(MAX_ACL_TEXT_SIZE);
-		
-		if (mode == NULL)
-			err(1, "Unable to allocate mode string");
-		/* Read the ACEs from STDIN */
-		do {
-			readtotal += readval;
-			readval = read(STDIN_FILENO, mode + readtotal, 
-				       MAX_ACL_TEXT_SIZE);
-		} while ((readval > 0) && (readtotal <= MAX_ACL_TEXT_SIZE));
-			
-		if (0 == readtotal)
-			errx(1, "-E specified, but read from STDIN failed");
-		else
-			mode[readtotal - 1] = '\0';
-		--argv;
-	}
-	else
-#endif /* __APPLE */
-		mode = *argv;
+  func parseOptions() throws(CmdErr) -> CommandOptions {
+    var options = CommandOptions()
+    var go = BSDGetopt("ACEHILNPRVXafghinorstuvwx")
+    optloop:
+    while let (k, v) = try go.getopt() {
+      switch k {
+        case "H":
+          options.Hflag = true
+          options.Lflag = false
+          options.Pflag = false
+        case "L":
+          options.Lflag = true
+          options.Hflag = false
+          options.Pflag = false
+        case "P":
+          options.Hflag = false
+          options.Lflag = false
+          options.Pflag = true
+        case "R":
+          options.Rflag = true
+        case "f":
+          options.fflag = true
+        case "h":
+          /*
+           * In System V the -h option causes chmod to change
+           * the mode of the symbolic link. 4.4BSD's symbolic
+           * links didn't have modes, so it was an undocumented
+           * noop.  In FreeBSD 3.0, lchmod(2) is introduced and
+           * this option does real work.
+           */
+          options.hflag = true
+        case "a":
+          if (argv[optind - 1][0] == '-' &&
+              argv[optind - 1][1] == ch)
+              --optind;
+          break optloop
+        case "A":
+          //			acloptflags |= ACL_FLAG | ACL_TO_STDOUT;
+          //			ace_arg_not_required = 1;
+          throw CmdErr(1, "-A not implemented");
+          //			goto done;
+        case "E":
+          options.acloptflags.insert([.FLAG, .FROM_STDIN] )
+          break optloop
+        case "C":
+          options.acloptflags.insert([.FLAG, .CHECK_CANONICITY] )
+          options.ace_arg_not_required = true
+          break optloop
+        case "i":
+          options.acloptflags.insert([.FLAG, .REMOVE_INHERIT_FLAG] )
+          options.ace_arg_not_required = true
+          break optloop
+        case "I":
+          options.acloptflags.insert([.FLAG, .REMOVE_INHERITED_ENTRIES ] )
+          options.ace_arg_not_required = true
+          break optloop
+        case "n":
+          options.acloptflags.insert([.FLAG, .NO_TRANSLATE])
+        case "N":
+          options.acloptflags.insert([.FLAG, .CLEAR_FLAG])
+          options.ace_arg_not_required = true
+          break optloop
+        case "V":
+          //			acloptflags |= ACL_FLAG | ACL_INVOKE_EDITOR;
+          //			ace_arg_not_required = 1;
+          throw CmdErr(1, "-V not implemented");
+          //			goto done;
 
-#ifdef __APPLE__
-	if ((acloptflags & ACL_FLAG)) {
+          /*
+           * XXX
+           * "-[rwx]" are valid mode commands.  If they are the entire
+           * argument, getopt has moved past them, so decrement optind.
+           * Regardless, we're done argument processing.
+           */
+        case "g", "o", "r", "s",  "t", "u", "w", "X", "x":
+          if (argv[optind - 1][0] == '-' &&
+              argv[optind - 1][1] == ch &&
+              argv[optind - 1][2] == '\0')
+              --optind;
+          goto done;
+        case "v":
+          options.vflag += 1
+        case "?":
+          fallthrough
+        default:
+          throw CmdErr(1)
+      }
+    }
+//  done:
+    options.args = go.remaining
 
-		/* Are we deleting by entry number, verifying
-		 * canonicity or performing some other operation that
-		 * does not require an input entry? If so, there's no
-		 * entry to convert.
-		 */
-		if (ace_arg_not_required) {
-			--argv;
-		}
-		else {
-                        /* Parse the text into an ACL*/
-			acl_input = parse_acl_entries(mode);
-			if (acl_input == NULL) {
-				errx(1, "Invalid ACL specification: %s", mode);
-			}
-		}
-	}
-	else {
-#endif /* __APPLE__*/
-		if ((set = setmode(mode)) == NULL)
-			errx(1, "Invalid file mode: %s", mode);
-#ifdef __APPLE__
-	}
-#endif /* __APPLE__*/
-	if ((ftsp = fts_open(++argv, fts_options, 0)) == NULL)
-		err(1, "fts_open");
-	for (rval = 0; (void)(errno = 0), (p = fts_read(ftsp)) != NULL;) {
-		int atflag;
+    if (options.args.count < (options.acloptflags.contains(.FLAG) ? 1 : 2)) {
+      throw CmdErr(1)
+    }
+    if (!options.Rflag && (options.Hflag || options.Lflag || options.Pflag)) {
+      warnx("options -H, -L, -P only useful with -R");
+    }
 
-		if ((fts_options & FTS_LOGICAL) ||
-		    ((fts_options & FTS_COMFOLLOW) &&
-		    p->fts_level == FTS_ROOTLEVEL))
-			atflag = 0;
-		else
-			atflag = AT_SYMLINK_NOFOLLOW;
+    signal(SIGINFO, siginfo_handler)
 
-		switch (p->fts_info) {
-		case FTS_D:
-			if (!Rflag)
-				(void)fts_set(ftsp, p, FTS_SKIP);
-			break;
-		case FTS_DNR:			/* Warn, chmod. */
-			warnx("%s: %s", p->fts_path, strerror(p->fts_errno));
-			rval = 1;
-			break;
-		case FTS_DP:			/* Already changed at FTS_D. */
-			continue;
-#ifdef __APPLE__
-		case FTS_NS:
-			if (acloptflags & ACL_FLAG) /* don't need stat for -N */
-				break;
-#endif
-		case FTS_ERR:			/* Warn, continue. */
-#ifndef __APPLE__
-		case FTS_NS:
-#endif
-			warnx("%s: %s", p->fts_path, strerror(p->fts_errno));
-			rval = 1;
-			continue;
-#ifdef __APPLE__
-		case FTS_SLNONE:
-			if (!hflag) {
-				rval = 1;
-				warnx("%s: %s", p->fts_path, strerror(ENOENT));
-				continue;
-			}
-			/* FALLTHROUGH */
-#endif
-		default:
-			break;
-		}
-#ifdef __APPLE__
-		/* If an ACL manipulation option was specified, manipulate */
-		if (acloptflags & ACL_FLAG)	{
-			if (0 != modify_file_acl(acloptflags, p->fts_accpath, acl_input, (int)aclpos, inheritance_level, !hflag))
-				rval = 1;
-		}
-		else {
-#endif /* __APPLE__ */
-		newmode = getmode(set, p->fts_statp->st_mode);
-		/*
-		 * With NFSv4 ACLs, it is possible that applying a mode
-		 * identical to the one computed from an ACL will change
-		 * that ACL.
-		 */
-		if (may_have_nfs4acl(p, hflag) == 0 &&
-		    (newmode & ALLPERMS) == (p->fts_statp->st_mode & ALLPERMS))
-				continue;
-		if (fchmodat(AT_FDCWD, p->fts_accpath, newmode, atflag) == -1
-		    && !fflag) {
-#ifdef __APPLE__
-			warn("Unable to change file mode on %s", p->fts_path);
-#else
-			warn("%s", p->fts_path);
-#endif
-			rval = 1;
-		} else if (vflag || siginfo) {
-			(void)printf("%s", p->fts_path);
+    if (!options.acloptflags.contains(.FLAG) && ((acloptlen = strlen(argv[0])) > 1) && (argv[0][1] == 'a')) {
+      options.acloptflags.insert(.FLAG)
+      var skipall = false
+      switch (argv[0][0]) {
+        case "+":
+          options.acloptflags.insert(.SET_FLAG)
+        case "-":
+          options.acloptflags.insert(.DELETE_FLAG)
+        case "=":
+          options.acloptflags.insert(.REWRITE_FLAG)
+        default:
+          options.acloptflags.remove(.FLAG)
+          skipall = true
+      }
 
-			if (vflag > 1 || siginfo) {
-				char m1[12], m2[12];
+      if !skipall {
+        if options.args.count < 3 {
+          throw CmdErr(1)
+        }
 
-				strmode(p->fts_statp->st_mode, m1);
-				strmode((p->fts_statp->st_mode &
-				    S_IFMT) | newmode, m2);
-				(void)printf(": 0%o [%s] -> 0%o [%s]",
-				    p->fts_statp->st_mode, m1,
-				    (p->fts_statp->st_mode & S_IFMT) |
-				    newmode, m2);
-			}
-			(void)printf("\n");
-			siginfo = 0;
-		}
-#ifdef __APPLE__
-		}
-#endif /* __APPLE__*/
-	}
-	if (errno)
-		err(1, "fts_read");
-#ifdef __APPLE__
-	if (acl_input)
-		acl_free(acl_input);
-	if (mode && (acloptflags & ACL_FROM_STDIN))
-		free(mode);
-	
-#endif /* __APPLE__ */
-	exit(rval);
-}
+        if (acloptlen > 2) {
+        sploop:
+          for (index = 2; index < acloptlen; index++) {
+            switch (argv[0][index]) {
+              case "#":
+                options.acloptflags.insert(.ORDER_FLAG)
 
-#ifdef __APPLE__
-void
-#else
-static void
-#endif
-usage(void)
-{
-#ifdef __APPLE__
-	(void)fprintf(stderr,
-		      "usage:\tchmod [-fhv] [-R [-H | -L | -P]] [-a | +a | =a  [i][# [ n]]] mode|entry file ...\n"
-		      "\tchmod [-fhv] [-R [-H | -L | -P]] [-E | -C | -N | -i | -I] file ...\n"); /* add -A and -V when implemented */
-#else
-	(void)fprintf(stderr,
-	    "usage: chmod [-fhv] [-R [-H | -L | -P]] mode file ...\n");
-#endif /* __APPLE__ */
-	exit(1);
-}
+                if (options.args.count < (options.acloptflags.contains(.DELETE_FLAG) ? 3 : 4)) {
+                  throw CmdErr(1)
+                }
+                options.args.removeFirst()
+                errno = 0
+                aclpos = strtol(argv[0], &ep, 0);
 
-static int
-may_have_nfs4acl(const FTSENT *ent, int hflag)
-{
-#ifdef __APPLE__
-	return (0);
-#else
-	int ret;
-	static dev_t previous_dev = NODEV;
-	static int supports_acls = -1;
+                if (aclpos > ACL_MAX_ENTRIES || aclpos < 0) {
+                  errno = ERANGE;
+                }
+                if (errno || *ep) {
+                  errx(1, "Invalid ACL entry number: %ld", aclpos);
+                }
+                if options.acloptflags.contains(.DELETE_FLAG) {
+                  options.ace_arg_not_required = true
+                }
+                break sploop
+              case "i":
+                options.acloptflags.insert(.INHERIT_FLAG)
+                /* The +aii.. syntax to specify
+                 * inheritance level is rather unwieldy,
+                 * find an alternative.
+                 */
+                inheritance_level++;
+                if (inheritance_level > 1) {
+                  warnx("Inheritance across more than one generation is not currently supported");
+                }
+                if (inheritance_level >= MAX_INHERITANCE_LEVEL) {
+                  break sploop
+                }
+                break;
+              default:
+                errno = EINVAL;
+                throw CmdErr(1)
+            }
+          }
+        }
+//      apdone:
+        options.args.removeFirst()
+      }
+    }
+  apnoacl:
 
-	if (previous_dev != ent->fts_statp->st_dev) {
-		previous_dev = ent->fts_statp->st_dev;
-		supports_acls = 0;
 
-		if (hflag)
-			ret = lpathconf(ent->fts_accpath, _PC_ACL_NFS4);
-		else
-			ret = pathconf(ent->fts_accpath, _PC_ACL_NFS4);
-		if (ret > 0)
-			supports_acls = 1;
-		else if (ret < 0 && errno != EINVAL)
-			warn("%s", ent->fts_path);
-	}
+    if options.Rflag {
+      if options.hflag {
+        errx(1, "the -R and -h options may not be specified together.");
+      }
+      if options.Lflag {
+        options.fts_options = .LOGICAL
+      } else {
+        options.fts_options = .PHYSICAL
 
-	return (supports_acls);
-#endif
-}
+        if options.Hflag {
+          options.fts_options.insert(.COMFOLLOW)
+        }
+      }
+    } else if options.hflag {
+      options.fts_options = .PHYSICAL
+    } else {
+      options.fts_options = .LOGICAL
+    }
+
+
+    if options.acloptflags.contains(.FROM_STDIN) {
+//      ssize_t readval = 0;
+//      size_t readtotal = 0;
+
+      let MAX_ACL_TEXT_SIZE = 4096
+      let mode = Array(repeating: UInt8(0), count: MAX_ACL_TEXT_SIZE)
+
+      /* Read the ACEs from STDIN */
+      repeat {
+        readtotal += readval;
+        readval = read(STDIN_FILENO, mode + readtotal,
+                       MAX_ACL_TEXT_SIZE);
+      } while ((readval > 0) && (readtotal <= MAX_ACL_TEXT_SIZE));
+
+      if (0 == readtotal) {
+        errx(1, "-E specified, but read from STDIN failed");
+      }
+      else {
+        mode[readtotal - 1] = '\0';
+      }
+      --argv;
+    }
+    else {
+      mode = *argv;
+    }
+
+    if options.acloptflags.contains(.FLAG) {
+
+      /* Are we deleting by entry number, verifying
+       * canonicity or performing some other operation that
+       * does not require an input entry? If so, there's no
+       * entry to convert.
+       */
+      if options.ace_arg_not_required {
+        --argv;
+      }
+      else {
+        /* Parse the text into an ACL*/
+        acl_input = parse_acl_entries(mode);
+        if (acl_input == NULL) {
+          errx(1, "Invalid ACL specification: %s", mode);
+        }
+      }
+    }
+    else {
+
+      if ((set = setmode(mode)) == NULL) {
+        errx(1, "Invalid file mode: %s", mode);
+      }
+
+    }
+    return options
+  }
+
+  func runCommand() async throws(CmdErr) {
+
+    guard let ftsp = try? FTSWalker(path: options.args, options: options.fts_options, sort: nil) else {
+//    if ((ftsp = fts_open(++argv, fts_options, 0)) == NULL) {
+      err(1, "fts_open");
+      fatalError()
+    }
+    var rval : Int32 = 0
+
+    for var p in ftsp {
+      var atflag : Int32
+
+      if options.fts_options.contains(.LOGICAL) || (options.fts_options.contains(.COMFOLLOW) && p.level == FTS_ROOTLEVEL) {
+        atflag = 0;
+      }
+      else {
+        atflag = AT_SYMLINK_NOFOLLOW;
+      }
+
+      switch p.info {
+        case .D:
+          if !options.Rflag {
+            p.setAction(.SKIP)
+          }
+        case .DNR:			/* Warn, chmod. */
+          warnx("\(p.path): \(p.errno.localizedDescription)")
+          rval = 1
+        case .DP:			/* Already changed at FTS_D. */
+          continue
+
+        case .NS:
+          if options.acloptflags.contains(.FLAG) { /* don't need stat for -N */
+            break;
+          }
+          fallthrough
+        case .ERR:			/* Warn, continue. */
+          warnx("\(p.path): \(p.errno.localizedDescription)")
+          rval = 1
+          continue
+        case .SLNONE:
+          if !options.hflag {
+            rval = 1
+            warnx("\(p.path): \(POSIXErrno(ENOENT).localizedDescription)")
+            continue;
+          }
+          fallthrough
+        default:
+          break;
+      }
+
+      /* If an ACL manipulation option was specified, manipulate */
+      if options.acloptflags.contains(.FLAG)	{
+        if (0 != modify_file_acl(acloptflags, p->fts_accpath, acl_input, (int)aclpos, inheritance_level, !hflag)) {
+          rval = 1;
+        }
+      }
+      else {
+
+        let newmode = getmode(set, p.statp!.permissions)
+        /*
+         * With NFSv4 ACLs, it is possible that applying a mode
+         * identical to the one computed from an ACL will change
+         * that ACL.
+         */
+        if newmode /* & ALLPERMS) */ == p.statp.permissions /* & ALLPERMS)) */ {
+          continue
+        }
+        if (fchmodat(AT_FDCWD, p.accpath, newmode, atflag) == -1 && !options.fflag) {
+          warn("Unable to change file mode on \(p.path)")
+          rval = 1
+        } else if 0 != options.vflag || 0 != siginfo {
+          print(p.path, terminator: "")
+
+          if options.vflag > 1 || 0 != siginfo {
+            let m1 = strmode(p.statp!.filetype, p.statp!.permissions)
+            let m2 = strmode(p.statp!.filetype, newmode)
+
+            let a = String(p.statp!.permissions.rawValue, radix: 8)
+            // FIXME: filetype does not save the rawValue
+            let b = p.statp!.filetype // String(p.statp!.filetype.rawValue, radix: 8)
+            print(": 0\(a) [\(m1)] -> 0\(b) [\(m2)]", terminator: "")
+          }
+          print("")
+          siginfo = 0
+        }
+
+      }
+
+    }
+    if 0 != Darwin.errno {
+      err(1, "fts_read")
+    }
+
+    if (mode && (acloptflags & ACL_FROM_STDIN)) {
+      free(mode);
+    }
+
+    exit(rval);
+  }
+
+  var usage = """
+usage:\tchmod [-fhv] [-R [-H | -L | -P]] [-a | +a | =a  [i][# [ n]]] mode|entry file ...
+      \tchmod [-fhv] [-R [-H | -L | -P]] [-E | -C | -N | -i | -I] file ...
+""" /* add -A and -V when implemented */
+
+
