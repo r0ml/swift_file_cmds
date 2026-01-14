@@ -271,8 +271,9 @@ main(int argc, char *argv[])
 	char *bp = tcapbuf, *term;
 #endif
 
-	if (argc < 1)
-		usage();
+  if (argc < 1) {
+    usage();
+  }
 	(void)setlocale(LC_ALL, "");
 
 #ifdef __APPLE__
@@ -282,34 +283,40 @@ main(int argc, char *argv[])
 	/* Terminal defaults to -Cq, non-terminal defaults to -1. */
 	if (isatty(STDOUT_FILENO)) {
 		termwidth = 80;
-		if ((p = getenv("COLUMNS")) != NULL && *p != '\0')
-			termwidth = strtonum(p, 0, INT_MAX, &errstr);
+    if ((p = getenv("COLUMNS")) != NULL && *p != '\0') {
+      termwidth = strtonum(p, 0, INT_MAX, &errstr);
+    }
 		else if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &win) != -1 &&
-		    win.ws_col > 0)
-			termwidth = win.ws_col;
+             win.ws_col > 0) {
+      termwidth = win.ws_col;
+    }
 		f_nonprint = 1;
 	} else {
 		f_singlecol = 1;
 		/* retrieve environment variable, in case of explicit -C */
 		p = getenv("COLUMNS");
-		if (p)
-			termwidth = strtonum(p, 0, INT_MAX, &errstr);
+    if (p) {
+      termwidth = strtonum(p, 0, INT_MAX, &errstr);
+    }
 	}
 
-	if (errstr)
-		termwidth = 80;
+  if (errstr) {
+    termwidth = 80;
+  }
 
 	fts_options = FTS_PHYSICAL;
-	if (getenv("LS_SAMESORT"))
-		f_samesort = 1;
+  if (getenv("LS_SAMESORT")) {
+    f_samesort = 1;
+  }
 
 	/*
 	 * For historical compatibility, we'll use our autodetection if CLICOLOR
 	 * is set.
 	 */
 #ifdef COLORLS
-	if (getenv("CLICOLOR"))
-		colorflag = COLORFLAG_AUTO;
+  if (getenv("CLICOLOR")) {
+    colorflag = COLORFLAG_AUTO;
+  }
 #endif
 	while ((ch = getopt_long(argc, argv,
 #ifdef __APPLE__
@@ -567,8 +574,9 @@ main(int argc, char *argv[])
 	argv += optind;
 
 	/* Root is -A automatically unless -I. */
-	if (!f_listdot && getuid() == (uid_t)0 && !f_noautodot)
-		f_listdot = 1;
+  if (!f_listdot && getuid() == (uid_t)0 && !f_noautodot) {
+    f_listdot = 1;
+  }
 
 	/*
 	 * Enabling of colours is conditional on the environment in conjunction
@@ -587,10 +595,12 @@ main(int argc, char *argv[])
 			 * available, otherwise use 'oc', or
 			 * don't do colours at all. */
 			ansi_coloff = tgetstr("op", &bp);
-			if (!ansi_coloff)
-				ansi_coloff = tgetstr("oc", &bp);
-			if (ansi_fgcol && ansi_bgcol && ansi_coloff)
-				f_color = 1;
+      if (!ansi_coloff) {
+        ansi_coloff = tgetstr("oc", &bp);
+      }
+      if (ansi_fgcol && ansi_bgcol && ansi_coloff) {
+        f_color = 1;
+      }
 		} else if (colorflag == COLORFLAG_ALWAYS) {
 			/*
 			 * If we're *always* doing color but we don't have
@@ -652,14 +662,16 @@ main(int argc, char *argv[])
 	 * If -W, show whiteout entries
 	 */
 #ifdef FTS_WHITEOUT
-	if (f_whiteout)
-		fts_options |= FTS_WHITEOUT;
+  if (f_whiteout) {
+    fts_options |= FTS_WHITEOUT;
+  }
 #endif
 
 	/* If -i, -l or -s, figure out block size. */
 	if (f_inode || f_longform || f_size) {
-		if (f_kblocks)
-			blocksize = 2;
+    if (f_kblocks) {
+      blocksize = 2;
+    }
 		else {
 			(void)getbsize(&notused, &blocksize);
 			blocksize /= 512;
@@ -667,42 +679,58 @@ main(int argc, char *argv[])
 	}
 	/* Select a sort function. */
 	if (f_reversesort) {
-		if (!f_timesort && !f_sizesort)
-			sortfcn = revnamecmp;
-		else if (f_sizesort)
-			sortfcn = revsizecmp;
-		else if (f_accesstime)
-			sortfcn = revacccmp;
-		else if (f_birthtime)
-			sortfcn = revbirthcmp;
-		else if (f_statustime)
-			sortfcn = revstatcmp;
-		else		/* Use modification time. */
-			sortfcn = revmodcmp;
+    if (!f_timesort && !f_sizesort) {
+      sortfcn = revnamecmp;
+    }
+    else if (f_sizesort) {
+      sortfcn = revsizecmp;
+    }
+    else if (f_accesstime) {
+      sortfcn = revacccmp;
+    }
+    else if (f_birthtime) {
+      sortfcn = revbirthcmp;
+    }
+    else if (f_statustime) {
+      sortfcn = revstatcmp;
+    }
+    else {		/* Use modification time. */
+      sortfcn = revmodcmp;
+    }
 	} else {
-		if (!f_timesort && !f_sizesort)
-			sortfcn = namecmp;
-		else if (f_sizesort)
-			sortfcn = sizecmp;
-		else if (f_accesstime)
-			sortfcn = acccmp;
-		else if (f_birthtime)
-			sortfcn = birthcmp;
-		else if (f_statustime)
-			sortfcn = statcmp;
-		else		/* Use modification time. */
-			sortfcn = modcmp;
+    if (!f_timesort && !f_sizesort) {
+      sortfcn = namecmp;
+    }
+    else if (f_sizesort) {
+      sortfcn = sizecmp;
+    }
+    else if (f_accesstime) {
+      sortfcn = acccmp;
+    }
+    else if (f_birthtime) {
+      sortfcn = birthcmp;
+    }
+    else if (f_statustime) {
+      sortfcn = statcmp;
+    }
+    else {		/* Use modification time. */
+      sortfcn = modcmp;
+    }
 	}
 
 	/* Select a print function. */
-	if (f_singlecol)
-		printfcn = printscol;
-	else if (f_longform)
-		printfcn = printlong;
-	else if (f_stream)
-		printfcn = printstream;
-	else
-		printfcn = printcol;
+  if (f_singlecol) {
+    printfcn = printscol;
+  }
+  else if (f_longform) {
+    printfcn = printlong;
+  }
+  else if (f_stream) {
+    printfcn = printstream;
+  }
+  else {
+    printfcn = printcol;
+  }
 
 #ifdef __APPLE__
 #if !TARGET_OS_WATCH && !TARGET_OS_BRIDGE
@@ -716,13 +744,16 @@ main(int argc, char *argv[])
 	}
 #endif
 #endif /* __APPLE__ */
-	if (argc)
-		traverse(argc, argv, fts_options);
-	else
-		traverse(1, dotav, fts_options);
+  if (argc) {
+    traverse(argc, argv, fts_options);
+  }
+  else {
+    traverse(1, dotav, fts_options);
+  }
 #ifdef __APPLE__
-	if (rval == 0 && (ferror(stdout) != 0 || fflush(stdout) != 0))
-		err(1, "stdout");
+  if (rval == 0 && (ferror(stdout) != 0 || fflush(stdout) != 0)) {
+    err(1, "stdout");
+  }
 #endif
 	exit(rval);
 }
@@ -819,14 +850,16 @@ traverse(int argc, char *argv[], int options)
 			if (unix2003_compat && ((options & FTS_LOGICAL) != 0)) {
 				FTSENT *curr;
 				for (curr = chp; curr; curr = curr->fts_link) {
-					if (curr->fts_info == FTS_SLNONE)
-						curr->fts_number = NO_PRINT;
+          if (curr->fts_info == FTS_SLNONE) {
+            curr->fts_number = NO_PRINT;
+          }
 				}
 			}
 			display(p, chp, options);
 
-			if (!f_recursive && chp != NULL)
-				(void)fts_set(ftsp, p, FTS_SKIP);
+    if (!f_recursive && chp != NULL) {
+      (void)fts_set(ftsp, p, FTS_SKIP);
+    }
 			break;
 		case FTS_SLNONE:	/* Same as default unless Unix conformance */
 			if (unix2003_compat) {
@@ -852,8 +885,9 @@ out:
 	fts_close(ftsp);
 	errno = error;
 
-	if (errno)
-		err(1, "fts_read");
+  if (errno) {
+    err(1, "fts_read");
+  }
 }
 
 /*
@@ -920,16 +954,18 @@ display(const FTSENT *p, FTSENT *list, int options)
 				initmax = endp;
 				while (isspace(*initmax))
 					initmax++;
-				if (*initmax != ':')
-					break;
+        if (*initmax != ':') {
+          break;
+        }
 				initmax++;
 			}
 		}
-		if (i < LS_COLWIDTHS_FIELDS)
+    if (i < LS_COLWIDTHS_FIELDS) {
 #ifdef COLORLS
-			if (!f_color)
+        if (!f_color) {
 #endif
-				f_notabs = 0;
+      f_notabs = 0;
+    }
 	}
 
 	/* Fields match -lios order.  New ones should be added at the end. */
@@ -976,24 +1012,30 @@ display(const FTSENT *p, FTSENT *list, int options)
 				continue;
 			}
 		}
-		if (cur->fts_namelen > maxlen)
-			maxlen = cur->fts_namelen;
+    if (cur->fts_namelen > maxlen) {
+      maxlen = cur->fts_namelen;
+    }
 		if (f_octal || f_octal_escape) {
 			u_long t = len_octal(cur->fts_name, cur->fts_namelen);
 
-			if (t > maxlen)
-				maxlen = t;
+      if (t > maxlen) {
+        maxlen = t;
+      }
 		}
 		if (needstats) {
 			sp = cur->fts_statp;
-			if (sp->st_blocks > maxblock)
-				maxblock = sp->st_blocks;
-			if (sp->st_ino > maxinode)
-				maxinode = sp->st_ino;
-			if (sp->st_nlink > maxnlink)
-				maxnlink = sp->st_nlink;
-			if (sp->st_size > maxsize)
-				maxsize = sp->st_size;
+      if (sp->st_blocks > maxblock) {
+        maxblock = sp->st_blocks;
+      }
+      if (sp->st_ino > maxinode) {
+        maxinode = sp->st_ino;
+      }
+      if (sp->st_nlink > maxnlink) {
+        maxnlink = sp->st_nlink;
+      }
+      if (sp->st_size > maxsize) {
+        maxsize = sp->st_size;
+      }
 
 			btotal += sp->st_blocks;
 			if (f_longform) {
@@ -1015,30 +1057,37 @@ display(const FTSENT *p, FTSENT *list, int options)
 					 * path directly below, which will
 					 * likely exit anyway.
 					 */
-					if (user == NULL)
-						err(1, "user_from_uid");
+          if (user == NULL) {
+            err(1, "user_from_uid");
+          }
 					group = group_from_gid(sp->st_gid, 0);
 					/* Ditto. */
-					if (group == NULL)
-						err(1, "group_from_gid");
+          if (group == NULL) {
+            err(1, "group_from_gid");
+          }
 				}
-				if ((ulen = strlen(user)) > maxuser)
-					maxuser = ulen;
-				if ((glen = strlen(group)) > maxgroup)
-					maxgroup = glen;
+        if ((ulen = strlen(user)) > maxuser) {
+          maxuser = ulen;
+        }
+        if ((glen = strlen(group)) > maxgroup) {
+          maxgroup = glen;
+        }
 				if (f_flags) {
 					flags = fflagstostr(sp->st_flags);
 					if (flags != NULL && *flags == '\0') {
 						free(flags);
 						flags = strdup("-");
 					}
-					if (flags == NULL)
-						err(1, "fflagstostr");
+          if (flags == NULL) {
+            err(1, "fflagstostr");
+          }
 					flen = strlen(flags);
-					if (flen > (size_t)maxflags)
-						maxflags = flen;
-				} else
-					flen = 0;
+          if (flen > (size_t)maxflags) {
+            maxflags = flen;
+          }
+        } else {
+          flen = 0;
+        }
 				labelstr = NULL;
 #ifndef __APPLE__
 				if (f_label) {
@@ -1054,20 +1103,24 @@ display(const FTSENT *p, FTSENT *list, int options)
 						goto label_out;
 					}
 
-					if (cur->fts_level == FTS_ROOTLEVEL)
-						snprintf(name, sizeof(name),
-						    "%s", cur->fts_name);
-					else
-						snprintf(name, sizeof(name),
-						    "%s/%s", cur->fts_parent->
-						    fts_accpath, cur->fts_name);
+          if (cur->fts_level == FTS_ROOTLEVEL) {
+            snprintf(name, sizeof(name),
+                     "%s", cur->fts_name);
+          }
+          else {
+            snprintf(name, sizeof(name),
+                     "%s/%s", cur->fts_parent->
+                     fts_accpath, cur->fts_name);
+          }
 
-					if (options & FTS_LOGICAL)
-						error = mac_get_file(name,
-						    label);
-					else
-						error = mac_get_link(name,
-						    label);
+          if (options & FTS_LOGICAL) {
+            error = mac_get_file(name,
+                                 label);
+          }
+          else {
+            error = mac_get_link(name,
+                                 label);
+          }
 					if (error == -1) {
 						warn("MAC label for %s/%s",
 						    cur->fts_parent->fts_path,
@@ -1087,20 +1140,24 @@ display(const FTSENT *p, FTSENT *list, int options)
 					}
 					mac_free(label);
 label_out:
-					if (labelstr == NULL)
-						labelstr = strdup("-");
+          if (labelstr == NULL) {
+            labelstr = strdup("-");
+          }
 					labelstrlen = strlen(labelstr);
-					if (labelstrlen > maxlabelstr)
-						maxlabelstr = labelstrlen;
-				} else
-					labelstrlen = 0;
+          if (labelstrlen > maxlabelstr) {
+            maxlabelstr = labelstrlen;
+          }
+        } else {
+          labelstrlen = 0;
+        }
 #else
 				labelstrlen = 0;
 #endif /* !__APPLE__ */
 
 				if ((np = calloc(1, sizeof(NAMES) + labelstrlen +
-				    ulen + glen + flen + 4)) == NULL)
-					err(1, "malloc");
+                         ulen + glen + flen + 4)) == NULL) {
+          err(1, "malloc");
+        }
 
 				np->user = &np->data[0];
 				(void)strcpy(np->user, user);
@@ -1155,8 +1212,9 @@ label_out:
 				    S_ISBLK(sp->st_mode)) {
 					sizelen = snprintf(NULL, 0,
 					    "%#jx", (uintmax_t)sp->st_rdev);
-					if (d.s_size < sizelen)
-						d.s_size = sizelen;
+          if (d.s_size < sizelen) {
+            d.s_size = sizelen;
+          }
 				}
 
 				if (f_flags) {
@@ -1184,8 +1242,9 @@ label_out:
 	 * total block count.  In this case, we display the total only
 	 * on the second (p != NULL) pass.
 	 */
-	if (!entries && (!(f_longform || f_size) || p == NULL))
-		return;
+  if (!entries && (!(f_longform || f_size) || p == NULL)) {
+    return;
+  }
 
 	d.list = list;
 	d.entries = entries;
@@ -1202,12 +1261,14 @@ label_out:
 		d.s_nlink = snprintf(NULL, 0, "%llu", maxnlink);
 		sizelen = f_humanval ? HUMANVALSTR_LEN :
 		snprintf(NULL, 0, "%lld", maxsize);
-		if (d.s_size < sizelen)
-			d.s_size = sizelen;
+    if (d.s_size < sizelen) {
+      d.s_size = sizelen;
+    }
 		d.s_user = maxuser;
 	}
-	if (f_thousands)			/* make space for commas */
-		d.s_size += (d.s_size - 1) / 3;
+  if (f_thousands) {			/* make space for commas */
+    d.s_size += (d.s_size - 1) / 3;
+  }
 	printfcn(&d);
 	output = 1;
 

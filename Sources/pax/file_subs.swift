@@ -100,22 +100,24 @@ file_creat(ARCHD *arcn)
 	 */
 	file_mode = arcn->sb.st_mode & FILEBITS;
 	if ((fd = open(arcn->name, O_WRONLY | O_CREAT | O_TRUNC | O_EXCL,
-	    file_mode)) >= 0)
-		return(fd);
+                 file_mode)) >= 0) {
+    return(fd);
+  }
 
 	/*
 	 * the file seems to exist. First we try to get rid of it (found to be
 	 * the second most common failure when traced). If this fails, only
 	 * then we go to the expense to check and create the path to the file
 	 */
-	if (unlnk_exist(arcn->name, arcn->type) != 0)
-		return(-1);
+  if (unlnk_exist(arcn->name, arcn->type) != 0) {
+    return(-1);
+  }
 
 #ifdef __APPLE__
 	path_to_open = arcn->name;
 	new_path = arcn->name;
 	cwd = getcwd(cwd_buff,sizeof(cwd_buff));
-	if (cwd==NULL) return -1;
+  if (cwd==NULL) { return -1; }
 #endif /* __APPLE__ */
 	for (;;) {
 		/*
@@ -134,14 +136,15 @@ file_creat(ARCHD *arcn)
 		}
 #else
 		if ((fd = open(arcn->name, O_WRONLY | O_CREAT | O_TRUNC,
-		    file_mode)) >= 0)
-			break;
+                   file_mode)) >= 0) {
+      break;
+    }
 #endif /* __APPLE__ */
 		oerrno = errno;
 #ifdef __APPLE__
 		if (pax_invalid_action>0) {
 			rc = perform_pax_invalid_action(arcn, oerrno);
-			if (rc == 0) continue;
+      if (rc == 0) { continue; }
 			if (rc == 1) {
 				fd = -1;
 				break;
@@ -161,7 +164,7 @@ file_creat(ARCHD *arcn)
 		}
 #endif /* __APPLE__ */
 #ifdef __APPLE__
-		if (new_path) path_to_open = new_path; /* try again */
+    if (new_path) { path_to_open = new_path; } /* try again */
 	}
 	if (new_path && strcmp(new_path, arcn->name)!=0) {
 		dochdir(cwd);	/* go back to original directory */
@@ -183,22 +186,26 @@ file_close(ARCHD *arcn, int fd)
 {
 	int res = 0;
 
-	if (fd < 0)
-		return;
-	if (close(fd) < 0)
-		syswarn(0, errno, "Unable to close file descriptor on %s",
-		    arcn->name);
+  if (fd < 0) {
+    return;
+  }
+  if (close(fd) < 0) {
+    syswarn(0, errno, "Unable to close file descriptor on %s",
+            arcn->name);
+  }
 
 	/*
 	 * set owner/groups first as this may strip off mode bits we want
 	 * then set file permission modes. Then set file access and
 	 * modification times.
 	 */
-	if (pids)
-		res = set_ids(arcn->name, arcn->sb.st_uid, arcn->sb.st_gid);
+  if (pids) {
+    res = set_ids(arcn->name, arcn->sb.st_uid, arcn->sb.st_gid);
+  }
 #ifdef __APPLE__
-	else
-		res = 1; /* without pids, pax should NOT set s bits */
+  else {
+    res = 1; /* without pids, pax should NOT set s bits */
+  }
 #endif /* __APPLE__ */
 
 	/*
@@ -206,17 +213,20 @@ file_close(ARCHD *arcn, int fd)
 	 * if not preserving mode or we cannot set uid/gid, then PROHIBIT
 	 * set uid/gid bits
 	 */
-	if (!pmode || res)
-		arcn->sb.st_mode &= ~(SETBITS);
-	if (pmode)
-		set_pmode(arcn->name, arcn->sb.st_mode);
-	if (patime || pmtime)
-#ifdef __APPLE__
-		set_ftime(arcn->name, arcn->sb.st_mtime, arcn->sb.st_mtime_nsec,
-			  arcn->sb.st_atime, arcn->sb.st_atime_nsec, 0);
+  if (!pmode || res) {
+    arcn->sb.st_mode &= ~(SETBITS);
+  }
+  if (pmode) {
+    set_pmode(arcn->name, arcn->sb.st_mode);
+  }
+  if (patime || pmtime) {
+    #ifdef __APPLE__
+    set_ftime(arcn->name, arcn->sb.st_mtime, arcn->sb.st_mtime_nsec,
+              arcn->sb.st_atime, arcn->sb.st_atime_nsec, 0);
 #else
-		set_ftime(arcn->name, arcn->sb.st_mtime, arcn->sb.st_atime, 0);
+    set_ftime(arcn->name, arcn->sb.st_mtime, arcn->sb.st_atime, 0);
 #endif /* __APPLE__ */
+  }
 }
 
 /*
@@ -288,12 +298,14 @@ cross_lnk(ARCHD *arcn)
 	 * we do not try to link to directories in case we are running as root
 	 * (and it might succeed).
 	 */
-	if (arcn->type == PAX_DIR)
-		return(1);
+  if (arcn->type == PAX_DIR) {
+    return(1);
+  }
 #ifdef __APPLE__
 	if (arcn->type == PAX_SLK) {	/* for Unix 03 conformance tests 202,203 */
-		if (!Lflag)
-			return(1);
+    if (!Lflag) {
+      return(1);
+    }
 	}
 #endif /* __APPLE__ */
 	return(mk_link(arcn->org_name, &(arcn->sb), arcn->name, 1));
@@ -319,10 +331,12 @@ chk_same(ARCHD *arcn)
 	 * if file does not exist, return. if file exists and -k, skip it
 	 * quietly
 	 */
-	if (lstat(arcn->name, &sb) < 0)
-		return(1);
-	if (kflag)
-		return(0);
+  if (lstat(arcn->name, &sb) < 0) {
+    return(1);
+  }
+  if (kflag) {
+    return(0);
+  }
 
 	/*
 	 * better make sure the user does not have src == dest by mistake
@@ -397,11 +411,12 @@ mk_link(char *to, struct stat *to_sb, char *from,
 			break;
 		oerrno = errno;
 #ifdef __APPLE__
-		if (!nodirs && chk_path(from, to_sb->st_uid, to_sb->st_gid, NULL) == 0)
+    if (!nodirs && chk_path(from, to_sb->st_uid, to_sb->st_gid, NULL) == 0) {
 #else
-		if (!nodirs && chk_path(from, to_sb->st_uid, to_sb->st_gid) == 0)
+      if (!nodirs && chk_path(from, to_sb->st_uid, to_sb->st_gid) == 0) {
 #endif /* __APPLE__ */
-			continue;
+        continue;
+      }
 		if (!ign) {
 			syswarn(1, oerrno, "Could not link to %s from %s", to,
 			    from);
@@ -427,164 +442,178 @@ mk_link(char *to, struct stat *to_sb, char *from,
 int
 node_creat(ARCHD *arcn)
 {
-	int res;
-	int ign = 0;
-	int oerrno;
-	int pass = 0;
-	mode_t file_mode;
-	struct stat sb;
+  int res;
+  int ign = 0;
+  int oerrno;
+  int pass = 0;
+  mode_t file_mode;
+  struct stat sb;
 
-	/*
-	 * create node based on type, if that fails try to unlink the node and
-	 * try again. finally check the path and try again. As noted in the
-	 * file and link creation routines, this method seems to exhibit the
-	 * best performance in general use workloads.
-	 */
-	file_mode = arcn->sb.st_mode & FILEBITS;
+  /*
+   * create node based on type, if that fails try to unlink the node and
+   * try again. finally check the path and try again. As noted in the
+   * file and link creation routines, this method seems to exhibit the
+   * best performance in general use workloads.
+   */
+  file_mode = arcn->sb.st_mode & FILEBITS;
 
-	for (;;) {
-		switch(arcn->type) {
-		case PAX_DIR:
-			res = mkdir(arcn->name, file_mode);
-			if (ign)
-				res = 0;
-			break;
-		case PAX_CHR:
-			file_mode |= S_IFCHR;
-			res = mknod(arcn->name, file_mode, arcn->sb.st_rdev);
-			break;
-		case PAX_BLK:
-			file_mode |= S_IFBLK;
-			res = mknod(arcn->name, file_mode, arcn->sb.st_rdev);
-			break;
-		case PAX_FIF:
-			res = mkfifo(arcn->name, file_mode);
-			break;
-		case PAX_SCK:
-			/*
-			 * Skip sockets, operation has no meaning under BSD
-			 */
-			paxwarn(0,
-			    "%s skipped. Sockets cannot be copied or extracted",
-			    arcn->name);
-			return(-1);
-		case PAX_SLK:
-			res = symlink(arcn->ln_name, arcn->name);
-			break;
-		case PAX_CTG:
-		case PAX_HLK:
-		case PAX_HRG:
-		case PAX_REG:
-		default:
-			/*
-			 * we should never get here
-			 */
-			paxwarn(0, "%s has an unknown file type, skipping",
-				arcn->name);
-			return(-1);
-		}
+  for (;;) {
+    switch(arcn->type) {
+      case PAX_DIR:
+        res = mkdir(arcn->name, file_mode);
+        if (ign) {
+          res = 0;
+        }
+        break;
+      case PAX_CHR:
+        file_mode |= S_IFCHR;
+        res = mknod(arcn->name, file_mode, arcn->sb.st_rdev);
+        break;
+      case PAX_BLK:
+        file_mode |= S_IFBLK;
+        res = mknod(arcn->name, file_mode, arcn->sb.st_rdev);
+        break;
+      case PAX_FIF:
+        res = mkfifo(arcn->name, file_mode);
+        break;
+      case PAX_SCK:
+        /*
+         * Skip sockets, operation has no meaning under BSD
+         */
+        paxwarn(0,
+                "%s skipped. Sockets cannot be copied or extracted",
+                arcn->name);
+        return(-1);
+      case PAX_SLK:
+        res = symlink(arcn->ln_name, arcn->name);
+        break;
+      case PAX_CTG:
+      case PAX_HLK:
+      case PAX_HRG:
+      case PAX_REG:
+      default:
+        /*
+         * we should never get here
+         */
+        paxwarn(0, "%s has an unknown file type, skipping",
+                arcn->name);
+        return(-1);
+    }
 
-		/*
-		 * if we were able to create the node break out of the loop,
-		 * otherwise try to unlink the node and try again. if that
-		 * fails check the full path and try a final time.
-		 */
-		if (res == 0)
-			break;
+    /*
+     * if we were able to create the node break out of the loop,
+     * otherwise try to unlink the node and try again. if that
+     * fails check the full path and try a final time.
+     */
+    if (res == 0) {
+      break;
+    }
 
-		/*
-		 * we failed to make the node
-		 */
-		oerrno = errno;
-		if ((ign = unlnk_exist(arcn->name, arcn->type)) < 0)
-			return(-1);
+    /*
+     * we failed to make the node
+     */
+    oerrno = errno;
+    if ((ign = unlnk_exist(arcn->name, arcn->type)) < 0) {
+      return(-1);
+    }
 
-		if (++pass <= 1)
-			continue;
+    if (++pass <= 1) {
+      continue;
+    }
 
-#ifdef __APPLE__
-		if (nodirs || chk_path(arcn->name,arcn->sb.st_uid,arcn->sb.st_gid, NULL) < 0) {
+    #ifdef __APPLE__
+    if (nodirs || chk_path(arcn->name,arcn->sb.st_uid,arcn->sb.st_gid, NULL) < 0) {
 #else
-		if (nodirs || chk_path(arcn->name,arcn->sb.st_uid,arcn->sb.st_gid) < 0) {
+      if (nodirs || chk_path(arcn->name,arcn->sb.st_uid,arcn->sb.st_gid) < 0) {
 #endif /* __APPLE__ */
-			syswarn(1, oerrno, "Could not create: %s", arcn->name);
-			return(-1);
-		}
-	}
+        syswarn(1, oerrno, "Could not create: %s", arcn->name);
+        return(-1);
+      }
+    }
 
-	/*
-	 * we were able to create the node. set uid/gid, modes and times
-	 */
-	if (pids)
-		res = set_ids(arcn->name, arcn->sb.st_uid, arcn->sb.st_gid);
-	else
-#ifdef __APPLE__
-		res = 1;	/* without pids, pax should NOT set s bits */
+    /*
+     * we were able to create the node. set uid/gid, modes and times
+     */
+    if (pids) {
+      res = set_ids(arcn->name, arcn->sb.st_uid, arcn->sb.st_gid);
+    }
+    else {
+      #ifdef __APPLE__
+      res = 1;	/* without pids, pax should NOT set s bits */
+    }
 #else
-		res = 0;
+    res = 0;
+  }
 #endif /* __APPLE__ */
 
-#ifdef __APPLE__
-	/*
-	 * symlinks are done now.
-	 */
-	if (arcn->type == PAX_SLK)
-		return(0);
+  #ifdef __APPLE__
+  /*
+   * symlinks are done now.
+   */
+  if (arcn->type == PAX_SLK) {
+    return(0);
+  }
 #endif /* __APPLE__ */
 
-	/*
-	 * IMPORTANT SECURITY NOTE:
-	 * if not preserving mode or we cannot set uid/gid, then PROHIBIT any
-	 * set uid/gid bits
-	 */
-	if (!pmode || res)
-		arcn->sb.st_mode &= ~(SETBITS);
-	if (pmode)
-		set_pmode(arcn->name, arcn->sb.st_mode);
+  /*
+   * IMPORTANT SECURITY NOTE:
+   * if not preserving mode or we cannot set uid/gid, then PROHIBIT any
+   * set uid/gid bits
+   */
+  if (!pmode || res) {
+    arcn->sb.st_mode &= ~(SETBITS);
+  }
+  if (pmode) {
+    set_pmode(arcn->name, arcn->sb.st_mode);
+  }
 
-	if (arcn->type == PAX_DIR && strcmp(NM_CPIO, argv0) != 0) {
-		/*
-		 * Dirs must be processed again at end of extract to set times
-		 * and modes to agree with those stored in the archive. However
-		 * to allow extract to continue, we may have to also set owner
-		 * rights. This allows nodes in the archive that are children
-		 * of this directory to be extracted without failure. Both time
-		 * and modes will be fixed after the entire archive is read and
-		 * before pax exits.
-		 */
-		if (access(arcn->name, R_OK | W_OK | X_OK) < 0) {
-			if (lstat(arcn->name, &sb) < 0) {
-				syswarn(0, errno,"Could not access %s (stat)",
-				    arcn->name);
-				set_pmode(arcn->name,file_mode | S_IRWXU);
-			} else {
-				/*
-				 * We have to add rights to the dir, so we make
-				 * sure to restore the mode. The mode must be
-				 * restored AS CREATED and not as stored if
-				 * pmode is not set.
-				 */
-				set_pmode(arcn->name,
-				    ((sb.st_mode & FILEBITS) | S_IRWXU));
-				if (!pmode)
-					arcn->sb.st_mode = sb.st_mode;
-			}
+  if (arcn->type == PAX_DIR && strcmp(NM_CPIO, argv0) != 0) {
+    /*
+     * Dirs must be processed again at end of extract to set times
+     * and modes to agree with those stored in the archive. However
+     * to allow extract to continue, we may have to also set owner
+     * rights. This allows nodes in the archive that are children
+     * of this directory to be extracted without failure. Both time
+     * and modes will be fixed after the entire archive is read and
+     * before pax exits.
+     */
+    if (access(arcn->name, R_OK | W_OK | X_OK) < 0) {
+      if (lstat(arcn->name, &sb) < 0) {
+        syswarn(0, errno,"Could not access %s (stat)",
+                arcn->name);
+        set_pmode(arcn->name,file_mode | S_IRWXU);
+      } else {
+        /*
+         * We have to add rights to the dir, so we make
+         * sure to restore the mode. The mode must be
+         * restored AS CREATED and not as stored if
+         * pmode is not set.
+         */
+        set_pmode(arcn->name,
+                  ((sb.st_mode & FILEBITS) | S_IRWXU));
+        if (!pmode) {
+          arcn->sb.st_mode = sb.st_mode;
+        }
+      }
 
-			/*
-			 * we have to force the mode to what was set here,
-			 * since we changed it from the default as created.
-			 */
-			add_dir(arcn->name, arcn->nlen, &(arcn->sb), 1);
-		} else if (pmode || patime || pmtime)
-			add_dir(arcn->name, arcn->nlen, &(arcn->sb), 0);
-	}
+      /*
+       * we have to force the mode to what was set here,
+       * since we changed it from the default as created.
+       */
+      add_dir(arcn->name, arcn->nlen, &(arcn->sb), 1);
+    } else if (pmode || patime || pmtime) {
+      add_dir(arcn->name, arcn->nlen, &(arcn->sb), 0);
+    }
+  }
 
-	if (patime || pmtime)
-#ifdef __APPLE__
-		set_ftime(arcn->name, arcn->sb.st_mtime, arcn->sb.st_mtime_nsec,
-			  arcn->sb.st_atime, arcn->sb.st_atime_nsec, 0);
+  if (patime || pmtime) {
+    #ifdef __APPLE__
+    set_ftime(arcn->name, arcn->sb.st_mtime, arcn->sb.st_mtime_nsec,
+              arcn->sb.st_atime, arcn->sb.st_atime_nsec, 0);
+  }
 #else
-		set_ftime(arcn->name, arcn->sb.st_mtime, arcn->sb.st_atime, 0);
+  set_ftime(arcn->name, arcn->sb.st_mtime, arcn->sb.st_atime, 0);
+}
 #endif /* __APPLE__ */
 	return(0);
 }
@@ -609,10 +638,12 @@ unlnk_exist(char *name, int type)
 	/*
 	 * the file does not exist, or -k we are done
 	 */
-	if (lstat(name, &sb) < 0)
-		return(0);
-	if (kflag)
-		return(-1);
+  if (lstat(name, &sb) < 0) {
+    return(0);
+  }
+  if (kflag) {
+    return(-1);
+  }
 
 	if (S_ISDIR(sb.st_mode)) {
 		/*
@@ -620,8 +651,9 @@ unlnk_exist(char *name, int type)
 		 * create a directory anyway, tell the caller (return a 1)
 		 */
 		if (rmdir(name) < 0) {
-			if (type == PAX_DIR)
-				return(1);
+      if (type == PAX_DIR) {
+        return(1);
+      }
 			syswarn(1,errno,"Unable to remove directory %s", name);
 			return(-1);
 		}
@@ -669,8 +701,9 @@ chk_path( char *name, uid_t st_uid, gid_t st_gid)
 	/*
 	 * watch out for paths with nodes stored directly in / (e.g. /bozo)
 	 */
-	if (*spt == '/')
-		++spt;
+  if (*spt == '/') {
+    ++spt;
+  }
 
 	for(;;) {
 		/*
@@ -682,8 +715,9 @@ chk_path( char *name, uid_t st_uid, gid_t st_gid)
 		 * skip creating a leaf dir (with an ending '/') as we only want
 		 * to create parents here
 		 */
-		if ((spt == NULL) || (*(spt + 1) == '\0'))
-			break;
+    if ((spt == NULL) || (*(spt + 1) == '\0')) {
+      break;
+    }
 		*spt = '\0';
 
 		/*
@@ -698,7 +732,7 @@ chk_path( char *name, uid_t st_uid, gid_t st_gid)
 		if (lstat(name, &sb) == 0) {
 			*(spt++) = '/';
 #ifdef __APPLE__
-			if (new_name==NULL) continue;
+      if (new_name==NULL) { continue; }
 			retval = 0; /* accept it one directory at a time */
 			break;
 #else
@@ -722,8 +756,9 @@ chk_path( char *name, uid_t st_uid, gid_t st_gid)
 		 * and create the node again.
 		 */
 		retval = 0;
-		if (pids)
-			(void)set_ids(name, st_uid, st_gid);
+    if (pids) {
+      (void)set_ids(name, st_uid, st_gid);
+    }
 
 		/*
 		 * make sure the user doesn't have some strange umask that
@@ -742,7 +777,7 @@ chk_path( char *name, uid_t st_uid, gid_t st_gid)
 		}
 		*(spt++) = '/';
 #ifdef __APPLE__
-		if (new_name==NULL) continue;
+    if (new_name==NULL) { continue; }
 		break;
 	}
 	if ((new_name != NULL) && retval==0) {
@@ -757,8 +792,9 @@ chk_path( char *name, uid_t st_uid, gid_t st_gid)
 			printf ("remaining path: %s\n",spt);
 			*/
 			*new_name = spt;
-		} else
-			*spt = '/';
+    } else {
+      *spt = '/';
+    }
 #else
 		continue;
 #endif /* __APPLE__ */
@@ -813,27 +849,32 @@ set_ftime(char *fnm, time_t mtime, time_t atime, int frc)
 		 * if we are not forcing, only set those times the user wants
 		 * set. We get the current values of the times if we need them.
 		 */
-		if (lstat(fnm, &sb) == 0) {
-			if (!patime)
-#ifdef __APPLE__
-			{
-				set_ts.atime.tv_sec = sb.st_atime_sec;
-				set_ts.atime.tv_nsec = sb.st_atime_nsec;
-			}
+    if (lstat(fnm, &sb) == 0) {
+      if (!patime)
+          #ifdef __APPLE__
+      {
+        set_ts.atime.tv_sec = sb.st_atime_sec;
+        set_ts.atime.tv_nsec = sb.st_atime_nsec;
+      }
 #else
-				tv[0].tv_sec = sb.st_atime;
+      {
+      tv[0].tv_sec = sb.st_atime;
+    }
 #endif /* __APPLE__ */
-			if (!pmtime)
+      if (!pmtime)
 #ifdef __APPLE__
 			{
 				set_ts.mtime.tv_sec = sb.st_mtime_sec;
 				set_ts.mtime.tv_nsec = sb.st_mtime_nsec;
 			}
 #else
-				tv[1].tv_sec = sb.st_mtime;
+      {
+        tv[1].tv_sec = sb.st_mtime;
+      }
 #endif /* __APPLE__ */
-		} else
-			syswarn(0,errno,"Unable to obtain file stats %s", fnm);
+    } else {
+      syswarn(0,errno,"Unable to obtain file stats %s", fnm);
+    }
 	}
 
 	/*
@@ -846,20 +887,23 @@ set_ftime(char *fnm, time_t mtime, time_t atime, int frc)
 		cwd = getcwd(&cwd_buff[0],MAXPATHLEN);
 		chdir(pax_invalid_action_write_cwd);
 		if (setattrlist(pax_invalid_action_write_path, &ts_req, &set_ts,
-				sizeof(set_ts), FSOPT_NOFOLLOW) < 0)
-			syswarn(1, errno, "Access/modification time set failed on: %s",
-			    pax_invalid_action_write_path);
+                    sizeof(set_ts), FSOPT_NOFOLLOW) < 0) {
+      syswarn(1, errno, "Access/modification time set failed on: %s",
+              pax_invalid_action_write_path);
+    }
 		chdir(cwd);
 		cleanup_pax_invalid_action();
 	} else {
-		if (setattrlist(fnm, &ts_req, &set_ts, sizeof(set_ts), FSOPT_NOFOLLOW) < 0)
-			syswarn(1, errno, "Access/modification time set failed on: %s",
-			    fnm);
+    if (setattrlist(fnm, &ts_req, &set_ts, sizeof(set_ts), FSOPT_NOFOLLOW) < 0) {
+      syswarn(1, errno, "Access/modification time set failed on: %s",
+              fnm);
+    }
 	}
 #else
-	if (lutimes(fnm, tv) < 0)
-		syswarn(1, errno, "Access/modification time set failed on: %s",
-		    fnm);
+  if (lutimes(fnm, tv) < 0) {
+    syswarn(1, errno, "Access/modification time set failed on: %s",
+            fnm);
+  }
 #endif /* __APPLE__ */
 	return;
 }
@@ -880,9 +924,10 @@ set_ids(char *fnm, uid_t uid, gid_t gid)
 		 * if running as pax, POSIX requires a warning.
 		 */
 		if (strcmp(NM_PAX, argv0) == 0 || errno != EPERM || vflag ||
-		    geteuid() == 0)
-			syswarn(1, errno, "Unable to set file uid/gid of %s",
-			    fnm);
+        geteuid() == 0) {
+      syswarn(1, errno, "Unable to set file uid/gid of %s",
+              fnm);
+    }
 		return(-1);
 	}
 	return(0);
@@ -897,8 +942,9 @@ void
 set_pmode(char *fnm, mode_t mode)
 {
 	mode &= ABITS;
-	if (lchmod(fnm, mode) < 0)
-		syswarn(1, errno, "Could not set permissions on %s", fnm);
+  if (lchmod(fnm, mode) < 0) {
+    syswarn(1, errno, "Could not set permissions on %s", fnm);
+  }
 	return;
 }
 
@@ -1031,8 +1077,9 @@ file_write(int fd, char *str, int cnt, int *rem, int *isempt, int sz,
 			break;
 		}
 		if (strp) {
-			if (*strp)
-				err(1, "WARNING! Major Internal Error! GNU hack Failing!");
+      if (*strp) {
+        err(1, "WARNING! Major Internal Error! GNU hack Failing!");
+      }
 			*strp = malloc(wcnt + 1);
 			if (*strp == NULL) {
 				paxwarn(1, "Out of memory");
@@ -1041,7 +1088,7 @@ file_write(int fd, char *str, int cnt, int *rem, int *isempt, int sz,
 			memcpy(*strp, st, wcnt);
 			(*strp)[wcnt] = '\0';
 			break;
-		} else
+    } else
 #endif /* __APPLE__ */
 		if (write(fd, st, wcnt) != wcnt) {
 			syswarn(1, errno, "Failed write to file %s", name);
@@ -1068,8 +1115,9 @@ file_flush(int fd, char *fname, int isempt)
 	 * silly test, but make sure we are only called when the last block is
 	 * filled with all zeros.
 	 */
-	if (!isempt)
-		return;
+  if (!isempt) {
+    return;
+  }
 
 	/*
 	 * move back one byte and write a zero
@@ -1079,8 +1127,9 @@ file_flush(int fd, char *fname, int isempt)
 		return;
 	}
 
-	if (write(fd, blnk, 1) < 0)
-		syswarn(1, errno, "Failed write to file %s", fname);
+  if (write(fd, blnk, 1) < 0) {
+    syswarn(1, errno, "Failed write to file %s", fname);
+  }
 	return;
 }
 
@@ -1096,13 +1145,15 @@ rdfile_close(ARCHD *arcn, int *fd)
 	/*
 	 * make sure the file is open
 	 */
-	if (*fd < 0)
-		return;
+  if (*fd < 0) {
+    return;
+  }
 
 	(void)close(*fd);
 	*fd = -1;
-	if (!tflag)
-		return;
+  if (!tflag) {
+    return;
+  }
 
 	/*
 	 * user wants last access time reset
@@ -1144,33 +1195,40 @@ set_crc(ARCHD *arcn, int fd)
 		return(0);
 	}
 
-	if ((size = (u_long)arcn->sb.st_blksize) > (u_long)sizeof(tbuf))
-		size = (u_long)sizeof(tbuf);
+  if ((size = (u_long)arcn->sb.st_blksize) > (u_long)sizeof(tbuf)) {
+    size = (u_long)sizeof(tbuf);
+  }
 
 	/*
 	 * read all the bytes we think that there are in the file. If the user
 	 * is trying to archive an active file, forget this file.
 	 */
 	for(;;) {
-		if ((res = read(fd, tbuf, size)) <= 0)
-			break;
+    if ((res = read(fd, tbuf, size)) <= 0) {
+      break;
+    }
 		cpcnt += res;
-		for (i = 0; i < res; ++i)
-			crc += (tbuf[i] & 0xff);
+    for (i = 0; i < res; ++i) {
+      crc += (tbuf[i] & 0xff);
+    }
 	}
 
 	/*
 	 * safety check. we want to avoid archiving files that are active as
 	 * they can create inconsistent archive copies.
 	 */
-	if (cpcnt != arcn->sb.st_size)
-		paxwarn(1, "File changed size %s", arcn->org_name);
-	else if (fstat(fd, &sb) < 0)
-		syswarn(1, errno, "Failed stat on %s", arcn->org_name);
-	else if (arcn->sb.st_mtime != sb.st_mtime)
-		paxwarn(1, "File %s was modified during read", arcn->org_name);
-	else if (lseek(fd, (off_t)0L, SEEK_SET) < 0)
-		syswarn(1, errno, "File rewind failed on: %s", arcn->org_name);
+  if (cpcnt != arcn->sb.st_size) {
+    paxwarn(1, "File changed size %s", arcn->org_name);
+  }
+  else if (fstat(fd, &sb) < 0) {
+    syswarn(1, errno, "Failed stat on %s", arcn->org_name);
+  }
+  else if (arcn->sb.st_mtime != sb.st_mtime) {
+    paxwarn(1, "File %s was modified during read", arcn->org_name);
+  }
+  else if (lseek(fd, (off_t)0L, SEEK_SET) < 0) {
+    syswarn(1, errno, "File rewind failed on: %s", arcn->org_name);
+  }
 	else {
 		arcn->crc = crc;
 		return(0);

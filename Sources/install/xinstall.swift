@@ -320,15 +320,17 @@ main(int argc, char *argv[])
 		case 'm':
 			haveopt_m = 1;
 			free(set);
-			if (!(set = setmode(optarg)))
-				errx(EX_USAGE, "invalid file mode: %s",
-				     optarg);
+    if (!(set = setmode(optarg))) {
+      errx(EX_USAGE, "invalid file mode: %s",
+           optarg);
+    }
 			break;
 #ifndef __APPLE__
 		case 'N':
-			if (!setup_getid(optarg))
-				err(EX_OSERR, "Unable to use user and group "
-				    "databases in `%s'", optarg);
+    if (!setup_getid(optarg)) {
+      err(EX_OSERR, "Unable to use user and group "
+          "databases in `%s'", optarg);
+    }
 			break;
 #endif
 		case 'o':
@@ -370,8 +372,9 @@ main(int argc, char *argv[])
 	 * Default permissions based on whether we're a directory or not, since
 	 * an +X may mean that we need to set the execute bit.
 	 */
-	if (set != NULL)
-		mode = getmode(set, dodir ? S_IFDIR : 0) & ~S_IFDIR;
+  if (set != NULL) {
+    mode = getmode(set, dodir ? S_IFDIR : 0) & ~S_IFDIR;
+  }
 	free(set);
 
 	if (getenv("DONTSTRIP") != NULL) {
@@ -380,8 +383,9 @@ main(int argc, char *argv[])
 	}
 
 	/* must have at least two arguments, except when creating directories */
-	if (argc == 0 || (argc == 1 && !dodir))
-		usage();
+  if (argc == 0 || (argc == 1 && !dodir)) {
+    usage();
+  }
 
 #ifdef WITH_DIGESTS
 	if (digest != NULL) {
@@ -412,38 +416,46 @@ main(int argc, char *argv[])
 	if (group != NULL && !dounpriv) {
 		if (gid_from_group(group, &gid) == -1) {
 			id_t id;
-			if (!parseid(group, &id))
-				errx(1, "unknown group %s", group);
+      if (!parseid(group, &id)) {
+        errx(1, "unknown group %s", group);
+      }
 			gid = id;
 		}
-	} else
-		gid = (gid_t)-1;
+  } else {
+    gid = (gid_t)-1;
+  }
 
 	if (owner != NULL && !dounpriv) {
 		if (uid_from_user(owner, &uid) == -1) {
 			id_t id;
-			if (!parseid(owner, &id))
-				errx(1, "unknown user %s", owner);
+      if (!parseid(owner, &id)) {
+        errx(1, "unknown user %s", owner);
+      }
 			uid = id;
 		}
-	} else
-		uid = (uid_t)-1;
+  } else {
+    uid = (uid_t)-1;
+  }
 
 	if (fflags != NULL && !dounpriv) {
-		if (strtofflags(&fflags, &fset, NULL))
-			errx(EX_USAGE, "%s: invalid flag", fflags);
+    if (strtofflags(&fflags, &fset, NULL)) {
+      errx(EX_USAGE, "%s: invalid flag", fflags);
+    }
 		iflags |= SETFLAGS;
 	}
 
 	if (metafile != NULL) {
-		if ((metafp = fopen(metafile, "a")) == NULL)
-			warn("open %s", metafile);
-	} else
-		digesttype = DIGEST_NONE;
+    if ((metafp = fopen(metafile, "a")) == NULL) {
+      warn("open %s", metafile);
+    }
+  } else {
+    digesttype = DIGEST_NONE;
+  }
 
 	if (dodir) {
-		for (; *argv != NULL; ++argv)
-			install_dir(*argv);
+    for (; *argv != NULL; ++argv) {
+      install_dir(*argv);
+    }
 		exit(EX_OK);
 		/* NOTREACHED */
 	}
@@ -452,8 +464,9 @@ main(int argc, char *argv[])
 	no_target = stat(to_name, &to_sb);
 	if (!no_target && S_ISDIR(to_sb.st_mode)) {
 		if (dolink & LN_SYMBOLIC) {
-			if (lstat(to_name, &to_sb) != 0)
-				err(EX_OSERR, "%s vanished", to_name);
+      if (lstat(to_name, &to_sb) != 0) {
+        err(EX_OSERR, "%s vanished", to_name);
+      }
 			if (S_ISLNK(to_sb.st_mode)) {
 				if (argc != 2) {
 					errc(EX_CANTCREAT, ENOTDIR, "%s",
@@ -463,34 +476,39 @@ main(int argc, char *argv[])
 				exit(EX_OK);
 			}
 		}
-		for (; *argv != to_name; ++argv)
-			install(*argv, to_name, fset, iflags | DIRECTORY);
+    for (; *argv != to_name; ++argv) {
+      install(*argv, to_name, fset, iflags | DIRECTORY);
+    }
 		exit(EX_OK);
 		/* NOTREACHED */
 	}
 
 	/* can't do file1 file2 directory/file */
 	if (argc != 2) {
-		if (no_target)
-			warnx("target directory `%s' does not exist", 
-			    argv[argc - 1]);
-		else
-			warnx("target `%s' is not a directory",
-			    argv[argc - 1]);
+    if (no_target) {
+      warnx("target directory `%s' does not exist",
+            argv[argc - 1]);
+    }
+    else {
+      warnx("target `%s' is not a directory",
+            argv[argc - 1]);
+    }
 		usage();
 	}
 
 	if (!no_target && !dolink) {
-		if (stat(*argv, &from_sb))
-			err(EX_OSERR, "%s", *argv);
+    if (stat(*argv, &from_sb)) {
+      err(EX_OSERR, "%s", *argv);
+    }
 		if (!S_ISREG(to_sb.st_mode)) {
 			errno = EFTYPE;
 			err(EX_OSERR, "%s", to_name);
 		}
 		if (to_sb.st_dev == from_sb.st_dev &&
-		    to_sb.st_ino == from_sb.st_ino)
-			errx(EX_USAGE, 
-			    "%s and %s are the same file", *argv, to_name);
+        to_sb.st_ino == from_sb.st_ino) {
+      errx(EX_USAGE,
+           "%s and %s are the same file", *argv, to_name);
+    }
 	}
 	install(*argv, to_name, fset, iflags);
 	exit(EX_OK);
@@ -869,9 +887,11 @@ makelink(const char *from_name, const char *to_name,
 #endif
 
 		/* Count the number of directories we need to backtrack. */
-		for (++d, lnk[0] = '\0'; *d; d++)
-			if (*d == '/')
-				(void)strlcat(lnk, "../", sizeof(lnk));
+    for (++d, lnk[0] = '\0'; *d; d++) {
+      if (*d == '/') {
+        (void)strlcat(lnk, "../", sizeof(lnk));
+      }
+    }
 
 		(void)strlcat(lnk, ++s, sizeof(lnk));
 
@@ -1012,8 +1032,9 @@ install(const char *from_name, const char *to_name, u_long fset, u_int flags)
 	}
 
 	if (dostrip) {
-		if (!stripped)
-			(void)strip(tempfile, to_fd, NULL, &digestresult);
+    if (!stripped) {
+      (void)strip(tempfile, to_fd, NULL, &digestresult);
+    }
 
 		/*
 		 * Re-open our fd on the target, in case
@@ -1021,8 +1042,9 @@ install(const char *from_name, const char *to_name, u_long fset, u_int flags)
 		 */
 		close(to_fd);
 		to_fd = open(tempfile, O_RDONLY, 0);
-		if (to_fd < 0)
-			err(EX_OSERR, "stripping %s", to_name);
+    if (to_fd < 0) {
+      err(EX_OSERR, "stripping %s", to_name);
+    }
 	}
 
 	/*
@@ -1032,8 +1054,9 @@ install(const char *from_name, const char *to_name, u_long fset, u_int flags)
 		temp_fd = to_fd;
 
 		/* Re-open to_fd using the real target name. */
-		if ((to_fd = open(to_name, O_RDONLY, 0)) < 0)
-			err(EX_OSERR, "%s", to_name);
+    if ((to_fd = open(to_name, O_RDONLY, 0)) < 0) {
+      err(EX_OSERR, "%s", to_name);
+    }
 
 		if (fstat(temp_fd, &temp_sb)) {
 			serrno = errno;
@@ -1060,8 +1083,9 @@ install(const char *from_name, const char *to_name, u_long fset, u_int flags)
 			}
 			(void) close(temp_fd);
 		}
-	} else if (dostrip)
-		digestresult = digest_file(tempfile);
+  } else if (dostrip) {
+    digestresult = digest_file(tempfile);
+  }
 
 	/*
 	 * Move the new file into place if the files are different (or
@@ -1070,8 +1094,9 @@ install(const char *from_name, const char *to_name, u_long fset, u_int flags)
 	if (!files_match) {
 #if HAVE_STRUCT_STAT_ST_FLAGS
 		/* Try to turn off the immutable bits. */
-		if (to_sb.st_flags & NOCHANGEBITS)
-			(void)chflags(to_name, to_sb.st_flags & ~NOCHANGEBITS);
+    if (to_sb.st_flags & NOCHANGEBITS) {
+      (void)chflags(to_name, to_sb.st_flags & ~NOCHANGEBITS);
+    }
 #endif
 		if (target && dobackup) {
 			if ((size_t)snprintf(backup, MAXPATHLEN, "%s%s", to_name,
@@ -1080,13 +1105,15 @@ install(const char *from_name, const char *to_name, u_long fset, u_int flags)
 				errx(EX_OSERR, "%s: backup filename too long",
 				    to_name);
 			}
-			if (verbose)
-				(void)printf("install: %s -> %s\n", to_name, backup);
+      if (verbose) {
+        (void)printf("install: %s -> %s\n", to_name, backup);
+      }
 			if (unlink(backup) < 0 && errno != ENOENT) {
 				serrno = errno;
 #if HAVE_STRUCT_STAT_ST_FLAGS
-				if (to_sb.st_flags & NOCHANGEBITS)
-					(void)chflags(to_name, to_sb.st_flags);
+        if (to_sb.st_flags & NOCHANGEBITS) {
+          (void)chflags(to_name, to_sb.st_flags);
+        }
 #endif
 				unlink(tempfile);
 				errno = serrno;
@@ -1096,16 +1123,18 @@ install(const char *from_name, const char *to_name, u_long fset, u_int flags)
 				serrno = errno;
 				unlink(tempfile);
 #if HAVE_STRUCT_STAT_ST_FLAGS
-				if (to_sb.st_flags & NOCHANGEBITS)
-					(void)chflags(to_name, to_sb.st_flags);
+        if (to_sb.st_flags & NOCHANGEBITS) {
+          (void)chflags(to_name, to_sb.st_flags);
+        }
 #endif
 				errno = serrno;
 				err(EX_OSERR, "link: %s to %s", to_name,
 				     backup);
 			}
 		}
-		if (verbose)
-			(void)printf("install: %s -> %s\n", from_name, to_name);
+    if (verbose) {
+      (void)printf("install: %s -> %s\n", from_name, to_name);
+    }
 		if (rename(tempfile, to_name) < 0) {
 			serrno = errno;
 			unlink(tempfile);
@@ -1116,8 +1145,9 @@ install(const char *from_name, const char *to_name, u_long fset, u_int flags)
 
 		/* Re-open to_fd so we aren't hosed by the rename(2). */
 		(void) close(to_fd);
-		if ((to_fd = open(to_name, O_RDONLY, 0)) < 0)
-			err(EX_OSERR, "%s", to_name);
+    if ((to_fd = open(to_name, O_RDONLY, 0)) < 0) {
+      err(EX_OSERR, "%s", to_name);
+    }
 	}
 
 #ifdef __APPLE__
@@ -1153,8 +1183,9 @@ copied:
 	    (mode != (to_sb.st_mode & ALLPERMS)))) {
 #if HAVE_STRUCT_STAT_ST_FLAGS
 		/* Try to turn off the immutable bits. */
-		if (to_sb.st_flags & NOCHANGEBITS)
-			(void)fchflags(to_fd, to_sb.st_flags & ~NOCHANGEBITS);
+    if (to_sb.st_flags & NOCHANGEBITS) {
+      (void)fchflags(to_fd, to_sb.st_flags & ~NOCHANGEBITS);
+    }
 #endif
 	}
 
@@ -1189,8 +1220,9 @@ copied:
 	    fchflags(to_fd,
 	    flags & SETFLAGS ? fset : from_sb.st_flags & ~UF_NODUMP)) {
 		if (flags & SETFLAGS) {
-			if (errno == ENOTSUP)
-				warn("%s: chflags", to_name);
+      if (errno == ENOTSUP) {
+        warn("%s: chflags", to_name);
+      }
 			else {
 				serrno = errno;
 				(void)unlink(to_name);
@@ -1209,8 +1241,9 @@ copied:
 #endif	/* __APPLE__ */
 
 	(void)close(to_fd);
-	if (!devnull)
-		(void)close(from_fd);
+  if (!devnull) {
+    (void)close(from_fd);
+  }
 
 	metadata_log(to_name, "file", tsb, NULL, digestresult, to_sb.st_size);
 	free(digestresult);
@@ -1332,10 +1365,12 @@ copy(int from_fd, const char *from_name, int to_fd, const char *to_name,
 	DIGEST_CTX ctx;
 
 	/* Rewind file descriptors. */
-	if (lseek(from_fd, 0, SEEK_SET) < 0)
-		err(EX_OSERR, "lseek: %s", from_name);
-	if (lseek(to_fd, 0, SEEK_SET) < 0)
-		err(EX_OSERR, "lseek: %s", to_name);
+  if (lseek(from_fd, 0, SEEK_SET) < 0) {
+    err(EX_OSERR, "lseek: %s", from_name);
+  }
+  if (lseek(to_fd, 0, SEEK_SET) < 0) {
+    err(EX_OSERR, "lseek: %s", to_name);
+  }
 
 #ifndef BOOTSTRAP_XINSTALL
 	/* Try copy_file_range() if no digest is requested */
@@ -1349,8 +1384,9 @@ copy(int from_fd, const char *from_name, int to_fd, const char *to_name,
 			    (size_t)size, 0);
 		} while (ret > 0);
 #endif /* __APPLE__ */
-		if (ret == 0)
-			goto done;
+    if (ret == 0) {
+      goto done;
+    }
 #ifdef __APPLE__
 		if (errno != ENOTSUP) {
 #else
@@ -1372,13 +1408,16 @@ copy(int from_fd, const char *from_name, int to_fd, const char *to_name,
 		 * malloc() fails, it will fail at the start
 		 * and not copy only some files.
 		 */
-		if (sysconf(_SC_PHYS_PAGES) > PHYSPAGES_THRESHOLD)
-			bufsize = MIN(BUFSIZE_MAX, MAXPHYS * 8);
-		else
-			bufsize = BUFSIZE_SMALL;
+    if (sysconf(_SC_PHYS_PAGES) > PHYSPAGES_THRESHOLD) {
+      bufsize = MIN(BUFSIZE_MAX, MAXPHYS * 8);
+    }
+    else {
+      bufsize = BUFSIZE_SMALL;
+    }
 		buf = malloc(bufsize);
-		if (buf == NULL)
-			err(1, "Not enough memory");
+    if (buf == NULL) {
+      err(1, "Not enough memory");
+    }
 	}
 	while ((nr = read(from_fd, buf, bufsize)) > 0) {
 		if ((nw = write(to_fd, buf, nr)) != nr) {
@@ -1601,18 +1640,21 @@ metadata_log(const char *path, const char *type, struct timespec *ts,
 	if (digestresult && digest)
 		fprintf(metafp, " %s=%s", digest, digestresult);
 #endif
-	if (fflags)
-		fprintf(metafp, " flags=%s", fflags);
-	if (tags)
-		fprintf(metafp, " tags=%s", tags);
+  if (fflags) {
+    fprintf(metafp, " flags=%s", fflags);
+  }
+  if (tags) {
+    fprintf(metafp, " tags=%s", tags);
+  }
 	fputc('\n', metafp);
 	/* Flush line. */
 	fflush(metafp);
 
 	/* Unlock log file. */
 	metalog_lock.l_type = F_UNLCK;
-	if (fcntl(fileno(metafp), F_SETLKW, &metalog_lock) == -1)
-		warn("can't unlock %s", metafile);
+  if (fcntl(fileno(metafp), F_SETLKW, &metalog_lock) == -1) {
+    warn("can't unlock %s", metafile);
+  }
 	free(buf);
 }
 

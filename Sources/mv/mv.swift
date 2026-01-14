@@ -167,10 +167,12 @@ let EXEC_FAILED : Int32 = 127
        * may have trailing slashes.
        */
       p = *argv + strlen(*argv);
-      while (p != *argv && p[-1] == '/')
-              --p;
-      while (p != *argv && p[-1] != '/')
-              --p;
+      while (p != *argv && p[-1] == '/') {
+        --p;
+      }
+      while (p != *argv && p[-1] != '/') {
+        --p;
+      }
 
       if ((baselen + (len = strlen(p))) >= PATH_MAX) {
         warnx("%s: destination pathname too long", *argv);
@@ -339,7 +341,7 @@ let EXEC_FAILED : Int32 = 127
       if (errno == EEXIST && unlink(to) == 0) {
         continue;
       }
-      warn("fastcopy: open() failed (to): %s", to);
+      warn("fastcopy: open() failed (to): \(to)")
       (void)close(from_fd);
       return (1);
     }
@@ -364,10 +366,11 @@ let EXEC_FAILED : Int32 = 127
       }
     }
     // #endif /* __APPLE__ */
-    while ((nread = read(from_fd, bp, (size_t)blen)) > 0)
-            if (write(to_fd, bp, (size_t)nread) != nread) {
-      warn("fastcopy: write() failed: %s", to);
-      goto err;
+    while ((nread = read(from_fd, bp, (size_t)blen)) > 0) {
+      if (write(to_fd, bp, (size_t)nread) != nread) {
+        warn("fastcopy: write() failed: %s", to);
+        goto err;
+      }
     }
     if (nread < 0) {
       warn("fastcopy: read() failed: %s", from);

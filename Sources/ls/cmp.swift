@@ -83,21 +83,27 @@ modcmp(const FTSENT *a, const FTSENT *b)
 {
 
 	if (b->fts_statp->st_mtim.tv_sec >
-	    a->fts_statp->st_mtim.tv_sec)
-		return (1);
+      a->fts_statp->st_mtim.tv_sec) {
+    return (1);
+  }
 	if (b->fts_statp->st_mtim.tv_sec <
-	    a->fts_statp->st_mtim.tv_sec)
-		return (-1);
+      a->fts_statp->st_mtim.tv_sec) {
+    return (-1);
+  }
 	if (b->fts_statp->st_mtim.tv_nsec >
-	    a->fts_statp->st_mtim.tv_nsec)
-		return (1);
+      a->fts_statp->st_mtim.tv_nsec) {
+    return (1);
+  }
 	if (b->fts_statp->st_mtim.tv_nsec <
-	    a->fts_statp->st_mtim.tv_nsec)
-		return (-1);
-	if (f_samesort)
-		return (strcoll(b->fts_name, a->fts_name));
-	else
-		return (strcoll(a->fts_name, b->fts_name));
+      a->fts_statp->st_mtim.tv_nsec) {
+    return (-1);
+  }
+  if (f_samesort) {
+    return (strcoll(b->fts_name, a->fts_name));
+  }
+  else {
+    return (strcoll(a->fts_name, b->fts_name));
+  }
 }
 
 int
@@ -112,21 +118,27 @@ acccmp(const FTSENT *a, const FTSENT *b)
 {
 
 	if (b->fts_statp->st_atim.tv_sec >
-	    a->fts_statp->st_atim.tv_sec)
-		return (1);
+      a->fts_statp->st_atim.tv_sec) {
+    return (1);
+  }
 	if (b->fts_statp->st_atim.tv_sec <
-	    a->fts_statp->st_atim.tv_sec)
-		return (-1);
+      a->fts_statp->st_atim.tv_sec) {
+    return (-1);
+  }
 	if (b->fts_statp->st_atim.tv_nsec >
-	    a->fts_statp->st_atim.tv_nsec)
-		return (1);
+      a->fts_statp->st_atim.tv_nsec) {
+    return (1);
+  }
 	if (b->fts_statp->st_atim.tv_nsec <
-	    a->fts_statp->st_atim.tv_nsec)
-		return (-1);
-	if (f_samesort)
-		return (strcoll(b->fts_name, a->fts_name));
-	else
-		return (strcoll(a->fts_name, b->fts_name));
+      a->fts_statp->st_atim.tv_nsec) {
+    return (-1);
+  }
+  if (f_samesort) {
+    return (strcoll(b->fts_name, a->fts_name));
+  }
+  else {
+    return (strcoll(a->fts_name, b->fts_name));
+  }
 }
 
 int
@@ -141,21 +153,27 @@ birthcmp(const FTSENT *a, const FTSENT *b)
 {
 
 	if (b->fts_statp->st_birthtim.tv_sec >
-	    a->fts_statp->st_birthtim.tv_sec)
-		return (1);
+      a->fts_statp->st_birthtim.tv_sec) {
+    return (1);
+  }
 	if (b->fts_statp->st_birthtim.tv_sec <
-	    a->fts_statp->st_birthtim.tv_sec)
-		return (-1);
+      a->fts_statp->st_birthtim.tv_sec) {
+    return (-1);
+  }
 	if (b->fts_statp->st_birthtim.tv_nsec >
-	    a->fts_statp->st_birthtim.tv_nsec)
-		return (1);
+      a->fts_statp->st_birthtim.tv_nsec) {
+    return (1);
+  }
 	if (b->fts_statp->st_birthtim.tv_nsec <
-	    a->fts_statp->st_birthtim.tv_nsec)
-		return (-1);
-	if (f_samesort)
-		return (strcoll(b->fts_name, a->fts_name));
-	else
-		return (strcoll(a->fts_name, b->fts_name));
+      a->fts_statp->st_birthtim.tv_nsec) {
+    return (-1);
+  }
+  if (f_samesort) {
+    return (strcoll(b->fts_name, a->fts_name));
+  }
+  else {
+    return (strcoll(a->fts_name, b->fts_name));
+  }
 }
 
 int
@@ -170,21 +188,27 @@ statcmp(const FTSENT *a, const FTSENT *b)
 {
 
 	if (b->fts_statp->st_ctim.tv_sec >
-	    a->fts_statp->st_ctim.tv_sec)
-		return (1);
+      a->fts_statp->st_ctim.tv_sec) {
+    return (1);
+  }
 	if (b->fts_statp->st_ctim.tv_sec <
-	    a->fts_statp->st_ctim.tv_sec)
-		return (-1);
+      a->fts_statp->st_ctim.tv_sec) {
+    return (-1);
+  }
 	if (b->fts_statp->st_ctim.tv_nsec >
-	    a->fts_statp->st_ctim.tv_nsec)
-		return (1);
+      a->fts_statp->st_ctim.tv_nsec) {
+    return (1);
+  }
 	if (b->fts_statp->st_ctim.tv_nsec <
-	    a->fts_statp->st_ctim.tv_nsec)
-		return (-1);
-	if (f_samesort)
-		return (strcoll(b->fts_name, a->fts_name));
-	else
-		return (strcoll(a->fts_name, b->fts_name));
+      a->fts_statp->st_ctim.tv_nsec) {
+    return (-1);
+  }
+  if (f_samesort) {
+    return (strcoll(b->fts_name, a->fts_name));
+  }
+  else {
+    return (strcoll(a->fts_name, b->fts_name));
+  }
 }
 
 int
@@ -198,10 +222,12 @@ int
 sizecmp(const FTSENT *a, const FTSENT *b)
 {
 
-	if (b->fts_statp->st_size > a->fts_statp->st_size)
-		return (1);
-	if (b->fts_statp->st_size < a->fts_statp->st_size)
-		return (-1);
+  if (b->fts_statp->st_size > a->fts_statp->st_size) {
+    return (1);
+  }
+  if (b->fts_statp->st_size < a->fts_statp->st_size) {
+    return (-1);
+  }
 	return (strcoll(a->fts_name, b->fts_name));
 }
 

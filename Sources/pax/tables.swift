@@ -974,8 +974,9 @@ add_atdir(char *fname, dev_t dev, ino_t ino, time_t mtime, time_t atime)
 	ATDIR *pt;
 	u_int indx;
 
-	if (atab == NULL)
-		return;
+  if (atab == NULL) {
+    return;
+  }
 
 	/*
 	 * make sure this directory is not already in the table, if so just
@@ -986,17 +987,19 @@ add_atdir(char *fname, dev_t dev, ino_t ino, time_t mtime, time_t atime)
 	 */
 	indx = ((unsigned)ino) % A_TAB_SZ;
 	if ((pt = atab[indx]) != NULL) {
-		while (pt != NULL) {
-			if ((pt->ino == ino) && (pt->dev == dev))
-				break;
+    while (pt != NULL) {
+      if ((pt->ino == ino) && (pt->dev == dev)) {
+        break;
+      }
 			pt = pt->fow;
 		}
 
 		/*
 		 * oops, already there. Leave it alone.
 		 */
-		if (pt != NULL)
-			return;
+    if (pt != NULL) {
+      return;
+    }
 	}
 
 	/*
@@ -1048,19 +1051,22 @@ get_atdir(dev_t dev, ino_t ino, time_t *mtime, time_t *atime)
 	ATDIR **ppt;
 	u_int indx;
 
-	if (atab == NULL)
-		return(-1);
+  if (atab == NULL) {
+    return(-1);
+  }
 	/*
 	 * hash by inode and search the chain for an inode and device match
 	 */
 	indx = ((unsigned)ino) % A_TAB_SZ;
-	if ((pt = atab[indx]) == NULL)
-		return(-1);
+  if ((pt = atab[indx]) == NULL) {
+    return(-1);
+  }
 
 	ppt = &(atab[indx]);
-	while (pt != NULL) {
-		if ((pt->ino == ino) && (pt->dev == dev))
-			break;
+  while (pt != NULL) {
+    if ((pt->ino == ino) && (pt->dev == dev)) {
+      break;
+    }
 		/*
 		 * no match, go to next one
 		 */
@@ -1071,8 +1077,9 @@ get_atdir(dev_t dev, ino_t ino, time_t *mtime, time_t *atime)
 	/*
 	 * return if we did not find it.
 	 */
-	if (pt == NULL)
-		return(-1);
+  if (pt == NULL) {
+    return(-1);
+  }
 
 	/*
 	 * found it. return the times and remove the entry from the table.
@@ -1127,11 +1134,12 @@ dir_start(void)
 {
 
 #ifdef __APPLE__
-	if (dirp != NULL)
+  if (dirp != NULL) {
 #else
-	if (dirfd != -1)
+    if (dirfd != -1) {
 #endif /* __APPLE__ */
-		return(0);
+      return(0);
+    }
 
 #ifdef __APPLE__
 	dirsize = DIRP_SIZE;
@@ -1183,11 +1191,12 @@ add_dir(char *name, int nlen, struct stat *psb, int frc_mode)
 #endif /* __APPLE__ */
 
 #ifdef __APPLE__
-	if (dirp == NULL)
+  if (dirp == NULL) {
 #else
-	if (dirfd < 0)
+    if (dirfd < 0) {
 #endif /* __APPLE__ */
-		return;
+      return;
+    }
 
 #ifdef __APPLE__
 	if (havechd && *name != '/') {
@@ -1270,11 +1279,12 @@ proc_dir(void)
 #endif
 
 #ifdef __APPLE__
-	if (dirp == NULL)
+  if (dirp == NULL) {
 #else
-	if (dirfd < 0)
+    if (dirfd < 0) {
 #endif /* __APPLE__ */
-		return;
+      return;
+    }
 	/*
 	 * read backwards through the file and process each directory
 	 */
@@ -1282,45 +1292,54 @@ proc_dir(void)
 	cnt = dircnt;
 	while (--cnt >= 0) {
 #else
-	for (cnt = 0; cnt < dircnt; ++cnt) {
+    for (cnt = 0; cnt < dircnt; ++cnt) {
 #endif /* __APPLE__ */
-		/*
-		 * read the trailer, then the file name, if this fails
-		 * just give up.
-		 */
-#ifdef __APPLE__
-		dblk = &dirp[cnt];
+      /*
+       * read the trailer, then the file name, if this fails
+       * just give up.
+       */
+      #ifdef __APPLE__
+      dblk = &dirp[cnt];
 #else
-		if (lseek(dirfd, -((off_t)sizeof(dblk)), SEEK_CUR) < 0)
-			break;
-		if (read(dirfd,(char *)&dblk, sizeof(dblk)) != sizeof(dblk))
-			break;
-		if (lseek(dirfd, dblk.npos, SEEK_SET) < 0)
-			break;
-		if (read(dirfd, name, dblk.nlen) != dblk.nlen)
-			break;
-		if (lseek(dirfd, dblk.npos, SEEK_SET) < 0)
-			break;
+      if (lseek(dirfd, -((off_t)sizeof(dblk)), SEEK_CUR) < 0) {
+        break;
+      }
+      if (read(dirfd,(char *)&dblk, sizeof(dblk)) != sizeof(dblk)) {
+        break;
+      }
+      if (lseek(dirfd, dblk.npos, SEEK_SET) < 0) {
+        break;
+      }
+      if (read(dirfd, name, dblk.nlen) != dblk.nlen) {
+        break;
+      }
+      if (lseek(dirfd, dblk.npos, SEEK_SET) < 0) {
+        break;
+      }
 
 #endif /* __APPLE__ */
-		/*
-		 * frc_mode set, make sure we set the file modes even if
-		 * the user didn't ask for it (see file_subs.c for more info)
-		 */
-#ifdef __APPLE__
-		if (pmode || dblk->frc_mode)
-			set_pmode(dblk->name, dblk->mode);
+      /*
+       * frc_mode set, make sure we set the file modes even if
+       * the user didn't ask for it (see file_subs.c for more info)
+       */
+      #ifdef __APPLE__
+      if (pmode || dblk->frc_mode) {
+        set_pmode(dblk->name, dblk->mode);
+      }
 #else
-		if (pmode || dblk.frc_mode)
-			set_pmode(name, dblk.mode);
+      if (pmode || dblk.frc_mode) {
+        set_pmode(name, dblk.mode);
+      }
 #endif /* __APPLE__ */
-		if (patime || pmtime)
-#ifdef __APPLE__
-			set_ftime(dblk->name, dblk->mtime, dblk->mtime_nsec,
-				  dblk->atime, dblk->atime_nsec, 0);
-		free(dblk->name);
+      if (patime || pmtime) {
+        #ifdef __APPLE__
+        set_ftime(dblk->name, dblk->mtime, dblk->mtime_nsec,
+                  dblk->atime, dblk->atime_nsec, 0);
+      }
+      free(dblk->name);
 #else
-			set_ftime(name, dblk.mtime, dblk.atime, 0);
+      set_ftime(name, dblk.mtime, dblk.atime, 0);
+    }
 #endif /* __APPLE__ */
 	}
 
@@ -1331,8 +1350,9 @@ proc_dir(void)
 #else
 	(void)close(dirfd);
 	dirfd = -1;
-	if (cnt != dircnt)
-		paxwarn(1,"Unable to set mode and times for created directories");
+    if (cnt != dircnt) {
+      paxwarn(1,"Unable to set mode and times for created directories");
+    }
 	return;
 #endif /* __APPLE__ */
 }
@@ -1375,8 +1395,9 @@ st_hash(char *name, int len, int tabsz)
 	if (len > MAXKEYLEN) {
 		pt = &(name[len - MAXKEYLEN]);
 		len = MAXKEYLEN;
-	} else
-		pt = name;
+  } else {
+    pt = name;
+  }
 
 	/*
 	 * calculate the number of u_int size steps in the string and if
@@ -1393,8 +1414,9 @@ st_hash(char *name, int len, int tabsz)
 	for (i = 0; i < steps; ++i) {
 		end = pt + sizeof(u_int);
 		dest = (char *)&val;
-		while (pt < end)
-			*dest++ = *pt++;
+    while (pt < end) {
+      *dest++ = *pt++;
+    }
 		key += val;
 	}
 

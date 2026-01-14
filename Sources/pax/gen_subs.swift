@@ -94,10 +94,12 @@ ls_list(ARCHD *arcn, time_t now, FILE *fp)
 	 */
 	if (!vflag) {
 #ifdef __APPLE__
-		if (zeroflag)
-			(void)fputs(arcn->name, fp);
-		else
-			safe_print(arcn->name, fp);
+    if (zeroflag) {
+      (void)fputs(arcn->name, fp);
+    }
+    else {
+      safe_print(arcn->name, fp);
+    }
 		(void)putc(term, fp);
 #else
 		(void)fprintf(fp, "%s\n", arcn->name);
@@ -113,8 +115,9 @@ ls_list(ARCHD *arcn, time_t now, FILE *fp)
 	}
 #endif /* __APPLE__ */
 
-	if (d_first < 0)
-		d_first = (*nl_langinfo(D_MD_ORDER) == 'd');
+  if (d_first < 0) {
+    d_first = (*nl_langinfo(D_MD_ORDER) == 'd');
+  }
 	/*
 	 * user wants long mode
 	 */
@@ -130,15 +133,19 @@ ls_list(ARCHD *arcn, time_t now, FILE *fp)
 #else
 	if ((sbp->st_mtime + SIXMONTHS) <= now)
 #endif /* __APPLE__ */
-		timefrmt = d_first ? OLDFRMTD : OLDFRMTM;
-	else
-		timefrmt = d_first ? CURFRMTD : CURFRMTM;
+  {
+    timefrmt = d_first ? OLDFRMTD : OLDFRMTM;
+  }
+  else {
+    timefrmt = d_first ? CURFRMTD : CURFRMTM;
+  }
 
 	/*
 	 * print file mode, link count, uid, gid and time
 	 */
-	if (strftime(f_date,DATELEN,timefrmt,localtime(&(sbp->st_mtime))) == 0)
-		f_date[0] = '\0';
+  if (strftime(f_date,DATELEN,timefrmt,localtime(&(sbp->st_mtime))) == 0) {
+    f_date[0] = '\0';
+  }
 #ifdef __APPLE__
 #define UT_NAMESIZE 8
 	(void)fprintf(fp, "%s%2u %-*.*s %-*.*s ", f_mode, sbp->st_nlink,
@@ -153,9 +160,10 @@ ls_list(ARCHD *arcn, time_t now, FILE *fp)
 	/*
 	 * print device id's for devices, or sizes for other nodes
 	 */
-	if ((arcn->type == PAX_CHR) || (arcn->type == PAX_BLK))
-		(void)fprintf(fp, "%4lu,%4lu ", (unsigned long)MAJOR(sbp->st_rdev),
-		    (unsigned long)MINOR(sbp->st_rdev));
+  if ((arcn->type == PAX_CHR) || (arcn->type == PAX_BLK)) {
+    (void)fprintf(fp, "%4lu,%4lu ", (unsigned long)MAJOR(sbp->st_rdev),
+                  (unsigned long)MINOR(sbp->st_rdev));
+  }
 	else {
 #ifdef __APPLE__
 		/*
@@ -191,12 +199,15 @@ ls_list(ARCHD *arcn, time_t now, FILE *fp)
 	(void)putc(term, fp);
 #else
 	(void)fprintf(fp, "%s %s", f_date, arcn->name);
-	if ((arcn->type == PAX_HLK) || (arcn->type == PAX_HRG))
-		(void)fprintf(fp, " == %s\n", arcn->ln_name);
-	else if (arcn->type == PAX_SLK)
-		(void)fprintf(fp, " => %s\n", arcn->ln_name);
-	else
-		(void)putc('\n', fp);
+  if ((arcn->type == PAX_HLK) || (arcn->type == PAX_HRG)) {
+    (void)fprintf(fp, " == %s\n", arcn->ln_name);
+  }
+  else if (arcn->type == PAX_SLK) {
+    (void)fprintf(fp, " => %s\n", arcn->ln_name);
+  }
+  else {
+    (void)putc('\n', fp);
+  }
 #endif /* __APPLE__ */
 	(void)fflush(fp);
 	return;
@@ -214,20 +225,24 @@ ls_tty(ARCHD *arcn)
 	char f_mode[MODELEN];
 	const char *timefrmt;
 
-	if (d_first < 0)
-		d_first = (*nl_langinfo(D_MD_ORDER) == 'd');
+  if (d_first < 0) {
+    d_first = (*nl_langinfo(D_MD_ORDER) == 'd');
+  }
 
-	if ((arcn->sb.st_mtime + SIXMONTHS) <= time(NULL))
-		timefrmt = d_first ? OLDFRMTD : OLDFRMTM;
-	else
-		timefrmt = d_first ? CURFRMTD : CURFRMTM;
+  if ((arcn->sb.st_mtime + SIXMONTHS) <= time(NULL)) {
+    timefrmt = d_first ? OLDFRMTD : OLDFRMTM;
+  }
+  else {
+    timefrmt = d_first ? CURFRMTD : CURFRMTM;
+  }
 
 	/*
 	 * convert time to string, and print
 	 */
 	if (strftime(f_date, DATELEN, timefrmt,
-	    localtime(&(arcn->sb.st_mtime))) == 0)
-		f_date[0] = '\0';
+               localtime(&(arcn->sb.st_mtime))) == 0) {
+    f_date[0] = '\0';
+  }
 	strmode(arcn->sb.st_mode, f_mode);
 	tty_prnt("%s%s %s\n", f_mode, f_date, arcn->name);
 	return;
@@ -250,11 +265,13 @@ l_strncpy(char *dest, const char *src, int len)
 
 	stop = dest + len;
 	start = dest;
-	while ((dest < stop) && (*src != '\0'))
-		*dest++ = *src++;
+  while ((dest < stop) && (*src != '\0')) {
+    *dest++ = *src++;
+  }
 	len = dest - start;
-	while (dest < stop)
-		*dest++ = '\0';
+  while (dest < stop) {
+    *dest++ = '\0';
+  }
 	return(len);
 }
 
@@ -319,14 +336,18 @@ asc_ul(char *str, int len, int base)
 	 */
 	if (base == HEX) {
 		while (str < stop) {
-			if ((*str >= '0') && (*str <= '9'))
-				tval = (tval << 4) + (*str++ - '0');
-			else if ((*str >= 'A') && (*str <= 'F'))
-				tval = (tval << 4) + 10 + (*str++ - 'A');
-			else if ((*str >= 'a') && (*str <= 'f'))
-				tval = (tval << 4) + 10 + (*str++ - 'a');
-			else
-				break;
+      if ((*str >= '0') && (*str <= '9')) {
+        tval = (tval << 4) + (*str++ - '0');
+      }
+      else if ((*str >= 'A') && (*str <= 'F')) {
+        tval = (tval << 4) + 10 + (*str++ - 'A');
+      }
+      else if ((*str >= 'a') && (*str <= 'f')) {
+        tval = (tval << 4) + 10 + (*str++ - 'a');
+      }
+      else {
+        break;
+      }
 		}
 	} else {
  		while ((str < stop) && (*str >= '0') && (*str <= '7'))
@@ -360,28 +381,34 @@ ul_asc(u_long val, char *str, int len, int base)
 	 */
 	if (base == HEX) {
 		while (pt >= str) {
-			if ((digit = (val & 0xf)) < 10)
-				*pt-- = '0' + (char)digit;
-			else
-				*pt-- = 'a' + (char)(digit - 10);
-			if ((val = (val >> 4)) == (u_long)0)
-				break;
+      if ((digit = (val & 0xf)) < 10) {
+        *pt-- = '0' + (char)digit;
+      }
+      else {
+        *pt-- = 'a' + (char)(digit - 10);
+      }
+      if ((val = (val >> 4)) == (u_long)0) {
+        break;
+      }
 		}
 	} else {
 		while (pt >= str) {
 			*pt-- = '0' + (char)(val & 0x7);
-			if ((val = (val >> 3)) == (u_long)0)
-				break;
+      if ((val = (val >> 3)) == (u_long)0) {
+        break;
+      }
 		}
 	}
 
 	/*
 	 * pad with leading ascii ZEROS. We return -1 if we ran out of space.
 	 */
-	while (pt >= str)
-		*pt-- = '0';
-	if (val != (u_long)0)
-		return(-1);
+  while (pt >= str) {
+    *pt-- = '0';
+  }
+  if (val != (u_long)0) {
+    return(-1);
+  }
 	return(0);
 }
 
@@ -415,14 +442,18 @@ asc_uqd(char *str, int len, int base)
 	 */
 	if (base == HEX) {
 		while (str < stop) {
-			if ((*str >= '0') && (*str <= '9'))
-				tval = (tval << 4) + (*str++ - '0');
-			else if ((*str >= 'A') && (*str <= 'F'))
-				tval = (tval << 4) + 10 + (*str++ - 'A');
-			else if ((*str >= 'a') && (*str <= 'f'))
-				tval = (tval << 4) + 10 + (*str++ - 'a');
-			else
-				break;
+      if ((*str >= '0') && (*str <= '9')) {
+        tval = (tval << 4) + (*str++ - '0');
+      }
+      else if ((*str >= 'A') && (*str <= 'F')) {
+        tval = (tval << 4) + 10 + (*str++ - 'A');
+      }
+      else if ((*str >= 'a') && (*str <= 'f')) {
+        tval = (tval << 4) + 10 + (*str++ - 'a');
+      }
+      else {
+        break;
+      }
 		}
 	} else {
  		while ((str < stop) && (*str >= '0') && (*str <= '7'))
@@ -456,27 +487,33 @@ uqd_asc(u_quad_t val, char *str, int len, int base)
 	 */
 	if (base == HEX) {
 		while (pt >= str) {
-			if ((digit = (val & 0xf)) < 10)
-				*pt-- = '0' + (char)digit;
-			else
-				*pt-- = 'a' + (char)(digit - 10);
-			if ((val = (val >> 4)) == (u_quad_t)0)
-				break;
+      if ((digit = (val & 0xf)) < 10) {
+        *pt-- = '0' + (char)digit;
+      }
+      else {
+        *pt-- = 'a' + (char)(digit - 10);
+      }
+      if ((val = (val >> 4)) == (u_quad_t)0) {
+        break;
+      }
 		}
 	} else {
 		while (pt >= str) {
 			*pt-- = '0' + (char)(val & 0x7);
-			if ((val = (val >> 3)) == (u_quad_t)0)
-				break;
+      if ((val = (val >> 3)) == (u_quad_t)0) {
+        break;
+      }
 		}
 	}
 
 	/*
 	 * pad with leading ascii ZEROS. We return -1 if we ran out of space.
 	 */
-	while (pt >= str)
-		*pt-- = '0';
-	if (val != (u_quad_t)0)
-		return(-1);
+  while (pt >= str) {
+    *pt-- = '0';
+  }
+  if (val != (u_quad_t)0) {
+    return(-1);
+  }
 	return(0);
 }

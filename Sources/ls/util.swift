@@ -84,8 +84,9 @@ prn_normal(const char *s)
 		for (i = 0; i < (int)clen; i++)
 			putchar((unsigned char)s[i]);
 		s += clen;
-		if (iswprint(wc))
-			n += wcwidth(wc);
+    if (iswprint(wc)) {
+      n += wcwidth(wc);
+    }
 	}
 	return (n);
 }
@@ -161,10 +162,12 @@ len_octal(const char *s, int len)
 			r += 4 * len;
 			break;
 		}
-		if (iswprint(wc))
-			r++;
-		else
-			r += 4 * clen;
+    if (iswprint(wc)) {
+      r++;
+    }
+    else {
+      r += 4 * clen;
+    }
 		s += clen;
 	}
 	return (r);
@@ -214,13 +217,15 @@ prn_octal(const char *s)
 				len += 4;
 			}
 		}
-		if (clen == (size_t)-2)
-			break;
+  if (clen == (size_t)-2) {
+    break;
+  }
 		if (clen == (size_t)-1) {
 			memset(&mbs, 0, sizeof(mbs));
 			s++;
-		} else
-			s += clen;
+    } else {
+      s += clen;
+    }
 	}
 	return (len);
 }

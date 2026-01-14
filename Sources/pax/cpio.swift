@@ -278,8 +278,9 @@ cpio_rd(ARCHD *arcn, char *buf)
 	/*
 	 * check that this is a valid header, if not return -1
 	 */
-	if (cpio_id(buf, sizeof(HD_CPIO)) < 0)
-		return(-1);
+  if (cpio_id(buf, sizeof(HD_CPIO)) < 0) {
+    return(-1);
+  }
 	hd = (HD_CPIO *)buf;
 
 	/*
@@ -305,11 +306,13 @@ cpio_rd(ARCHD *arcn, char *buf)
 	 * check name size and if valid, read in the name of this entry (name
 	 * follows header in the archive)
 	 */
-	if ((nsz = (int)asc_ul(hd->c_namesize,sizeof(hd->c_namesize),OCT)) < 2)
-		return(-1);
+  if ((nsz = (int)asc_ul(hd->c_namesize,sizeof(hd->c_namesize),OCT)) < 2) {
+    return(-1);
+  }
 	arcn->nlen = nsz - 1;
-	if (rd_nm(arcn, nsz) < 0)
-		return(-1);
+  if (rd_nm(arcn, nsz) < 0) {
+    return(-1);
+  }
 
 	if (((arcn->sb.st_mode&C_IFMT) != C_ISLNK)||(arcn->sb.st_size == 0)) {
 		/*
@@ -324,8 +327,9 @@ cpio_rd(ARCHD *arcn, char *buf)
 	 * check link name size and read in the link name. Link names are
 	 * stored like file data.
 	 */
-	if (rd_ln_nm(arcn) < 0)
-		return(-1);
+  if (rd_ln_nm(arcn) < 0) {
+    return(-1);
+  }
 
 	/*
 	 * we have a valid header (with a link)
@@ -378,14 +382,16 @@ cpio_wr(ARCHD *arcn)
 	/*
 	 * check and repair truncated device and inode fields in the header
 	 */
-	if (map_dev(arcn, (u_long)CPIO_MASK, (u_long)CPIO_MASK) < 0)
-		return(-1);
+  if (map_dev(arcn, (u_long)CPIO_MASK, (u_long)CPIO_MASK) < 0) {
+    return(-1);
+  }
 
 	arcn->pad = 0L;
 	nsz = arcn->nlen + 1;
 	hd = &hdblk;
-	if ((arcn->type != PAX_BLK) && (arcn->type != PAX_CHR))
-		arcn->sb.st_rdev = 0;
+  if ((arcn->type != PAX_BLK) && (arcn->type != PAX_CHR)) {
+    arcn->sb.st_rdev = 0;
+  }
 
 	switch(arcn->type) {
 	case PAX_CTG:
@@ -406,16 +412,18 @@ cpio_wr(ARCHD *arcn)
 		 * set data size to hold link name
 		 */
 		if (ul_asc((u_long)arcn->ln_nlen, hd->c_filesize,
-		    sizeof(hd->c_filesize), OCT))
-			goto out;
+               sizeof(hd->c_filesize), OCT)) {
+      goto out;
+    }
 		break;
 	default:
 		/*
 		 * all other file types have no file data
 		 */
 		if (ul_asc((u_long)0, hd->c_filesize, sizeof(hd->c_filesize),
-		     OCT))
-			goto out;
+               OCT)) {
+      goto out;
+    }
 		break;
 	}
 
@@ -439,8 +447,9 @@ cpio_wr(ARCHD *arcn)
 		OCT) ||
 	    ul_asc((u_long)arcn->sb.st_mtime,hd->c_mtime,sizeof(hd->c_mtime),
 		OCT) ||
-	    ul_asc((u_long)nsz, hd->c_namesize, sizeof(hd->c_namesize), OCT))
-		goto out;
+      ul_asc((u_long)nsz, hd->c_namesize, sizeof(hd->c_namesize), OCT)) {
+    goto out;
+  }
 
 	/*
 	 * write the file name to the archive
@@ -456,10 +465,12 @@ cpio_wr(ARCHD *arcn)
 	 * data, if we are link tell caller we are done, go to next file
 	 */
 	if ((arcn->type == PAX_CTG) || (arcn->type == PAX_REG) ||
-	    (arcn->type == PAX_HRG))
-		return(0);
-	if (arcn->type != PAX_SLK)
-		return(1);
+      (arcn->type == PAX_HRG)) {
+    return(0);
+  }
+  if (arcn->type != PAX_SLK) {
+    return(1);
+  }
 
 	/*
 	 * write the link name to the archive, tell the caller to go to the
@@ -497,8 +508,9 @@ int
 vcpio_id(char *blk, int size)
 {
 	if ((size < (int)sizeof(HD_VCPIO)) ||
-	    (strncmp(blk, AVMAGIC, sizeof(AVMAGIC) - 1) != 0))
-		return(-1);
+      (strncmp(blk, AVMAGIC, sizeof(AVMAGIC) - 1) != 0)) {
+    return(-1);
+  }
 	return(0);
 }
 
@@ -514,8 +526,9 @@ int
 crc_id(char *blk, int size)
 {
 	if ((size < (int)sizeof(HD_VCPIO)) ||
-	    (strncmp(blk, AVCMAGIC, (int)sizeof(AVCMAGIC) - 1) != 0))
-		return(-1);
+      (strncmp(blk, AVCMAGIC, (int)sizeof(AVCMAGIC) - 1) != 0)) {
+    return(-1);
+  }
 	return(0);
 }
 
@@ -557,11 +570,13 @@ vcpio_rd(ARCHD *arcn, char *buf)
 	 * proper id routine.
 	 */
 	if (docrc) {
-		if (crc_id(buf, sizeof(HD_VCPIO)) < 0)
-			return(-1);
+    if (crc_id(buf, sizeof(HD_VCPIO)) < 0) {
+      return(-1);
+    }
 	} else {
-		if (vcpio_id(buf, sizeof(HD_VCPIO)) < 0)
-			return(-1);
+    if (vcpio_id(buf, sizeof(HD_VCPIO)) < 0) {
+      return(-1);
+    }
 	}
 
 	hd = (HD_VCPIO *)buf;
@@ -592,17 +607,20 @@ vcpio_rd(ARCHD *arcn, char *buf)
 	 * check the length of the file name, if ok read it in, return -1 if
 	 * bogus
 	 */
-	if ((nsz = (int)asc_ul(hd->c_namesize,sizeof(hd->c_namesize),HEX)) < 2)
-		return(-1);
+  if ((nsz = (int)asc_ul(hd->c_namesize,sizeof(hd->c_namesize),HEX)) < 2) {
+    return(-1);
+  }
 	arcn->nlen = nsz - 1;
-	if (rd_nm(arcn, nsz) < 0)
-		return(-1);
+  if (rd_nm(arcn, nsz) < 0) {
+    return(-1);
+  }
 
 	/*
 	 * skip padding. header + filename is aligned to 4 byte boundaries
 	 */
-	if (rd_skip((off_t)(VCPIO_PAD(sizeof(HD_VCPIO) + nsz))) < 0)
-		return(-1);
+  if (rd_skip((off_t)(VCPIO_PAD(sizeof(HD_VCPIO) + nsz))) < 0) {
+    return(-1);
+  }
 
 	/*
 	 * if not a link (or a file with no data), calculate pad size (for
@@ -622,8 +640,9 @@ vcpio_rd(ARCHD *arcn, char *buf)
 	 * read in the link name and skip over the padding
 	 */
 	if ((rd_ln_nm(arcn) < 0) ||
-	    (rd_skip((off_t)(VCPIO_PAD(arcn->sb.st_size))) < 0))
-		return(-1);
+      (rd_skip((off_t)(VCPIO_PAD(arcn->sb.st_size))) < 0)) {
+    return(-1);
+  }
 
 	/*
 	 * we have a valid header (with a link)
@@ -679,12 +698,14 @@ vcpio_wr(ARCHD *arcn)
 	 * check and repair truncated device and inode fields in the cpio
 	 * header
 	 */
-	if (map_dev(arcn, (u_long)VCPIO_MASK, (u_long)VCPIO_MASK) < 0)
-		return(-1);
+  if (map_dev(arcn, (u_long)VCPIO_MASK, (u_long)VCPIO_MASK) < 0) {
+    return(-1);
+  }
 	nsz = arcn->nlen + 1;
 	hd = &hdblk;
-	if ((arcn->type != PAX_BLK) && (arcn->type != PAX_CHR))
-		arcn->sb.st_rdev = 0;
+  if ((arcn->type != PAX_BLK) && (arcn->type != PAX_CHR)) {
+    arcn->sb.st_rdev = 0;
+  }
 
 	/*
 	 * add the proper magic value depending whether we were asked for
@@ -694,13 +715,15 @@ vcpio_wr(ARCHD *arcn)
 		if (ul_asc((u_long)VCMAGIC, hd->c_magic, sizeof(hd->c_magic),
 	    		OCT) ||
 		    ul_asc((u_long)arcn->crc,hd->c_chksum,sizeof(hd->c_chksum),
-	    		HEX))
-			goto out;
+               HEX)) {
+      goto out;
+    }
 	} else {
 		if (ul_asc((u_long)VMAGIC, hd->c_magic, sizeof(hd->c_magic),
 	    		OCT) ||
-		    ul_asc((u_long)0L, hd->c_chksum, sizeof(hd->c_chksum),HEX))
-			goto out;
+        ul_asc((u_long)0L, hd->c_chksum, sizeof(hd->c_chksum),HEX)) {
+      goto out;
+    }
 	}
 
 	switch(arcn->type) {
@@ -726,8 +749,9 @@ vcpio_wr(ARCHD *arcn)
 		 */
 		arcn->pad = 0L;
 		if (ul_asc((u_long)arcn->ln_nlen, hd->c_filesize,
-		    sizeof(hd->c_filesize), HEX))
-			goto out;
+               sizeof(hd->c_filesize), HEX)) {
+      goto out;
+    }
 		break;
 	default:
 		/*
@@ -735,8 +759,9 @@ vcpio_wr(ARCHD *arcn)
 		 */
 		arcn->pad = 0L;
 		if (ul_asc((u_long)0L, hd->c_filesize, sizeof(hd->c_filesize),
-		    HEX))
-			goto out;
+               HEX)) {
+      goto out;
+    }
 		break;
 	}
 
@@ -763,8 +788,9 @@ vcpio_wr(ARCHD *arcn)
 		HEX) ||
 	    ul_asc((u_long)MINOR(arcn->sb.st_rdev),hd->c_rmin,sizeof(hd->c_min),
 		HEX) ||
-	    ul_asc((u_long)nsz, hd->c_namesize, sizeof(hd->c_namesize), HEX))
-		goto out;
+      ul_asc((u_long)nsz, hd->c_namesize, sizeof(hd->c_namesize), HEX)) {
+    goto out;
+  }
 
 	/*
 	 * write the header, the file name and padding as required.
@@ -780,14 +806,16 @@ vcpio_wr(ARCHD *arcn)
 	 * if we have file data, tell the caller we are done, copy the file
 	 */
 	if ((arcn->type == PAX_CTG) || (arcn->type == PAX_REG) ||
-	    (arcn->type == PAX_HRG))
-		return(0);
+      (arcn->type == PAX_HRG)) {
+    return(0);
+  }
 
 	/*
 	 * if we are not a link, tell the caller we are done, go to next file
 	 */
-	if (arcn->type != PAX_SLK)
-		return(1);
+  if (arcn->type != PAX_SLK) {
+    return(1);
+  }
 
 	/*
 	 * write the link name, tell the caller we are done.
@@ -823,17 +851,20 @@ vcpio_wr(ARCHD *arcn)
 int
 bcpio_id(char *blk, int size)
 {
-	if (size < (int)sizeof(HD_BCPIO))
-		return(-1);
+  if (size < (int)sizeof(HD_BCPIO)) {
+    return(-1);
+  }
 
 	/*
 	 * check both normal and byte swapped magic cookies
 	 */
-	if (((u_short)SHRT_EXT(blk)) == MAGIC)
-		return(0);
+  if (((u_short)SHRT_EXT(blk)) == MAGIC) {
+    return(0);
+  }
 	if (((u_short)RSHRT_EXT(blk)) == MAGIC) {
-		if (!swp_head)
-			++swp_head;
+    if (!swp_head) {
+      ++swp_head;
+    }
 		return(0);
 	}
 	return(-1);
@@ -860,8 +891,9 @@ bcpio_rd(ARCHD *arcn, char *buf)
 	/*
 	 * check the header
 	 */
-	if (bcpio_id(buf, sizeof(HD_BCPIO)) < 0)
-		return(-1);
+  if (bcpio_id(buf, sizeof(HD_BCPIO)) < 0) {
+    return(-1);
+  }
 
 	arcn->pad = 0L;
 	hd = (HD_BCPIO *)buf;
@@ -905,17 +937,20 @@ bcpio_rd(ARCHD *arcn, char *buf)
 	 * check the file name size, if bogus give up. otherwise read the file
 	 * name
 	 */
-	if (nsz < 2)
-		return(-1);
+  if (nsz < 2) {
+    return(-1);
+  }
 	arcn->nlen = nsz - 1;
-	if (rd_nm(arcn, nsz) < 0)
-		return(-1);
+  if (rd_nm(arcn, nsz) < 0) {
+    return(-1);
+  }
 
 	/*
 	 * header + file name are aligned to 2 byte boundaries, skip if needed
 	 */
-	if (rd_skip((off_t)(BCPIO_PAD(sizeof(HD_BCPIO) + nsz))) < 0)
-		return(-1);
+  if (rd_skip((off_t)(BCPIO_PAD(sizeof(HD_BCPIO) + nsz))) < 0) {
+    return(-1);
+  }
 
 	/*
 	 * if not a link (or a file with no data), calculate pad size (for
@@ -932,8 +967,9 @@ bcpio_rd(ARCHD *arcn, char *buf)
 	}
 
 	if ((rd_ln_nm(arcn) < 0) ||
-	    (rd_skip((off_t)(BCPIO_PAD(arcn->sb.st_size))) < 0))
-		return(-1);
+      (rd_skip((off_t)(BCPIO_PAD(arcn->sb.st_size))) < 0)) {
+    return(-1);
+  }
 
 	/*
 	 * we have a valid header (with a link)
@@ -980,11 +1016,13 @@ bcpio_wr(ARCHD *arcn)
 	 * check and repair truncated device and inode fields in the cpio
 	 * header
 	 */
-	if (map_dev(arcn, (u_long)BCPIO_MASK, (u_long)BCPIO_MASK) < 0)
-		return(-1);
+  if (map_dev(arcn, (u_long)BCPIO_MASK, (u_long)BCPIO_MASK) < 0) {
+    return(-1);
+  }
 
-	if ((arcn->type != PAX_BLK) && (arcn->type != PAX_CHR))
-		arcn->sb.st_rdev = 0;
+  if ((arcn->type != PAX_BLK) && (arcn->type != PAX_CHR)) {
+    arcn->sb.st_rdev = 0;
+  }
 	hd = &hdblk;
 
 	switch(arcn->type) {
@@ -1020,8 +1058,9 @@ bcpio_wr(ARCHD *arcn)
 		hd->h_filesize_2[1] = CHR_WR_3(arcn->ln_nlen);
 		t_int = (int)(SHRT_EXT(hd->h_filesize_1));
 		t_int = (t_int << 16) | ((int)(SHRT_EXT(hd->h_filesize_2)));
-		if (arcn->ln_nlen != t_int)
-			goto out;
+      if (arcn->ln_nlen != t_int) {
+        goto out;
+      }
 		break;
 	default:
 		/*
@@ -1042,45 +1081,54 @@ bcpio_wr(ARCHD *arcn)
 	hd->h_magic[1] = CHR_WR_3(MAGIC);
 	hd->h_dev[0] = CHR_WR_2(arcn->sb.st_dev);
 	hd->h_dev[1] = CHR_WR_3(arcn->sb.st_dev);
-	if (arcn->sb.st_dev != (dev_t)(SHRT_EXT(hd->h_dev)))
-		goto out;
+  if (arcn->sb.st_dev != (dev_t)(SHRT_EXT(hd->h_dev))) {
+    goto out;
+  }
 	hd->h_ino[0] = CHR_WR_2(arcn->sb.st_ino);
 	hd->h_ino[1] = CHR_WR_3(arcn->sb.st_ino);
-	if (arcn->sb.st_ino != (ino_t)(SHRT_EXT(hd->h_ino)))
-		goto out;
+  if (arcn->sb.st_ino != (ino_t)(SHRT_EXT(hd->h_ino))) {
+    goto out;
+  }
 	hd->h_mode[0] = CHR_WR_2(arcn->sb.st_mode);
 	hd->h_mode[1] = CHR_WR_3(arcn->sb.st_mode);
-	if (arcn->sb.st_mode != (mode_t)(SHRT_EXT(hd->h_mode)))
-		goto out;
+  if (arcn->sb.st_mode != (mode_t)(SHRT_EXT(hd->h_mode))) {
+    goto out;
+  }
 	hd->h_uid[0] = CHR_WR_2(arcn->sb.st_uid);
 	hd->h_uid[1] = CHR_WR_3(arcn->sb.st_uid);
-	if (arcn->sb.st_uid != (uid_t)(SHRT_EXT(hd->h_uid)))
-		goto out;
+  if (arcn->sb.st_uid != (uid_t)(SHRT_EXT(hd->h_uid))) {
+    goto out;
+  }
 	hd->h_gid[0] = CHR_WR_2(arcn->sb.st_gid);
 	hd->h_gid[1] = CHR_WR_3(arcn->sb.st_gid);
-	if (arcn->sb.st_gid != (gid_t)(SHRT_EXT(hd->h_gid)))
-		goto out;
+  if (arcn->sb.st_gid != (gid_t)(SHRT_EXT(hd->h_gid))) {
+    goto out;
+  }
 	hd->h_nlink[0] = CHR_WR_2(arcn->sb.st_nlink);
 	hd->h_nlink[1] = CHR_WR_3(arcn->sb.st_nlink);
-	if (arcn->sb.st_nlink != (nlink_t)(SHRT_EXT(hd->h_nlink)))
-		goto out;
+  if (arcn->sb.st_nlink != (nlink_t)(SHRT_EXT(hd->h_nlink))) {
+    goto out;
+  }
 	hd->h_rdev[0] = CHR_WR_2(arcn->sb.st_rdev);
 	hd->h_rdev[1] = CHR_WR_3(arcn->sb.st_rdev);
-	if (arcn->sb.st_rdev != (dev_t)(SHRT_EXT(hd->h_rdev)))
-		goto out;
+  if (arcn->sb.st_rdev != (dev_t)(SHRT_EXT(hd->h_rdev))) {
+    goto out;
+  }
 	hd->h_mtime_1[0] = CHR_WR_0(arcn->sb.st_mtime);
 	hd->h_mtime_1[1] = CHR_WR_1(arcn->sb.st_mtime);
 	hd->h_mtime_2[0] = CHR_WR_2(arcn->sb.st_mtime);
 	hd->h_mtime_2[1] = CHR_WR_3(arcn->sb.st_mtime);
 	t_timet = (time_t)(SHRT_EXT(hd->h_mtime_1));
 	t_timet =  (t_timet << 16) | ((time_t)(SHRT_EXT(hd->h_mtime_2)));
-	if (arcn->sb.st_mtime != t_timet)
-		goto out;
+  if (arcn->sb.st_mtime != t_timet) {
+    goto out;
+  }
 	nsz = arcn->nlen + 1;
 	hd->h_namesize[0] = CHR_WR_2(nsz);
 	hd->h_namesize[1] = CHR_WR_3(nsz);
-	if (nsz != (int)(SHRT_EXT(hd->h_namesize)))
-		goto out;
+  if (nsz != (int)(SHRT_EXT(hd->h_namesize))) {
+    goto out;
+  }
 
 	/*
 	 * write the header, the file name and padding as required.
@@ -1096,14 +1144,16 @@ bcpio_wr(ARCHD *arcn)
 	 * if we have file data, tell the caller we are done
 	 */
 	if ((arcn->type == PAX_CTG) || (arcn->type == PAX_REG) ||
-	    (arcn->type == PAX_HRG))
-		return(0);
+      (arcn->type == PAX_HRG)) {
+    return(0);
+  }
 
 	/*
 	 * if we are not a link, tell the caller we are done, go to next file
 	 */
-	if (arcn->type != PAX_SLK)
-		return(1);
+  if (arcn->type != PAX_SLK) {
+    return(1);
+  }
 
 	/*
 	 * write the link name, tell the caller we are done.

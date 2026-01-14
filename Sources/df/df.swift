@@ -222,8 +222,9 @@ let unix2003 = true
     } else {
       /* just the filesystems specified on the command line */
       mntbuf = malloc(argc * sizeof(*mntbuf));
-      if (mntbuf == NULL)
-          xo_err(1, "malloc()");
+      if (mntbuf == NULL) {
+        xo_err(1, "malloc()");
+      }
       mntsize = 0;
       /* continued in for loop below */
     }
@@ -312,8 +313,9 @@ let unix2003 = true
 
     mntsize = getmntinfo(&mntbuf, MNT_NOWAIT);
     for (i = 0; i < mntsize; i++) {
-      if (!strcmp(mntbuf[i].f_mntfromname, name))
-          return (mntbuf[i].f_mntonname);
+      if (!strcmp(mntbuf[i].f_mntfromname, name)) {
+        return (mntbuf[i].f_mntonname);
+      }
     }
     return nil
   }
@@ -354,11 +356,13 @@ let unix2003 = true
   checkvfsname(const char *vfsname, const char **vfslist, int skip)
   {
 
-    if (vfslist == NULL)
-        return (0);
+    if (vfslist == NULL) {
+      return (0);
+    }
     while (*vfslist != NULL) {
-      if (strcmp(vfsname, *vfslist) == 0)
-          return (skip);
+      if (strcmp(vfsname, *vfslist) == 0) {
+        return (skip);
+      }
       ++vfslist;
     }
     return (!skip);
@@ -380,8 +384,9 @@ let unix2003 = true
       result = checkvfsname(fstypename, vfslist_t, skipvfs_t);
       if (vfslist_l) {
         /* if -l option then adjust selection */
-        if (checkvfsname(fstypename, vfslist_l, skipvfs_l) == skipvfs_t)
-            result = skipvfs_t;
+        if (checkvfsname(fstypename, vfslist_l, skipvfs_l) == skipvfs_t) {
+          result = skipvfs_t;
+        }
       }
     } else {
       /* no -t option then -l decides */
@@ -399,13 +404,15 @@ let unix2003 = true
     int error, i, j;
     struct statfs *mntbuf;
 
-    if (vfslist_l == NULL && vfslist_t == NULL)
+      if (vfslist_l == NULL && vfslist_t == NULL) {
         return (nflag ? mntsize : getmntinfo(mntbufp, MNT_WAIT));
+      }
 
     mntbuf = *mntbufp;
     for (j = 0, i = 0; i < mntsize; i++) {
-      if (checkvfsselected(mntbuf[i].f_fstypename) != 0)
-          continue;
+      if (checkvfsselected(mntbuf[i].f_fstypename) != 0) {
+        continue;
+      }
       /*
        * XXX statfs(2) can fail for various reasons. It may be
        * possible that the user does not have access to the
@@ -413,12 +420,14 @@ let unix2003 = true
        * "stale" filesystem statistics.
        */
       error = statfs(mntbuf[i].f_mntonname, &mntbuf[j]);
-      if (nflag || error < 0)
-          if (i != j) {
-        if (error < 0)
+      if (nflag || error < 0) {
+        if (i != j) {
+          if (error < 0) {
             xo_warnx("%s stats possibly stale",
                      mntbuf[i].f_mntonname);
-        mntbuf[j] = mntbuf[i];
+          }
+          mntbuf[j] = mntbuf[i];
+        }
       }
       j++;
     }
@@ -540,7 +549,7 @@ let unix2003 = true
         mwp.total = max(mwp.total, headerlen)
       }
       mwp.used = max(mwp.used, strlen("Used"))
-      if unix2003 && !options.hflag) {
+      if unix2003 && !options.hflag {
         avail_str = "Available"
       } else {
         avail_str = "Avail"
@@ -571,8 +580,9 @@ let unix2003 = true
       sfsp.f_bsize = 512
     }
     xo_emit("{tk:name/%-*s}", mwp->mntfrom, sfsp->f_mntfromname);
-    if (Tflag)
-        xo_emit("  {:type/%-*s}", mwp->fstype, sfsp->f_fstypename);
+    if (Tflag) {
+      xo_emit("  {:type/%-*s}", mwp->fstype, sfsp->f_fstypename);
+    }
     if (sfsp.f_blocks > sfsp.f_bfree) {
       used = usedblks(sfsp)
     } else {
@@ -599,11 +609,14 @@ let unix2003 = true
       /* Standard says percentage must be rounded UP to next
        integer value, not truncated */
       double value;
-      if (availblks == 0)
-          value = 100.0;
+      if (availblks == 0) {
+        value = 100.0;
+      }
       else {
         value = (double)used / (double)availblks * 100.0;
-        if ((value-(int)value) > 0.0) value = value + 1.0;
+        if ((value-(int)value) > 0.0) {
+          value = value + 1.0;
+        }
       }
       xo_emit(" {:used-percent/%5.0f}{U:%%}", trunc(value));
     } else {
@@ -618,23 +631,28 @@ let unix2003 = true
         prthumanvalinode(" {:inodes-used/%5s}", used);
         prthumanvalinode(" {:inodes-free/%5s}", sfsp->f_ffree);
       } else {
-        if (thousands)
-            format = " {:inodes-used/%*j'd} {:inodes-free/%*j'd}";
-        else
+        if (thousands) {
+          format = " {:inodes-used/%*j'd} {:inodes-free/%*j'd}";
+        }
+        else {
           format = " {:inodes-used/%*jd} {:inodes-free/%*jd}";
+        }
         xo_emit(format, mwp->iused, (intmax_t)used,
                 mwp->ifree, (intmax_t)sfsp->f_ffree);
       }
-      if (inodes == 0)
-          xo_emit(" {:inodes-used-percent/    -}{U:} ");
+      if (inodes == 0) {
+        xo_emit(" {:inodes-used-percent/    -}{U:} ");
+      }
       else {
         xo_emit(" {:inodes-used-percent/%4.0f}{U:%%} ",
                 (double)used / (double)inodes * 100.0);
       }
-    } else
+    } else {
       xo_emit("  ");
-    if (strncmp(sfsp->f_mntfromname, "total", MNAMELEN) != 0)
-        xo_emit("  {:mounted-on}", sfsp->f_mntonname);
+    }
+    if (strncmp(sfsp->f_mntfromname, "total", MNAMELEN) != 0) {
+      xo_emit("  {:mounted-on}", sfsp->f_mntonname);
+    }
     xo_emit("\n");
     xo_close_instance("filesystem");
   }
@@ -755,8 +773,9 @@ usage: df [--libxo] [-b | -g | -H | -h | -k | -m | -P] [-acIiln\(unix2003 ? "" :
       //      #ifdef __APPLE__
       mib[3] = i;
       if (sysctl(mib, 4, &vfc, &buflen, NULL, 0) != 0) {
-        if (errno != ENOTSUP)
-            xo_warn("sysctl failed");
+        if (errno != ENOTSUP) {
+          xo_warn("sysctl failed");
+        }
         continue;
       }
       if (!(vfc.vfc_flags & MNT_LOCAL)) {
@@ -780,8 +799,9 @@ usage: df [--libxo] [-b | -g | -H | -h | -k | -m | -P] [-acIiln\(unix2003 ? "" :
 
     if (cnt == 0 ||
         (str = malloc(sizeof(char) * (32 * cnt + cnt + 2))) == NULL) {
-      if (cnt > 0)
-          xo_warnx("malloc failed");
+      if (cnt > 0) {
+        xo_warnx("malloc failed");
+      }
       free(listptr);
       free(keep_xvfsp);
       return (NULL);

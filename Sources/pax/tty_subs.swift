@@ -136,11 +136,12 @@ paxwarn(int set, const char *fmt, ...)
 	va_list ap;
 	va_start(ap, fmt);
 #ifdef __APPLE__
-	if (set && (pax_invalid_action == 0))
+  if (set && (pax_invalid_action == 0)) {
 #else
-	if (set)
+    if (set) {
 #endif /* __APPLE__ */
-		exit_val = 1;
+      exit_val = 1;
+    }
 	/*
 	 * when vflag we better ship out an extra \n to get this message on a
 	 * line by itself
@@ -167,8 +168,9 @@ syswarn(int set, int errnum, const char *fmt, ...)
 {
 	va_list ap;
 	va_start(ap, fmt);
-	if (set)
-		exit_val = 1;
+  if (set) {
+    exit_val = 1;
+  }
 	/*
 	 * when vflag we better ship out an extra \n to get this message on a
 	 * line by itself
@@ -185,7 +187,8 @@ syswarn(int set, int errnum, const char *fmt, ...)
 	/*
 	 * format and print the errno
 	 */
-	if (errnum > 0)
-		(void)fprintf(stderr, " <%s>", strerror(errnum));
+  if (errnum > 0) {
+    (void)fprintf(stderr, " <%s>", strerror(errnum));
+  }
 	(void)fputc('\n', stderr);
 }

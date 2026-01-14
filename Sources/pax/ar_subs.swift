@@ -163,11 +163,13 @@ list(void)
 	 * the name and group caches.
 	 */
 	if ((get_arc() < 0) || ((*frmt->options)() < 0) ||
-	    ((*frmt->st_rd)() < 0))
-		return;
+      ((*frmt->st_rd)() < 0)) {
+    return;
+  }
 
-	if (vflag && ((uidtb_start() < 0) || (gidtb_start() < 0)))
-		return;
+  if (vflag && ((uidtb_start() < 0) || (gidtb_start() < 0))) {
+    return;
+  }
 
 	now = time(NULL);
 
@@ -182,8 +184,9 @@ list(void)
 			 */
 			off_t cnt;
 			if (!(*frmt->rd_data)(arcn, arcn->type == PAX_GLF
-			    ? -1 : -2, &cnt))
-				(void)rd_skip(cnt + arcn->pad);
+                            ? -1 : -2, &cnt)) {
+        (void)rd_skip(cnt + arcn->pad);
+      }
 			continue;
 		}
 #endif /* __APPLE__ */
@@ -192,32 +195,37 @@ list(void)
 		 * check for pattern, and user specified options match.
 		 * When all patterns are matched we are done.
 		 */
-		if ((res = pat_match(arcn)) < 0)
-			break;
+    if ((res = pat_match(arcn)) < 0) {
+      break;
+    }
 
 		if ((res == 0) && (sel_chk(arcn) == 0)) {
 			/*
 			 * pattern resulted in a selected file
 			 */
-			if (pat_sel(arcn) < 0)
-				break;
+      if (pat_sel(arcn) < 0) {
+        break;
+      }
 
 			/*
 			 * modify the name as requested by the user if name
 			 * survives modification, do a listing of the file
 			 */
-			if ((res = mod_name(arcn)) < 0)
-				break;
-			if (res == 0)
-				ls_list(arcn, now, stdout);
+      if ((res = mod_name(arcn)) < 0) {
+        break;
+      }
+      if (res == 0) {
+        ls_list(arcn, now, stdout);
+      }
 		}
 
 		/*
 		 * skip to next archive format header using values calculated
 		 * by the format header read routine
 		 */
-		if (rd_skip(arcn->skip + arcn->pad) == 1)
-			break;
+    if (rd_skip(arcn->skip + arcn->pad) == 1) {
+      break;
+    }
 	}
 
 	/*
@@ -266,15 +274,17 @@ extract(void)
 	 * start up the directory modification time and access mode database
 	 */
 	if ((get_arc() < 0) || ((*frmt->options)() < 0) ||
-	    ((*frmt->st_rd)() < 0) || (dir_start() < 0))
-		return;
+      ((*frmt->st_rd)() < 0) || (dir_start() < 0)) {
+    return;
+  }
 
 	/*
 	 * When we are doing interactive rename, we store the mapping of names
 	 * so we can fix up hard links files later in the archive.
 	 */
-	if (iflag && (name_start() < 0))
-		return;
+  if (iflag && (name_start() < 0)) {
+    return;
+  }
 
 	now = time(NULL);
 
@@ -282,127 +292,133 @@ extract(void)
 	 * step through each entry on the archive until the format read routine
 	 * says it is done
 	 */
-	while (next_head(arcn) == 0) {
-#ifdef __APPLE__
-		if (arcn->type == PAX_GLL || arcn->type == PAX_GLF) {
-			/*
-			 * we need to read, to get the real filename
-			 */
-			if (!(*frmt->rd_data)(arcn, arcn->type == PAX_GLF
-			    ? -1 : -2, &cnt))
-				(void)rd_skip(cnt + arcn->pad);
-			continue;
-		}
+  while (next_head(arcn) == 0) {
+    #ifdef __APPLE__
+    if (arcn->type == PAX_GLL || arcn->type == PAX_GLF) {
+      /*
+       * we need to read, to get the real filename
+       */
+      if (!(*frmt->rd_data)(arcn, arcn->type == PAX_GLF
+                            ? -1 : -2, &cnt)) {
+        (void)rd_skip(cnt + arcn->pad);
+      }
+      continue;
+    }
 #endif /* __APPLE__ */
 
-		/*
-		 * check for pattern, and user specified options match. When
-		 * all the patterns are matched we are done
-		 */
-		if ((res = pat_match(arcn)) < 0)
-			break;
+    /*
+     * check for pattern, and user specified options match. When
+     * all the patterns are matched we are done
+     */
+    if ((res = pat_match(arcn)) < 0) {
+      break;
+    }
 
-		if ((res > 0) || (sel_chk(arcn) != 0)) {
-			/*
-			 * file is not selected. skip past any file data and
-			 * padding and go back for the next archive member
-			 */
-			(void)rd_skip(arcn->skip + arcn->pad);
-			continue;
-		}
+    if ((res > 0) || (sel_chk(arcn) != 0)) {
+      /*
+       * file is not selected. skip past any file data and
+       * padding and go back for the next archive member
+       */
+      (void)rd_skip(arcn->skip + arcn->pad);
+      continue;
+    }
 
-		/*
-		 * with -u or -D only extract when the archive member is newer
-		 * than the file with the same name in the file system (no
-		 * test of being the same type is required).
-		 * NOTE: this test is done BEFORE name modifications as
-		 * specified by pax. this operation can be confusing to the
-		 * user who might expect the test to be done on an existing
-		 * file AFTER the name mod. In honesty the pax spec is probably
-		 * flawed in this respect.
-		 */
-		if ((uflag || Dflag) && ((lstat(arcn->name, &sb) == 0))) {
-			if (uflag && Dflag) {
-				if ((arcn->sb.st_mtime <= sb.st_mtime) &&
-				    (arcn->sb.st_ctime <= sb.st_ctime)) {
-					(void)rd_skip(arcn->skip + arcn->pad);
-					continue;
-				}
-			} else if (Dflag) {
-				if (arcn->sb.st_ctime <= sb.st_ctime) {
-					(void)rd_skip(arcn->skip + arcn->pad);
-					continue;
-				}
-			} else if (arcn->sb.st_mtime <= sb.st_mtime) {
-				(void)rd_skip(arcn->skip + arcn->pad);
-				continue;
-			}
-		}
+    /*
+     * with -u or -D only extract when the archive member is newer
+     * than the file with the same name in the file system (no
+     * test of being the same type is required).
+     * NOTE: this test is done BEFORE name modifications as
+     * specified by pax. this operation can be confusing to the
+     * user who might expect the test to be done on an existing
+     * file AFTER the name mod. In honesty the pax spec is probably
+     * flawed in this respect.
+     */
+    if ((uflag || Dflag) && ((lstat(arcn->name, &sb) == 0))) {
+      if (uflag && Dflag) {
+        if ((arcn->sb.st_mtime <= sb.st_mtime) &&
+            (arcn->sb.st_ctime <= sb.st_ctime)) {
+          (void)rd_skip(arcn->skip + arcn->pad);
+          continue;
+        }
+      } else if (Dflag) {
+        if (arcn->sb.st_ctime <= sb.st_ctime) {
+          (void)rd_skip(arcn->skip + arcn->pad);
+          continue;
+        }
+      } else if (arcn->sb.st_mtime <= sb.st_mtime) {
+        (void)rd_skip(arcn->skip + arcn->pad);
+        continue;
+      }
+    }
 
-		/*
-		 * this archive member is now been selected. modify the name.
-		 */
-		if ((pat_sel(arcn) < 0) || ((res = mod_name(arcn)) < 0))
-			break;
-		if (res > 0) {
-			/*
-			 * a bad name mod, skip and purge name from link table
-			 */
-			purg_lnk(arcn);
-			(void)rd_skip(arcn->skip + arcn->pad);
-			continue;
-		}
+    /*
+     * this archive member is now been selected. modify the name.
+     */
+    if ((pat_sel(arcn) < 0) || ((res = mod_name(arcn)) < 0)) {
+      break;
+    }
+    if (res > 0) {
+      /*
+       * a bad name mod, skip and purge name from link table
+       */
+      purg_lnk(arcn);
+      (void)rd_skip(arcn->skip + arcn->pad);
+      continue;
+    }
 
-		/*
-		 * Non standard -Y and -Z flag. When the existing file is
-		 * same age or newer skip
-		 */
-		if ((Yflag || Zflag) && ((lstat(arcn->name, &sb) == 0))) {
-			if (Yflag && Zflag) {
-				if ((arcn->sb.st_mtime <= sb.st_mtime) &&
-				    (arcn->sb.st_ctime <= sb.st_ctime)) {
-					(void)rd_skip(arcn->skip + arcn->pad);
-					continue;
-				}
-			} else if (Yflag) {
-				if (arcn->sb.st_ctime <= sb.st_ctime) {
-					(void)rd_skip(arcn->skip + arcn->pad);
-					continue;
-				}
-			} else if (arcn->sb.st_mtime <= sb.st_mtime) {
-				(void)rd_skip(arcn->skip + arcn->pad);
-				continue;
-			}
-		}
+    /*
+     * Non standard -Y and -Z flag. When the existing file is
+     * same age or newer skip
+     */
+    if ((Yflag || Zflag) && ((lstat(arcn->name, &sb) == 0))) {
+      if (Yflag && Zflag) {
+        if ((arcn->sb.st_mtime <= sb.st_mtime) &&
+            (arcn->sb.st_ctime <= sb.st_ctime)) {
+          (void)rd_skip(arcn->skip + arcn->pad);
+          continue;
+        }
+      } else if (Yflag) {
+        if (arcn->sb.st_ctime <= sb.st_ctime) {
+          (void)rd_skip(arcn->skip + arcn->pad);
+          continue;
+        }
+      } else if (arcn->sb.st_mtime <= sb.st_mtime) {
+        (void)rd_skip(arcn->skip + arcn->pad);
+        continue;
+      }
+    }
 
-		if (vflag) {
-			if (vflag > 1)
-				ls_list(arcn, now, listf);
-			else {
-#ifdef __APPLE__
-				(void)safe_print(arcn->name, listf);
+    if (vflag) {
+      if (vflag > 1) {
+        ls_list(arcn, now, listf);
+      }
+      else {
+        #ifdef __APPLE__
+        (void)safe_print(arcn->name, listf);
 #else
-				(void)fputs(arcn->name, listf);
+        (void)fputs(arcn->name, listf);
 #endif /* __APPLE__ */
-				vfpart = 1;
-			}
-		}
+        vfpart = 1;
+      }
+    }
 
-		/*
-		 * if required, chdir around.
-		 */
-		if ((arcn->pat != NULL) && (arcn->pat->chdname != NULL))
-#ifdef __APPLE__
-			dochdir(arcn->pat->chdname);
-
-		if (secure && path_check(arcn, 0) != 0) {
-			(void)rd_skip(arcn->skip + arcn->pad);
-			continue;
-		}
+    /*
+     * if required, chdir around.
+     */
+    if ((arcn->pat != NULL) && (arcn->pat->chdname != NULL)) {
+      #ifdef __APPLE__
+      dochdir(arcn->pat->chdname);
+    }
+    if (secure && path_check(arcn, 0) != 0) {
+      (void)rd_skip(arcn->skip + arcn->pad);
+      continue;
+    }
 #else
-			if (chdir(arcn->pat->chdname) != 0)
-				syswarn(1, errno, "Cannot chdir to %s",
-				    arcn->pat->chdname);
+    if (chdir(arcn->pat->chdname) != 0) {
+      syswarn(1, errno, "Cannot chdir to %s",
+              arcn->pat->chdname);
+    }
+  }
 #endif /* __APPLE__ */
 
 		/*
@@ -414,14 +430,17 @@ extract(void)
 			 * throw out padding and any data that might follow the
 			 * header (as determined by the format).
 			 */
-			if ((arcn->type == PAX_HLK) || (arcn->type == PAX_HRG))
-				res = lnk_creat(arcn);
-			else
-				res = node_creat(arcn);
+      if ((arcn->type == PAX_HLK) || (arcn->type == PAX_HRG)) {
+        res = lnk_creat(arcn);
+      }
+      else {
+        res = node_creat(arcn);
+      }
 
 			(void)rd_skip(arcn->skip + arcn->pad);
-			if (res < 0)
-				purg_lnk(arcn);
+      if (res < 0) {
+        purg_lnk(arcn);
+      }
 
 			if (vflag && vfpart) {
 				(void)putc('\n', listf);
@@ -448,8 +467,9 @@ extract(void)
 			(void)putc('\n', listf);
 			vfpart = 0;
 		}
-		if (!res)
-			(void)rd_skip(cnt + arcn->pad);
+    if (!res) {
+      (void)rd_skip(cnt + arcn->pad);
+    }
 
 #ifdef __APPLE__
 		if (!strncmp(basename(arcn->name), "._", 2)) {
@@ -467,14 +487,16 @@ extract(void)
 		/*
 		 * if required, chdir around.
 		 */
-		if ((arcn->pat != NULL) && (arcn->pat->chdname != NULL))
-#ifdef __APPLE__
-			fdochdir(cwdfd);
+    if ((arcn->pat != NULL) && (arcn->pat->chdname != NULL)) {
+      #ifdef __APPLE__
+      fdochdir(cwdfd);
 #else
-			if (fchdir(cwdfd) != 0)
-				syswarn(1, errno,
-				    "Can't fchdir to starting directory");
+      if (fchdir(cwdfd) != 0) {
+        syswarn(1, errno,
+                "Can't fchdir to starting directory");
+      }
 #endif /* __APPLE__ */
+    }
 	}
 #ifdef __APPLE__
 	LIST_FOREACH(cle, &copyfile_list, link)
@@ -532,26 +554,29 @@ wr_archive(ARCHD *arcn, int is_app)
 	 * if this format supports hard link storage, start up the database
 	 * that detects them.
 	 */
-	if (((hlk = frmt->hlk) == 1) && (lnk_start() < 0))
-		return;
+  if (((hlk = frmt->hlk) == 1) && (lnk_start() < 0)) {
+    return;
+  }
 
 #ifdef __APPLE__
-	if (hlk && want_linkdata) hlk=0; /* Treat hard links as individual files */
+  if (hlk && want_linkdata) { hlk=0; } /* Treat hard links as individual files */
 
 #endif /* __APPLE__ */
 	/*
 	 * start up the file traversal code and format specific write
 	 */
-	if ((ftree_start() < 0) || ((*frmt->st_wr)() < 0))
-		return;
+  if ((ftree_start() < 0) || ((*frmt->st_wr)() < 0)) {
+    return;
+  }
 	wrf = frmt->wr;
 
 	/*
 	 * When we are doing interactive rename, we store the mapping of names
 	 * so we can fix up hard links files later in the archive.
 	 */
-	if (iflag && (name_start() < 0))
-		return;
+  if (iflag && (name_start() < 0)) {
+    return;
+  }
 
 	/*
 	 * if this is not append, and there are no files, we do not write a
@@ -578,10 +603,12 @@ wr_archive(ARCHD *arcn, int is_app)
 			 * only archive if this file is newer than a file with
 			 * the same name that is already stored on the archive
 			 */
-			if ((res = chk_ftime(arcn)) < 0)
-				break;
-			if (res > 0)
-				continue;
+      if ((res = chk_ftime(arcn)) < 0) {
+        break;
+      }
+      if (res > 0) {
+        continue;
+      }
 		}
 
 #ifdef __APPLE__
@@ -679,8 +706,9 @@ next:
 			break;
 		}
 #else
-		if (hlk && (chk_lnk(arcn) < 0))
-			break;
+    if (hlk && (chk_lnk(arcn) < 0)) {
+      break;
+    }
 #endif /* __APPLE__ */
 
 		if ((arcn->type == PAX_REG) || (arcn->type == PAX_HRG) ||
@@ -697,8 +725,9 @@ next:
 				unlink(md_fname);
 				free(md_fname);
 				md_fname = NULL;
-			} else
-				fd = open(arcn->org_name, O_RDONLY, 0);
+      } else {
+        fd = open(arcn->org_name, O_RDONLY, 0);
+      }
 			if (fd < 0) {
 #else  /* !__APPLE__ */
 			if ((fd = open(arcn->org_name, O_RDONLY, 0)) < 0) {
@@ -734,8 +763,9 @@ next:
 		}
 
 		if (vflag) {
-			if (vflag > 1)
-				ls_list(arcn, now, listf);
+      if (vflag > 1) {
+        ls_list(arcn, now, listf);
+      }
 			else {
 #ifdef __APPLE__
 				(void)safe_print(arcn->name, listf);
@@ -783,18 +813,21 @@ next:
 			(void)putc('\n', listf);
 			vfpart = 0;
 		}
-		if (res < 0)
-			break;
+      if (res < 0) {
+        break;
+      }
 
 		/*
 		 * pad as required, cnt is number of bytes not written
 		 */
 		if (((cnt > 0) && (wr_skip(cnt) < 0)) ||
-		    ((arcn->pad > 0) && (wr_skip(arcn->pad) < 0)))
-			break;
+        ((arcn->pad > 0) && (wr_skip(arcn->pad) < 0))) {
+      break;
+    }
 #ifdef __APPLE__
-		if (metadata)
-			goto next;
+      if (metadata) {
+        goto next;
+      }
 #endif	/* __APPLE__ */
 	}
 
@@ -810,8 +843,9 @@ next:
 	}
 	(void)sigprocmask(SIG_BLOCK, &s_mask, NULL);
 	ar_close();
-	if (tflag)
-		proc_dir();
+    if (tflag) {
+      proc_dir();
+    }
 	ftree_chk();
 }
 
@@ -854,8 +888,9 @@ append(void)
 	 * Do not allow an append operation if the actual archive is of a
 	 * different format than the user specified format.
 	 */
-	if (get_arc() < 0)
-		return;
+  if (get_arc() < 0) {
+    return;
+  }
 	if ((orgfrmt != NULL) && (orgfrmt != frmt)) {
 		paxwarn(1, "Cannot mix current archive format %s with %s",
 		    frmt->name, orgfrmt->name);
@@ -865,15 +900,17 @@ append(void)
 	/*
 	 * pass the format any options and start up format
 	 */
-	if (((*frmt->options)() < 0) || ((*frmt->st_rd)() < 0))
-		return;
+  if (((*frmt->options)() < 0) || ((*frmt->st_rd)() < 0)) {
+    return;
+  }
 
 	/*
 	 * if we only are adding members that are newer, we need to save the
 	 * mod times for all files we see.
 	 */
-	if (uflag && (ftime_start() < 0))
-		return;
+  if (uflag && (ftime_start() < 0)) {
+    return;
+  }
 
 	/*
 	 * some archive formats encode hard links by recording the device and
@@ -889,8 +926,9 @@ append(void)
 	 * when the inode number is larger than storage space in the archive
 	 * header. See the remap routines for more details.
 	 */
-	if ((udev = frmt->udev) && (dev_start() < 0))
-		return;
+  if ((udev = frmt->udev) && (dev_start() < 0)) {
+    return;
+  }
 
 	/*
 	 * reading the archive may take a long time. If verbose tell the user
@@ -909,8 +947,9 @@ append(void)
 		 * check if this file meets user specified options.
 		 */
 		if (sel_chk(arcn) != 0) {
-			if (rd_skip(arcn->skip + arcn->pad) == 1)
-				break;
+      if (rd_skip(arcn->skip + arcn->pad) == 1) {
+        break;
+      }
 			continue;
 		}
 
@@ -919,11 +958,13 @@ append(void)
 			 * see if this is the newest version of this file has
 			 * already been seen, if so skip.
 			 */
-			if ((res = chk_ftime(arcn)) < 0)
-				break;
+      if ((res = chk_ftime(arcn)) < 0) {
+        break;
+      }
 			if (res > 0) {
-				if (rd_skip(arcn->skip + arcn->pad) == 1)
-					break;
+        if (rd_skip(arcn->skip + arcn->pad) == 1) {
+          break;
+        }
 				continue;
 			}
 		}
@@ -935,8 +976,9 @@ append(void)
 		 * remapped to an unused device number.
 		 */
 		if ((udev && (add_dev(arcn) < 0)) ||
-		    (rd_skip(arcn->skip + arcn->pad) == 1))
-			break;
+        (rd_skip(arcn->skip + arcn->pad) == 1)) {
+      break;
+    }
 	}
 
 	/*
@@ -951,8 +993,9 @@ append(void)
 	 * try to position for write, if this fails quit. if any error occurs,
 	 * we will refuse to write
 	 */
-	if (appnd_start(tlen) < 0)
-		return;
+  if (appnd_start(tlen) < 0) {
+    return;
+  }
 
 	/*
 	 * tell the user we are done reading.
@@ -983,10 +1026,12 @@ archive(void)
 	 * mod times for all files; set up for writing; pass the format any
 	 * options write the archive
 	 */
-	if ((uflag && (ftime_start() < 0)) || (wr_start() < 0))
-		return;
-	if ((*frmt->options)() < 0)
-		return;
+  if ((uflag && (ftime_start() < 0)) || (wr_start() < 0)) {
+    return;
+  }
+  if ((*frmt->options)() < 0) {
+    return;
+  }
 
 	wr_archive(&archd, 0);
 }
@@ -1017,10 +1062,12 @@ copy(void)
 #ifdef __APPLE__
 	if (frmt && strcmp(frmt->name, NM_PAX)==0) {
 		/* Copy using pax format:  must check if any -o options */
-		if ((*frmt->options)() < 0)
-			return;
-		if (pax_invalid_action==0)
-			pax_invalid_action = PAX_INVALID_ACTION_BYPASS;
+    if ((*frmt->options)() < 0) {
+      return;
+    }
+    if (pax_invalid_action==0) {
+      pax_invalid_action = PAX_INVALID_ACTION_BYPASS;
+    }
 	}
 #endif /* __APPLE__ */
 	/*
@@ -1061,15 +1108,17 @@ copy(void)
 	 * start up the hard link table; file traversal routines and the
 	 * modification time and access mode database
 	 */
-	if ((lnk_start() < 0) || (ftree_start() < 0) || (dir_start() < 0))
-		return;
+  if ((lnk_start() < 0) || (ftree_start() < 0) || (dir_start() < 0)) {
+    return;
+  }
 
 	/*
 	 * When we are doing interactive rename, we store the mapping of names
 	 * so we can fix up hard links files later in the archive.
 	 */
-	if (iflag && (name_start() < 0))
-		return;
+  if (iflag && (name_start() < 0)) {
+    return;
+  }
 
 	/*
 	 * set up to cp file trees
@@ -1115,10 +1164,12 @@ copy(void)
 			if (strlcpy(dest_pt, arcn->name + (*arcn->name == '/'),
 			    drem + 1) > drem) {
 #else
-			if (*(arcn->name) == '/')
-				res = 1;
-			else
-				res = 0;
+        if (*(arcn->name) == '/') {
+          res = 1;
+        }
+        else {
+          res = 0;
+        }
 			if ((arcn->nlen - res) > drem) {
 #endif /* __APPLE__ */
 				paxwarn(1, "Destination pathname too long %s",
@@ -1139,13 +1190,16 @@ copy(void)
 		    	if (res == 0) {
 				if (uflag && Dflag) {
 					if ((arcn->sb.st_mtime<=sb.st_mtime) &&
-			    		    (arcn->sb.st_ctime<=sb.st_ctime))
-						continue;
+              (arcn->sb.st_ctime<=sb.st_ctime)) {
+            continue;
+          }
 				} else if (Dflag) {
-					if (arcn->sb.st_ctime <= sb.st_ctime)
-						continue;
-				} else if (arcn->sb.st_mtime <= sb.st_mtime)
-					continue;
+          if (arcn->sb.st_ctime <= sb.st_ctime) {
+            continue;
+          }
+        } else if (arcn->sb.st_mtime <= sb.st_mtime) {
+          continue;
+        }
 			}
 		}
 
@@ -1155,8 +1209,9 @@ copy(void)
 		 * user; set the final destination.
 		 */
 		ftree_sel(arcn);
-		if ((chk_lnk(arcn) < 0) || ((res = mod_name(arcn)) < 0))
-			break;
+      if ((chk_lnk(arcn) < 0) || ((res = mod_name(arcn)) < 0)) {
+        break;
+      }
 		if ((res > 0) || (set_dest(arcn, dirbuf, dlen) < 0)) {
 			/*
 			 * skip file, purge from link table
@@ -1172,13 +1227,16 @@ copy(void)
 		if ((Yflag || Zflag) && ((lstat(arcn->name, &sb) == 0))) {
 			if (Yflag && Zflag) {
 				if ((arcn->sb.st_mtime <= sb.st_mtime) &&
-				    (arcn->sb.st_ctime <= sb.st_ctime))
-					continue;
+            (arcn->sb.st_ctime <= sb.st_ctime)) {
+          continue;
+        }
 			} else if (Yflag) {
-				if (arcn->sb.st_ctime <= sb.st_ctime)
-					continue;
-			} else if (arcn->sb.st_mtime <= sb.st_mtime)
-				continue;
+        if (arcn->sb.st_ctime <= sb.st_ctime) {
+          continue;
+        }
+      } else if (arcn->sb.st_mtime <= sb.st_mtime) {
+        continue;
+      }
 		}
 
 		if (vflag) {
@@ -1195,10 +1253,12 @@ copy(void)
 		 * try to create a hard link to the src file if requested
 		 * but make sure we are not trying to overwrite ourselves.
 		 */
-		if (lflag)
-			res = cross_lnk(arcn);
-		else
-			res = chk_same(arcn);
+      if (lflag) {
+        res = cross_lnk(arcn);
+      }
+      else {
+        res = chk_same(arcn);
+      }
 		if (res <= 0) {
 			if (vflag && vfpart) {
 				(void)putc('\n', listf);
@@ -1214,17 +1274,21 @@ copy(void)
 			/*
 			 * create a link or special file
 			 */
-			if ((arcn->type == PAX_HLK) || (arcn->type == PAX_HRG))
-				res = lnk_creat(arcn);
-			else
-				res = node_creat(arcn);
-			if (res < 0)
-				purg_lnk(arcn);
+      if ((arcn->type == PAX_HLK) || (arcn->type == PAX_HRG)) {
+        res = lnk_creat(arcn);
+      }
+      else {
+        res = node_creat(arcn);
+      }
+      if (res < 0) {
+        purg_lnk(arcn);
+      }
 #ifdef __APPLE__
 			if (res >= 0 &&
 			    arcn->type == PAX_DIR &&
-			    copyfile(arcn->org_name, arcn->name, NULL, COPYFILE_ACL | COPYFILE_XATTR) < 0)
-				paxwarn(1, "Directory %s had metadata that could not be copied: %s", arcn->org_name, strerror(errno));
+          copyfile(arcn->org_name, arcn->name, NULL, COPYFILE_ACL | COPYFILE_XATTR) < 0) {
+        paxwarn(1, "Directory %s had metadata that could not be copied: %s", arcn->org_name, strerror(errno));
+      }
 #endif	/* __APPLE__ */
 			if (vflag && vfpart) {
 				(void)putc('\n', listf);
@@ -1256,9 +1320,10 @@ copy(void)
 #ifdef __APPLE__
 		/* do this before file close so that mtimes are correct regardless */
 		if (getenv(COPYFILE_DISABLE_VAR) == NULL) {
-			if (fcopyfile(fdsrc, fddest, NULL, COPYFILE_ACL | COPYFILE_XATTR) < 0)
-				paxwarn(1, "File %s had metadata that could not be copied: %s", arcn->org_name,
-					strerror(errno));
+      if (fcopyfile(fdsrc, fddest, NULL, COPYFILE_ACL | COPYFILE_XATTR) < 0) {
+        paxwarn(1, "File %s had metadata that could not be copied: %s", arcn->org_name,
+                strerror(errno));
+      }
 		}
 #endif
 		file_close(arcn, fddest);

@@ -680,10 +680,12 @@ rd_wrfile(ARCHD *arcn, int ofd, off_t *left)
 	else
 #endif /* __APPLE__ */
 	if (fstat(ofd, &sb) == 0) {
-		if (sb.st_blksize > 0)
-			sz = (int)sb.st_blksize;
-	} else
-		syswarn(0,errno,"Unable to obtain block size for file %s",fnm);
+    if (sb.st_blksize > 0) {
+      sz = (int)sb.st_blksize;
+    }
+  } else {
+    syswarn(0,errno,"Unable to obtain block size for file %s",fnm);
+  }
 	rem = sz;
 	*left = 0L;
 
@@ -699,8 +701,9 @@ rd_wrfile(ARCHD *arcn, int ofd, off_t *left)
 		 * miss a header, so we do not set left, but if we get a write
 		 * error, we do want to skip over the unprocessed data.
 		 */
-		if ((cnt <= 0) && ((cnt = buf_fill()) <= 0))
-			break;
+    if ((cnt <= 0) && ((cnt = buf_fill()) <= 0)) {
+      break;
+    }
 		cnt = MIN(cnt, size);
 		if ((res = file_write(ofd,bufpt,cnt,&rem,&isem,sz,fnm)) <= 0) {
 			*left = size;
@@ -714,8 +717,9 @@ rd_wrfile(ARCHD *arcn, int ofd, off_t *left)
 			cnt = res;
 			while (--cnt >= 0)
 				crc += *bufpt++ & 0xff;
-		} else
-			bufpt += res;
+    } else {
+      bufpt += res;
+    }
 		size -= res;
 	}
 
@@ -725,21 +729,24 @@ rd_wrfile(ARCHD *arcn, int ofd, off_t *left)
 	 * written. just closing with the file offset moved forward may not put
 	 * a hole at the end of the file.
 	 */
-	if (isem && (arcn->sb.st_size > 0L))
-		file_flush(ofd, fnm, isem);
+  if (isem && (arcn->sb.st_size > 0L)) {
+    file_flush(ofd, fnm, isem);
+  }
 
 	/*
 	 * if we failed from archive read, we do not want to skip
 	 */
-	if ((size > 0L) && (*left == 0L))
-		return(-1);
+  if ((size > 0L) && (*left == 0L)) {
+    return(-1);
+  }
 
 	/*
 	 * some formats record a crc on file data. If so, then we compare the
 	 * calculated crc to the crc stored in the archive
 	 */
-	if (docrc && (size == 0L) && (arcn->crc != crc))
-		paxwarn(1,"Actual crc does not match expected crc %s",arcn->name);
+  if (docrc && (size == 0L) && (arcn->crc != crc)) {
+    paxwarn(1,"Actual crc does not match expected crc %s",arcn->name);
+  }
 	return(0);
 }
 
@@ -767,49 +774,60 @@ cp_file(ARCHD *arcn, int fd1, int fd2)
 	 * check for holes in the source file. If none, we will use regular
 	 * write instead of file write.
 	 */
-	 if (((off_t)(arcn->sb.st_blocks * BLKMULT)) >= arcn->sb.st_size)
-		++no_hole;
+  if (((off_t)(arcn->sb.st_blocks * BLKMULT)) >= arcn->sb.st_size) {
+    ++no_hole;
+  }
 
 	/*
 	 * pass the blocksize of the file being written to the write routine,
 	 * if the size is zero, use the default MINFBSZ
 	 */
 	if (fstat(fd2, &sb) == 0) {
-		if (sb.st_blksize > 0)
-			sz = sb.st_blksize;
-	} else
-		syswarn(0,errno,"Unable to obtain block size for file %s",fnm);
+    if (sb.st_blksize > 0) {
+      sz = sb.st_blksize;
+    }
+  } else {
+    syswarn(0,errno,"Unable to obtain block size for file %s",fnm);
+  }
 	rem = sz;
 
 	/*
 	 * read the source file and copy to destination file until EOF
 	 */
 	for(;;) {
-		if ((cnt = read(fd1, buf, blksz)) <= 0)
-			break;
-		if (no_hole)
-			res = write(fd2, buf, cnt);
-		else
-			res = file_write(fd2, buf, cnt, &rem, &isem, sz, fnm);
-		if (res != cnt)
-			break;
+    if ((cnt = read(fd1, buf, blksz)) <= 0) {
+      break;
+    }
+    if (no_hole) {
+      res = write(fd2, buf, cnt);
+    }
+    else {
+      res = file_write(fd2, buf, cnt, &rem, &isem, sz, fnm);
+    }
+    if (res != cnt) {
+      break;
+    }
 		cpcnt += cnt;
 	}
 
 	/*
 	 * check to make sure the copy is valid.
 	 */
-	if (res < 0)
-		syswarn(1, errno, "Failed write during copy of %s to %s",
-			arcn->org_name, arcn->name);
-	else if (cpcnt != arcn->sb.st_size)
-		paxwarn(1, "File %s changed size during copy to %s",
-			arcn->org_name, arcn->name);
-	else if (fstat(fd1, &sb) < 0)
-		syswarn(1, errno, "Failed stat of %s", arcn->org_name);
-	else if (arcn->sb.st_mtime != sb.st_mtime)
-		paxwarn(1, "File %s was modified during copy to %s",
-			arcn->org_name, arcn->name);
+  if (res < 0) {
+    syswarn(1, errno, "Failed write during copy of %s to %s",
+            arcn->org_name, arcn->name);
+  }
+  else if (cpcnt != arcn->sb.st_size) {
+    paxwarn(1, "File %s changed size during copy to %s",
+            arcn->org_name, arcn->name);
+  }
+  else if (fstat(fd1, &sb) < 0) {
+    syswarn(1, errno, "Failed stat of %s", arcn->org_name);
+  }
+  else if (arcn->sb.st_mtime != sb.st_mtime) {
+    paxwarn(1, "File %s was modified during copy to %s",
+            arcn->org_name, arcn->name);
+  }
 
 	/*
 	 * if the last block has a file hole (all zero), we must make sure this
@@ -817,8 +835,9 @@ cp_file(ARCHD *arcn, int fd1, int fd2)
 	 * written. just closing with the file offset moved forward may not put
 	 * a hole at the end of the file.
 	 */
-	if (!no_hole && isem && (arcn->sb.st_size > 0L))
-		file_flush(fd2, fnm, isem);
+  if (!no_hole && isem && (arcn->sb.st_size > 0L)) {
+    file_flush(fd2, fnm, isem);
+  }
 	return;
 }
 
@@ -837,8 +856,9 @@ buf_fill(void)
 	int cnt;
 	static int fini = 0;
 
-	if (fini)
-		return(0);
+  if (fini) {
+    return(0);
+  }
 
 	for(;;) {
 		/*
@@ -858,8 +878,9 @@ buf_fill(void)
 		 * this means that we have a very short file, so we
 		 * are done again.
 		 */
-		if (cnt < 0)
-			break;
+    if (cnt < 0) {
+      break;
+    }
 		if (frmt == NULL || ar_next() < 0) {
 			fini = 1;
 			return(0);
@@ -911,10 +932,12 @@ buf_flush(int bufcnt)
 		 * if the block size has shrunk from a volume change.
 		 */
 		bufend = buf + blksz;
-		if (blksz > bufcnt)
-			return(0);
-		if (blksz < bufcnt)
-			push = bufcnt - blksz;
+    if (blksz > bufcnt) {
+      return(0);
+    }
+    if (blksz < bufcnt) {
+      push = bufcnt - blksz;
+    }
 	}
 
 	/*
@@ -942,8 +965,9 @@ buf_flush(int bufcnt)
 					push -= blksz;
 					continue;
 				}
-			} else
-				bufpt = buf;
+      } else {
+        bufpt = buf;
+      }
 			return(totcnt);
 		} else if (cnt > 0) {
 			/*
@@ -958,8 +982,9 @@ buf_flush(int bufcnt)
 			cnt = bufcnt - cnt;
 			memcpy(buf, bufpt, cnt);
 			bufpt = buf + cnt;
-			if (!frmt->blkalgn || ((cnt % frmt->blkalgn) == 0))
-				return(totcnt);
+      if (!frmt->blkalgn || ((cnt % frmt->blkalgn) == 0)) {
+        return(totcnt);
+      }
 			break;
 		}
 
@@ -967,8 +992,9 @@ buf_flush(int bufcnt)
 		 * All done, go to next archive
 		 */
 		wrcnt = 0;
-		if (ar_next() < 0)
-			break;
+    if (ar_next() < 0) {
+      break;
+    }
 
 		/*
 		 * The new archive volume might also have changed the block
@@ -976,10 +1002,12 @@ buf_flush(int bufcnt)
 		 * data for using the new block size
 		 */
 		bufend = buf + blksz;
-		if (blksz > bufcnt)
-			return(0);
-		if (blksz < bufcnt)
-			push = bufcnt - blksz;
+    if (blksz > bufcnt) {
+      return(0);
+    }
+    if (blksz < bufcnt) {
+      push = bufcnt - blksz;
+    }
 	}
 
 	/*

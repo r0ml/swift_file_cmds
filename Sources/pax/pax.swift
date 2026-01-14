@@ -243,24 +243,28 @@ main(int argc, char *argv[])
 	}
 
 #ifdef __APPLE__
-	if (updatepath() == -1)
-		return exit_val;
+  if (updatepath() == -1) {
+    return exit_val;
+  }
 #endif /* __APPLE__ */
 	/*
 	 * Where should we put temporary files?
 	 */
-	if ((tmpdir = getenv("TMPDIR")) == NULL || *tmpdir == '\0')
-		tmpdir = _PATH_TMP;
+  if ((tmpdir = getenv("TMPDIR")) == NULL || *tmpdir == '\0') {
+    tmpdir = _PATH_TMP;
+  }
 	tdlen = strlen(tmpdir);
-	while (tdlen > 0 && tmpdir[tdlen - 1] == '/')
-		tdlen--;
+  while (tdlen > 0 && tmpdir[tdlen - 1] == '/') {
+    tdlen--;
+  }
 	tempfile = malloc(tdlen + 1 + sizeof(_TFILE_BASE));
 	if (tempfile == NULL) {
 		paxwarn(1, "Cannot allocate memory for temp file name.");
 		return(exit_val);
 	}
-	if (tdlen)
-		memcpy(tempfile, tmpdir, tdlen);
+  if (tdlen) {
+    memcpy(tempfile, tmpdir, tdlen);
+  }
 	tempbase = tempfile + tdlen;
 	*tempbase++ = '/';
 
@@ -268,8 +272,9 @@ main(int argc, char *argv[])
 	 * parse options, determine operational mode, general init
 	 */
 	options(argc, argv);
-	if ((gen_init() < 0) || (tty_init() < 0))
-		return(exit_val);
+  if ((gen_init() < 0) || (tty_init() < 0)) {
+    return(exit_val);
+  }
 
 	/*
 	 * select a primary operation mode
@@ -282,12 +287,13 @@ main(int argc, char *argv[])
 		archive();
 		break;
 	case APPND:
-		if (gzip_program != NULL)
-#ifdef __APPLE__
-			errx(1, "can not gzip while appending");
+      if (gzip_program != NULL) {
+        #ifdef __APPLE__
+        errx(1, "can not gzip while appending");
 #else
-			err(1, "can not gzip while appending");
+        err(1, "can not gzip while appending");
 #endif /* __APPLE__ */
+      }
 		append();
 		break;
 	case COPY:
@@ -299,8 +305,9 @@ main(int argc, char *argv[])
 		break;
 	}
 #ifdef __APPLE__
-	if (exit_val == 0 && (ferror(stdout) != 0 || fflush(stdout) != 0))
-		err(1, "stdout");
+  if (exit_val == 0 && (ferror(stdout) != 0 || fflush(stdout) != 0)) {
+    err(1, "stdout");
+  }
 #endif
 	return(exit_val);
 }
@@ -328,16 +335,19 @@ sig_cleanup(int which_sig)
 	 * POSIX conformance currently requires that we not emit these messages,
 	 * at least.
 	 */
-	if (which_sig == SIGXCPU)
-		paxwarn(0, "Cpu time limit reached, cleaning up.");
-	else
-		paxwarn(0, "Signal caught, cleaning up.");
+  if (which_sig == SIGXCPU) {
+    paxwarn(0, "Cpu time limit reached, cleaning up.");
+  }
+  else {
+    paxwarn(0, "Signal caught, cleaning up.");
+  }
 #endif
 
 	ar_close();
 	proc_dir();
-	if (tflag)
-		atdir_end();
+  if (tflag) {
+    atdir_end();
+  }
 #ifdef __APPLE__
 	/*
 	 * Conformance requires us to re-raise these to propagate the correct

@@ -182,10 +182,12 @@ options(int argc, char **argv)
 	/*
 	 * Are we acting like pax, tar or cpio (based on argv[0])
 	 */
-	if ((argv0 = strrchr(argv[0], '/')) != NULL)
-		argv0++;
-	else
-		argv0 = argv[0];
+  if ((argv0 = strrchr(argv[0], '/')) != NULL) {
+    argv0++;
+  }
+  else {
+    argv0 = argv[0];
+  }
 
 	if (strcmp(NM_TAR, argv0) == 0) {
 		tar_options(argc, argv);
@@ -338,11 +340,12 @@ pax_options(int argc, char **argv)
 			 */
 			flg |= OF;
 #ifdef __APPLE__
-			if (pax_format_opt_add(optarg) < 0)
+        if (pax_format_opt_add(optarg) < 0) {
 #else
-			if (opt_add(optarg) < 0)
+          if (opt_add(optarg) < 0) {
 #endif /* __APPLE__*/
-				pax_usage();
+            pax_usage();
+          }
 			break;
 		case 'p':
 			/*
@@ -492,8 +495,9 @@ pax_options(int argc, char **argv)
 			 * indicate a limit, "NONE" try forever
 			 */
 			flg |= CEF;
-			if (strcmp(NONE, optarg) == 0)
-				maxflt = -1;
+          if (strcmp(NONE, optarg) == 0) {
+            maxflt = -1;
+          }
 			else if ((maxflt = atoi(optarg)) < 0) {
 				paxwarn(1, "Error count value must be positive");
 				pax_usage();
@@ -635,8 +639,9 @@ pax_options(int argc, char **argv)
 	} else if (ISCOPY(flg)) {
 		act = COPY;
 		bflg = flg & BDCOPY;
-	} else
-		pax_usage();
+  } else {
+    pax_usage();
+  }
 	if (bflg) {
 		printflg(flg);
 		pax_usage();
@@ -647,16 +652,18 @@ pax_options(int argc, char **argv)
 	 * did not specify a format. when we write during an APPEND, we will
 	 * adopt the format of the existing archive if none was supplied.
 	 */
-	if (!(flg & XF) && (act == ARCHIVE))
-		frmt = &(fsub[DEFLT]);
+    if (!(flg & XF) && (act == ARCHIVE)) {
+      frmt = &(fsub[DEFLT]);
+    }
 
 #ifdef __APPLE__
 	/*
 	 * if copying (-r and -w) and there is no -x specified, we act as
 	 * if -x pax was specified.
 	 */
-	if (!(flg & XF) && (act == COPY))
-		frmt = &(fsub[F_PAX]);
+    if (!(flg & XF) && (act == COPY)) {
+      frmt = &(fsub[F_PAX]);
+    }
 
 	/*
 	 * Initialize the global extended header template.
@@ -675,9 +682,11 @@ pax_options(int argc, char **argv)
 	switch (act) {
 	case LIST:
 	case EXTRACT:
-		for (; optind < argc; optind++)
-			if (pat_add(argv[optind], NULL) < 0)
-				pax_usage();
+      for (; optind < argc; optind++) {
+        if (pat_add(argv[optind], NULL) < 0) {
+          pax_usage();
+        }
+      }
 		break;
 	case COPY:
 		if (optind >= argc) {
@@ -689,9 +698,11 @@ pax_options(int argc, char **argv)
 		/* FALLTHROUGH */
 	case ARCHIVE:
 	case APPND:
-		for (; optind < argc; optind++)
-			if (ftree_add(argv[optind], 0) < 0)
-				pax_usage();
+      for (; optind < argc; optind++) {
+        if (ftree_add(argv[optind], 0) < 0) {
+          pax_usage();
+        }
+      }
 		/*
 		 * no read errors allowed on updates/append operation!
 		 */
@@ -795,8 +806,9 @@ tar_options(int argc, char **argv)
 			pmtime = 0;
 			break;
 		case 'o':
-			if (opt_add("write_opt=nodir") < 0)
-				tar_usage();
+        if (opt_add("write_opt=nodir") < 0) {
+          tar_usage();
+        }
 		case 'O':
 			tar_Oflag = 1;
 			break;
@@ -944,22 +956,26 @@ tar_options(int argc, char **argv)
 
 #ifdef __APPLE__
 	/* Traditional tar behaviour (pax uses stderr unless in list mode) */
-	if (fstdin == 1 && act == ARCHIVE)
-		listf = stderr;
-	else
-		listf = stdout;
+    if (fstdin == 1 && act == ARCHIVE) {
+      listf = stderr;
+    }
+    else {
+      listf = stdout;
+    }
 
 #endif /* __APPLE__ */
 	/* Traditional tar behaviour (pax wants to read file list from stdin) */
-	if ((act == ARCHIVE || act == APPND) && argc == 0 && nincfiles == 0)
-		exit(0);
+    if ((act == ARCHIVE || act == APPND) && argc == 0 && nincfiles == 0) {
+      exit(0);
+    }
 
 	/*
 	 * if we are writing (ARCHIVE) specify tar, otherwise run like pax
 	 * (unless -o specified)
 	 */
-	if (act == ARCHIVE || act == APPND)
-		frmt = &(fsub[tar_Oflag ? F_OTAR : F_TAR]);
+    if (act == ARCHIVE || act == APPND) {
+      frmt = &(fsub[tar_Oflag ? F_OTAR : F_TAR]);
+    }
 	else if (tar_Oflag) {
 		paxwarn(1, "The -O/-o options are only valid when writing an archive");
 		tar_usage();		/* only valid when writing */
@@ -990,56 +1006,66 @@ tar_options(int argc, char **argv)
 					incfiles++;
 					nincfiles--;
 				} else if (strcmp(*argv, "-I") == 0) {
-					if (*++argv == NULL)
-						break;
+          if (*++argv == NULL) {
+            break;
+          }
 					file = *argv++;
 					dir = chdname;
-				} else
-					file = NULL;
+        } else {
+          file = NULL;
+        }
 				if (file != NULL) {
 					FILE *fp;
 					char *str;
 
-					if (strcmp(file, "-") == 0)
-						fp = stdin;
+          if (strcmp(file, "-") == 0) {
+            fp = stdin;
+          }
 					else if ((fp = fopen(file, "r")) == NULL) {
 						paxwarn(1, "Unable to open file '%s' for read", file);
 						tar_usage();
 					}
 					while ((str = get_line(fp)) != NULL) {
-						if (pat_add(str, dir) < 0)
-							tar_usage();
+            if (pat_add(str, dir) < 0) {
+              tar_usage();
+            }
 						sawpat = 1;
 					}
-					if (strcmp(file, "-") != 0)
-						fclose(fp);
+          if (strcmp(file, "-") != 0) {
+            fclose(fp);
+          }
 					if (get_line_error) {
 						paxwarn(1, "Problem with file '%s'", file);
 						tar_usage();
 					}
 				} else if (strcmp(*argv, "-C") == 0) {
-					if (*++argv == NULL)
-						break;
+          if (*++argv == NULL) {
+            break;
+          }
 					chdname = *argv++;
-				} else if (pat_add(*argv++, chdname) < 0)
-					tar_usage();
-				else
-					sawpat = 1;
+        } else if (pat_add(*argv++, chdname) < 0) {
+          tar_usage();
+        }
+        else {
+          sawpat = 1;
+        }
 			}
 			/*
 			 * if patterns were added, we are doing chdir()
 			 * on a file-by-file basis, else, just one
 			 * global chdir (if any) after opening input.
 			 */
-			if (sawpat > 0)
-				chdname = NULL;	
+      if (sawpat > 0) {
+        chdname = NULL;
+      }
 		}
 		break;
 	case ARCHIVE:
 	case APPND:
 		if (chdname != NULL) {	/* initial chdir() */
-			if (ftree_add(chdname, 1) < 0)
-				tar_usage();
+      if (ftree_add(chdname, 1) < 0) {
+        tar_usage();
+      }
 		}
 
 		while (nincfiles || *argv != NULL) {
@@ -1057,46 +1083,55 @@ tar_options(int argc, char **argv)
 				incfiles++;
 				nincfiles--;
 			} else if (strcmp(*argv, "-I") == 0) {
-				if (*++argv == NULL)
-					break;
+        if (*++argv == NULL) {
+          break;
+        }
 				file = *argv++;
 				dir = NULL;
-			} else
-				file = NULL;
+      } else {
+        file = NULL;
+      }
 			if (file != NULL) {
 				FILE *fp;
 				char *str;
 
 				/* Set directory if needed */
 				if (dir) {
-					if (ftree_add(dir, 1) < 0)
-						tar_usage();
+          if (ftree_add(dir, 1) < 0) {
+            tar_usage();
+          }
 				}
 
-				if (strcmp(file, "-") == 0)
-					fp = stdin;
+        if (strcmp(file, "-") == 0) {
+          fp = stdin;
+        }
 				else if ((fp = fopen(file, "r")) == NULL) {
 					paxwarn(1, "Unable to open file '%s' for read", file);
 					tar_usage();
 				}
 				while ((str = get_line(fp)) != NULL) {
-					if (ftree_add(str, 0) < 0)
-						tar_usage();
+          if (ftree_add(str, 0) < 0) {
+            tar_usage();
+          }
 				}
-				if (strcmp(file, "-") != 0)
-					fclose(fp);
+        if (strcmp(file, "-") != 0) {
+          fclose(fp);
+        }
 				if (get_line_error) {
 					paxwarn(1, "Problem with file '%s'",
 					    file);
 					tar_usage();
 				}
 			} else if (strcmp(*argv, "-C") == 0) {
-				if (*++argv == NULL)
-					break;
-				if (ftree_add(*argv++, 1) < 0)
-					tar_usage();
-			} else if (ftree_add(*argv++, 0) < 0)
-				tar_usage();
+        if (*++argv == NULL) {
+          break;
+        }
+        if (ftree_add(*argv++, 1) < 0) {
+          tar_usage();
+        }
+      } else if (ftree_add(*argv++, 0) < 0) {
+        tar_usage();
+      }
 		}
 		/*
 		 * no read errors allowed on updates/append operation!
@@ -1106,8 +1141,9 @@ tar_options(int argc, char **argv)
 	}
 	if (!fstdin && ((arcname == NULL) || (*arcname == '\0'))) {
 		arcname = getenv("TAPE");
-		if ((arcname == NULL) || (*arcname == '\0'))
-			arcname = _PATH_DEFTAPE;
+    if ((arcname == NULL) || (*arcname == '\0')) {
+      arcname = _PATH_DEFTAPE;
+    }
 	}
 }
 
@@ -1528,8 +1564,9 @@ opt_add(const char *str)
 	 * option function will go through this list
 	 */
 	while ((frpt != NULL) && (*frpt != '\0')) {
-		if ((endpt = strchr(frpt, ',')) != NULL)
-			*endpt = '\0';
+    if ((endpt = strchr(frpt, ',')) != NULL) {
+      *endpt = '\0';
+    }
 		if ((pt = strchr(frpt, '=')) == NULL) {
 			paxwarn(0, "Invalid options format");
 			free(lstr);
@@ -1550,10 +1587,12 @@ opt_add(const char *str)
 		opt->separator = SEP_EQ;
 #endif /* __APPLE__ */
 		opt->fow = NULL;
-		if (endpt != NULL)
-			frpt = endpt + 1;
-		else
-			frpt = NULL;
+    if (endpt != NULL) {
+      frpt = endpt + 1;
+    }
+    else {
+      frpt = NULL;
+    }
 		if (ophead == NULL) {
 			optail = ophead = opt;
 			continue;
@@ -1602,8 +1641,9 @@ pax_format_opt_add(register char *str)
 	 * option function will go through this list
 	 */
 	while ((frpt != NULL) && (*frpt != '\0')) {
-		if ((endpt = strchr(frpt, ',')) != NULL)
-			*endpt = '\0';
+    if ((endpt = strchr(frpt, ',')) != NULL) {
+      *endpt = '\0';
+    }
 		if ((pt = strstr(frpt, ":=")) != NULL) {
 			*pt++ = '\0';
 			pt++;	/* beyond the := */
@@ -1624,10 +1664,12 @@ pax_format_opt_add(register char *str)
 		opt->value = pt;
 		opt->separator = separator;
 		opt->fow = NULL;
-		if (endpt != NULL)
-			frpt = endpt + 1;
-		else
-			frpt = NULL;
+    if (endpt != NULL) {
+      frpt = endpt + 1;
+    }
+    else {
+      frpt = NULL;
+    }
 		if (ophead == NULL) {
 			optail = ophead = opt;
 			continue;

@@ -530,88 +530,95 @@ trng_match(ARCHD *arcn)
 static int
 str_sec(const char *p, time_t *tval)
 {
-	struct tm *lt;
-	const char *dot, *t;
-	size_t len;
-	int bigyear;
-	int yearset;
+  struct tm *lt;
+  const char *dot, *t;
+  size_t len;
+  int bigyear;
+  int yearset;
 
-	yearset = 0;
-	len = strlen(p);
+  yearset = 0;
+  len = strlen(p);
 
-	for (t = p, dot = NULL; *t; ++t) {
-		if (isdigit((unsigned char)*t))
-			continue;
-		if (*t == '.' && dot == NULL) {
-			dot = t;
-			continue;
-		}
-		return(-1);
-	}
+  for (t = p, dot = NULL; *t; ++t) {
+    if (isdigit((unsigned char)*t))
+        continue;
+    if (*t == '.' && dot == NULL) {
+      dot = t;
+      continue;
+    }
+    return(-1);
+  }
 
-	lt = localtime(tval);
+  lt = localtime(tval);
 
-	if (dot != NULL) {			/* .SS */
-		if (strlen(++dot) != 2)
-			return(-1);
-		lt->tm_sec = ATOI2(dot);
-		if (lt->tm_sec > 61)
-			return(-1);
-		len -= 3;
-	} else
-		lt->tm_sec = 0;
+  if (dot != NULL) {			/* .SS */
+    if (strlen(++dot) != 2)
+        return(-1);
+    lt->tm_sec = ATOI2(dot);
+    if (lt->tm_sec > 61)
+        return(-1);
+    len -= 3;
+  } else
+    lt->tm_sec = 0;
 
-	switch (len) {
-	case 12:				/* cc */
-		bigyear = ATOI2(p);
-#ifdef __APPLE__
-		lt->tm_year = (bigyear * 100) - TM_YEAR_BASE;
+  switch (len) {
+    case 12:				/* cc */
+      bigyear = ATOI2(p);
+      #ifdef __APPLE__
+      lt->tm_year = (bigyear * 100) - TM_YEAR_BASE;
 #else
-		lt->tm_year = (bigyear * 100) - 1900;
+      lt->tm_year = (bigyear * 100) - 1900;
 #endif
-		yearset = 1;
-		/* FALLTHROUGH */
-	case 10:				/* yy */
-		if (yearset) {
-			lt->tm_year += ATOI2(p);
-		} else {
-			lt->tm_year = ATOI2(p);
-#ifdef __APPLE__
-			if (lt->tm_year < 69)		/* hack for 2000 ;-} */
-				lt->tm_year += (2000 - TM_YEAR_BASE);
+      yearset = 1;
+      /* FALLTHROUGH */
+    case 10:				/* yy */
+      if (yearset) {
+        lt->tm_year += ATOI2(p);
+      } else {
+        lt->tm_year = ATOI2(p);
+        #ifdef __APPLE__
+        if (lt->tm_year < 69) {		/* hack for 2000 ;-} */
+          lt->tm_year += (2000 - TM_YEAR_BASE);
+        }
 #else
-			if (lt->tm_year < 69)		/* hack for 2000 ;-} */
-				lt->tm_year += (2000 - 1900);
+        if (lt->tm_year < 69)	{	/* hack for 2000 ;-}  */
+          lt->tm_year += (2000 - 1900);
+        }
 #endif
-		}
-		/* FALLTHROUGH */
-	case 8:					/* mm */
-		lt->tm_mon = ATOI2(p);
-		if ((lt->tm_mon > 12) || !lt->tm_mon)
-			return(-1);
-		--lt->tm_mon;			/* time struct is 0 - 11 */
-		/* FALLTHROUGH */
-	case 6:					/* dd */
-		lt->tm_mday = ATOI2(p);
-		if ((lt->tm_mday > 31) || !lt->tm_mday)
-			return(-1);
-		/* FALLTHROUGH */
-	case 4:					/* HH */
-		lt->tm_hour = ATOI2(p);
-		if (lt->tm_hour > 23)
-			return(-1);
-		/* FALLTHROUGH */
-	case 2:					/* MM */
-		lt->tm_min = ATOI2(p);
-		if (lt->tm_min > 59)
-			return(-1);
-		break;
-	default:
-		return(-1);
-	}
+      }
+      /* FALLTHROUGH */
+    case 8:					/* mm */
+      lt->tm_mon = ATOI2(p);
+      if ((lt->tm_mon > 12) || !lt->tm_mon){
+        return(-1);
+      }
+      --lt->tm_mon;			/* time struct is 0 - 11 */
+      /* FALLTHROUGH */
+    case 6:					/* dd */
+      lt->tm_mday = ATOI2(p);
+      if ((lt->tm_mday > 31) || !lt->tm_mday) {
+        return(-1);
+      }
+      /* FALLTHROUGH */
+    case 4:					/* HH */
+      lt->tm_hour = ATOI2(p);
+      if (lt->tm_hour > 23) {
+        return(-1);
+      }
+      /* FALLTHROUGH */
+    case 2:					/* MM */
+      lt->tm_min = ATOI2(p);
+      if (lt->tm_min > 59) {
+        return(-1);
+      }
+      break;
+    default:
+      return(-1);
+  }
 
-	/* convert broken-down time to UTC clock time seconds */
-	if ((*tval = mktime(lt)) == -1)
-		return(-1);
+  /* convert broken-down time to UTC clock time seconds */
+  if ((*tval = mktime(lt)) == -1) {
+    return(-1);
+  }
 	return(0);
 }

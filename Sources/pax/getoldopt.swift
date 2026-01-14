@@ -32,17 +32,21 @@ getoldopt(int argc, char **argv, const char *optstring)
 	optarg = NULL;
 
 	if (key == NULL) {		/* First time */
-		if (argc < 2)
-			return (-1);
+    if (argc < 2) {
+      return (-1);
+    }
 		key = argv[1];
-		if (*key == '-')
-			use_getopt++;
-		else
-			optind = 2;
+    if (*key == '-') {
+      use_getopt++;
+    }
+    else {
+      optind = 2;
+    }
 	}
 
-	if (use_getopt)
-		return (getopt(argc, argv, optstring));
+  if (use_getopt) {
+    return (getopt(argc, argv, optstring));
+  }
 
 	c = *key++;
 	if (c == '\0') {

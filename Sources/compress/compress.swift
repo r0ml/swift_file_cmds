@@ -32,449 +32,379 @@
  * SUCH DAMAGE.
  */
 
-#include <sys/cdefs.h>
-#ifndef lint
-__COPYRIGHT(
-"@(#) Copyright (c) 1992, 1993\n\
-	The Regents of the University of California.  All rights reserved.\n");
-#endif
+import CMigration
+import Darwin
 
-#if 0
-#ifndef lint
-static char sccsid[] = "@(#)compress.c	8.2 (Berkeley) 1/7/94";
-#endif
-#endif
+@main struct compress : ShellCommand {
 
-__FBSDID("$FreeBSD$");
+  struct CommandOptions {
+    var eval: Bool = false
+    var force: Bool = false
+    var verbose: Int = 0
+    var cat: Bool = false
+    var bits : UInt? = nil
+    var style : style = .COMPRESS
+    var args: [String] = []
+  }
 
-#include <sys/param.h>
-#include <sys/stat.h>
-#include <sys/time.h>
+  enum style {
+    case COMPRESS
+    case DECOMPRESS
+  }
 
-#include <err.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <locale.h>
+  var options : CommandOptions!
 
-#ifdef __APPLE__
-#define st_atim	st_atimespec
-#define st_mtim	st_mtimespec
-#endif
+  func parseOptions() throws(CmdErr) -> CommandOptions {
+    var options = CommandOptions()
+    let go = BSDGetopt("b:cdfv")
+    while let (k,v) = try go.getopt() {
 
-#include "zopen.h"
+      /*	enum {COMPRESS, DECOMPRESS} style;
+       size_t len;
+       int bits, ch;
+       char *p, newname[MAXPATHLEN];
 
-static void	compress(const char *, const char *, int);
-static void	cwarn(const char *, ...) __printflike(1, 2);
-static void	cwarnx(const char *, ...) __printflike(1, 2);
-static void	decompress(const char *, const char *, int);
-static int	permission(const char *);
-static void	setfile(const char *, struct stat *);
-static void	usage(int);
+       cat = 0;
 
-static int eval, force, verbose, cat;
+       if ((p = strrchr(argv[0], '/')) == NULL)
+       p = argv[0];
+       else
+       ++p;
+       if (!strcmp(p, "uncompress"))
+       style = DECOMPRESS;
+       else if (!strcmp(p, "compress"))
+       style = COMPRESS;
+       else if (!strcmp(p, "zcat")) {
+       cat = 1;
+       style = DECOMPRESS;
+       } else
+       errx(1, "unknown program name");
 
-int
-main(int argc, char *argv[])
-{
-	enum {COMPRESS, DECOMPRESS} style;
-	size_t len;
-	int bits, ch;
-	char *p, newname[MAXPATHLEN];
+       bits = 0;
+       */
+      switch k {
+        case "b":
+          if let b = UInt(v) {
+            options.bits = b
+          } else {
+            errx(1, "illegal bit count -- \(v)")
+          }
+        case "c":
+          options.cat = true
+        case "d":		/* Backward compatible. */
+          options.style = .DECOMPRESS
+        case "f":
+          options.force = true
+        case "v":
+          options.verbose = 1
+        case "?":
+          fallthrough
+        default:
+          throw CmdErr(1)
+      }
+    }
+    options.args = go.remaining
+    return options
+  }
 
-	cat = 0;
-	if ((p = strrchr(argv[0], '/')) == NULL)
-		p = argv[0];
-	else
-		++p;
-	if (!strcmp(p, "uncompress"))
-		style = DECOMPRESS;
-	else if (!strcmp(p, "compress"))
-		style = COMPRESS;
-	else if (!strcmp(p, "zcat")) {
-		cat = 1;
-		style = DECOMPRESS;
-	} else
-		errx(1, "unknown program name");
+  func runCommand() throws(CmdErr) {
 
-	bits = 0;
-	while ((ch = getopt(argc, argv, "b:cdfv")) != -1)
-		switch(ch) {
-		case 'b':
-			bits = strtol(optarg, &p, 10);
-			if (*p)
-				errx(1, "illegal bit count -- %s", optarg);
-			break;
-		case 'c':
-			cat = 1;
-			break;
-		case 'd':		/* Backward compatible. */
-			style = DECOMPRESS;
-			break;
-		case 'f':
-			force = 1;
-			break;
-		case 'v':
-			verbose = 1;
-			break;
-		case '?':
-		default:
-			usage(style == COMPRESS);
-		}
-	argc -= optind;
-	argv += optind;
+    var cat = options.cat
 
-	if (argc == 0) {
-		cat = 1;
-		switch(style) {
-		case COMPRESS:
-			(void)compress("/dev/stdin", "/dev/stdout", bits);
-			break;
-		case DECOMPRESS:
-			(void)decompress("/dev/stdin", "/dev/stdout", bits);
-			break;
-		}
-		exit (eval);
-	}
+    if options.args.isEmpty {
+      cat = true
+      switch options.style {
+        case .COMPRESS:
+          compress("/dev/stdin", "/dev/stdout", cat)
+        case .DECOMPRESS:
+          decompress("/dev/stdin", "/dev/stdout", cat)
+      }
+      // FIXME: track the errors
+//      exit (eval);
+      return
+    }
 
-	/*
-	 * The UNIX standard requires that `uncompress -c` be able to have multiple file parameters given.
-	 */
-	if (cat == 1 && style == COMPRESS && argc > 1)
-		errx(1, "the -c option permits only a single file argument");
+    /*
+     * The UNIX standard requires that `uncompress -c` be able to have multiple file parameters given.
+     */
+    if cat && options.style == .COMPRESS && options.args.count > 1 {
+      errx(1, "the -c option permits only a single file argument");
+    }
 
-	for (; *argv; ++argv)
-		switch(style) {
-		case COMPRESS:
-			if (strcmp(*argv, "-") == 0) {
-				cat = 1;
-				compress("/dev/stdin", "/dev/stdout", bits);
-				break;
-			} else if (cat) {
-				compress(*argv, "/dev/stdout", bits);
-				break;
-			}
-			if ((p = strrchr(*argv, '.')) != NULL &&
-			    !strcmp(p, ".Z")) {
-				cwarnx("%s: name already has trailing .Z",
-				    *argv);
-				break;
-			}
-			len = strlen(*argv);
-			if (len > sizeof(newname) - 3) {
-				cwarnx("%s: name too long", *argv);
-				break;
-			}
-			memmove(newname, *argv, len);
-			newname[len] = '.';
-			newname[len + 1] = 'Z';
-			newname[len + 2] = '\0';
-			compress(*argv, newname, bits);
-			break;
-		case DECOMPRESS:
-			if (strcmp(*argv, "-") == 0) {
-				cat = 1;
-				decompress("/dev/stdin", "/dev/stdout", bits);
-				break;
-			}
-			len = strlen(*argv);
-			if ((p = strrchr(*argv, '.')) == NULL ||
-			    strcmp(p, ".Z")) {
-				if (len > sizeof(newname) - 3) {
-					cwarnx("%s: name too long", *argv);
-					break;
-				}
-				memmove(newname, *argv, len);
-				newname[len] = '.';
-				newname[len + 1] = 'Z';
-				newname[len + 2] = '\0';
-				decompress(newname,
-				    cat ? "/dev/stdout" : *argv, bits);
-			} else {
-				if (len - 2 > sizeof(newname) - 1) {
-					cwarnx("%s: name too long", *argv);
-					break;
-				}
-				memmove(newname, *argv, len - 2);
-				newname[len - 2] = '\0';
-				decompress(*argv,
-				    cat ? "/dev/stdout" : newname, bits);
-			}
-			break;
-		}
-	exit (eval);
-}
+    for argv in options.args {
+      switch options.style {
+        case .COMPRESS:
+          if argv == "-" {
+            cat = true
+            compress("/dev/stdin", "/dev/stdout", cat)
+            break
+          } else if cat {
+            compress(argv, "/dev/stdout", cat)
+            break
+          }
+          if argv.hasSuffix(".Z") {
 
-static void
-compress(const char *in, const char *out, int bits)
-{
-	size_t nr;
-	struct stat isb, sb;
-	FILE *ifp, *ofp;
-	int exists, isreg, oreg;
-	u_char buf[1024];
+            warnx("\(argv): name already has trailing .Z")
+            break
+          }
+          let newname = argv+".Z"
+          compress(argv, newname, cat)
+          break;
+        case .DECOMPRESS:
+          if argv == "-" {
+            cat = true
+            decompress("/dev/stdin", "/dev/stdout", cat)
+            break;
+          }
+          if !argv.hasSuffix(".Z") {
+            let newname = argv+".Z"
+            decompress(newname,
+                       cat ? "/dev/stdout" : argv, cat);
+          } else {
+            let newname = String(argv.dropLast(2))
+            decompress(argv,
+                       cat ? "/dev/stdout" : newname, cat)
+          }
+          break;
+      }
+    }
+    // FIXME: track the errors (eval)
+//    exit (eval);
+  }
 
-	exists = !stat(out, &sb);
-	if (!force && exists && S_ISREG(sb.st_mode) && !cat && !permission(out)) {
-		cwarnx("%s already exists", out);
-		return;
-	}
-	isreg = oreg = !exists || S_ISREG(sb.st_mode);
+  func compress(_ inx : String, _ out : String, _ cat : Bool) {
+    /*      size_t nr;
+     struct stat isb, sb;
+     FILE *ifp, *ofp;
+     int exists, isreg, oreg;
+     u_char buf[1024];
+     */
 
-	ifp = ofp = NULL;
-	if ((ifp = fopen(in, "r")) == NULL) {
-		cwarn("%s", in);
-		return;
-	}
-	if (stat(in, &isb)) {		/* DON'T FSTAT! */
-		cwarn("%s", in);
-		goto err;
-	}
-	if (!S_ISREG(isb.st_mode))
-		isreg = 0;
+    let sb = try? FileMetadata(for: out)
+    let exists = sb != nil
+    if !options.force && sb != nil && sb!.filetype == .regular && !cat && !permission(out) {
+      warnx("\(out) already exists")
+      return
+    }
+    let oreg = sb == nil || sb?.filetype == .regular
 
-	if ((ofp = zopen(out, "w", bits)) == NULL) {
-		cwarn("%s", out);
-		goto err;
-	}
-	while ((nr = fread(buf, 1, sizeof(buf), ifp)) != 0)
-		if (fwrite(buf, 1, nr, ofp) != nr) {
-			cwarn("%s", out);
-			goto err;
-		}
 
-	if (ferror(ifp) || fclose(ifp)) {
-		cwarn("%s", in);
-		goto err;
-	}
-	ifp = NULL;
+    guard let ifp = try? FileDescriptor.open(inx, .readOnly) else {
+      warn(inx)
+      return
+    }
+    defer { try? ifp.close() }
 
-	if (fclose(ofp)) {
-		cwarn("%s", out);
-		goto err;
-	}
-	ofp = NULL;
+    guard let isb = try? FileMetadata(for: inx) else {
+      warn(inx)
+      return
+    }
 
-	if (!cat && isreg) {
-		if (stat(out, &sb)) {
-			cwarn("%s", out);
-			goto err;
-		}
+    let isreg = isb.filetype == .regular
 
-		if (!force && sb.st_size >= isb.st_size) {
-			if (verbose)
-		(void)fprintf(stderr, "%s: file would grow; left unmodified\n",
-		    in);
-			eval = 2;
-			if (unlink(out))
-				cwarn("%s", out);
-			goto err;
-		}
+    guard var ofp = ZStream(out, "w", options.bits) else {
+      warn(out)
+      return
+    }
 
-		setfile(out, &isb);
+    defer { if ofp != nil && !cat && oreg  { unlink(out) } }
 
-		if (unlink(in))
-			cwarn("%s", in);
+    let BUFSIZ = 10240
+      while true {
+        var buf : [UInt8]
+        do {
+          buf = try ifp.readUpToCount(BUFSIZ)
+        } catch(let e) {
+          warn("\(inx): \(e)")
+          return
+        }
+        if buf.count == 0 { break }
+        if -1 == ofp.zwrite(buf) {
+          warn(out)
+          return
+        }
+      }
 
-		if (verbose) {
-			(void)fprintf(stderr, "%s: ", out);
-			if (isb.st_size > sb.st_size)
-				(void)fprintf(stderr, "%.0f%% compression\n",
-				    ((float)sb.st_size / isb.st_size) * 100.0);
-			else
-				(void)fprintf(stderr, "%.0f%% expansion\n",
-				    ((float)isb.st_size / sb.st_size) * 100.0);
-		}
-	}
-	return;
+    if (!cat && isreg) {
+      guard let sb = try? FileMetadata(for: out) else {
+        warn(out)
+        return
+      }
 
-err:	if (ofp) {
-		if (!cat && oreg)
-			(void)unlink(out);
-		(void)fclose(ofp);
-	}
-	if (ifp)
-		(void)fclose(ifp);
-}
+      if !options.force && sb.size >= isb.size {
+        if 0 != options.verbose {
+          var stderr = FileDescriptor.standardError
+          print("\(inx): file would grow; left unmodified", to: &stderr)
+        }
+        // FIXME: set error code
+//        eval = 2;
+        if 0 != unlink(out) {
+          warn(out)
+        }
+        return
+      }
 
-static void
-decompress(const char *in, const char *out, int bits)
-{
-	size_t nr;
-	struct stat sb;
-	FILE *ifp, *ofp;
-	int exists, isreg, oreg;
-	u_char buf[1024];
+      setfile(out, isb);
 
-	exists = !stat(out, &sb);
-	if (!force && exists && S_ISREG(sb.st_mode) && !cat && !permission(out)) {
-		cwarnx("%s already exists", out);
-		return;
-	}
-	isreg = oreg = !exists || S_ISREG(sb.st_mode);
+      if 0 != unlink(inx) {
+        warn(inx)
+      }
 
-	ifp = ofp = NULL;
-	if ((ifp = zopen(in, "r", bits)) == NULL) {
-		cwarn("%s", in);
-		return;
-	}
-	if (stat(in, &sb)) {
-		cwarn("%s", in);
-		goto err;
-	}
-	if (!S_ISREG(sb.st_mode))
-		isreg = 0;
+      if 0 != options.verbose {
+        var stderr = FileDescriptor.standardError
+        print(out, terminator: "", to: &stderr)
+        if isb.size > sb.size {
+          print("\(100 * sb.size / isb.size)% compression", to: &stderr)
+        }
+        else {
+          print("\(100 * isb.size / sb.size)% expansion", to: &stderr)
+        }
+      }
+    }
+  }
 
-	/*
-	 * Try to read the first few uncompressed bytes from the input file
-	 * before blindly truncating the output file.
-	 */
-	if ((nr = fread(buf, 1, sizeof(buf), ifp)) == 0) {
-		cwarn("%s", in);
-		(void)fclose(ifp);
-		return;
-	}
-	if ((ofp = fopen(out, "w")) == NULL ||
-	    (nr != 0 && fwrite(buf, 1, nr, ofp) != nr)) {
-		cwarn("%s", out);
-		if (ofp)
-			(void)fclose(ofp);
-		(void)fclose(ifp);
-		return;
-	}
+  func decompress(_ inx : String, _ out : String, _ cat : Bool) {
+    /*      size_t nr;
+     struct stat sb;
+     FILE *ifp, *ofp;
+     int exists, isreg, oreg;
+     u_char buf[1024];
+     */
+    let sb = try? FileMetadata(for: out) //  !stat(out, &sb);
+    if (!options.force && sb != nil && sb!.filetype == .regular && !cat && !permission(out)) {
+      warnx("\(out) already exists")
+      return
+    }
+    let oreg = sb == nil || sb!.filetype == .regular
 
-	while ((nr = fread(buf, 1, sizeof(buf), ifp)) != 0)
-		if (fwrite(buf, 1, nr, ofp) != nr) {
-			cwarn("%s", out);
-			goto err;
-		}
+    guard let ifp = ZStream(inx, "r", options.bits) else {
+      warn(inx)
+      return
+    }
 
-	if (ferror(ifp) || fclose(ifp)) {
-		cwarn("%s", in);
-		goto err;
-	}
-	ifp = NULL;
+    defer { ifp.zclose() }
+    guard let sb = try? FileMetadata(for: inx) else {
+      warn(inx);
+      return
+    }
+    let isreg = sb.filetype == .regular
 
-	if (fclose(ofp)) {
-		cwarn("%s", out);
-		goto err;
-	}
+    /*
+     * Try to read the first few uncompressed bytes from the input file
+     * before blindly truncating the output file.
+     */
 
-	if (!cat && isreg) {
-		setfile(out, &sb);
+    guard let nr = try? ifp.zread(Int(BUFSIZ)) else {
+      warn(inx)
+      return
+    }
 
-		if (unlink(in))
-			cwarn("%s", in);
-		if (verbose) {
-			struct stat isb = sb;
-			stat(out, &sb);
-			(void)fprintf(stderr, "%s: ", out);
-			if (isb.st_size > sb.st_size)
-				(void)fprintf(stderr, "%.0f%% compression\n",
-				    ((float)sb.st_size / isb.st_size) * 100.0);
-			else
-				(void)fprintf(stderr, "%.0f%% expansion\n",
-				    ((float)isb.st_size / sb.st_size) * 100.0);
-		}
-	}
-	return;
+    guard let ofp = try? FileDescriptor.open(out, .writeOnly) else {
+      warn(out)
+      return
+    }
+    defer { try? ofp.close() }
 
-err:	if (ofp) {
-		if (!cat && oreg)
-			(void)unlink(out);
-		(void)fclose(ofp);
-	}
-	if (ifp)
-		(void)fclose(ifp);
-}
+    if !nr.isEmpty {
+      guard let _ = try? ofp.write(nr) else {
+        warn(out)
+        return;
+      }
+    }
 
-static void
-setfile(const char *name, struct stat *fs)
-{
-	static struct timespec tspec[2];
+    while true {
+      guard let nr = try? ifp.zread(Int(BUFSIZ)) else {
+        warn(inx)
+        return
+      }
+      if nr.isEmpty { break }
+      guard let _ = try? ofp.write(nr) else {
+        warn(out)
+        return
+      }
+    }
 
-	fs->st_mode &= S_ISUID|S_ISGID|S_IRWXU|S_IRWXG|S_IRWXO;
+    var stderr = FileDescriptor.standardError
 
-	tspec[0] = fs->st_atim;
-	tspec[1] = fs->st_mtim;
-	if (utimensat(AT_FDCWD, name, tspec, 0))
-		cwarn("utimensat: %s", name);
+    if (!cat && isreg) {
+      setfile(out, sb)
 
-	/*
-	 * Changing the ownership probably won't succeed, unless we're root
-	 * or POSIX_CHOWN_RESTRICTED is not set.  Set uid/gid before setting
-	 * the mode; current BSD behavior is to remove all setuid bits on
-	 * chown.  If chown fails, lose setuid/setgid bits.
-	 */
-	if (chown(name, fs->st_uid, fs->st_gid)) {
-		if (errno != EPERM)
-			cwarn("chown: %s", name);
-		fs->st_mode &= ~(S_ISUID|S_ISGID);
-	}
-	if (chmod(name, fs->st_mode) && errno != EOPNOTSUPP)
-		cwarn("chmod: %s", name);
+      if 0 != unlink(inx) {
+        warn(inx)
+      }
+      if 0 != options.verbose {
+        let isb = sb
+        if let sb = try? FileMetadata(for: out) {
+          print(out, to: &stderr)
+          if isb.size > sb.size {
+            print("\(cFormat("%.0f", Double(sb.size) / Double(isb.size) * 100.0))%% compression", to: &stderr)
+          }
+          else {
+            print("\(cFormat("%.0f", Double(isb.size) / Double(sb.size) * 100))%% expansion", to: &stderr)
 
-	if (chflags(name, fs->st_flags) && errno != EOPNOTSUPP)
-		cwarn("chflags: %s", name);
-}
+          }
+        }
+      }
+    }
+    return;
 
-static int
-permission(const char *fname)
-{
-	int ch, first;
-	char resp[] = {'\0', '\0'};
+/*    err:	if (ofp) {
+      if (!cat && oreg) {
+        (void)unlink(out);
+      }
+      (void)fclose(ofp);
+    }
+ */
+  }
 
-	if (!isatty(fileno(stderr)))
-		return (0);
-	(void)fprintf(stderr, "overwrite %s? ", fname);
+  func setfile(_ name : String, _ fsx : FileMetadata) {
 
-	/* Load user specified locale */
-	setlocale(LC_MESSAGES, "");
+    var fs = fsx
+    var tspec : (timespec, timespec) = (fs.lastAccess.timespec, fs.lastWrite.timespec)
 
-	first = ch = getchar();
-	while (ch != '\n' && ch != EOF)
-		ch = getchar();
+    if 0 != utimensat(AT_FDCWD, name, &tspec.0, 0) {
+      warn("utimensat: \(name)")
+    }
 
-	/* only care about first character */
-	resp[0] = first;
+    /*
+     * Changing the ownership probably won't succeed, unless we're root
+     * or POSIX_CHOWN_RESTRICTED is not set.  Set uid/gid before setting
+     * the mode; current BSD behavior is to remove all setuid bits on
+     * chown.  If chown fails, lose setuid/setgid bits.
+     */
+    if 0 != chown(name, UInt32(fs.userId), UInt32(fs.groupId)) {
+      if errno != EPERM {
+        warn("chown: \(name)")
+      }
+      fs.permissions.remove([.setUserID, .setGroupID])
+    }
+    if 0 != chmod(name, fs.permissions.rawValue) && errno != EOPNOTSUPP {
+      warn("chmod: \(name)")
+    }
 
-	return (rpmatch(resp) == 1);
-}
+    if 0 != chflags(name, fs.flags.rawValue) && errno != EOPNOTSUPP {
+      warn("chflags: \(name)")
+    }
+  }
 
-static void
-usage(int iscompress)
-{
-	if (iscompress)
-		(void)fprintf(stderr,
-		    "usage: compress [-cfv] [-b bits] [file ...]\n");
-	else
-		(void)fprintf(stderr,
-		    "usage: uncompress [-cfv] [-b bits] [file ...]\n");
-	exit(1);
-}
+  func permission(_ fname : String) -> Bool {
 
-static void
-cwarnx(const char *fmt, ...)
-{
-	va_list ap;
+    if 0 == Darwin.isatty( Darwin.fileno(stderr) ) {
+      return false
+    }
+    var stderr = FileDescriptor.standardError
+    print("overwrite \(fname)? ", terminator: "", to: &stderr)
 
-	va_start(ap, fmt);
-	vwarnx(fmt, ap);
-	va_end(ap);
-	eval = 1;
-}
+    /* Load user specified locale */
+    //      setlocale(LC_MESSAGES, "");
 
-static void
-cwarn(const char *fmt, ...)
-{
-	va_list ap;
+    var lin = readLine() ?? " "
 
-	va_start(ap, fmt);
-	vwarn(fmt, ap);
-	va_end(ap);
-	eval = 1;
+    /* only care about first character */
+    return rpmatch(lin) == .yes
+  }
+
+  var usage : String { get { options?.style == .COMPRESS ? "usage: compress [-cfv] [-b bits] [file ...]" :
+    "usage: uncompress [-cfv] [-b bits] [file ...]" }
+  }
 }

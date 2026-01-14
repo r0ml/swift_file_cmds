@@ -158,8 +158,9 @@ rep_add(char *str)
 			pt2++;
 			continue;
 		}
-		if (*pt2 == *str)
-			break;
+    if (*pt2 == *str) {
+      break;
+    }
 	}
 	if (*pt2 == '\0') {
 #else
@@ -279,8 +280,9 @@ pat_chk(void)
 	 * if not complain
 	 */
 	for (pt = pathead; pt != NULL; pt = pt->fow) {
-		if (pt->flgs & MTCH)
-			continue;
+    if (pt->flgs & MTCH) {
+      continue;
+    }
 		if (!wban) {
 			paxwarn(1, "WARNING! These patterns were not matched:");
 			++wban;
@@ -315,8 +317,9 @@ pat_sel(ARCHD *arcn)
 	/*
 	 * if no patterns just return
 	 */
-	if ((pathead == NULL) || ((pt = arcn->pat) == NULL))
-		return(0);
+  if ((pathead == NULL) || ((pt = arcn->pat) == NULL)) {
+    return(0);
+  }
 
 	/*
 	 * when we are NOT limited to a single match per pattern mark the
@@ -334,8 +337,9 @@ pat_sel(ARCHD *arcn)
 	 * in the subtree of a directory. in that case when we are operating
 	 * with -d, this pattern was already selected and we are done
 	 */
-	if (pt->flgs & DIR_MTCH)
-		return(0);
+  if (pt->flgs & DIR_MTCH) {
+    return(0);
+  }
 
 	if (!dflag && ((pt->pend != NULL) || (arcn->type == PAX_DIR))) {
 		/*
@@ -351,13 +355,15 @@ pat_sel(ARCHD *arcn)
 		 * if this was a prefix match, remove trailing part of path
 		 * so we can copy it. Future matches will be exact prefix match
 		 */
-		if (pt->pend != NULL)
-			*pt->pend = '\0';
+    if (pt->pend != NULL) {
+      *pt->pend = '\0';
+    }
 
 		if ((pt->pstr = strdup(arcn->name)) == NULL) {
 			paxwarn(1, "Pattern select out of memory");
-			if (pt->pend != NULL)
-				*pt->pend = '/';
+      if (pt->pend != NULL) {
+        *pt->pend = '/';
+      }
 			pt->pend = NULL;
 			return(-1);
 		}
@@ -436,8 +442,9 @@ pat_match(ARCHD *arcn)
 	 * done. otherwise with no patterns to match, matches all
 	 */
 	if (pathead == NULL) {
-		if (nflag && !cflag)
-			return(-1);
+    if (nflag && !cflag) {
+      return(-1);
+    }
 		return(0);
 	}
 
@@ -458,10 +465,12 @@ pat_match(ARCHD *arcn)
 			 * an exact prefix match (no wildcards).
 			 */
 			if ((arcn->name[pt->plen] == '/') &&
-			    (strncmp(pt->pstr, arcn->name, pt->plen) == 0))
-				break;
-		} else if (fn_match(pt->pstr, arcn->name, &pt->pend) == 0)
-			break;
+          (strncmp(pt->pstr, arcn->name, pt->plen) == 0)) {
+        break;
+      }
+    } else if (fn_match(pt->pstr, arcn->name, &pt->pend) == 0) {
+      break;
+    }
 		pt = pt->fow;
 	}
 
@@ -469,8 +478,9 @@ pat_match(ARCHD *arcn)
 	 * return the result, remember that cflag (-c) inverts the sense of a
 	 * match
 	 */
-	if (pt == NULL)
-		return(cflag ? 0 : 1);
+  if (pt == NULL) {
+    return(cflag ? 0 : 1);
+  }
 
 	/*
 	 * We had a match, now when we invert the sense (-c) we reject this
@@ -478,11 +488,13 @@ pat_match(ARCHD *arcn)
 	 * match, not in selecting an archive member) so we call pat_sel() here.
 	 */
 	arcn->pat = pt;
-	if (!cflag)
-		return(0);
+  if (!cflag) {
+    return(0);
+  }
 
-	if (pat_sel(arcn) < 0)
-		return(-1);
+  if (pat_sel(arcn) < 0) {
+    return(-1);
+  }
 	arcn->pat = NULL;
 	return(1);
 }
@@ -513,14 +525,16 @@ fn_match(char *pattern, char *string, char **pend)
 			/*
 			 * Ok we found an exact match
 			 */
-			if (*string == '\0')
-				return(0);
+        if (*string == '\0') {
+          return(0);
+        }
 
 			/*
 			 * Check if it is a prefix match
 			 */
-			if ((dflag == 1) || (*string != '/'))
-				return(-1);
+        if ((dflag == 1) || (*string != '/')) {
+          return(-1);
+        }
 
 			/*
 			 * It is a prefix match, remember where the trailing
@@ -529,29 +543,33 @@ fn_match(char *pattern, char *string, char **pend)
 			*pend = string;
 			return(0);
 		case '?':
-			if ((test = *string++) == '\0')
-				return (-1);
+        if ((test = *string++) == '\0') {
+          return (-1);
+        }
 			break;
 		case '*':
 			c = *pattern;
 			/*
 			 * Collapse multiple *'s.
 			 */
-			while (c == '*')
-				c = *++pattern;
+        while (c == '*') {
+          c = *++pattern;
+        }
 
 			/*
 			 * Optimized hack for pattern with a * at the end
 			 */
-			if (c == '\0')
-				return (0);
+        if (c == '\0') {
+          return (0);
+        }
 
 			/*
 			 * General case, use recursion.
 			 */
 			while ((test = *string) != '\0') {
-				if (!fn_match(pattern, string, pend))
-					return (0);
+        if (!fn_match(pattern, string, pend)) {
+          return (0);
+        }
 				++string;
 			}
 			return (-1);
@@ -582,13 +600,15 @@ fn_match(char *pattern, char *string, char **pend)
 			}
 #endif /* __APPLE__ */
 			if (((test = *string++) == '\0') ||
-			    ((pattern = range_match(pattern, test)) == NULL))
-				return (-1);
+          ((pattern = range_match(pattern, test)) == NULL)) {
+      return (-1);
+    }
 			break;
 		case '\\':
 		default:
-			if (c != *string++)
-				return (-1);
+              if (c != *string++) {
+      return (-1);
+    }
 			break;
 		}
 	}
@@ -818,31 +838,35 @@ mod_name(ARCHD *arcn)
 		 * name if any.
 		 */
 #ifdef __APPLE__
-		if ((res = rep_name(arcn->name, sizeof(arcn->name), &(arcn->nlen), 1)) != 0)
+    if ((res = rep_name(arcn->name, sizeof(arcn->name), &(arcn->nlen), 1)) != 0) {
 #else
-		if ((res = rep_name(arcn->name, &(arcn->nlen), 1)) != 0)
+      if ((res = rep_name(arcn->name, &(arcn->nlen), 1)) != 0) {
 #endif /* __APPLE__ */
-			return(res);
+        return(res);
+      }
 
 		if (((arcn->type == PAX_SLK) || (arcn->type == PAX_HLK) ||
 		    (arcn->type == PAX_HRG)) &&
 #ifdef __APPLE__
-		    ((res = rep_name(arcn->ln_name, sizeof(arcn->ln_name), &(arcn->ln_nlen), 0)) != 0))
+        ((res = rep_name(arcn->ln_name, sizeof(arcn->ln_name), &(arcn->ln_nlen), 0)) != 0)) {
 #else
-		    ((res = rep_name(arcn->ln_name, &(arcn->ln_nlen), 0)) != 0))
+      ((res = rep_name(arcn->ln_name, &(arcn->ln_nlen), 0)) != 0)) {
 #endif /* __APPLE__ */
-			return(res);
+        return(res);
+      }
 	}
 
 	if (iflag) {
 		/*
 		 * perform interactive file rename, then map the link if any
 		 */
-		if ((res = tty_rename(arcn)) != 0)
-			return(res);
+    if ((res = tty_rename(arcn)) != 0) {
+      return(res);
+    }
 		if ((arcn->type == PAX_SLK) || (arcn->type == PAX_HLK) ||
-		    (arcn->type == PAX_HRG))
-			sub_name(arcn->ln_name, &(arcn->ln_nlen), sizeof(arcn->ln_name));
+        (arcn->type == PAX_HRG)) {
+      sub_name(arcn->ln_name, &(arcn->ln_nlen), sizeof(arcn->ln_name));
+    }
 	}
 	return(res);
 }
@@ -880,8 +904,9 @@ tty_rename(ARCHD *arcn)
 		tty_prnt("Input new name, or a \".\" to keep the old name, ");
 		tty_prnt("or a \"return\" to skip this file.\n");
 		tty_prnt("Input > ");
-		if (tty_read(tmpname, sizeof(tmpname)) < 0)
-			return(-1);
+    if (tty_read(tmpname, sizeof(tmpname)) < 0) {
+      return(-1);
+    }
 		if (strcmp(tmpname, "..") == 0) {
 			tty_prnt("Try again, illegal file name: ..\n");
 			continue;
@@ -914,14 +939,16 @@ tty_rename(ARCHD *arcn)
 	res = add_name(arcn->name, arcn->nlen, tmpname);
 #ifdef __APPLE__
 	arcn->nlen = strlcpy(arcn->name, tmpname, sizeof(arcn->name));
-	if (arcn->nlen >= sizeof(arcn->name))
-		arcn->nlen = sizeof(arcn->name) - 1; /* XXX truncate? */
+  if (arcn->nlen >= sizeof(arcn->name)) {
+    arcn->nlen = sizeof(arcn->name) - 1; /* XXX truncate? */
+  }
 #else
 	arcn->nlen = l_strncpy(arcn->name, tmpname, sizeof(arcn->name) - 1);
 	arcn->name[arcn->nlen] = '\0';
 #endif /* __APPLE__ */
-	if (res < 0)
-		return(-1);
+  if (res < 0) {
+    return(-1);
+  }
 	return(0);
 }
 
@@ -936,19 +963,22 @@ tty_rename(ARCHD *arcn)
 int
 set_dest(ARCHD *arcn, char *dest_dir, int dir_len)
 {
-	if (fix_path(arcn->name, &(arcn->nlen), dest_dir, dir_len) < 0)
-		return(-1);
+  if (fix_path(arcn->name, &(arcn->nlen), dest_dir, dir_len) < 0) {
+    return(-1);
+  }
 
 	/*
 	 * It is really hard to deal with symlinks here, we cannot be sure
 	 * if the name they point was moved (or will be moved). It is best to
 	 * leave them alone.
 	 */
-	if ((arcn->type != PAX_HLK) && (arcn->type != PAX_HRG))
-		return(0);
+  if ((arcn->type != PAX_HLK) && (arcn->type != PAX_HRG)) {
+    return(0);
+  }
 
-	if (fix_path(arcn->ln_name, &(arcn->ln_nlen), dest_dir, dir_len) < 0)
-		return(-1);
+  if (fix_path(arcn->ln_name, &(arcn->ln_nlen), dest_dir, dir_len) < 0) {
+    return(-1);
+  }
 	return(0);
 }
 
@@ -1068,8 +1098,9 @@ rep_name(char *name, int *nlen, int prnt)
 			 * check for a successful substitution, if not go to
 			 * the next pattern, or cleanup if we were global
 			 */
-			if (regexec(&(pt->rcmp), inpt, MAXSUBEXP, pm, 0) != 0)
-				break;
+      if (regexec(&(pt->rcmp), inpt, MAXSUBEXP, pm, 0) != 0) {
+        break;
+      }
 
 			/*
 			 * ok we found one. We have three parts, the prefix
@@ -1081,10 +1112,12 @@ rep_name(char *name, int *nlen, int prnt)
 			found = 1;
 			rpt = inpt + pm[0].rm_so;
 
-			while ((inpt < rpt) && (outpt < endpt))
-				*outpt++ = *inpt++;
-			if (outpt == endpt)
-				break;
+      while ((inpt < rpt) && (outpt < endpt)) {
+        *outpt++ = *inpt++;
+      }
+      if (outpt == endpt) {
+        break;
+      }
 
 			/*
 			 * for the second part (which matched the regular
@@ -1098,9 +1131,10 @@ rep_name(char *name, int *nlen, int prnt)
 			if ((res = resub(&(pt->rcmp),pm,inpt,pt->nstr,outpt,endpt))
 #endif /* __APPLE__ */
 			    < 0) {
-				if (prnt)
-					paxwarn(1, "Replacement name error %s",
-					    name);
+        if (prnt) {
+          paxwarn(1, "Replacement name error %s",
+                  name);
+        }
 				return(1);
 			}
 			outpt += res;
@@ -1117,8 +1151,9 @@ rep_name(char *name, int *nlen, int prnt)
 			 */
 			inpt += pm[0].rm_eo - pm[0].rm_so;
 
-			if ((outpt == endpt) || (*inpt == '\0'))
-				break;
+          if ((outpt == endpt) || (*inpt == '\0')) {
+        break;
+      }
 
 			/*
 			 * if the user wants global we keep trying to
@@ -1126,8 +1161,9 @@ rep_name(char *name, int *nlen, int prnt)
 			 */
 		} while (pt->flgs & GLOB);
 
-		if (found)
-			break;
+    if (found) {
+      break;
+    }
 
 		/*
 		 * a successful substitution did NOT occur, try the next one
@@ -1140,14 +1176,16 @@ rep_name(char *name, int *nlen, int prnt)
 		 * we had a substitution, copy the last tail piece (if there is
 		 * room) to the final result
 		 */
-		while ((outpt < endpt) && (*inpt != '\0'))
-			*outpt++ = *inpt++;
+    while ((outpt < endpt) && (*inpt != '\0')) {
+      *outpt++ = *inpt++;
+    }
 
 		*outpt = '\0';
 		if ((outpt == endpt) && (*inpt != '\0')) {
-			if (prnt)
-				paxwarn(1,"Replacement name too long %s >> %s",
-				    name, nname);
+      if (prnt) {
+        paxwarn(1,"Replacement name too long %s >> %s",
+                name, nname);
+      }
 			return(1);
 		}
 
@@ -1155,19 +1193,22 @@ rep_name(char *name, int *nlen, int prnt)
 		 * inform the user of the result if wanted
 		 */
 		if (prnt && (pt->flgs & PRNT)) {
-			if (*nname == '\0')
-				(void)fprintf(stderr,"%s >> <empty string>\n",
-				    name);
-			else
-				(void)fprintf(stderr,"%s >> %s\n", name, nname);
+      if (*nname == '\0') {
+        (void)fprintf(stderr,"%s >> <empty string>\n",
+                      name);
+      }
+      else {
+        (void)fprintf(stderr,"%s >> %s\n", name, nname);
+      }
 		}
 
 		/*
 		 * if empty inform the caller this file is to be skipped
 		 * otherwise copy the new name over the orig name and return
 		 */
-		if (*nname == '\0')
-			return(1);
+    if (*nname == '\0') {
+      return(1);
+    }
 #ifdef __APPLE__
 		*nlen = strlcpy(name, nname, nsize);
 #else
@@ -1224,11 +1265,12 @@ resub(regex_t *rp, regmatch_t *pm, char *orig, char *src, char *dest,
 			 * Ordinary character, just copy it
 			 */
 #ifdef __APPLE__
-			if ((c == '\\') && (*spt != '\0'))
+      if ((c == '\\') && (*spt != '\0')) {
 #else
- 			if ((c == '\\') && ((*spt == '\\') || (*spt == '&')))
+        if ((c == '\\') && ((*spt == '\\') || (*spt == '&'))) {
 #endif /* __APPLE__ */
- 				c = *spt++;
+          c = *spt++;
+        }
  			*dpt++ = c;
 			continue;
 		}
@@ -1237,20 +1279,23 @@ resub(regex_t *rp, regmatch_t *pm, char *orig, char *src, char *dest,
 		 * continue if the subexpression is bogus
 		 */
 		if ((pmpt->rm_so < 0) || (pmpt->rm_eo < 0) ||
-		    ((len = pmpt->rm_eo - pmpt->rm_so) <= 0))
-			continue;
+        ((len = pmpt->rm_eo - pmpt->rm_so) <= 0)) {
+      continue;
+    }
 
 		/*
 		 * copy the subexpression to the destination.
 		 * fail if we run out of space or the match string is damaged
 		 */
-		if (len > (destend - dpt))
-			len = destend - dpt;
+    if (len > (destend - dpt)) {
+      len = destend - dpt;
+    }
 #ifdef __APPLE__
 		strncpy(dpt, inpt + pmpt->rm_so, len);
 #else
-		if (l_strncpy(dpt, orig + pmpt->rm_so, len) != len)
-			return(-1);
+    if (l_strncpy(dpt, orig + pmpt->rm_so, len) != len) {
+      return(-1);
+    }
 #endif
 		dpt += len;
 	}

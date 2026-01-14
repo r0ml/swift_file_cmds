@@ -108,24 +108,30 @@ ftree_start(void)
 	 * -n select only the first member of a file tree when a match is found
 	 * -d do not extract subtrees rooted at a directory arg.
 	 */
-	if (Lflag)
-		ftsopts |= FTS_LOGICAL;
-	else
-		ftsopts |= FTS_PHYSICAL;
-	if (Hflag)
-		ftsopts |= FTS_COMFOLLOW;
-	if (Xflag)
-		ftsopts |= FTS_XDEV;
+  if (Lflag) {
+    ftsopts |= FTS_LOGICAL;
+  }
+  else {
+    ftsopts |= FTS_PHYSICAL;
+  }
+  if (Hflag) {
+    ftsopts |= FTS_COMFOLLOW;
+  }
+  if (Xflag) {
+    ftsopts |= FTS_XDEV;
+  }
 
 	if ((fthead == NULL) && ((farray[0] = malloc(PAXPATHLEN+2)) == NULL)) {
 		paxwarn(1, "Unable to allocate memory for file name buffer");
 		return(-1);
 	}
 
-	if (ftree_arg() < 0)
-		return(-1);
-	if (tflag && (atdir_start() < 0))
-		return(-1);
+  if (ftree_arg() < 0) {
+    return(-1);
+  }
+  if (tflag && (atdir_start() < 0)) {
+    return(-1);
+  }
 	return(0);
 }
 
@@ -161,8 +167,9 @@ ftree_add(char *str, int chflg)
 		return(-1);
 	}
 
-	if (((len = strlen(str) - 1) > 0) && (str[len] == '/'))
-		str[len] = '\0';
+  if (((len = strlen(str) - 1) > 0) && (str[len] == '/')) {
+    str[len] = '\0';
+  }
 	ft->fname = str;
 	ft->refcnt = 0;
 	ft->chflg = chflg;
@@ -190,8 +197,9 @@ ftree_sel(ARCHD *arcn)
 	 * when file trees are supplied pax as args. The list is not used when
 	 * the trees are read from stdin.
 	 */
-	if (ftcur != NULL)
-		ftcur->refcnt = 1;
+  if (ftcur != NULL) {
+    ftcur->refcnt = 1;
+  }
 
 	/*
 	 * if -n we are done with this arg, force a skip to the next arg when
@@ -199,14 +207,17 @@ ftree_sel(ARCHD *arcn)
 	 * if -d we tell fts only to match the directory (if the arg is a dir)
 	 * and not the entire file tree rooted at that point.
 	 */
-	if (nflag)
-		ftree_skip = 1;
+  if (nflag) {
+    ftree_skip = 1;
+  }
 
-	if (!dflag || (arcn->type != PAX_DIR))
-		return;
+  if (!dflag || (arcn->type != PAX_DIR)) {
+    return;
+  }
 
-	if (ftent != NULL)
-		(void)fts_set(ftsp, ftent, FTS_SKIP);
+  if (ftent != NULL) {
+    (void)fts_set(ftsp, ftent, FTS_SKIP);
+  }
 }
 
 /*
@@ -217,8 +228,9 @@ ftree_sel(ARCHD *arcn)
 void
 ftree_notsel(void)
 {
-	if (ftent != NULL)
-		(void)fts_set(ftsp, ftent, FTS_SKIP);
+  if (ftent != NULL) {
+    (void)fts_set(ftsp, ftent, FTS_SKIP);
+  }
 }
 
 /*
@@ -236,16 +248,18 @@ ftree_chk(void)
 	/*
 	 * make sure all dir access times were reset.
 	 */
-	if (tflag)
-		atdir_end();
+  if (tflag) {
+    atdir_end();
+  }
 
 	/*
 	 * walk down list and check reference count. Print out those members
 	 * that never had a match
 	 */
 	for (ft = fthead; ft != NULL; ft = ft->fow) {
-		if ((ft->refcnt > 0) || ft->chflg)
-			continue;
+    if ((ft->refcnt > 0) || ft->chflg) {
+      continue;
+    }
 		if (wban == 0) {
 			paxwarn(1,"WARNING! These file names were not selected:");
 			++wban;
@@ -290,27 +304,33 @@ ftree_arg(void)
 			 * to process from stdin;
 			 */
 #ifdef __APPLE__
-			if (getpathname(farray[0], PAXPATHLEN+1) == NULL)
-				return(-1);
+      if (getpathname(farray[0], PAXPATHLEN+1) == NULL) {
+        return(-1);
+      }
 #else
-			if (fgets(farray[0], PAXPATHLEN+1, stdin) == NULL)
-				return(-1);
-			if ((pt = strchr(farray[0], '\n')) != NULL)
-				*pt = '\0';
+      if (fgets(farray[0], PAXPATHLEN+1, stdin) == NULL) {
+        return(-1);
+      }
+      if ((pt = strchr(farray[0], '\n')) != NULL) {
+        *pt = '\0';
+      }
 #endif /* __APPLE__ */
 		} else {
 			/*
 			 * the user supplied the file args as arguments to pax
 			 */
-			if (ftcur == NULL)
-				ftcur = fthead;
-			else if ((ftcur = ftcur->fow) == NULL)
-				return(-1);
+      if (ftcur == NULL) {
+        ftcur = fthead;
+      }
+      else if ((ftcur = ftcur->fow) == NULL) {
+        return(-1);
+      }
 			if (ftcur->chflg) {
 				/* First fchdir() back... */
 #ifdef __APPLE__
-				if (fdochdir(cwdfd) == -1)
-					return(-1);
+        if (fdochdir(cwdfd) == -1) {
+          return(-1);
+        }
 #else
 				if (fchdir(cwdfd) < 0) {
 					syswarn(1, errno,
@@ -319,8 +339,9 @@ ftree_arg(void)
 				}
 #endif /* __APPLE__ */
 #ifdef __APPLE__
-				if (dochdir(ftcur->fname) == -1)
-					return(-1);
+        if (dochdir(ftcur->fname) == -1) {
+          return(-1);
+        }
 #else
 				if (chdir(ftcur->fname) < 0) {
 					syswarn(1, errno, "Can't chdir to %s",
@@ -342,8 +363,9 @@ ftree_arg(void)
 		 * files (the -n and -d flags need this). If the open is
 		 * successful, return a 0.
 		 */
-		if ((ftsp = fts_open(farray, ftsopts, NULL)) != NULL)
-			break;
+    if ((ftsp = fts_open(farray, ftsopts, NULL)) != NULL) {
+      break;
+    }
 	}
 	return(0);
 }
@@ -376,8 +398,9 @@ next_file(ARCHD *arcn)
 		 * clear and go to next arg
 		 */
 		ftree_skip = 0;
-		if (ftree_arg() < 0)
-			return(-1);
+    if (ftree_arg() < 0) {
+      return(-1);
+    }
 	}
 
 	/*
@@ -386,15 +409,17 @@ next_file(ARCHD *arcn)
 	for(;;) {
 		if ((ftent = fts_read(ftsp)) == NULL) {
 #ifdef __APPLE__
-			if (errno)
-				syswarn(1, errno, "next_file");
+      if (errno) {
+        syswarn(1, errno, "next_file");
+      }
 #endif /* __APPLE__ */
 			/*
 			 * out of files in this tree, go to next arg, if none
 			 * we are done
 			 */
-			if (ftree_arg() < 0)
-				return(-1);
+      if (ftree_arg() < 0) {
+        return(-1);
+      }
 			continue;
 		}
 
@@ -492,8 +517,9 @@ next_file(ARCHD *arcn)
 		switch(S_IFMT & arcn->sb.st_mode) {
 		case S_IFDIR:
 			arcn->type = PAX_DIR;
-			if (!tflag)
-				break;
+        if (!tflag) {
+          break;
+        }
 			add_atdir(ftent->fts_path, arcn->sb.st_dev,
 			    arcn->sb.st_ino, arcn->sb.st_mtime,
 #ifdef __APPLE__
@@ -557,8 +583,9 @@ next_file(ARCHD *arcn)
 	 * copy file name, set file name length
 	 */
 	arcn->nlen = strlcpy(arcn->name, ftent->fts_path, sizeof(arcn->name));
-	if (arcn->nlen >= sizeof(arcn->name))
-		arcn->nlen = sizeof(arcn->name) - 1; /* XXX truncate? */
+  if (arcn->nlen >= sizeof(arcn->name)) {
+    arcn->nlen = sizeof(arcn->name) - 1; /* XXX truncate? */
+  }
 	arcn->org_name = ftent->fts_path;
 	return(0);
 }

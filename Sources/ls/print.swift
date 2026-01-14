@@ -405,15 +405,18 @@ printlong(const DISPLAY *dp)
 	}
 
 	for (p = dp->list; p; p = p->fts_link) {
-		if (IS_NOPRINT(p))
-			continue;
+    if (IS_NOPRINT(p)) {
+      continue;
+    }
 		sp = p->fts_statp;
-		if (f_inode)
-			(void)printf("%*ju ",
-			    dp->s_inode, (uintmax_t)sp->st_ino);
-		if (f_size)
-			(void)printf("%*lld ",
-			    dp->s_block, howmany(sp->st_blocks, blocksize));
+    if (f_inode) {
+      (void)printf("%*ju ",
+                   dp->s_inode, (uintmax_t)sp->st_ino);
+    }
+    if (f_size) {
+      (void)printf("%*lld ",
+                   dp->s_block, howmany(sp->st_blocks, blocksize));
+    }
 		strmode(sp->st_mode, buf);
 #ifndef __APPLE__
 		aclmode(buf, p);
@@ -442,42 +445,55 @@ printlong(const DISPLAY *dp)
 		    (uintmax_t)sp->st_nlink, dp->s_user, np->user, dp->s_group,
 		    np->group);
 #endif /* __APPLE__ */
-		if (f_flags)
-			(void)printf("%-*s ", dp->s_flags, np->flags);
+    if (f_flags) {
+      (void)printf("%-*s ", dp->s_flags, np->flags);
+    }
 #ifndef __APPLE__
-		if (f_label)
-			(void)printf("%-*s ", dp->s_label, np->label);
+    if (f_label) {
+      (void)printf("%-*s ", dp->s_label, np->label);
+    }
 #endif /* !__APPLE__ */
-		if (S_ISCHR(sp->st_mode) || S_ISBLK(sp->st_mode))
-			printdev(dp->s_size, sp->st_rdev);
-		else
-			printsize(dp->s_size, sp->st_size);
-		if (f_accesstime)
-			printtime(sp->st_atime);
-		else if (f_birthtime)
-			printtime(sp->st_birthtime);
-		else if (f_statustime)
-			printtime(sp->st_ctime);
-		else
-			printtime(sp->st_mtime);
+    if (S_ISCHR(sp->st_mode) || S_ISBLK(sp->st_mode)) {
+      printdev(dp->s_size, sp->st_rdev);
+    }
+    else {
+      printsize(dp->s_size, sp->st_size);
+    }
+    if (f_accesstime) {
+      printtime(sp->st_atime);
+    }
+    else if (f_birthtime) {
+      printtime(sp->st_birthtime);
+    }
+    else if (f_statustime) {
+      printtime(sp->st_ctime);
+    }
+    else {
+      printtime(sp->st_mtime);
+    }
 #ifdef COLORLS
 #ifdef __APPLE__
-		if (f_color)
-			color_printed = colortype(sp->st_mode, sp->st_flags);
+    if (f_color) {
+      color_printed = colortype(sp->st_mode, sp->st_flags);
+    }
 #else
-		if (f_color)
-			color_printed = colortype(sp->st_mode);
+    if (f_color) {
+      color_printed = colortype(sp->st_mode);
+    }
 #endif
 #endif
 		(void)printname(p->fts_name);
 #ifdef COLORLS
-		if (f_color && color_printed)
-			endcolor(0);
+    if (f_color && color_printed) {
+      endcolor(0);
+    }
 #endif
-		if (f_type)
-			(void)printtype(sp->st_mode);
-		if (S_ISLNK(sp->st_mode))
-			printlink(p);
+    if (f_type) {
+      (void)printtype(sp->st_mode);
+    }
+    if (S_ISLNK(sp->st_mode)) {
+      printlink(p);
+    }
 		(void)putchar('\n');
 #ifdef __APPLE__
 		if (np->xattr_count && f_xattr) {
@@ -497,8 +513,9 @@ printstream(const DISPLAY *dp)
 	int chcnt;
 
 	for (p = dp->list, chcnt = 0; p; p = p->fts_link) {
-		if (p->fts_number == NO_PRINT)
-			continue;
+    if (p->fts_number == NO_PRINT) {
+      continue;
+    }
 		/* XXX strlen does not take octal escapes into account. */
 		if (strlen(p->fts_name) + chcnt +
 		    (p->fts_link ? 2 : 0) >= (unsigned)termwidth) {
@@ -511,8 +528,9 @@ printstream(const DISPLAY *dp)
 			chcnt += 2;
 		}
 	}
-	if (chcnt)
-		putchar('\n');
+  if (chcnt) {
+    putchar('\n');
+  }
 }
 
 void
@@ -534,10 +552,12 @@ printcol(const DISPLAY *dp)
 	int row;
 	int tabwidth;
 
-	if (f_notabs)
-		tabwidth = 1;
-	else
-		tabwidth = 8;
+  if (f_notabs) {
+    tabwidth = 1;
+  }
+  else {
+    tabwidth = 8;
+  }
 
 	/*
 	 * Have to do random access in the linked list -- build a table
@@ -554,17 +574,22 @@ printcol(const DISPLAY *dp)
 		array = narray;
 	}
 	memset(array, 0, dp->entries * sizeof(FTSENT *));
-	for (p = dp->list, num = 0; p; p = p->fts_link)
-		if (p->fts_number != NO_PRINT)
-			array[num++] = p;
+  for (p = dp->list, num = 0; p; p = p->fts_link) {
+    if (p->fts_number != NO_PRINT) {
+      array[num++] = p;
+    }
+  }
 
 	colwidth = dp->maxlen;
-	if (f_inode)
-		colwidth += dp->s_inode + 1;
-	if (f_size)
-		colwidth += dp->s_block + 1;
-	if (f_type)
-		colwidth += 1;
+  if (f_inode) {
+    colwidth += dp->s_inode + 1;
+  }
+  if (f_size) {
+    colwidth += dp->s_block + 1;
+  }
+  if (f_type) {
+    colwidth += 1;
+  }
 
 	colwidth = (colwidth + tabwidth) & ~(tabwidth - 1);
 	if (termwidth < 2 * colwidth) {
@@ -573,8 +598,9 @@ printcol(const DISPLAY *dp)
 	}
 	numcols = termwidth / colwidth;
 	numrows = num / numcols;
-	if (num % numcols)
-		++numrows;
+  if (num % numcols) {
+    ++numrows;
+  }
 
 	if ((dp->list == NULL || dp->list->fts_level != FTS_ROOTLEVEL) &&
 	    (f_longform || f_size)) {
@@ -584,22 +610,27 @@ printcol(const DISPLAY *dp)
 	base = 0;
 	for (row = 0; row < numrows; ++row) {
 		endcol = colwidth;
-		if (!f_sortacross)
-			base = row;
+    if (!f_sortacross) {
+      base = row;
+    }
 		for (col = 0, chcnt = 0; col < numcols; ++col) {
 			assert(base < dp->entries);
 			chcnt += printaname(array[base], dp->s_inode,
 			    dp->s_block);
-			if (f_sortacross)
-				base++;
-			else
-				base += numrows;
-			if (base >= num)
-				break;
+      if (f_sortacross) {
+        base++;
+      }
+      else {
+        base += numrows;
+      }
+      if (base >= num) {
+        break;
+      }
 			while ((cnt = ((chcnt + tabwidth) & ~(tabwidth - 1)))
 			    <= endcol) {
-				if (f_sortacross && col + 1 >= numcols)
-					break;
+        if (f_sortacross && col + 1 >= numcols) {
+          break;
+        }
 				(void)putchar(f_notabs ? ' ' : '\t');
 				chcnt = cnt;
 			}
@@ -624,28 +655,34 @@ printaname(const FTSENT *p, u_long inodefield, u_long sizefield)
 
 	sp = p->fts_statp;
 	chcnt = 0;
-	if (f_inode)
-		chcnt += printf("%*ju ",
-		    (int)inodefield, (uintmax_t)sp->st_ino);
-	if (f_size)
-		chcnt += printf("%*lld ",
-		    (int)sizefield, howmany(sp->st_blocks, blocksize));
+  if (f_inode) {
+    chcnt += printf("%*ju ",
+                    (int)inodefield, (uintmax_t)sp->st_ino);
+  }
+  if (f_size) {
+    chcnt += printf("%*lld ",
+                    (int)sizefield, howmany(sp->st_blocks, blocksize));
+  }
 #ifdef COLORLS
 #ifdef __APPLE__
-	if (f_color)
-		color_printed = colortype(sp->st_mode, sp->st_flags);
+  if (f_color) {
+    color_printed = colortype(sp->st_mode, sp->st_flags);
+  }
 #else
-	if (f_color)
-		color_printed = colortype(sp->st_mode);
+  if (f_color) {
+    color_printed = colortype(sp->st_mode);
+  }
 #endif
 #endif
 	chcnt += printname(p->fts_name);
 #ifdef COLORLS
-	if (f_color && color_printed)
-		endcolor(0);
+  if (f_color && color_printed) {
+    endcolor(0);
+  }
 #endif
-	if (f_type)
-		chcnt += printtype(sp->st_mode);
+  if (f_type) {
+    chcnt += printtype(sp->st_mode);
+  }
 	return (chcnt);
 }
 
@@ -868,13 +905,17 @@ colortype(mode_t mode)
 {
 	switch (mode & S_IFMT) {
 	case S_IFDIR:
-		if (mode & S_IWOTH)
-			if (mode & S_ISTXT)
-				printcolor(C_WSDIR);
-			else
-				printcolor(C_WDIR);
-		else
-			printcolor(C_DIR);
+      if (mode & S_IWOTH) {
+        if (mode & S_ISTXT) {
+          printcolor(C_WSDIR);
+        }
+        else {
+          printcolor(C_WDIR);
+        }
+      }
+      else {
+        printcolor(C_DIR);
+      }
 		return (1);
 	case S_IFLNK:
 		printcolor(C_LNK);
@@ -894,12 +935,15 @@ colortype(mode_t mode)
 	default:;
 	}
 	if (mode & (S_IXUSR | S_IXGRP | S_IXOTH)) {
-		if (mode & S_ISUID)
-			printcolor(C_SUID);
-		else if (mode & S_ISGID)
-			printcolor(C_SGID);
-		else
-			printcolor(C_EXEC);
+    if (mode & S_ISUID) {
+      printcolor(C_SUID);
+    }
+    else if (mode & S_ISGID) {
+      printcolor(C_SGID);
+    }
+    else {
+      printcolor(C_EXEC);
+    }
 		return (1);
 	}
 #ifdef __APPLE__
@@ -920,8 +964,9 @@ parsecolors(const char *cs)
 	char c[2];
 	short legacy_warn = 0;
 
-	if (cs == NULL)
-		cs = "";	/* LSCOLORS not set */
+  if (cs == NULL) {
+    cs = "";	/* LSCOLORS not set */
+  }
 	len = strlen(cs);
 	for (i = 0; i < (int)C_NUMCOLORS; i++) {
 		colors[i].bold = 0;
@@ -943,13 +988,15 @@ parsecolors(const char *cs)
 					    "see the manual page)");
 				}
 				legacy_warn = 1;
-			} else if (c[j] >= 'a' && c[j] <= 'h')
-				colors[i].num[j] = c[j] - 'a';
+      } else if (c[j] >= 'a' && c[j] <= 'h') {
+        colors[i].num[j] = c[j] - 'a';
+      }
 			else if (c[j] >= 'A' && c[j] <= 'H') {
 				colors[i].num[j] = c[j] - 'A';
 				colors[i].bold = 1;
-			} else if (tolower((unsigned char)c[j]) == 'x')
-				colors[i].num[j] = -1;
+      } else if (tolower((unsigned char)c[j]) == 'x') {
+        colors[i].num[j] = -1;
+      }
 			else {
 				warnx("invalid character '%c' in LSCOLORS"
 				    " env var", c[j]);
