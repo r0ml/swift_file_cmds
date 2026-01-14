@@ -746,6 +746,7 @@ class ZStream {
     guard let fp = try? FileDescriptor.open(fname, mode) else {
       return nil
     }
+    self.fp = fp
 /*    switch (*mode) {
       case "r":
         zmode = "r"

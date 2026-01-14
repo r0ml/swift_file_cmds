@@ -96,6 +96,7 @@
 		E774082F2F10CE5600498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E774082E2F10CE5600498517 /* CMigration */; };
 		E78DE7162E43A989001E00CA /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E78DE7152E43A989001E00CA /* ShellTesting */; };
 		E7F4F75F2F1571B0000CC7E1 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E7F4F75E2F1571B0000CC7E1 /* ShellTesting */; };
+		E7F4F8AD2F184E37000CC7E1 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E7F4F8AC2F184E37000CC7E1 /* ShellTesting */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -966,6 +967,13 @@
 			);
 			target = E774026C2F02E77E00498517 /* ddTest */;
 		};
+		E7F4F8AB2F184974000CC7E1 /* Exceptions for "Tests" folder in "compressTest" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				compress/compressTest.swift,
+			);
+			target = E77402562F02E75200498517 /* compressTest */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -1013,6 +1021,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				E78DE71C2E43ABBD001E00CA /* Exceptions for "Tests" folder in "chflagsTest" target */,
+				E7F4F8AB2F184974000CC7E1 /* Exceptions for "Tests" folder in "compressTest" target */,
 				E774082B2F10CD3700498517 /* Exceptions for "Tests" folder in "cpTest" target */,
 				E7F4F75D2F157178000CC7E1 /* Exceptions for "Tests" folder in "ddTest" target */,
 				E774056F2F09BF9600498517 /* Exceptions for "Tests" folder in "linkTest" target */,
@@ -1269,6 +1278,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E7F4F8AD2F184E37000CC7E1 /* ShellTesting in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2144,6 +2154,7 @@
 			);
 			name = compressTest;
 			packageProductDependencies = (
+				E7F4F8AC2F184E37000CC7E1 /* ShellTesting */,
 			);
 			productName = compressTest;
 			productReference = E77402572F02E75200498517 /* compressTest.xctest */;
@@ -6259,6 +6270,11 @@
 			productName = ShellTesting;
 		};
 		E7F4F75E2F1571B0000CC7E1 /* ShellTesting */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E7A6AA602E428C8C001C9A44 /* XCRemoteSwiftPackageReference "ShellTesting" */;
+			productName = ShellTesting;
+		};
+		E7F4F8AC2F184E37000CC7E1 /* ShellTesting */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E7A6AA602E428C8C001C9A44 /* XCRemoteSwiftPackageReference "ShellTesting" */;
 			productName = ShellTesting;
