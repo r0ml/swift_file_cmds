@@ -147,10 +147,10 @@ let unix2003 = true
     }
 
     var rval : Int32 = 0
-    for var p : FtsEntry in ftsp {
+    for var p : FTSEntry in ftsp {
       var atflag : Int32 = 0
 
-      if (options.fts_options.contains(.LOGICAL) || (options.fts_options.contains(.COMFOLLOW) && p.level == FTS_ROOTLEVEL)) {
+      if (options.fts_options.contains(.LOGICAL) || (options.fts_options.contains(.COMFOLLOW) && p.level == CMigration.FTS_ROOTLEVEL)) {
         atflag = 0
       }else {
         atflag = AT_SYMLINK_NOFOLLOW
@@ -275,7 +275,7 @@ let unix2003 = true
 
   var usage = "usage: chgrp [-fhnvx] [-R [-H | -L | -P]] group file ..."
 
-func print_info(_ p : FtsEntry, _ vflag : Int) {
+func print_info(_ p : FTSEntry, _ vflag : Int) {
   print(p.path, terminator: "")
   if (vflag > 1) {
     print(

@@ -380,7 +380,7 @@ var info : sig_atomic_t = 0
        #endif
        */
       /* Skip ._<file> when using copyfile and <file> exists */
-      if ((options.pflag || !options.Xflag) && (curr.level != FTS_ROOTLEVEL) &&
+      if ((options.pflag || !options.Xflag) && (curr.level != CMigration.FTS_ROOTLEVEL) &&
           curr.name == "._") {
         /*#ifdef __clang__
          #pragma clang diagnostic pop
@@ -416,7 +416,7 @@ var info : sig_atomic_t = 0
        * particular.
        */
 
-      if (curr.level == FTS_ROOTLEVEL) {
+      if (curr.level == CMigration.FTS_ROOTLEVEL) {
         rootname = curr.name
       }
 
@@ -448,7 +448,7 @@ var info : sig_atomic_t = 0
          */
 
         var base = ""
-        if (curr.level == FTS_ROOTLEVEL) {
+        if (curr.level == CMigration.FTS_ROOTLEVEL) {
           if (type != .DIR_TO_DNE) {
 //            let p = curr.path.split(separator: "/").last
 //            p = strrchr(curr->fts_path, '/');

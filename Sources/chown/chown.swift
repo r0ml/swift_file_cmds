@@ -177,7 +177,7 @@ let unix2003_compat = true  // COMPAT_MODE("bin/chown", "Unix2003");
       var atflag : Int32 = 0
 
       if options.fts.contains(.LOGICAL) ||
-          (options.fts.contains(.COMFOLLOW) && p.level == FTS_ROOTLEVEL) {
+          (options.fts.contains(.COMFOLLOW) && p.level == CMigration.FTS_ROOTLEVEL) {
         atflag = 0
       }
       else {
@@ -322,7 +322,7 @@ usage: chown [-fhnvx] [-R [-H | -L | -P]] owner[:group] file ...
        chown [-fhnvx] [-R [-H | -L | -P]] :group file ...
 """
 
-  func print_info(_ p : FtsEntry, _ vflag : Int) {
+  func print_info(_ p : FTSEntry, _ vflag : Int) {
     print(p.path, terminator: "")
     if (vflag > 1) {
       print(": \(p.statp!.userId):\(p.statp!.groupId) -> \(options.uid == nil ? p.statp!.userId : UInt(options.uid!) ):\(options.gid == nil ? p.statp!.groupId : UInt(options.gid!) )",

@@ -35,178 +35,129 @@
  * SUCH DAMAGE.
  */
 
+import CMigration
+import Darwin
+
 extension ls {
-  int
-  namecmp(const FTSENT *a, const FTSENT *b)
-  {
-
-    return (strcoll(a->fts_name, b->fts_name));
+  func namecmp(_ a : FTSEntry, _ b : FTSEntry) -> ComparisonResult {
+    return ComparisonResult(rawValue: strcoll(a.name, b.name))!
   }
 
-  int
-  revnamecmp(const FTSENT *a, const FTSENT *b)
-  {
-
-    return (strcoll(b->fts_name, a->fts_name));
+  func revnamecmp(_ a : FTSEntry, _ b : FTSEntry) -> ComparisonResult {
+    return ComparisonResult(rawValue: strcoll(b.name, a.name))!
   }
 
-  int
-  modcmp(const FTSENT *a, const FTSENT *b)
-  {
-
-    if (b->fts_statp->st_mtim.tv_sec >
-        a->fts_statp->st_mtim.tv_sec) {
-      return (1);
+  func modcmp(_ a : FTSEntry, _ b : FTSEntry) -> ComparisonResult {
+    if b.statp!.lastWrite.timespec.tv_sec > a.statp!.lastWrite.timespec.tv_sec {
+      return .orderedAscending
     }
-    if (b->fts_statp->st_mtim.tv_sec <
-        a->fts_statp->st_mtim.tv_sec) {
-      return (-1);
+    if b.statp!.lastWrite.timespec.tv_sec < a.statp!.lastWrite.timespec.tv_sec  {
+      return .orderedDescending
     }
-    if (b->fts_statp->st_mtim.tv_nsec >
-        a->fts_statp->st_mtim.tv_nsec) {
-      return (1);
+    if b.statp!.lastWrite.timespec.tv_nsec > a.statp!.lastWrite.timespec.tv_nsec {
+      return .orderedAscending
     }
-    if (b->fts_statp->st_mtim.tv_nsec <
-        a->fts_statp->st_mtim.tv_nsec) {
-      return (-1);
+    if b.statp!.lastWrite.timespec.tv_nsec < a.statp!.lastWrite.timespec.tv_nsec {
+      return .orderedDescending
     }
     if (options.f_samesort) {
-      return (strcoll(b->fts_name, a->fts_name));
+      return ComparisonResult(rawValue: strcoll(b.name, a.name))!
     }
     else {
-      return (strcoll(a->fts_name, b->fts_name));
+      return ComparisonResult(rawValue: strcoll(a.name, b.name))!
     }
   }
 
-  int
-  revmodcmp(const FTSENT *a, const FTSENT *b)
-  {
-
+  func revmodcmp(_ a : FTSEntry, _ b : FTSEntry) -> ComparisonResult {
     return (modcmp(b, a));
   }
 
-  int
-  acccmp(const FTSENT *a, const FTSENT *b)
-  {
-
-    if (b->fts_statp->st_atim.tv_sec >
-        a->fts_statp->st_atim.tv_sec) {
-      return (1);
+  func acccmp(_ a : FTSEntry, _ b : FTSEntry) -> ComparisonResult {
+    if b.statp!.lastAccess.timespec.tv_sec > a.statp!.lastAccess.timespec.tv_sec {
+      return .orderedAscending
     }
-    if (b->fts_statp->st_atim.tv_sec <
-        a->fts_statp->st_atim.tv_sec) {
-      return (-1);
+    if b.statp!.lastAccess.timespec.tv_sec < a.statp!.lastAccess.timespec.tv_sec {
+      return .orderedDescending
     }
-    if (b->fts_statp->st_atim.tv_nsec >
-        a->fts_statp->st_atim.tv_nsec) {
-      return (1);
+    if b.statp!.lastAccess.timespec.tv_nsec > a.statp!.lastAccess.timespec.tv_nsec {
+      return .orderedAscending
     }
-    if (b->fts_statp->st_atim.tv_nsec <
-        a->fts_statp->st_atim.tv_nsec) {
-      return (-1);
+    if b.statp!.lastAccess.timespec.tv_nsec < a.statp!.lastAccess.timespec.tv_nsec {
+      return .orderedDescending
     }
     if (options.f_samesort) {
-      return (strcoll(b->fts_name, a->fts_name));
+      return ComparisonResult(rawValue: strcoll(b.name, a.name))!
     }
     else {
-      return (strcoll(a->fts_name, b->fts_name));
+      return ComparisonResult(rawValue: strcoll(a.name, b.name))!
     }
   }
 
-  int
-  revacccmp(const FTSENT *a, const FTSENT *b)
-  {
-
+  func revacccmp(_ a : FTSEntry, _ b : FTSEntry) -> ComparisonResult {
     return (acccmp(b, a));
   }
 
-  int
-  birthcmp(const FTSENT *a, const FTSENT *b)
-  {
-
-    if (b->fts_statp->st_birthtim.tv_sec >
-        a->fts_statp->st_birthtim.tv_sec) {
-      return (1);
+  func birthcmp(_ a : FTSEntry, _ b : FTSEntry) -> ComparisonResult {
+    if b.statp!.created.timespec.tv_sec > a.statp!.created.timespec.tv_sec {
+      return .orderedAscending
     }
-    if (b->fts_statp->st_birthtim.tv_sec <
-        a->fts_statp->st_birthtim.tv_sec) {
-      return (-1);
+    if b.statp!.created.timespec.tv_sec < a.statp!.created.timespec.tv_sec {
+      return .orderedDescending
     }
-    if (b->fts_statp->st_birthtim.tv_nsec >
-        a->fts_statp->st_birthtim.tv_nsec) {
-      return (1);
+    if b.statp!.created.timespec.tv_nsec > a.statp!.created.timespec.tv_nsec {
+      return .orderedAscending
     }
-    if (b->fts_statp->st_birthtim.tv_nsec <
-        a->fts_statp->st_birthtim.tv_nsec) {
-      return (-1);
+    if b.statp!.created.timespec.tv_nsec < a.statp!.created.timespec.tv_nsec {
+      return .orderedAscending
     }
     if (options.f_samesort) {
-      return (strcoll(b->fts_name, a->fts_name));
+      return ComparisonResult(rawValue: strcoll(b.name, a.name))!
     }
     else {
-      return (strcoll(a->fts_name, b->fts_name));
+      return ComparisonResult(rawValue: strcoll(a.name, b.name))!
     }
   }
 
-  int
-  revbirthcmp(const FTSENT *a, const FTSENT *b)
-  {
-
+  func revbirthcmp(_ a : FTSEntry, _ b : FTSEntry) -> ComparisonResult {
     return (birthcmp(b, a));
   }
 
-  int
-  statcmp(const FTSENT *a, const FTSENT *b)
-  {
-
-    if (b->fts_statp->st_ctim.tv_sec >
-        a->fts_statp->st_ctim.tv_sec) {
-      return (1);
+  func statcmp(_ a : FTSEntry, _ b : FTSEntry) -> ComparisonResult {
+    if b.statp!.lastModification.timespec.tv_sec > a.statp!.lastModification.timespec.tv_sec {
+      return .orderedAscending
     }
-    if (b->fts_statp->st_ctim.tv_sec <
-        a->fts_statp->st_ctim.tv_sec) {
-      return (-1);
+    if b.statp!.lastModification.timespec.tv_sec < a.statp!.lastModification.timespec.tv_sec {
+      return .orderedDescending
     }
-    if (b->fts_statp->st_ctim.tv_nsec >
-        a->fts_statp->st_ctim.tv_nsec) {
-      return (1);
+    if b.statp!.lastModification.timespec.tv_nsec > a.statp!.lastModification.timespec.tv_nsec {
+      return .orderedAscending
     }
-    if (b->fts_statp->st_ctim.tv_nsec <
-        a->fts_statp->st_ctim.tv_nsec) {
-      return (-1);
+    if b.statp!.lastModification.timespec.tv_nsec < a.statp!.lastModification.timespec.tv_nsec {
+      return .orderedDescending
     }
     if (options.f_samesort) {
-      return (strcoll(b->fts_name, a->fts_name));
+      return ComparisonResult(rawValue: strcoll(b.name, a.name))!
     }
     else {
-      return (strcoll(a->fts_name, b->fts_name));
+      return ComparisonResult(rawValue: strcoll(a.name, b.name))!
     }
   }
 
-  int
-  revstatcmp(const FTSENT *a, const FTSENT *b)
-  {
-
+  func revstatcmp(_ a : FTSEntry, _ b : FTSEntry) -> ComparisonResult {
     return (statcmp(b, a));
   }
 
-  int
-  sizecmp(const FTSENT *a, const FTSENT *b)
-  {
-
-    if (b->fts_statp->st_size > a->fts_statp->st_size) {
-      return (1);
+  func sizecmp(_ a : FTSEntry, _ b : FTSEntry) -> ComparisonResult {
+    if b.statp!.size > a.statp!.size {
+      return .orderedAscending
     }
-    if (b->fts_statp->st_size < a->fts_statp->st_size) {
-      return (-1);
+    if b.statp!.size < a.statp!.size {
+      return .orderedDescending
     }
-    return (strcoll(a->fts_name, b->fts_name));
+    return ComparisonResult(rawValue: strcoll(a.name, b.name))!
   }
 
-  int
-  revsizecmp(const FTSENT *a, const FTSENT *b)
-  {
-
-    return (sizecmp(b, a));
+  func revsizecmp(_ a : FTSEntry, _ b : FTSEntry) -> ComparisonResult {
+    return (sizecmp(b, a))
   }
 }

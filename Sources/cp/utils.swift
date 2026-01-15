@@ -84,7 +84,7 @@ extension cp {
   }
 
 
-  func copy_file(_ entp : FtsEntry, _ dnex : Bool, _ target : String) -> Bool {
+  func copy_file(_ entp : FTSEntry, _ dnex : Bool, _ target : String) -> Bool {
 //    struct stat to_stat;
 //    struct copyfile_context cpctx;
 //    copyfile_state_t cpfs;
@@ -390,7 +390,7 @@ extension cp {
     return rval
   }
 
-  func copy_link(_ p : FtsEntry, _ exists : Bool, _ target : String) -> Bool {
+  func copy_link(_ p : FTSEntry, _ exists : Bool, _ target : String) -> Bool {
 //    ssize_t len;
 //    char llink[PATH_MAX];
 

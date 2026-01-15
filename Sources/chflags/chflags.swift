@@ -205,7 +205,7 @@ struct ATFlags : OptionSet {
       
       if (options.fts_options.contains(.LOGICAL) ||
           (options.fts_options.contains(.COMFOLLOW) &&
-           p.level == FTS_ROOTLEVEL)) {
+           p.level == CMigration.FTS_ROOTLEVEL)) {
         atflag = []
       }
       else {

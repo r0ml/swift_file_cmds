@@ -375,7 +375,7 @@ func siginfo_handler(_ sig : Int32) {
     for var p in ftsp {
       var atflag : Int32
 
-      if options.fts_options.contains(.LOGICAL) || (options.fts_options.contains(.COMFOLLOW) && p.level == FTS_ROOTLEVEL) {
+      if options.fts_options.contains(.LOGICAL) || (options.fts_options.contains(.COMFOLLOW) && p.level == CMigration.FTS_ROOTLEVEL) {
         atflag = 0;
       }
       else {

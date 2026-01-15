@@ -407,7 +407,7 @@ struct ignentry {
     exit(rval);
   }
 
-  func linkchk(_ p : FtsEntry) -> Bool {
+  func linkchk(_ p : FTSEntry) -> Bool {
 /*    struct links_entry {
       struct links_entry *next;
       struct links_entry *previous;
@@ -562,7 +562,7 @@ struct ignentry {
 
   var buckets = Buckets()
 
-  func dirlinkchk(_ p : FtsEntry) -> Bool {
+  func dirlinkchk(_ p : FTSEntry) -> Bool {
 //    static const size_t links_hash_initial_size = 8192;
 //    static struct links_entry **buckets;
 //    static struct links_entry *free_list;
@@ -751,7 +751,7 @@ usage: du [-Aclnx] [-H | -L | -P] [-g | -h | -k | -m] [-a | -s | -d depth] [-B b
   }
   var ignore = Ignore()
 
-  func ignorep(_ ent : FtsEntry) -> Bool {
+  func ignorep(_ ent : FTSEntry) -> Bool {
 //    #ifdef __APPLE__
     if ent.statp?.filetype == .directory && "fd" == ent.name {
       var sfsb = statfs()
