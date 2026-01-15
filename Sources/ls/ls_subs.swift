@@ -36,7 +36,7 @@
  */
 
 import CMigration
-
+import Darwin
 
 extension ls {
 
@@ -49,25 +49,27 @@ extension ls {
    * traversal it passes linked lists of structures to display() which represent
    * a superset (may be exact set) of the files to be displayed.
    */
-  func traverse(int argc, char *argv[], int options)
-  {
-    FTS *ftsp;
-    FTSENT *p, *chp;
-    int ch_options, error;
+  func traverse() {
+    //    FTSENT *p, *chp;
+    //    int ch_options, error;
 
-    if ((ftsp =
-         fts_open(argv, options, f_nosort ? NULL : mastercmp)) == NULL)
-        err(1, "fts_open");
+    guard let ftsp = try FTSWalker(options.args, options.fts_options, options.f_nosort ? nil : mastercmp) else {
+      //    if ((ftsp = fts_open(argv, options, options.f_nosort ? NULL : mastercmp)) == NULL) {
+      err(1, "fts_open")
+      return
+    }
 
     /*
      * We ignore errors from fts_children here since they will be
      * replicated and signalled on the next call to fts_read() below.
      */
     chp = fts_children(ftsp, 0);
-    if (chp != NULL)
-        display(NULL, chp, options);
-    if (f_listdir) {
-      fts_close(ftsp);
+    if (chp != NULL) {
+      display(nil, chp, options);
+    }
+
+    if (options.f_listdir) {
+      //      fts_close(ftsp);
       return;
     }
 
@@ -75,88 +77,84 @@ extension ls {
      * If not recursing down this tree and don't need stat info, just get
      * the names.
      */
-    ch_options = !f_recursive &&
-    options & FTS_NOSTAT ? FTS_NAMEONLY : 0;
+    let ch_options = !options.f_recursive && options.fts_options.contains(.NOSTAT) ? FTSFlags.NAMEONLY : []
 
-    while ((void)(errno = 0), (p = fts_read(ftsp)) != NULL)
-            switch (p->fts_info) {
-    case FTS_DC:
-      warnx("%s: directory causes a cycle", p->fts_name);
-      if (unix2003_compat) {
-        rval = 1;
-      }
-      break;
-    case FTS_DNR:
-    case FTS_ERR:
-      warnx("%s: %s", p->fts_path, strerror(p->fts_errno));
-      rval = 1;
-      break;
-    case FTS_D:
-      if (p->fts_level != FTS_ROOTLEVEL &&
-          p->fts_name[0] == '.' && !f_listdot) {
-        fts_set(ftsp, p, FTS_SKIP);
-        break;
-      }
-
-      if (IS_DATALESS(p->fts_statp)) {
-        fts_set(ftsp, p, FTS_SKIP);
-        break;
-      }
-
-      if ((options & FTS_XDEV) &&
-          (p->fts_dev != ftsp->fts_dev)) {
-        fts_set(ftsp, p, FTS_SKIP);
-        break;
-      }
-
-      /*
-       * If already output something, put out a newline as
-       * a separator.  If multiple arguments, precede each
-       * directory with its name.
-       */
-      if (output) {
-        putchar('\n');
-        (void)printname(p->fts_path);
-        puts(":");
-      } else if (argc > 1) {
-        (void)printname(p->fts_path);
-        puts(":");
-        output = 1;
-      }
-      chp = fts_children(ftsp, ch_options);
-      if (unix2003_compat && ((options & FTS_LOGICAL) != 0)) {
-        FTSENT *curr;
-        for (curr = chp; curr; curr = curr->fts_link) {
-          if (curr->fts_info == FTS_SLNONE) {
-            curr->fts_number = NO_PRINT;
+    var rval : Int32 = 0
+  loop:
+    for var p in ftsp {
+      switch p.info {
+        case .DC:
+          warnx("\(p.name): directory causes a cycle")
+          if (unix2003_compat) {
+            rval = 1;
           }
-        }
-      }
-      display(p, chp, options);
+        case .DNR, .ERR:
+          warnx("\(p.path): \(p.errno.localizedDescription)")
+          rval = 1
+        case .D:
+          if p.level != FTS_ROOTLEVEL &&
+              p.name.hasPrefix(".") && !options.f_listdot {
+            p.setAction(FTSAction.SKIP)
+            break;
+          }
 
-      if (!f_recursive && chp != NULL) {
-        (void)fts_set(ftsp, p, FTS_SKIP);
+          if IS_DATALESS(p.statp) {
+            p.setAction(FTSAction.SKIP)
+            break;
+          }
+
+          if options.fts_options.contains(.XDEV) && p.dev != ftsp.dev {
+            p.setAction(FTSAction.SKIP)
+            break;
+          }
+
+          /*
+           * If already output something, put out a newline as
+           * a separator.  If multiple arguments, precede each
+           * directory with its name.
+           */
+          if (output) {
+            putchar('\n');
+            (void)printname(p->fts_path);
+            puts(":");
+          } else if (argc > 1) {
+            (void)printname(p->fts_path);
+            puts(":");
+            output = 1;
+          }
+          chp = fts_children(ftsp, ch_options);
+          if (unix2003_compat && ((options & FTS_LOGICAL) != 0)) {
+            FTSENT *curr;
+            for (curr = chp; curr; curr = curr->fts_link) {
+              if (curr->fts_info == FTS_SLNONE) {
+                curr->fts_number = NO_PRINT;
+              }
+            }
+          }
+          display(p, chp, options);
+
+          if !options.f_recursive && chp != nil {
+            p.setAction(FTSAction.SKIP)
+          }
+          break;
+        case .SLNONE:  /* Same as default unless Unix conformance */
+          if unix2003_compat {
+            if options.fts_options.contains(.LOGICAL) {  /* -L was specified */
+              warnx("\(p.name): \(p.errno.localizedDescription)")
+              rval = 1
+            }
+          }
+        case .DP:
+          /* If we have fts_errno set from the preorder run, just bail out */
+          if p.errno {
+            errno = p.errno.code
+            break loop
+          }
+        default:
+          break;
       }
-      break;
-    case FTS_SLNONE:  /* Same as default unless Unix conformance */
-      if (unix2003_compat) {
-        if ((options & FTS_LOGICAL) != 0) {  /* -L was specified */
-          warnx("%s: %s", p->fts_name, strerror(p->fts_errno ?: ENOENT));
-          rval = 1;
-        }
-      }
-      break;
-    case FTS_DP:
-      /* If we have fts_errno set from the preorder run, just bail out */
-      if (p->fts_errno) {
-        errno = p->fts_errno;
-        goto out;
-      }
-      break;
-    default:
-      break;
     }
-  out:
+//  out:
     /* Map ENEEDAUTH to EPERM which is a well-known error code */
     error = (errno == ENEEDAUTH) ? EPERM : errno;
     fts_close(ftsp);
@@ -172,7 +170,7 @@ extension ls {
    * along with any other necessary information to the print function.  P
    * points to the parent directory of the display list.
    */
-  func display(const FTSENT *p, FTSENT *list, int options) {
+  func display(_ p : FtsEntry?, FTSENT *list, int options) {
     struct stat *sp;
     DISPLAY d;
     FTSENT *cur;
@@ -204,7 +202,7 @@ extension ls {
     u_long width[9];
     int i;
 
-    needstats = f_inode || f_longform || f_size;
+    needstats = options.f_inode || options.f_longform || options.f_size;
     flen = 0;
     btotal = 0;
 
@@ -233,9 +231,9 @@ extension ls {
       }
       if (i < LS_COLWIDTHS_FIELDS) {
 
-        if (!f_color) {
+        if (!options.f_color) {
 
-          f_notabs = 0;
+          options.f_notabs = 0;
         }
       }
 
@@ -272,13 +270,13 @@ extension ls {
          */
         if (p == NULL) {
           /* Directories will be displayed later. */
-          if (cur->fts_info == FTS_D && !f_listdir) {
+          if (cur->fts_info == FTS_D && !options.f_listdir) {
             cur->fts_number = NO_PRINT;
             continue;
           }
         } else {
           /* Only display dot file if -a/-A set. */
-          if (cur->fts_name[0] == '.' && !f_listdot) {
+          if (cur->fts_name[0] == '.' && !options.f_listdot) {
             cur->fts_number = NO_PRINT;
             continue;
           }
@@ -286,7 +284,7 @@ extension ls {
         if (cur->fts_namelen > maxlen) {
           maxlen = cur->fts_namelen;
         }
-        if (f_octal || f_octal_escape) {
+        if (options.f_octal || options.f_octal_escape) {
           u_long t = len_octal(cur->fts_name, cur->fts_namelen);
 
           if (t > maxlen) {
@@ -309,8 +307,8 @@ extension ls {
           }
 
           btotal += sp->st_blocks;
-          if (f_longform) {
-            if (f_numericonly) {
+          if (options.f_longform) {
+            if (options.f_numericonly) {
               (void)snprintf(nuser, sizeof(nuser),
                              "%u", sp->st_uid);
               (void)snprintf(ngroup, sizeof(ngroup),
@@ -343,7 +341,7 @@ extension ls {
             if ((glen = strlen(group)) > maxgroup) {
               maxgroup = glen;
             }
-            if (f_flags) {
+            if (options.f_flags) {
               flags = fflagstostr(sp->st_flags);
               if (flags != NULL && *flags == '\0') {
                 free(flags);
@@ -383,7 +381,7 @@ extension ls {
             if (xattr_size < 0) {
               xattr_size = 0;
             }
-            if ((xattr_size > 0) && f_xattr) {
+            if ((xattr_size > 0) && options.f_xattr) {
               /* collect sizes */
               np->xattr_names = malloc(xattr_size);
               listxattr(filename, np->xattr_names, xattr_size, XATTR_NOFOLLOW);
@@ -412,7 +410,7 @@ extension ls {
             if (IS_DATALESS(sp)) {
               np->mode_suffix = '%';
             }
-            if (!f_acl) {
+            if (!options.f_acl) {
               acl_free(np->acl);
               np->acl = NULL;
             }
@@ -426,7 +424,7 @@ extension ls {
               }
             }
 
-            if (f_flags) {
+            if (options.f_flags) {
               np->flags = &np->data[ulen + glen + 2];
               (void)strcpy(np->flags, flags);
               free(flags);
@@ -444,7 +442,7 @@ extension ls {
        * total block count.  In this case, we display the total only
        * on the second (p != NULL) pass.
        */
-      if (!entries && (!(f_longform || f_size) || p == NULL)) {
+      if (!entries && (!(options.f_longform || options.f_size) || p == NULL)) {
         return;
       }
 
@@ -459,20 +457,20 @@ extension ls {
         d.s_group = maxgroup;
         d.s_inode = snprintf(NULL, 0, "%llu", maxinode);
         d.s_nlink = snprintf(NULL, 0, "%llu", maxnlink);
-        sizelen = f_humanval ? HUMANVALSTR_LEN :
+        sizelen = options.f_humanval ? HUMANVALSTR_LEN :
         snprintf(NULL, 0, "%lld", maxsize);
         if (d.s_size < sizelen) {
           d.s_size = sizelen;
         }
         d.s_user = maxuser;
       }
-      if (f_thousands) {      /* make space for commas */
+      if (options.f_thousands) {      /* make space for commas */
         d.s_size += (d.s_size - 1) / 3;
       }
       printfcn(&d);
       output = 1;
 
-      if (f_longform) {
+      if (options.f_longform) {
         for (cur = list; cur; cur = cur->fts_link) {
           np = cur->fts_pointer;
           if (np) {
@@ -510,7 +508,7 @@ extension ls {
           return (namecmp(*a, *b));
 
       if (a_info != b_info &&
-          (*a)->fts_level == FTS_ROOTLEVEL && !f_listdir) {
+          (*a)->fts_level == FTS_ROOTLEVEL && !options.f_listdir) {
         if (a_info == FTS_D)
             return (1);
         if (b_info == FTS_D)

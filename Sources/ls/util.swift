@@ -152,7 +152,7 @@ extension ls {
 	const char *p;
 	mbstate_t mbs;
 	wchar_t wc;
-	size_t clen;
+	size_t clen; 
 	unsigned char ch;
 	int goodchar, i, len, prtlen;
 
@@ -164,7 +164,7 @@ extension ls {
 			for (i = 0; i < (int)clen; i++)
 				putchar((unsigned char)s[i]);
 			len += wcwidth(wc);
-		} else if (goodchar && f_octal_escape &&
+  } else if (goodchar && options.f_octal_escape &&
 #if WCHAR_MIN < 0
                     wc >= 0 &&
 #endif

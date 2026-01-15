@@ -36,6 +36,7 @@
  */
 
 import CMigration
+import Darwin
 
 extension ls {
 
@@ -78,13 +79,15 @@ extension ls {
 
     assert(dp);
     if (unix2003_compat && (dp->list != NULL)) {
-      if (dp->list->fts_level != FTS_ROOTLEVEL && (f_longform || f_size))
-          (void)printf("total %qu\n", (u_int64_t)howmany(dp->btotal, blocksize));
+      if (dp->list->fts_level != FTS_ROOTLEVEL && (options.f_longform || options.f_size)) {
+        (void)printf("total %qu\n", (u_int64_t)howmany(dp->btotal, blocksize));
+      }
     }
 
     for (p = dp->list; p; p = p->fts_link) {
-      if (IS_NOPRINT(p))
-          continue;
+      if (IS_NOPRINT(p)) {
+        continue;
+      }
       (void)printaname(p, dp->s_inode, dp->s_block);
       (void)putchar('\n');
     }
@@ -94,12 +97,15 @@ extension ls {
    * print name in current style
    */
   func printname(_ name : String) -> Int {
-    if (options.f_octal || options.f_octal_escape)
-        return prn_octal(name);
-    else if (f_nonprint)
-              return prn_printable(name);
-    else
+    if (options.f_octal || options.f_octal_escape) {
+      return prn_octal(name);
+    }
+    else if (options.f_nonprint) {
+      return prn_printable(name);
+    }
+    else {
       return prn_normal(name);
+    }
   }
 
   func get_abmon(int mon) -> String {
@@ -129,11 +135,13 @@ extension ls {
 
     width = donelen = 0;
     while ((clen = mbrtowc(&wc, month + donelen, MB_LEN_MAX, NULL)) != 0) {
-      if (clen == (size_t)-1 || clen == (size_t)-2)
-          return (-1);
+      if (clen == (size_t)-1 || clen == (size_t)-2) {
+        return (-1);
+      }
       donelen += clen;
-      if ((w = wcwidth(wc)) == (size_t)-1)
-          return (-1);
+      if ((w = wcwidth(wc)) == (size_t)-1) {
+        return (-1);
+      }
       width += w;
     }
 
@@ -152,8 +160,9 @@ extension ls {
         return;
       }
       months_width[i] = width;
-      if (width > month_max_size)
-          month_max_size = width;
+      if (width > month_max_size) {
+        month_max_size = width;
+      }
     }
 
     for (i = 0; i < 12; i++)
@@ -258,14 +267,18 @@ func printacl(acl_t acl, int isdir) {
     for (index = 0;
          acl_get_entry(acl, entry == NULL ? ACL_FIRST_ENTRY : ACL_NEXT_ENTRY, &entry) == 0;
          index++) {
-      if (acl_get_tag_type(entry, &tag) != 0)
-          continue;
-      if (acl_get_flagset_np(entry, &flags) != 0)
-          continue;
-      if (acl_get_permset(entry, &perms) != 0)
-          continue;
-      if ((applicable = (uuid_t *) acl_get_qualifier(entry)) == NULL)
-          continue;
+      if (acl_get_tag_type(entry, &tag) != 0) {
+        continue;
+      }
+      if (acl_get_flagset_np(entry, &flags) != 0) {
+        continue;
+      }
+      if (acl_get_permset(entry, &perms) != 0) {
+        continue;
+      }
+      if ((applicable = (uuid_t *) acl_get_qualifier(entry)) == NULL) {
+        continue;
+      }
       name = uuid_to_name(applicable);
       acl_free(applicable);
       switch(tag) {
@@ -285,21 +298,26 @@ func printacl(acl_t acl, int isdir) {
                    acl_get_flag_np(flags, ACL_ENTRY_INHERITED) ? " inherited" : "",
                    type);
 
-      if (name)
-          free(name);
+      if (name) {
+        free(name);
+      }
 
       for (i = 0, first = 0; acl_perms[i].name != NULL; i++) {
-        if (acl_get_perm_np(perms, acl_perms[i].perm) == 0)
-            continue;
-        if (!(acl_perms[i].flags & (isdir ? ACL_PERM_DIR : ACL_PERM_FILE)))
-            continue;
+        if (acl_get_perm_np(perms, acl_perms[i].perm) == 0) {
+          continue;
+        }
+        if (!(acl_perms[i].flags & (isdir ? ACL_PERM_DIR : ACL_PERM_FILE))) {
+          continue;
+        }
         (void)printf("%s%s", first++ ? "," : "", acl_perms[i].name);
       }
       for (i = 0; acl_flags[i].name != NULL; i++) {
-        if (acl_get_flag_np(flags, acl_flags[i].flag) == 0)
-            continue;
-        if (!(acl_flags[i].flags & (isdir ? ACL_PERM_DIR : ACL_PERM_FILE)))
-            continue;
+        if (acl_get_flag_np(flags, acl_flags[i].flag) == 0) {
+          continue;
+        }
+        if (!(acl_flags[i].flags & (isdir ? ACL_PERM_DIR : ACL_PERM_FILE))) {
+          continue;
+        }
         (void)printf("%s%s", first++ ? "," : "", acl_flags[i].name);
       }
 
@@ -317,7 +335,7 @@ func printacl(acl_t acl, int isdir) {
     int color_printed = 0;
 
     if ((dp->list == NULL || dp->list->fts_level != FTS_ROOTLEVEL) &&
-        (f_longform || f_size)) {
+        (options.f_longform || options.f_size)) {
       (void)printf("total %qu\n", (u_int64_t)howmany(dp->btotal, blocksize));
     }
 
@@ -326,7 +344,7 @@ func printacl(acl_t acl, int isdir) {
         continue;
       }
       sp = p->fts_statp;
-      if (f_inode) {
+      if (options.f_inode) {
         (void)printf("%*ju ",
                      dp->s_inode, (uintmax_t)sp->st_ino);
       }
@@ -356,7 +374,7 @@ func printacl(acl_t acl, int isdir) {
                      np->group);
       }
 
-      if (f_flags) {
+      if (options.f_flags) {
         (void)printf("%-*s ", dp->s_flags, np->flags);
       }
 
@@ -366,30 +384,30 @@ func printacl(acl_t acl, int isdir) {
       else {
         printsize(dp->s_size, sp->st_size);
       }
-      if (f_accesstime) {
+      if (options.f_accesstime) {
         printtime(sp->st_atime);
       }
-      else if (f_birthtime) {
+      else if (options.f_birthtime) {
         printtime(sp->st_birthtime);
       }
-      else if (f_statustime) {
+      else if (options.f_statustime) {
         printtime(sp->st_ctime);
       }
       else {
         printtime(sp->st_mtime);
       }
 
-      if (f_color) {
+      if (options.f_color) {
         color_printed = colortype(sp->st_mode, sp->st_flags);
       }
 
       (void)printname(p->fts_name);
 
-      if (f_color && color_printed) {
+      if (options.f_color && color_printed) {
         endcolor(0);
       }
 
-      if (f_type) {
+      if (options.f_type) {
         (void)printtype(sp->st_mode);
       }
       if (S_ISLNK(sp->st_mode)) {
@@ -397,10 +415,10 @@ func printacl(acl_t acl, int isdir) {
       }
       (void)putchar('\n');
 
-      if (np->xattr_count && f_xattr) {
+      if (np->xattr_count && options.f_xattr) {
         printxattr(dp, np->xattr_count, np->xattr_names, np->xattr_sizes);
       }
-      if (np->acl != NULL && f_acl) {
+      if (np->acl != NULL && options.f_acl) {
         printacl(np->acl, S_ISDIR(sp->st_mode));
       }
 
@@ -449,7 +467,7 @@ func printacl(acl_t acl, int isdir) {
     int row;
     int tabwidth;
 
-    if (f_notabs) {
+    if (options.f_notabs) {
       tabwidth = 1;
     }
     else {
@@ -484,7 +502,7 @@ func printacl(acl_t acl, int isdir) {
     if (options.f_size) {
       colwidth += dp->s_block + 1;
     }
-    if (f_type) {
+    if (options.f_type) {
       colwidth += 1;
     }
 
@@ -569,7 +587,7 @@ func printacl(acl_t acl, int isdir) {
       endcolor(0);
     }
 
-    if (f_type) {
+    if (options.f_type) {
       chcnt += printtype(sp->st_mode);
     }
     return (chcnt);
@@ -596,10 +614,12 @@ func printacl(acl_t acl, int isdir) {
        * dereference it, though it doesn't always look the nicest.
        */
       for (qlen = 0; fmt[qlen] != '\0' && qlen < len; qlen++) {
-        if (fmt[qlen] != ' ')
-            str[qlen] = '?';
-        else
+        if (fmt[qlen] != ' ') {
+          str[qlen] = '?';
+        }
+        else {
           str[qlen] = ' ';
+        }
       }
 
       return (qlen);
@@ -629,24 +649,30 @@ func printacl(acl_t acl, int isdir) {
     const char *format;
     static int d_first = -1;
 
-    if (d_first < 0)
-        d_first = (*nl_langinfo(D_MD_ORDER) == 'd');
-    if (now == 0)
-        now = time(NULL);
+    if (d_first < 0) {
+      d_first = (*nl_langinfo(D_MD_ORDER) == 'd');
+    }
+    if (now == 0) {
+      now = time(NULL);
+    }
 
     #define	SIXMONTHS	((365 / 2) * 86400)
-    if (f_timeformat)  /* user specified format */
-        format = options.f_timeformat;
-    else if (f_sectime)
-              /* mmm dd hh:mm:ss yyyy || dd mmm hh:mm:ss yyyy */
-              format = d_first ? "%e %b %T %Y" : "%b %e %T %Y";
+    if (options.f_timeformat) {  /* user specified format */
+      format = options.f_timeformat;
+    }
+    else if (options.f_sectime) {
+      /* mmm dd hh:mm:ss yyyy || dd mmm hh:mm:ss yyyy */
+      format = d_first ? "%e %b %T %Y" : "%b %e %T %Y";
+    }
     else if (ftime + SIXMONTHS > now &&
-             ftime < now + (unix2003_compat ? 1 : SIXMONTHS))
-              /* mmm dd hh:mm || dd mmm hh:mm */
-              format = d_first ? "%e %b %R" : "%b %e %R";
-    else
-    /* mmm dd  yyyy || dd mmm  yyyy */
+             ftime < now + (unix2003_compat ? 1 : SIXMONTHS)) {
+      /* mmm dd hh:mm || dd mmm hh:mm */
+      format = d_first ? "%e %b %R" : "%b %e %R";
+    }
+    else {
+      /* mmm dd  yyyy || dd mmm  yyyy */
       format = d_first ? "%e %b  %Y" : "%b %e  %Y";
+    }
     ls_strftime(longstring, sizeof(longstring), format, localtime(&ftime));
     fputs(longstring, stdout);
     fputc(' ', stdout);
@@ -654,7 +680,7 @@ func printacl(acl_t acl, int isdir) {
 
   func printtype(u_int mode) -> Int {
 
-    if (f_slash) {
+    if (options.f_slash) {
       if ((mode & S_IFMT) == S_IFDIR) {
         (void)putchar('/');
         return (1);
@@ -703,18 +729,21 @@ func printacl(acl_t acl, int isdir) {
   func printcolor_termcap(Colors c) {
     char *ansiseq;
 
-    if (colors[c].bold)
-        tputs(enter_bold, 1, putch);
+    if (colors[c].bold) {
+      tputs(enter_bold, 1, putch);
+    }
 
     if (colors[c].num[0] != -1) {
       ansiseq = tgoto(ansi_fgcol, 0, colors[c].num[0]);
-      if (ansiseq)
-          tputs(ansiseq, 1, putch);
+      if (ansiseq) {
+        tputs(ansiseq, 1, putch);
+      }
     }
     if (colors[c].num[1] != -1) {
       ansiseq = tgoto(ansi_bgcol, 0, colors[c].num[1]);
-      if (ansiseq)
-          tputs(ansiseq, 1, putch);
+      if (ansiseq) {
+        tputs(ansiseq, 1, putch);
+      }
     }
   }
 
@@ -722,21 +751,26 @@ func printacl(acl_t acl, int isdir) {
 
     printf("\033[");
 
-    if (colors[c].bold)
-        printf("1");
-    if (colors[c].num[0] != -1)
-        printf(";3%d", colors[c].num[0]);
-    if (colors[c].num[1] != -1)
-        printf(";4%d", colors[c].num[1]);
+    if (colors[c].bold) {
+      printf("1");
+    }
+    if (colors[c].num[0] != -1) {
+      printf(";3%d", colors[c].num[0]);
+    }
+    if (colors[c].num[1] != -1) {
+      printf(";4%d", colors[c].num[1]);
+    }
     printf("m");
   }
 
   func printcolor(Colors c) {
 
-    if (explicitansi)
-        printcolor_ansi(c);
-    else
+    if (explicitansi) {
+      printcolor_ansi(c);
+    }
+    else {
       printcolor_termcap(c);
+    }
   }
 
     func endcolor_termcap(int sig) {
@@ -749,10 +783,12 @@ func printacl(acl_t acl, int isdir) {
   }
 
  func endcolor(int sig) {
-    if (explicitansi)
-        endcolor_ansi();
-    else
-      endcolor_termcap(sig);
+   if (explicitansi) {
+     endcolor_ansi();
+   }
+   else {
+     endcolor_termcap(sig);
+   }
   }
 
     func colortype(mode_t mode, u_long flags) -> Int {
@@ -865,16 +901,18 @@ func printacl(acl_t acl, int isdir) {
   }
 
 
-  func printlink(const FTSENT *p) {
+  func printlink(_ p : FtsEntry) {
     int lnklen;
     char name[MAXPATHLEN + 1];
     char path[MAXPATHLEN + 1];
 
-    if (p->fts_level == FTS_ROOTLEVEL)
-        (void)snprintf(name, sizeof(name), "%s", p->fts_name);
-    else
+    if p.level == FTS_ROOTLEVEL {
+      (void)snprintf(name, sizeof(name), "%s", p->fts_name);
+    }
+    else {
       (void)snprintf(name, sizeof(name),
                      "%s/%s", p->fts_parent->fts_accpath, p->fts_name);
+    }
     if ((lnklen = readlink(name, path, sizeof(path) - 1)) == -1) {
       (void)fprintf(stderr, "\nls: %s: %s\n", name, strerror(errno));
       return;
@@ -886,7 +924,7 @@ func printacl(acl_t acl, int isdir) {
 
     func printsize(size_t width, off_t bytes) {
 
-    if (f_humanval) {
+      if (options.f_humanval) {
       /*
        * Reserve one space before the size and allocate room for
        * the trailing '\0'.
@@ -900,7 +938,8 @@ func printacl(acl_t acl, int isdir) {
       /* This format assignment needed to work round gcc bug. */
       const char * const format = "%'*lld ";
       (void)printf(format, (u_int)width, bytes);
-    } else
+    } else {
       (void)printf("%*lld ", (u_int)width, bytes);
+    }
   }
 }

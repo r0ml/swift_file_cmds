@@ -51,7 +51,6 @@ enum WhenColor : Int {
  */
 #define	STRBUF_SIZEOF(t)	(1 + CHAR_BIT * sizeof(t) / 3 + 1)
 
-#define	IS_DATALESS(sp)		(f_dataless && (sp) && ((sp)->st_flags & SF_DATALESS))
 
 /*
  * MAKENINES(n) turns n into (10**n)-1.  This is useful for converting a width
@@ -152,6 +151,10 @@ do_color_auto(const char *term)
 
 
 @main struct ls : ShellCommand {
+
+  func IS_DATALESS(_ sp : FileMetadata?) -> Bool {
+    return options.f_dataless && sp != nil && sp!.flags.contains(.SF_DATALESS)
+  }
 
   let unix2003_compat = true
 
