@@ -35,222 +35,262 @@
 import CMigration
 import Darwin
 
-typealias pack_t = (Int, [UInt]) throws(StringError) -> UInt
-
-enum StringError : String, Error {
-  case iMajorError = "invalid major number"
-  case iMinorError = "invalid minor number"
-  case tooManyFields = "too many fields for format"
-}
-
-func makedev(_ major: UInt, _ minor: UInt) -> UInt {
-  return (major << 24) | minor
-}
-
-func major(_ x : UInt) -> UInt32 {
-  return UInt32((x >> 24) & 0xff)
-}
-
-func minor(_ x : UInt) -> UInt32 {
-  return UInt32(x & 0xffffff)
-}
-
-	/* exported */
-func pack_native(_ n : Int, _ numbers : [UInt]) throws(StringError) -> UInt {
-  var dev : UInt = 0
-
-	if n == 2 {
-    dev = makedev(numbers[0], numbers[1])
-    if major(dev) != numbers[0] {
-      throw .iMajorError
-    }
-    else if minor(dev) != numbers[1] {
-      throw .iMinorError
-    }
-  } else {
-    throw .tooManyFields
+extension mknod {
+  typealias pack_t = ([UInt]) throws(StringError) -> UInt
+  
+  enum StringError : String, Error {
+    case iMajorError = "invalid major number"
+    case iMinorError = "invalid minor number"
+    case tooManyFields = "too many fields for format"
+    case invalidUnit = "Invalid unit number"
+    case invalidSubunit = "Invalid subunit number"
   }
-	return (dev);
-}
-
-/*
-func pack_netbsd(_ n : Int, _ numbers : [UInt]) throws(StringError) -> UInt {
-  var dev : UInt = 0
-
-  if n == 2 {
-    dev = makedev_netbsd(numbers[0], numbers[1])
-    if major_netbsd(dev) != numbers[0] {
-      throw .iMajorError
-    }
-    else if minor_netbsd(dev) != numbers[1] {
-      throw .iMinorError
+  
+  func makedev(_ major: UInt, _ minor: UInt) -> UInt {
+    return (major << 24) | minor
+  }
+  
+  func major(_ x : UInt) -> UInt32 {
+    return UInt32((x >> 24) & 0xff)
+  }
+  
+  func minor(_ x : UInt) -> UInt32 {
+    return UInt32(x & 0xffffff)
+  }
+  
+  /* exported */
+  func pack_native(_ numbers : [UInt]) throws(StringError) -> UInt {
+    var dev : UInt = 0
+    
+    if numbers.count == 2 {
+      dev = makedev(numbers[0], numbers[1])
+      if major(dev) != numbers[0] {
+        throw .iMajorError
+      }
+      else if minor(dev) != numbers[1] {
+        throw .iMinorError
+      }
     } else {
       throw .tooManyFields
     }
+    return (dev);
   }
-  return dev
-}
-*/
-
-
-
+  
+  // ===============================================
+  
+  /*
+   func pack_netbsd(_ n : Int, _ numbers : [UInt]) throws(StringError) -> UInt {
+   var dev : UInt = 0
+   
+   if n == 2 {
+   dev = makedev_netbsd(numbers[0], numbers[1])
+   if major_netbsd(dev) != numbers[0] {
+   throw .iMajorError
+   }
+   else if minor_netbsd(dev) != numbers[1] {
+   throw .iMinorError
+   } else {
+   throw .tooManyFields
+   }
+   }
+   return dev
+   }
+   */
+  
+  // ===============================================
+  
   func makedev_freebsd(_ x: UInt, _ y: UInt) -> UInt {
     return ((x << 8) & 0x0000ff00) | y & 0xffff00ff
   }
-
+  
   func major_freebsd(_ x : UInt) -> UInt32 {
     return UInt32((x & 0x0000ff0) >> 8)
   }
-
+  
   func minor_freebsd(_ x : UInt) -> UInt32 {
     return UInt32(x & 0xffff00ff)
   }
-
-func pack_freebsd(_ n : Int, _ numbers : [UInt]) throws(StringError) -> UInt {
-  var dev : UInt = 0
-
-  if n == 2 {
-    dev = makedev_freebsd(numbers[0], numbers[1]);
-    if major_freebsd(dev) != numbers[0] {
-      throw .iMajorError
-    } else if minor_freebsd(dev) != numbers[1] {
-      throw .iMinorError
+  
+  func pack_freebsd(_ numbers : [UInt]) throws(StringError) -> UInt {
+    var dev : UInt = 0
+    
+    if numbers.count == 2 {
+      dev = makedev_freebsd(numbers[0], numbers[1]);
+      if major_freebsd(dev) != numbers[0] {
+        throw .iMajorError
+      } else if minor_freebsd(dev) != numbers[1] {
+        throw .iMinorError
+      }
+    } else {
+      throw .tooManyFields
     }
-  } else {
-    throw .tooManyFields
+    return dev
   }
-  return dev
+  
+  // ===============================================
+  
+  func makedev_8_8(_ x: UInt, _ y: UInt) -> UInt {
+    return ((x << 8) & 0x0000ff00) | y & 0x000000ff
+  }
+  
+  func major_8_8(_ x : UInt) -> UInt32 {
+    return UInt32((x & 0x0000ff0) >> 8)
+  }
+  
+  func minor_8_8(_ x : UInt) -> UInt32 {
+    return UInt32(x & 0x000000ff)
+  }
+  
+  func pack_8_8(_ numbers : [UInt]) throws(StringError) -> UInt {
+    var dev : UInt = 0
+    
+    if numbers.count == 2 {
+      dev = makedev_8_8(numbers[0], numbers[1])
+      if major_8_8(dev) != numbers[0] {
+        throw .iMajorError
+      } else if minor_8_8(dev) != numbers[1] {
+        throw .iMinorError
+      }
+    } else {
+      throw .tooManyFields
+    }
+    return dev
+  }
+  
+  // ===============================================
+  
+  func makedev_12_20(_ x: UInt, _ y: UInt) -> UInt {
+    return ((x << 20) & 0xfff00000) | y & 0x000fffff
+  }
+  
+  func major_12_20(_ x : UInt) -> UInt32 {
+    return UInt32((x & 0xfff00000) >> 20)
+  }
+  
+  func minor_12_20(_ x : UInt) -> UInt32 {
+    return UInt32(x & 0x000fffff)
+  }
+  
+  func pack_12_20(_ numbers : [UInt]) throws(StringError) -> UInt {
+    var dev : UInt = 0
+    
+    if numbers.count == 2 {
+      dev = makedev_12_20(numbers[0], numbers[1])
+      if major_12_20(dev) != numbers[0] {
+        throw .iMajorError
+      } else if minor_12_20(dev) != numbers[1] {
+        throw .iMinorError
+      }
+    } else {
+      throw .tooManyFields
+    }
+    return dev
+  }
+  
+  // ===============================================
+  
+  func makedev_14_18(_ x: UInt, _ y: UInt) -> UInt {
+    return ((x << 18) & 0xfffc0000) | y & 0x0003ffff
+  }
+  
+  func major_14_18(_ x : UInt) -> UInt32 {
+    return UInt32((x & 0xfffc0000) >> 18)
+  }
+  
+  func minor_14_18(_ x : UInt) -> UInt32 {
+    return UInt32(x & 0x0003ffff)
+  }
+  
+  func pack_14_18(_ numbers : [UInt]) throws(StringError) -> UInt {
+    var dev : UInt = 0
+    
+    if numbers.count == 2 {
+      dev = makedev_14_18(numbers[0], numbers[1])
+      if major_14_18(dev) != numbers[0] {
+        throw .iMajorError
+      } else if minor_14_18(dev) != numbers[1] {
+        throw .iMinorError
+      }
+    } else {
+      throw .tooManyFields
+    }
+    return dev
+  }
+  
+  // ===============================================
+  
+  func makedev_8_24(_ x: UInt, _ y: UInt) -> UInt {
+    return ((x << 24) & 0xff000000) | y & 0x00ffffff
+  }
+  
+  func major_8_24(_ x : UInt) -> UInt32 {
+    return UInt32((x & 0xff000000) >> 24)
+  }
+  
+  func minor_8_24(_ x : UInt) -> UInt32 {
+    return UInt32(x & 0x00ffffff)
+  }
+  
+  func pack_8_24(_ numbers : [UInt]) throws(StringError) -> UInt {
+    var dev : UInt = 0
+    
+    if numbers.count == 2 {
+      dev = makedev_8_24(numbers[0], numbers[1])
+      if major_8_24(dev) != numbers[0] {
+        throw .iMajorError
+      } else if minor_8_24(dev) != numbers[1] {
+        throw .iMinorError
+      }
+    } else {
+      throw .tooManyFields
+    }
+    return dev
+  }
+  
+  // ===============================================
+  
+  func makedev_12_12_8(_ x: UInt, _ y: UInt, _ z : UInt) -> UInt {
+    return ((x << 20) & 0xfff00000) | ((y << 8) & 0x000fff00) | (z & 0x000000ff)
+  }
+  
+  func major_12_12_8(_ x : UInt) -> UInt32 {
+    return UInt32((x & 0xfff00000) >> 20)
+  }
+  
+  func unit_12_12_8(_ x : UInt) -> UInt32 {
+    return UInt32((x & 0x000fff00) >> 8)
+  }
+  
+  func subunit_12_12_8(_ x : UInt) -> UInt32 {
+    return UInt32(x & 0x000000ff)
+  }
+  
+  func pack_bsdos(_ numbers : [UInt]) throws(StringError) -> UInt {
+    var dev : UInt = 0
+    
+    if numbers.count == 2 {
+      dev = makedev_12_20(numbers[0], numbers[1])
+      if major_12_20(dev) != numbers[0] {
+        throw .iMajorError
+      } else if minor_12_20(dev) != numbers[1] {
+        throw .iMinorError
+      }
+    } else if numbers.count == 3 {
+      dev = makedev_12_12_8(numbers[0], numbers[1], numbers[2])
+      if major_12_12_8(dev) != numbers[0] {
+        throw .iMajorError
+      }
+      if unit_12_12_8(dev) != numbers[1] {
+        throw .invalidUnit
+      }
+      if subunit_12_12_8(dev) != numbers[2] {
+        throw .invalidSubunit
+      }
+    } else {
+      throw .tooManyFields
+    }
+    return dev
+  }
+
+
 }
-
-
-  #define	major_8_8(x)		((int32_t)(((x) & 0x0000ff00) >> 8))
-  #define	minor_8_8(x)		((int32_t)(((x) & 0x000000ff) >> 0))
-  #define	makedev_8_8(x,y)	((dev_t)((((x) << 8) & 0x0000ff00) | \
-                                     (((y) << 0) & 0x000000ff)))
-
-  func pack_8_8(_ n : Int, _ numbers : [UInt]) throws(StringError) -> UInt {
-    dev_t dev = 0;
-
-    if (n == 2) {
-      dev = makedev_8_8(numbers[0], numbers[1]);
-      if ((u_long)major_8_8(dev) != numbers[0])
-          *error = iMajorError;
-      if ((u_long)minor_8_8(dev) != numbers[1])
-          *error = iMinorError;
-    } else
-      *error = tooManyFields;
-    return (dev);
-  }
-
-
-  #define	major_12_20(x)		((int32_t)(((x) & 0xfff00000) >> 20))
-  #define	minor_12_20(x)		((int32_t)(((x) & 0x000fffff) >>  0))
-  #define	makedev_12_20(x,y)	((dev_t)((((x) << 20) & 0xfff00000) | \
-                                       (((y) <<  0) & 0x000fffff)))
-
-  func pack_12_20(_ n : Int, _ numbers : [UInt]) throws(StringError) -> UInt {
-    dev_t dev = 0;
-
-    if (n == 2) {
-      dev = makedev_12_20(numbers[0], numbers[1]);
-      if ((u_long)major_12_20(dev) != numbers[0])
-          *error = iMajorError;
-      if ((u_long)minor_12_20(dev) != numbers[1])
-          *error = iMinorError;
-    } else
-      *error = tooManyFields;
-    return (dev);
-  }
-
-
-  #define	major_14_18(x)		((int32_t)(((x) & 0xfffc0000) >> 18))
-  #define	minor_14_18(x)		((int32_t)(((x) & 0x0003ffff) >>  0))
-  #define	makedev_14_18(x,y)	((dev_t)((((x) << 18) & 0xfffc0000) | \
-                                       (((y) <<  0) & 0x0003ffff)))
-
-  func pack_14_18(_ n : Int, _ numbers : [UInt]) throws(StringError) -> UInt {
-    dev_t dev = 0;
-
-    if (n == 2) {
-      dev = makedev_14_18(numbers[0], numbers[1]);
-      if ((u_long)major_14_18(dev) != numbers[0])
-          *error = iMajorError;
-      if ((u_long)minor_14_18(dev) != numbers[1])
-          *error = iMinorError;
-    } else
-      *error = tooManyFields;
-    return (dev);
-  }
-
-
-  #define	major_8_24(x)		((int32_t)(((x) & 0xff000000) >> 24))
-  #define	minor_8_24(x)		((int32_t)(((x) & 0x00ffffff) >>  0))
-  #define	makedev_8_24(x,y)	((dev_t)((((x) << 24) & 0xff000000) | \
-                                     (((y) <<  0) & 0x00ffffff)))
-
-  func pack_8_24(_ n : Int, _ numbers : [UInt]) throws(StringError) -> UInt {
-    dev_t dev = 0;
-
-    if (n == 2) {
-      dev = makedev_8_24(numbers[0], numbers[1]);
-      if ((u_long)major_8_24(dev) != numbers[0])
-          *error = iMajorError;
-      if ((u_long)minor_8_24(dev) != numbers[1])
-          *error = iMinorError;
-    } else
-      *error = tooManyFields;
-    return (dev);
-  }
-
-
-  #define	major_12_12_8(x)	((int32_t)(((x) & 0xfff00000) >> 20))
-  #define	unit_12_12_8(x)		((int32_t)(((x) & 0x000fff00) >>  8))
-  #define	subunit_12_12_8(x)	((int32_t)(((x) & 0x000000ff) >>  0))
-  #define	makedev_12_12_8(x,y,z)	((dev_t)((((x) << 20) & 0xfff00000) | \
-                                           (((y) <<  8) & 0x000fff00) | \
-                                           (((z) <<  0) & 0x000000ff)))
-
-  func pack_bsdos(_ n : Int, _ numbers : [UInt]) throws(StringError) -> UInt {
-    dev_t dev = 0;
-
-    if (n == 2) {
-      dev = makedev_12_20(numbers[0], numbers[1]);
-      if ((u_long)major_12_20(dev) != numbers[0])
-          *error = iMajorError;
-      if ((u_long)minor_12_20(dev) != numbers[1])
-          *error = iMinorError;
-    } else if (n == 3) {
-      dev = makedev_12_12_8(numbers[0], numbers[1], numbers[2]);
-      if ((u_long)major_12_12_8(dev) != numbers[0])
-          *error = iMajorError;
-      if ((u_long)unit_12_12_8(dev) != numbers[1])
-          *error = "invalid unit number";
-      if ((u_long)subunit_12_12_8(dev) != numbers[2])
-          *error = "invalid subunit number";
-    } else
-      *error = tooManyFields;
-    return (dev);
-  }
-
-
-  /* list of formats and pack functions */
-  /* this list must be sorted lexically */
-  var formats : [String : pack_t] = [
-    "386bsd" :  pack_8_8,
-    "4bsd" :    pack_8_8,
-    "bsdos" :   pack_bsdos,
-    "freebsd" : pack_freebsd,
-    "hpux" :    pack_8_24,
-    "isc" :     pack_8_8,
-    "linux" :   pack_8_8,
-    "native" :  pack_native,
-//    "netbsd" :  pack_netbsd,
-    "osf1" :    pack_12_20,
-    "sco" :     pack_8_8,
-    "solaris" : pack_14_18,
-    "sunos" :   pack_8_8,
-    "svr3" :    pack_8_8,
-    "svr4" :    pack_14_18,
-    "ultrix" :  pack_8_8,
-  ]
-

@@ -40,16 +40,17 @@ import Darwin
   let MAXARGS = 3		/* 3 for bsdos, 2 for rest */
 
   struct CommandOptions {
-    var name : String
+    var name : String = ""
     //    char	*name, *p;
-    var mode : FileType
-    // 	mode_t	 mode;
-    var dev : dev_t = 0
+    var modes : UnsafeMutableRawPointer?
+    var ft = FileType.unknown
+    var mode = FilePermissions()
+      //    var dev : dev_t = 0
     //	dev_t	 dev;
-    var pack : pack_t = pack_native
+    var pack : pack_t!
 
     // 	pack_t	*pack;
-    var numbers : [UInt]
+    var numbers : [UInt] = []
     //	u_long	 numbers[MAXARGS];
     var fifo = false
     var hasformat = false
@@ -63,9 +64,36 @@ import Darwin
 
   var options : CommandOptions!
 
+  /* list of formats and pack functions */
+  var packers : [String : pack_t] = [:]
+
+
+  init() {
+    packers = [
+      "386bsd" :  pack_8_8,
+      "4bsd" :    pack_8_8,
+      "bsdos" :   pack_bsdos,
+      "freebsd" : pack_freebsd,
+      "hpux" :    pack_8_24,
+      "isc" :     pack_8_8,
+      "linux" :   pack_8_8,
+      "native" :  pack_native,
+      //    "netbsd" :  pack_netbsd,
+      "osf1" :    pack_12_20,
+      "sco" :     pack_8_8,
+      "solaris" : pack_14_18,
+      "sunos" :   pack_8_8,
+      "svr3" :    pack_8_8,
+      "svr4" :    pack_14_18,
+      "ultrix" :  pack_8_8,
+    ]
+  }
+
   func parseOptions() throws(CmdErr) -> CommandOptions {
 
     var options = CommandOptions()
+    options.pack = pack_native
+
     let go = BSDGetopt("rRF:g:m:")
     while let (k,v) = try go.getopt() {
       switch k {
@@ -74,36 +102,35 @@ import Darwin
         case "R":
           options.r_flag = 2
         case "F":
-          guard let pack = pack_find(v) else {
+          guard let pack = packers[v] else {
             errx(1, "invalid format: \(v)")
-            return
+            return options
           }
           options.pack = pack
-          options.hasformat += 1
+          options.hasformat = true
         case "g":
           if v.first == "#" {
-            if let gid = Int(v.dropFirst()) {
+            if let gid = UInt(v.dropFirst()) {
               options.gid = gid
               break
             }
           }
-          var gid : UInt32 = 0
-          if gid_name(v, &gid) == 0 {
+          if let gid = gid_name(v) {
             options.gid = gid
             break
           }
-          if let gid = Int(v) {
+          if let gid = UInt(v) {
             options.gid = gid
             break;
           }
           errx(1, "\(v): invalid group name")
 
         case "m":
-          modes = setmode(optarg);
-          if (modes == NULL)
-              err(1, "Cannot set file mode `%s'", optarg);
-          break;
-
+          guard let m = setmode(v) else {
+            err(1, "Cannot set file mode `\(v)'")
+            return options
+          }
+          options.modes = m
         case "?":
           fallthrough
         default:
@@ -118,28 +145,24 @@ import Darwin
 
     options.name = options.args.removeFirst()
 
-    var mode = umask(0)
+    let mode = umask(0)
     umask(mode)
-    mode = (S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH) & ~mode;
+
+    options.ft = FileType(rawValue: mode)
+    options.mode = FilePermissions(rawValue: mode)
 
     let tt = options.args.removeFirst()
     switch tt.count == 1 ? tt.first! : "-" {
       case "c":
-        mode |= S_IFCHR;
-        break;
-
+        options.ft = .characterDevice
       case "b":
-        mode |= S_IFBLK;
-        break;
-
+        options.ft = .blockDevice
       case "p":
-        if options.hasformat != 0 {
+        if options.hasformat {
           errx(1, "format is meaningless for fifos")
         }
-        mode |= S_IFIFO;
-        fifo = 1;
-        break;
-
+        options.ft = .fifo
+        options.fifo = true
       default:
         errx(1, "node type must be 'b', 'c' or 'p'.")
     }
@@ -154,63 +177,77 @@ import Darwin
       }
     }
 
+    var numbers = [UInt]()
+    for v in options.args {
+      if let n = UInt(v) {
+        numbers.append(n)
+      } else {
+        errx(1, "invalid number: \(v)")
+      }
+    }
+    options.numbers = numbers
     return options
   }
 
   func runCommand() throws(CmdErr) {
-    for (n = 0; n < argc; n++) {
-      errno = 0;
-      numbers[n] = strtoul(argv[n], &p, 0);
-      if (*p == 0 && errno == 0) {
-        continue;
-      }
-      errx(1, "invalid number: %s", argv[n]);
-    }
+    var rval : Int32 = 0
+    var dev : UInt = 0
 
-    switch (argc) {
+    switch options.numbers.count {
       case 0:
         dev = 0;
-        break;
-
       case 1:
-        dev = numbers[0];
-        break;
-
+        dev = options.numbers[0]
       default:
-        dev = callPack(pack, argc, numbers);
-        break;
+        do {
+          dev = try callPack(options.pack, options.numbers)
+        } catch(let e) {
+          throw CmdErr(1, e.rawValue)
+        }
     }
 
-    if (modes != NULL)
-        mode = getmode(modes, mode);
-    umask(0);
-    rval = fifo ? mkfifo(name, mode) : mknod(name, mode, dev);
-    if (rval < 0 && errno == EEXIST && r_flag) {
-      struct stat sb;
-      if (lstat(name, &sb) != 0 || (!fifo && sb.st_rdev != dev))
-          sb.st_mode = 0;
+    var mode = options.mode.rawValue | options.ft.rawValue
+    if let m = options.modes {
+      mode = getmode(m, options.mode.rawValue)
+    }
+    umask(0)
 
-      if ((sb.st_mode & S_IFMT) == (mode & S_IFMT)) {
-        if (r_flag == 1)
-            /* Ignore permissions and user/group */
-            return 0;
-        if (sb.st_mode != mode)
-            rval = chmod(name, mode);
-        else
-          rval = 0;
+    let ftt = FileType(rawValue: mode)
+    var stt = FileType.unknown
+    var sm = FilePermissions()
+
+    rval = options.fifo ? mkfifo(options.name, mode) : Darwin.mknod(options.name, mode, Int32(dev) )
+    if rval < 0 && errno == EEXIST && options.r_flag != 0 {
+      if let sb = try? FileMetadata(for: options.name, followSymlinks: false),
+         options.fifo || sb.rawDevice == dev {
+        stt = sb.filetype
+        sm = sb.permissions
+      }
+
+      if stt == ftt {
+        if options.r_flag == 1 {
+          /* Ignore permissions and user/group */
+          return
+        }
+        if sm != FilePermissions(rawValue: mode) {
+          rval = chmod(options.name, mode)
+        }
+        else {
+          rval = 0
+        }
       } else {
-        unlink(name);
-        rval = fifo ? mkfifo(name, mode)
-        : mknod(name, mode, dev);
+        unlink(options.name)
+        rval = options.fifo ? mkfifo(options.name, mode) : Darwin.mknod(options.name, mode, Int32(dev) )
       }
     }
-    if (rval < 0)
-        err(1, "%s", name);
-    if ((uid != (uid_t)-1 || gid != (uid_t)-1) && chown(name, uid, gid) == -1)
-        /* XXX Should we unlink the files here? */
-        warn("%s: uid/gid not changed", name);
+    if rval < 0 {
+      err(1, options.name)
+    }
+    if (options.uid != nil) || (options.gid != nil) && chown(options.name, uid_t(options.uid ?? 0xffffffff), gid_t(options.gid ?? 0xffffffff) ) == -1 {
+      /* XXX Should we unlink the files here? */
+      warn("\(options.name): uid/gid not changed")
+    }
 
-    return 0;
   }
 
   var usage = """
@@ -221,26 +258,15 @@ usage: mknod [-rR] [-F format] [-m mode] [-g group]
                    | name p ]
 """
 
-  func gid_name(const char *name, gid_t *gid) -> Bool {
-    struct group *g;
-
-    g = getgrnam(name);
-    if (!g)
-        return -1;
-    *gid = g->gr_gid;
-    return 0;
+  func gid_name( _ name : String) -> UInt? {
+    guard let g = getgrnam(name) else {
+      return nil
+    }
+    return UInt(g.pointee.gr_gid)
   }
 
-  static dev_t
-  callPack(pack_t *f, int n, u_long *numbers)
-  {
-    dev_t d;
-    const char *error = NULL;
-
-    d = (*f)(n, numbers, &error);
-    if (error != NULL)
-        errx(1, "%s", error);
-    return d;
+  func callPack(_ f : pack_t, _ numbers : [UInt]) throws(StringError) -> UInt   {
+    return try f(numbers)
   }
 
 }
