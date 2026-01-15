@@ -32,375 +32,215 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#if HAVE_NBTOOL_CONFIG_H
-#include "nbtool_config.h"
-#endif
+import CMigration
+import Darwin
 
-#include <sys/cdefs.h>
-#ifndef lint
-__COPYRIGHT("@(#) Copyright (c) 1998\
- The NetBSD Foundation, Inc.  All rights reserved.");
-__RCSID("$NetBSD: mknod.c,v 1.42 2014/08/22 22:28:50 mlelstv Exp $");
-#endif /* not lint */
+@main struct mknod : ShellCommand {
 
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/param.h>
-#if !HAVE_NBTOOL_CONFIG_H
-#include <sys/sysctl.h>
-#endif
+  let MAXARGS = 3		/* 3 for bsdos, 2 for rest */
 
-#include <err.h>
-#include <errno.h>
-#include <limits.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <pwd.h>
-#include <grp.h>
-#include <string.h>
-#include <ctype.h>
+  struct CommandOptions {
+    var name : String
+    //    char	*name, *p;
+    var mode : FileType
+    // 	mode_t	 mode;
+    var dev : dev_t = 0
+    //	dev_t	 dev;
+    var pack : pack_t = pack_native
 
-#include "pack_dev.h"
+    // 	pack_t	*pack;
+    var numbers : [UInt]
+    //	u_long	 numbers[MAXARGS];
+    var fifo = false
+    var hasformat = false
+    //	int	 n, ch, fifo, hasformat;
+    var r_flag = 0	/* force: delete existing entry */
+    //	void	*modes = 0;
+    var uid : UInt?
+    var gid : UInt?
+    var args : [String] = []
+  }
 
-static int gid_name(const char *, gid_t *);
-static dev_t callPack(pack_t *, int, u_long *);
+  var options : CommandOptions!
 
-__dead static	void	usage(void);
+  func parseOptions() throws(CmdErr) -> CommandOptions {
 
-#ifdef KERN_DRIVERS
-static struct kinfo_drivers *kern_drivers;
-static int num_drivers;
+    var options = CommandOptions()
+    let go = BSDGetopt("rRF:g:m:")
+    while let (k,v) = try go.getopt() {
+      switch k {
+        case "r":
+          options.r_flag = 1
+        case "R":
+          options.r_flag = 2
+        case "F":
+          guard let pack = pack_find(v) else {
+            errx(1, "invalid format: \(v)")
+            return
+          }
+          options.pack = pack
+          options.hasformat += 1
+        case "g":
+          if v.first == "#" {
+            if let gid = Int(v.dropFirst()) {
+              options.gid = gid
+              break
+            }
+          }
+          var gid : UInt32 = 0
+          if gid_name(v, &gid) == 0 {
+            options.gid = gid
+            break
+          }
+          if let gid = Int(v) {
+            options.gid = gid
+            break;
+          }
+          errx(1, "\(v): invalid group name")
 
-static void get_device_info(void);
-static void print_device_info(char **);
-static int major_from_name(const char *, mode_t);
-#endif
+        case "m":
+          modes = setmode(optarg);
+          if (modes == NULL)
+              err(1, "Cannot set file mode `%s'", optarg);
+          break;
 
-#define	MAXARGS	3		/* 3 for bsdos, 2 for rest */
+        case "?":
+          fallthrough
+        default:
+          throw CmdErr(1)
+      }
+    }
+    options.args = go.remaining
 
-int
-main(int argc, char **argv)
-{
-	char	*name, *p;
-	mode_t	 mode;
-	dev_t	 dev;
-	pack_t	*pack;
-	u_long	 numbers[MAXARGS];
-	int	 n, ch, fifo, hasformat;
-	int	 r_flag = 0;		/* force: delete existing entry */
-#ifdef KERN_DRIVERS
-	int	 l_flag = 0;		/* list device names and numbers */
-	int	 major;
-#endif
-	void	*modes = 0;
-	uid_t	 uid = -1;
-	gid_t	 gid = -1;
-	int	 rval;
+    if options.args.count < 2 || options.args.count > 10 {
+      throw CmdErr(1)
+    }
 
-	dev = 0;
-	fifo = hasformat = 0;
-	pack = pack_native;
+    options.name = options.args.removeFirst()
 
-#ifdef KERN_DRIVERS
-	while ((ch = getopt(argc, argv, "lrRF:g:m:u:")) != -1) {
-#else
-#ifdef __APPLE__
-	while ((ch = getopt(argc, argv, "rRF:g:m:")) != -1) {
-#else
-	while ((ch = getopt(argc, argv, "rRF:g:m:u:")) != -1) {
-#endif /* __APPLE__ */
-#endif
-		switch (ch) {
+    var mode = umask(0)
+    umask(mode)
+    mode = (S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH) & ~mode;
 
-#ifdef KERN_DRIVERS
-		case 'l':
-			l_flag = 1;
-			break;
-#endif
+    let tt = options.args.removeFirst()
+    switch tt.count == 1 ? tt.first! : "-" {
+      case "c":
+        mode |= S_IFCHR;
+        break;
 
-		case 'r':
-			r_flag = 1;
-			break;
+      case "b":
+        mode |= S_IFBLK;
+        break;
 
-		case 'R':
-			r_flag = 2;
-			break;
+      case "p":
+        if options.hasformat != 0 {
+          errx(1, "format is meaningless for fifos")
+        }
+        mode |= S_IFIFO;
+        fifo = 1;
+        break;
 
-		case 'F':
-			pack = pack_find(optarg);
-			if (pack == NULL)
-				errx(1, "invalid format: %s", optarg);
-			hasformat++;
-			break;
+      default:
+        errx(1, "node type must be 'b', 'c' or 'p'.")
+    }
 
-		case 'g':
-			if (optarg[0] == '#') {
-				gid = strtol(optarg + 1, &p, 10);
-				if (*p == 0)
-					break;
-			}
-			if (gid_name(optarg, &gid) == 0)
-				break;
-			gid = strtol(optarg, &p, 10);
-			if (*p == 0)
-				break;
-			errx(1, "%s: invalid group name", optarg);
+    if options.fifo {
+      if !options.args.isEmpty {
+        throw CmdErr(1)
+      }
+    } else {
+      if options.args.count < 1 || options.args.count > MAXARGS {
+        throw CmdErr(1)
+      }
+    }
 
-		case 'm':
-			modes = setmode(optarg);
-			if (modes == NULL)
-				err(1, "Cannot set file mode `%s'", optarg);
-			break;
+    return options
+  }
 
-#ifndef __APPLE__
-		case 'u':
-			if (optarg[0] == '#') {
-				uid = strtol(optarg + 1, &p, 10);
-				if (*p == 0)
-					break;
-			}
-			if (uid_from_user(optarg, &uid) == 0)
-				break;
-			uid = strtol(optarg, &p, 10);
-			if (*p == 0)
-				break;
-			errx(1, "%s: invalid user name", optarg);
-#endif
+  func runCommand() throws(CmdErr) {
+    for (n = 0; n < argc; n++) {
+      errno = 0;
+      numbers[n] = strtoul(argv[n], &p, 0);
+      if (*p == 0 && errno == 0) {
+        continue;
+      }
+      errx(1, "invalid number: %s", argv[n]);
+    }
 
-		default:
-		case '?':
-			usage();
-		}
-	}
-	argc -= optind;
-	argv += optind;
+    switch (argc) {
+      case 0:
+        dev = 0;
+        break;
 
-#ifdef KERN_DRIVERS
-	if (l_flag) {
-		print_device_info(argv);
-		return 0;
-	}
-#endif
+      case 1:
+        dev = numbers[0];
+        break;
 
-	if (argc < 2 || argc > 10)
-		usage();
+      default:
+        dev = callPack(pack, argc, numbers);
+        break;
+    }
 
-	name = *argv;
-	argc--;
-	argv++;
+    if (modes != NULL)
+        mode = getmode(modes, mode);
+    umask(0);
+    rval = fifo ? mkfifo(name, mode) : mknod(name, mode, dev);
+    if (rval < 0 && errno == EEXIST && r_flag) {
+      struct stat sb;
+      if (lstat(name, &sb) != 0 || (!fifo && sb.st_rdev != dev))
+          sb.st_mode = 0;
 
-	umask(mode = umask(0));
-	mode = (S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH) & ~mode;
+      if ((sb.st_mode & S_IFMT) == (mode & S_IFMT)) {
+        if (r_flag == 1)
+            /* Ignore permissions and user/group */
+            return 0;
+        if (sb.st_mode != mode)
+            rval = chmod(name, mode);
+        else
+          rval = 0;
+      } else {
+        unlink(name);
+        rval = fifo ? mkfifo(name, mode)
+        : mknod(name, mode, dev);
+      }
+    }
+    if (rval < 0)
+        err(1, "%s", name);
+    if ((uid != (uid_t)-1 || gid != (uid_t)-1) && chown(name, uid, gid) == -1)
+        /* XXX Should we unlink the files here? */
+        warn("%s: uid/gid not changed", name);
 
-	if (argv[0][1] != '\0')
-		goto badtype;
-	switch (*argv[0]) {
-	case 'c':
-		mode |= S_IFCHR;
-		break;
+    return 0;
+  }
 
-	case 'b':
-		mode |= S_IFBLK;
-		break;
+  var usage = """
+usage: mknod [-rR] [-F format] [-m mode] [-g group]
+                   [ name [b | c] major minor
+                   | name [b | c] major unit subunit
+                   | name [b | c] number
+                   | name p ]
+"""
 
-	case 'p':
-		if (hasformat)
-			errx(1, "format is meaningless for fifos");
-		mode |= S_IFIFO;
-		fifo = 1;
-		break;
+  func gid_name(const char *name, gid_t *gid) -> Bool {
+    struct group *g;
 
-	default:
- badtype:
-		errx(1, "node type must be 'b', 'c' or 'p'.");
-	}
-	argc--;
-	argv++;
+    g = getgrnam(name);
+    if (!g)
+        return -1;
+    *gid = g->gr_gid;
+    return 0;
+  }
 
-	if (fifo) {
-		if (argc != 0)
-			usage();
-	} else {
-		if (argc < 1 || argc > MAXARGS)
-			usage();
-	}
+  static dev_t
+  callPack(pack_t *f, int n, u_long *numbers)
+  {
+    dev_t d;
+    const char *error = NULL;
 
-	for (n = 0; n < argc; n++) {
-		errno = 0;
-		numbers[n] = strtoul(argv[n], &p, 0);
-		if (*p == 0 && errno == 0)
-			continue;
-#ifdef KERN_DRIVERS
-		if (argc == 2 && n == 0) {
-			major = major_from_name(argv[0], mode);
-			if (major != -1) {
-				numbers[0] = major;
-				continue;
-			}
-			if (!isdigit(*(unsigned char *)argv[0]))
-				errx(1, "unknown driver: %s", argv[0]);
-		}
-#endif
-		errx(1, "invalid number: %s", argv[n]);
-	}
+    d = (*f)(n, numbers, &error);
+    if (error != NULL)
+        errx(1, "%s", error);
+    return d;
+  }
 
-	switch (argc) {
-	case 0:
-		dev = 0;
-		break;
-
-	case 1:
-		dev = numbers[0];
-		break;
-
-	default:
-		dev = callPack(pack, argc, numbers);
-		break;
-	}
-
-	if (modes != NULL)
-		mode = getmode(modes, mode);
-	umask(0);
-	rval = fifo ? mkfifo(name, mode) : mknod(name, mode, dev);
-	if (rval < 0 && errno == EEXIST && r_flag) {
-		struct stat sb;
-		if (lstat(name, &sb) != 0 || (!fifo && sb.st_rdev != dev))
-			sb.st_mode = 0;
-
-		if ((sb.st_mode & S_IFMT) == (mode & S_IFMT)) {
-			if (r_flag == 1)
-				/* Ignore permissions and user/group */
-				return 0;
-			if (sb.st_mode != mode)
-				rval = chmod(name, mode);
-			else
-				rval = 0;
-		} else {
-			unlink(name);
-			rval = fifo ? mkfifo(name, mode)
-				    : mknod(name, mode, dev);
-		}
-	}
-	if (rval < 0)
-		err(1, "%s", name);
-	if ((uid != (uid_t)-1 || gid != (uid_t)-1) && chown(name, uid, gid) == -1)
-		/* XXX Should we unlink the files here? */
-		warn("%s: uid/gid not changed", name);
-
-	return 0;
 }
-
-static void
-usage(void)
-{
-	const char *progname = getprogname();
-
-	(void)fprintf(stderr,
-#ifdef __APPLE__
-	    "usage: %s [-rR] [-F format] [-m mode] [-g group]\n",
-#else
-	    "usage: %s [-rR] [-F format] [-m mode] [-u user] [-g group]\n",
-#endif
-	    progname);
-	(void)fprintf(stderr,
-#ifdef KERN_DRIVERS
-	    "                   [ name [b | c] [major | driver] minor\n"
-#else
-	    "                   [ name [b | c] major minor\n"
-#endif
-	    "                   | name [b | c] major unit subunit\n"
-	    "                   | name [b | c] number\n"
-	    "                   | name p ]\n");
-#ifdef KERN_DRIVERS
-	(void)fprintf(stderr, "       %s -l [driver] ...\n", progname);
-#endif
-	exit(1);
-}
-
-static int
-gid_name(const char *name, gid_t *gid)
-{
-	struct group *g;
-
-	g = getgrnam(name);
-	if (!g)
-		return -1;
-	*gid = g->gr_gid;
-	return 0;
-}
-
-static dev_t
-callPack(pack_t *f, int n, u_long *numbers)
-{
-	dev_t d;
-	const char *error = NULL;
-
-	d = (*f)(n, numbers, &error);
-	if (error != NULL)
-		errx(1, "%s", error);
-	return d;
-}
-
-#ifdef KERN_DRIVERS
-static void
-get_device_info(void)
-{
-	static int mib[2] = {CTL_KERN, KERN_DRIVERS};
-	size_t len;
-
-	if (sysctl(mib, 2, NULL, &len, NULL, 0) != 0)
-		err(1, "kern.drivers" );
-	kern_drivers = malloc(len);
-	if (kern_drivers == NULL)
-		err(1, "malloc");
-	if (sysctl(mib, 2, kern_drivers, &len, NULL, 0) != 0)
-		err(1, "kern.drivers" );
-
-	num_drivers = len / sizeof *kern_drivers;
-}
-
-static void
-print_device_info(char **names)
-{
-	int i;
-	struct kinfo_drivers *kd;
-
-	if (kern_drivers == NULL)
-		get_device_info();
-
-	do {
-		kd = kern_drivers;
-		for (i = 0; i < num_drivers; kd++, i++) {
-			if (*names && strcmp(*names, kd->d_name))
-				continue;
-			printf("%s", kd->d_name);
-			if (kd->d_cmajor != -1)
-				printf(" character major %d", kd->d_cmajor);
-			if (kd->d_bmajor != -1)
-				printf(" block major %d", kd->d_bmajor);
-			printf("\n");
-		}
-	} while (*names && *++names);
-}
-
-static int
-major_from_name(const char *name, mode_t mode)
-{
-	int i;
-	struct kinfo_drivers *kd;
-
-	if (kern_drivers == NULL)
-		get_device_info();
-
-	kd = kern_drivers;
-	for (i = 0; i < num_drivers; kd++, i++) {
-		if (strcmp(name, kd->d_name))
-			continue;
-		if (S_ISCHR(mode))
-			return kd->d_cmajor;
-		return kd->d_bmajor;
-	}
-	return -1;
-}
-#endif
