@@ -901,6 +901,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				ls/cmp.swift,
+				ls/ls_subs.swift,
 				ls/ls.swift,
 				ls/print.swift,
 				ls/util.swift,

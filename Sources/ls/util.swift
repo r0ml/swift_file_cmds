@@ -35,33 +35,11 @@
  * SUCH DAMAGE.
  */
 
-#if 0
-#ifndef lint
-static char sccsid[] = "@(#)util.c	8.3 (Berkeley) 4/2/94";
-#endif /* not lint */
-#endif
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
+import CMigration
 
-#include <sys/types.h>
-#include <sys/stat.h>
+extension ls {
 
-#include <ctype.h>
-#include <err.h>
-#include <fts.h>
-#include <limits.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <wchar.h>
-#include <wctype.h>
-
-#include "ls.h"
-#include "extern.h"
-
-int
-prn_normal(const char *s)
-{
+  func prn_normal(_ s : String) -> Int {
 	mbstate_t mbs;
 	wchar_t wc;
 	int i, n;
@@ -91,9 +69,7 @@ prn_normal(const char *s)
 	return (n);
 }
 
-int
-prn_printable(const char *s)
-{
+  func prn_printable(_ s : String) -> Int {
 	mbstate_t mbs;
 	wchar_t wc;
 	int i, n;
@@ -141,9 +117,7 @@ prn_printable(const char *s)
  *						DES 1998/04/23
  */
 
-size_t
-len_octal(const char *s, int len)
-{
+  func len_octal(_ s : String, _ len : Int) -> Int {
 	mbstate_t mbs;
 	wchar_t wc;
 	size_t clen, r;
@@ -173,9 +147,7 @@ len_octal(const char *s, int len)
 	return (r);
 }
 
-int
-prn_octal(const char *s)
-{
+  func prn_octal(_ s : String) -> Int {
 	static const char esc[] = "\\\\\"\"\aa\bb\ff\nn\rr\tt\vv";
 	const char *p;
 	mbstate_t mbs;
@@ -230,15 +202,4 @@ prn_octal(const char *s)
 	return (len);
 }
 
-void
-usage(void)
-{
-	(void)fprintf(stderr,
-#ifdef COLORLS
-	"usage: ls [-@ABCFGHILOPRSTUWXabcdefghiklmnopqrstuvwxy1%%,] [--color=when] [-D format]"
-#else
-	"usage: ls [-@ABCFHILOPRSTUWXabcdefghiklmnopqrstuvwxy1%%,] [-D format]"
-#endif
-		      " [file ...]\n");
-	exit(1);
 }

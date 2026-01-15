@@ -35,35 +35,6 @@
  * SUCH DAMAGE.
  */
 
-#if 0
-#ifndef lint
-static char sccsid[] = "@(#)cmp.c	8.1 (Berkeley) 5/31/93";
-#endif /* not lint */
-#endif
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
-
-
-#include <sys/types.h>
-#include <sys/stat.h>
-
-#include <fts.h>
-#include <string.h>
-
-#include "ls.h"
-#include "extern.h"
-
-#ifdef __APPLE__
-/*
- * Aliased to the ino64, non-POSIX-conformant names; this works with the default
- * build configuration of ls(1) on MacOS.
- */
-#define	st_atim	st_atimespec
-#define	st_mtim	st_mtimespec
-#define	st_ctim	st_ctimespec
-#define	st_birthtim	st_birthtimespec
-#endif
-
 int
 namecmp(const FTSENT *a, const FTSENT *b)
 {
