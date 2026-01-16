@@ -104,7 +104,7 @@ let EXEC_FAILED : Int32 = 127
      * try the move.  More than 2 arguments is an error in this case.
      */
     let sb = try? FileMetadata(for: options.args.last!)
-    if sb == nil || sb!.fileType != .directory {
+    if sb == nil || sb!.filetype != .directory {
 //    if (stat(argv[argc - 1], &sb) || !S_ISDIR(sb.st_mode)) {
       if options.args.count > 2 {
         errx(1, "\(options.args.last!) is not a directory")
@@ -135,7 +135,7 @@ let EXEC_FAILED : Int32 = 127
       let p = options.args[0].split(separator: "/", omittingEmptySubsequences: true).last!
       let q = options.args[1].split(separator: "/", omittingEmptySubsequences: true).last!
       if p != q {
-        exit(Int32(do_move(options.args[0], options.args[1])))
+        exit( do_move(options.args[0], options.args[1]) ? 1 : 0)
       }
     }
     // #endif /* __APPLE__ */
@@ -149,8 +149,8 @@ let EXEC_FAILED : Int32 = 127
         throw CmdErr(1, usage)
       }
 
-      if let tsb, tsb.fileType == .symbolicLink {
-        exit(Int32(do_move(options.args[0], options.args[1])))
+      if let tsb, tsb.filetype == .symbolicLink {
+        exit( do_move(options.args[0], options.args[1]) ? 1 : 0)
       }
     }
 
@@ -240,7 +240,7 @@ let EXEC_FAILED : Int32 = 127
         print("overwrite \(to)? \(YESNO)", terminator: "", to: &stderr)
         ask = 1
       } else if (access(to, W_OK) && !stat(to, &sb) && isatty(STDIN_FILENO)) {
-        let modep = strmode(sb.fileType, sb.mode)
+        let modep = strmode(sb.filetype, sb.mode)
         let u = Darwin.user_from_uid(UInt32(sb.userId), 0)!
         let g = Darwin.group_from_gid(UInt32(sb.groupId), 0)!
         print("override \(modep.dropFirst())\(modep.last == " " ? "" : " ")\(u)/\(g) for \(to)? \(YESNO)",
@@ -270,7 +270,7 @@ let EXEC_FAILED : Int32 = 127
      * with EXDEV.  Therefore, copy() doesn't have to perform the checks
      * specified in the Step 3 of the POSIX mv specification.
      */
-    if (!rename(from, to)) {
+    if 0 == rename(from, to) {
       if options.vflg {
         print("\(from) -> \(to)")
       }
@@ -286,7 +286,7 @@ let EXEC_FAILED : Int32 = 127
         warn(from)
         return true
       }
-      if sb.fileType != .symbolicLink {
+      if sb.filetype != .symbolicLink {
         /* Can't mv(1) a mount point. */
         if (realpath(from, path) == nil) {
           warn("cannot resolve \(from): \(path)")
@@ -311,7 +311,7 @@ let EXEC_FAILED : Int32 = 127
       warn(from);
       return true
     }
-    return sb.fileType == .regular ? fastcopy(from, to, sb) : copy(from, to)
+    return sb.filetype == .regular ? fastcopy(from, to, sb) : copy(from, to)
   }
 
   func fastcopy(_ from : String, _ to : String, _ sbp : FileMetadata) -> Bool {
@@ -329,7 +329,7 @@ let EXEC_FAILED : Int32 = 127
     // #endif
 
     if ((from_fd = open(from, O_RDONLY, 0)) < 0) {
-      warn("fastcopy: open() failed (from): %s", from);
+      warn("fastcopy: open() failed (from): \(from)")
       return true
     }
     if (bp == NULL && (bp = malloc((size_t)blen)) == NULL) {
@@ -344,7 +344,7 @@ let EXEC_FAILED : Int32 = 127
       }
       warn("fastcopy: open() failed (to): \(to)")
       (void)close(from_fd);
-      return (1);
+      return true
     }
     // #ifdef __APPLE__
     {
@@ -369,14 +369,14 @@ let EXEC_FAILED : Int32 = 127
     // #endif /* __APPLE__ */
     while ((nread = read(from_fd, bp, (size_t)blen)) > 0) {
       if (write(to_fd, bp, (size_t)nread) != nread) {
-        warn("fastcopy: write() failed: %s", to);
+        warn("fastcopy: write() failed: \(to)")
         goto err;
       }
     }
     if (nread < 0) {
-      warn("fastcopy: read() failed: %s", from);
-      err:		if (unlink(to)) {
-        warn("%s: remove", to);
+      warn("fastcopy: read() failed: \(from)")
+      err:		if 0 != unlink(to) {
+        warn("\(to): remove")
       }
       (void)close(from_fd);
       (void)close(to_fd);
@@ -385,13 +385,12 @@ let EXEC_FAILED : Int32 = 127
     // #ifdef __APPLE__
     /* XATTR can fail if to_fd has mode 000 */
     if (fcopyfile(from_fd, to_fd, NULL, COPYFILE_ACL | COPYFILE_XATTR) < 0) {
-      warn("%s: unable to move extended attributes and ACL from %s",
-           to, from);
+      warn("\(to): unable to move extended attributes and ACL from \(from)")
     }
     // #endif
 
     oldmode = sbp->st_mode & ALLPERMS;
-    if (fchown(to_fd, sbp->st_uid, sbp->st_gid)) {
+    if 0 != fchown(to_fd, sbp->st_uid, sbp->st_gid) {
       warn("%s: set owner/group (was: %lu/%lu)", to,
            (u_long)sbp->st_uid, (u_long)sbp->st_gid);
       if (oldmode & (S_ISUID | S_ISGID)) {
@@ -445,7 +444,7 @@ let EXEC_FAILED : Int32 = 127
      */
 
     var ts = ( sbp.lastAccess, sbp.lastWrite )
-    if (Darwin.futimens(to_fd, &ts)) {
+    if 0 != Darwin.futimens(to_fd, &ts) {
       warn("\(to): set times")
     }
 
@@ -469,7 +468,7 @@ let EXEC_FAILED : Int32 = 127
     do {
     let sb = try FileMetadata(for: to, followSymlinks: false)
       /* Destination path exists. */
-      if sb.fileType == .directory {
+      if sb.filetype == .directory {
         if Darwin.rmdir(to) != 0 {
           warn("rmdir \(to)")
           return true
@@ -497,23 +496,21 @@ let EXEC_FAILED : Int32 = 127
       _exit(EXEC_FAILED);
     }
     if (waitpid(pid, &status, 0) == -1) {
-      warn("%s %s %s: waitpid", _PATH_CP, from, to);
+      warn("\(_PATH_CP) \(from) \(to): waitpid")
       return true
     }
     if (!WIFEXITED(status)) {
-      warnx("%s %s %s: did not terminate normally",
-            _PATH_CP, from, to);
+      warnx("\(_PATH_CP) \(from) \(to): did not terminate normally")
       return true
     }
     switch (WEXITSTATUS(status)) {
       case 0:
         break;
       case EXEC_FAILED:
-        warnx("%s %s %s: exec failed", _PATH_CP, from, to);
+        warnx("\(_PATH_CP) \(from) \(to): exec failed")
         return true
       default:
-        warnx("%s %s %s: terminated with %d (non-zero) status",
-              _PATH_CP, from, to, WEXITSTATUS(status));
+        warnx("\(_PATH_CP) \(from) \(to): terminated with \(WEXITSTATUS(status)) (non-zero) status")
         return true
     }
 
