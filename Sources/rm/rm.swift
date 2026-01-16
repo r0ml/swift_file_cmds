@@ -52,7 +52,6 @@ static int rflag, Iflag, xflag;
 static uid_t uid;
  */
 var info : sig_atomic_t = 0
-var stdin_ok = false
 let unix2003 = true
 
 // from /usr/include/removefile.h
@@ -80,6 +79,7 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
     var xflag = false
     var ieval : Int32 = 0
     var uid : UInt32 = 0
+    var stdin_ok = false
     var args : [String] = []
   }
 
@@ -175,7 +175,10 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
       if !options.fflag {
         throw CmdErr(1)
       }
+    } else {
+      options.stdin_ok = isatty(STDIN_FILENO) != 0
     }
+
     return options
   }
 
@@ -190,7 +193,6 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
 
     signal(SIGINFO, siginfo)
     if !options.args.isEmpty {
-      stdin_ok = isatty(STDIN_FILENO) != 0
 
       if options.Iflag {
         if !check2(options.args) {
@@ -219,7 +221,7 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
      * Remove a file hierarchy.  If forcing removal (-f), or interactive
      * (-i) or can't ask anyway (stdin_ok), don't stat the file.
      */
-    let needstat = options.uid == 0 || (!options.fflag && !options.iflag && stdin_ok)
+    let needstat = options.uid == 0 || (!options.fflag && !options.iflag && options.stdin_ok)
 
     /*
      * If the -i option is specified, the user can skip on the pre-order
@@ -242,6 +244,7 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
         return
       }
       err(1, "fts_open")
+      fatalError()
     }
 
     var eval : Int32 = 0
@@ -390,7 +393,7 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
           default:
             // #ifdef __APPLE__
             if options.Pflag {
-              if (removefile(p.accpath, NULL, REMOVEFILE_SECURE_7_PASS)) { /* overwrites and unlinks */
+              if 0 != removefile(p.accpath, nil, Int32(REMOVEFILE_SECURE_7_PASS)) { /* overwrites and unlinks */
                 eval = 1
                 rval = 1
               }
@@ -431,9 +434,13 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
      */
     for f in args {
       /* Assume if can't stat the file, can't unlink it. */
-      guard let sb = try? FileMetadata(for: f, followSymlinks: false) else {
+      var sb = try? FileMetadata(for: f, followSymlinks: false)
+      var wtyp : FileType = .unknown
+      var wperm = FilePermissions()
+      if sb == nil {
         if options.Wflag {
-          sb.st_mode = S_IFWHT|S_IWUSR|S_IRUSR;
+          wtyp = .whiteOut
+          wperm.insert([.ownerWrite, .ownerRead])
         } else {
           if (!options.fflag || errno != ENOENT) {
             warn(f)
@@ -441,7 +448,11 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
           }
           continue;
         }
+      } else {
+        wtyp = sb!.filetype
+        wperm = sb!.permissions
       }
+
       if options.Wflag {
         let z = strerror(EEXIST)!
         warnx("\(f): \(z)")
@@ -449,32 +460,34 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
         continue
       }
 
-      if sb.fileType == .directory && !options.dflag {
+      if wtyp == .directory && !options.dflag {
         warnx("\(f): is a directory")
         eval = 1
         continue
       }
-      if (!options.fflag && sb.fileType != .whiteOut && !check(f, f, sb)) {
+
+        // if wtyp != .whiteOut, sb won't be nil
+      if (!options.fflag && wtyp != .whiteOut && !check(f, f, sb!)) {
         continue
       }
       rval = 0
-      if (options.uid == 0 && sb.fileType != .whiteOut &&
-          (sb.flags.contains(.UF_APPEND) ||
-           sb.flags.contains(.UF_IMMUTABLE)) &&
-          !(sb.flags.containsAny(of: [.SF_APPEND, .SF_IMMUTABLE]))) {
-        rval = lchflags(f, sb.flags.subtracting([.UF_APPEND, .UF_IMMUTABLE]).rawValue)
+      if (options.uid == 0 && wtyp != .whiteOut &&
+          (sb!.flags.contains(.UF_APPEND) ||
+           sb!.flags.contains(.UF_IMMUTABLE)) &&
+          !(sb!.flags.containsAny(of: [.SF_APPEND, .SF_IMMUTABLE]))) {
+        rval = lchflags(f, sb!.flags.subtracting([.UF_APPEND, .UF_IMMUTABLE]).rawValue)
       }
       if (rval == 0) {
-        if (sb.fileType == .whiteOut) {
-          rval = undelete(f);
+        if (wtyp == .whiteOut) {
+          rval = undelete(f)
         }
-        else if sb.fileType == .directory {
+        else if wtyp == .directory {
           rval = rmdir(f)
         }
         else {
           // #ifdef __APPLE__
           if options.Pflag {
-            if (removefile(f, nil, REMOVEFILE_SECURE_7_PASS)) { /* overwrites and unlinks */
+            if 0 != removefile(f, nil, Int32(REMOVEFILE_SECURE_7_PASS)) { /* overwrites and unlinks */
               eval = 1
               rval = 1
             }
@@ -538,16 +551,17 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
        * because their permissions are meaningless.  Check stdin_ok
        * first because we may not have stat'ed the file.
        */
-      if (!options.stdin_ok || sp.fileType == .symbolicLink ||
+      if (!options.stdin_ok || sp.filetype == .symbolicLink ||
           (access(name, W_OK) == 0 &&
            !(sp.flags.contains(.SF_APPEND) || sp.flags.contains(.SF_IMMUTABLE)) &&
            (!(sp.flags.contains(.UF_APPEND) || sp.flags.contains(.UF_IMMUTABLE)) || options.uid == 0))) {
         return true
       }
-      let modep = strmode(sp.fileType, sp.mode)
+      let modep = strmode(sp.filetype, sp.permissions)
 
       guard let flagsp = fflagstostr(sp.flags) else {
         err(1, "fflagstostr")
+        fatalError()
       }
       let u = user_from_uid( UInt32(sp.userId), 0)!
       let g = group_from_gid( UInt32(sp.groupId), 0)!
@@ -558,7 +572,7 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
   }
 
   func checkslash(_ argv : inout [String]) {
-    var z = argv.filter { $0 != "/" }
+    let z = argv.filter { $0 != "/" }
     if z.count < argv.count {
       warnx("\"/\" may not be removed");
     }
@@ -574,7 +588,7 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
 
     for arg in args {
       if let st = try? FileMetadata(for: arg, followSymlinks: false) {
-        if st.fileType == .directory { // (S_ISDIR(st.st_mode)) {
+        if st.filetype == .directory { // (S_ISDIR(st.st_mode)) {
           dcount += 1
           dname = arg    /* only used if 1 dir */
         } else {
@@ -644,3 +658,10 @@ usage: rm [-f | -i] [-dIPRrvWx] file ...
 func siginfo(_ sig : Int32) {
 	info = 1
 }
+
+// FIXME: this is rated as "liable to fail in the future"
+// the fix is to port the apple-oss-distributions "removefile" project to Swift
+@_silgen_name("removefile")
+func removefile(_ path: UnsafePointer<CChar>!,
+                _ state: UnsafeMutableRawPointer!,
+                _ flags: Int32) -> Int32
