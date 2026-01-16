@@ -38,6 +38,9 @@
 import CMigration
 import Darwin
 
+let HUMANVALSTR_LEN = 5
+let NO_PRINT = 1
+
 extension ls {
 
 
@@ -74,13 +77,11 @@ extension ls {
   static size_t padding_for_month[12];
   static size_t month_max_size = 0;
 
-  func printscol(const DISPLAY *dp) {
-    FTSENT *p;
-
-    assert(dp);
-    if (unix2003_compat && (dp->list != NULL)) {
-      if (dp->list->fts_level != FTS_ROOTLEVEL && (options.f_longform || options.f_size)) {
-        (void)printf("total %qu\n", (u_int64_t)howmany(dp->btotal, blocksize));
+  func printscol(_ dp : DISPLAY) {
+    if unix2003_compat, let dpl = dp.list?.first {
+      if dpl.level != CMigration.FTS_ROOTLEVEL && (options.f_longform || options.f_size) {
+        let n = howmany(dp.btotal, options.blocksize)
+        print("total \(n)")
       }
     }
 
@@ -165,8 +166,9 @@ extension ls {
       }
     }
 
-    for (i = 0; i < 12; i++)
-          padding_for_month[i] = month_max_size - months_width[i];
+      for (i = 0; i < 12; i++) {
+        padding_for_month[i] = month_max_size - months_width[i];
+      }
   }
 
   /*
@@ -425,8 +427,7 @@ func printacl(acl_t acl, int isdir) {
     }
   }
 
-  func printstream(const DISPLAY *dp) {
-    FTSENT *p;
+  func printstream(_ dp : DISPLAY) {
     int chcnt;
 
     for (p = dp->list, chcnt = 0; p; p = p->fts_link) {
@@ -450,7 +451,7 @@ func printacl(acl_t acl, int isdir) {
     }
   }
 
-  func printcol(const DISPLAY *dp) {
+  func printcol(_ dp : DISPLAY) {
     static FTSENT **array;
     static int lastentries = -1;
     FTSENT *p;
@@ -559,22 +560,21 @@ func printacl(acl_t acl, int isdir) {
    * print [inode] [size] name
    * return # of characters printed, no trailing characters.
    */
-  func printaname(const FTSENT *p, u_long inodefield, u_long sizefield) -> Int {
+  func printaname(_ p : FTSEntry, u_long inodefield, u_long sizefield) -> Int {
     struct stat *sp;
     int chcnt;
 
     int color_printed = 0;
 
 
-    sp = p->fts_statp;
+    let sp = p.statp!
     chcnt = 0;
     if (options.f_inode) {
       chcnt += printf("%*ju ",
                       (int)inodefield, (uintmax_t)sp->st_ino);
     }
     if (options.f_size) {
-      chcnt += printf("%*lld ",
-                      (int)sizefield, howmany(sp->st_blocks, blocksize));
+      chcnt += printf("%*lld ", sizefield, howmany(sp.blocks, options.blocksize))
     }
 
     if (options.f_color) {
@@ -596,11 +596,11 @@ func printacl(acl_t acl, int isdir) {
   /*
    * Print device special file major and minor numbers.
    */
-  func printdev(size_t width, dev_t dev) {
-    (void)printf("%#*jx ", (u_int)width, (uintmax_t)dev);
+  func printdev(_ width: size_t, _ dev : dev_t) {
+    printf("%#*jx ", width, dev)
   }
 
-    func ls_strftime(char *str, size_t len, const char *fmt, const struct tm *tm) -> Int {
+  func ls_strftime(_ str : String, _ len : size_t, _ fmt : String, _ tm : tm) -> Int {
     char *posb, nfmt[BUFSIZ];
     const char *format = fmt;
     size_t ret;
@@ -643,7 +643,7 @@ func printacl(acl_t acl, int isdir) {
     return (ret);
   }
 
-  func printtime(time_t ftime) {
+  func printtime(_ time : time_t) {
     char longstring[80];
     static time_t now = 0;
     const char *format;
@@ -678,35 +678,36 @@ func printacl(acl_t acl, int isdir) {
     fputc(' ', stdout);
   }
 
-  func printtype(u_int mode) -> Int {
+  func printtype(_ mode : FileType) -> Bool {
 
     if (options.f_slash) {
-      if ((mode & S_IFMT) == S_IFDIR) {
-        (void)putchar('/');
-        return (1);
+      if mode == .directory {
+        print("/", terminator: "")
+        return true
       }
-      return (0);
+      return false
     }
 
-    switch (mode & S_IFMT) {
-      case S_IFDIR:
-        (void)putchar('/');
-        return (1);
-      case S_IFIFO:
-        (void)putchar('|');
-        return (1);
-      case S_IFLNK:
-        (void)putchar('@');
-        return (1);
-      case S_IFSOCK:
-        (void)putchar('=');
-        return (1);
-      case S_IFWHT:
-        (void)putchar('%');
-        return (1);
+    switch mode {
+      case .directory:
+        print("/", terminator: "")
+        return true
+      case .fifo:
+        print("|", terminator: "")
+        return true
+      case .symbolicLink:
+        print("@", terminator: "")
+        return true
+      case .socket:
+        print("=", terminator: "")
+        return true
+      case .whiteOut:
+        print("%", terminator: "")
+        return true
       default:
-        break;
+        break
     }
+
     if (mode & (S_IXUSR | S_IXGRP | S_IXOTH)) {
       (void)putchar('*');
       return (1);
@@ -726,7 +727,7 @@ func printacl(acl_t acl, int isdir) {
     return 0;
   }
 
-  func printcolor_termcap(Colors c) {
+  func printcolor_termcap(_ c : Colors) {
     char *ansiseq;
 
     if (colors[c].bold) {
@@ -747,7 +748,7 @@ func printacl(acl_t acl, int isdir) {
     }
   }
 
-  func printcolor_ansi(Colors c) {
+  func printcolor_ansi(_ c : Colors) {
 
     printf("\033[");
 
@@ -763,7 +764,7 @@ func printacl(acl_t acl, int isdir) {
     printf("m");
   }
 
-  func printcolor(Colors c) {
+  func printcolor(_ c : Colors) {
 
     if (explicitansi) {
       printcolor_ansi(c);
@@ -791,60 +792,60 @@ func printacl(acl_t acl, int isdir) {
    }
   }
 
-    func colortype(mode_t mode, u_long flags) -> Int {
-    switch (mode & S_IFMT) {
-      case S_IFDIR:
+  func colortype(_ mode : FileType, _ flags : UInt) -> Bool {
+    switch mode {
+      case .directory:
         if (mode & S_IWOTH) {
           if (mode & S_ISTXT) {
-            printcolor(C_WSDIR);
+            printcolor(.WSDIR)
           }
           else {
-            printcolor(C_WDIR);
+            printcolor(.WDIR)
           }
         }
         else {
-          printcolor(C_DIR);
+          printcolor(.DIR)
         }
-        return (1);
-      case S_IFLNK:
-        printcolor(C_LNK);
-        return (1);
-      case S_IFSOCK:
-        printcolor(C_SOCK);
-        return (1);
-      case S_IFIFO:
-        printcolor(C_FIFO);
-        return (1);
-      case S_IFBLK:
-        printcolor(C_BLK);
-        return (1);
-      case S_IFCHR:
-        printcolor(C_CHR);
-        return (1);
+        return true
+      case .symbolicLink:
+        printcolor(.LNK)
+        return true
+      case .socket:
+        printcolor(.SOCK)
+        return true
+      case .fifo:
+        printcolor(.FIFO)
+        return true
+      case .blockDevice:
+        printcolor(.BLK)
+        return true
+      case .characterDevice:
+        printcolor(.CHR)
+        return true
       default:;
     }
     if (mode & (S_IXUSR | S_IXGRP | S_IXOTH)) {
       if (mode & S_ISUID) {
-        printcolor(C_SUID);
+        printcolor(.SUID)
       }
       else if (mode & S_ISGID) {
-        printcolor(C_SGID);
+        printcolor(.SGID)
       }
       else {
-        printcolor(C_EXEC);
+        printcolor(.EXEC)
       }
-      return (1);
+      return true
     }
 
-    if (flags & SF_DATALESS) {
-      printcolor(C_DATALESS);
-      return (1);
+    if flags.contains(.SF_DATALESS) {
+      printcolor(.DATALESS)
+      return true
     }
 
-    return (0);
+    return false
   }
 
-  func parsecolors(const char *cs) {
+  func parsecolors(_ cs : String) {
     int i;
     int j;
     size_t len;
@@ -893,53 +894,52 @@ func printacl(acl_t acl, int isdir) {
     }
   }
 
-  func colorquit(int sig) {
-    endcolor(sig);
-
-    (void)signal(sig, SIG_DFL);
-    (void)kill(getpid(), sig);
+  func colorquit(_ sig : Int32) {
+    endcolor(sig)
+    signal(sig, SIG_DFL)
+    kill(getpid(), sig)
   }
 
 
-  func printlink(_ p : FtsEntry) {
-    int lnklen;
-    char name[MAXPATHLEN + 1];
-    char path[MAXPATHLEN + 1];
+  func printlink(_ p : FTSEntry) {
+    var name : String
 
-    if p.level == FTS_ROOTLEVEL {
-      (void)snprintf(name, sizeof(name), "%s", p->fts_name);
+    if p.level == CMigration.FTS_ROOTLEVEL {
+      name = p.name
     }
     else {
-      (void)snprintf(name, sizeof(name),
-                     "%s/%s", p->fts_parent->fts_accpath, p->fts_name);
+      name = "\(p.parent!.pointee.fts_accpath!)/\(p.name!)"
     }
-    if ((lnklen = readlink(name, path, sizeof(path) - 1)) == -1) {
-      (void)fprintf(stderr, "\nls: %s: %s\n", name, strerror(errno));
+
+    var path : String
+    do {
+      path = try readlink(name)
+    } catch(let e) {
+      errno = e.code
+      warn("\nls: \(name)")
       return;
     }
-    path[lnklen] = '\0';
-    (void)printf(" -> ");
-    (void)printname(path);
+    print(" -> ", terminator: "")
+    printname(path)
   }
 
-    func printsize(size_t width, off_t bytes) {
+  func printsize(_ width : size_t, _ bytes : off_t) {
+
+    var buf : String
 
       if (options.f_humanval) {
       /*
        * Reserve one space before the size and allocate room for
        * the trailing '\0'.
        */
-      char buf[HUMANVALSTR_LEN - 1 + 1];
 
-      humanize_number(buf, sizeof(buf), (int64_t)bytes, "",
-                      HN_AUTOSCALE, HN_B | HN_NOSPACE | HN_DECIMAL);
-      (void)printf("%*s ", (u_int)width, buf);
+        buf = humanize_number(HUMANVALSTR_LEN, Int(bytes), "",nil, [.b, .nospace, .decimal] ) ?? ""
     } else if (options.f_thousands) {		/* with commas */
-      /* This format assignment needed to work round gcc bug. */
-      const char * const format = "%'*lld ";
-      (void)printf(format, (u_int)width, bytes);
+      buf = cFormat("%'lld", bytes)
     } else {
-      (void)printf("%*lld ", (u_int)width, bytes);
+      buf = String(bytes)
     }
+    let b2 = String(repeating: " ", count: max(0, width - buf.count)) + buf
+    print(b2, terminator: " ")
   }
 }

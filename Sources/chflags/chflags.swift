@@ -91,6 +91,8 @@ struct ATFlags : OptionSet {
     var oct = false
     var set : UInt = 0
     var clear : UInt = 0
+//    var sortfcn : ((FTSEntry, FTSEntry) -> ComparisonResult)?
+
   }
   
   var options : CommandOptions!

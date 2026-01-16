@@ -41,7 +41,7 @@ import Darwin
 extension ls {
 
 
-  static int output;    /* If anything output. */
+ // static int output;    /* If anything output. */
 
   /*
    * Traverse() walks the logical directory structure specified by the argv list
@@ -53,7 +53,8 @@ extension ls {
     //    FTSENT *p, *chp;
     //    int ch_options, error;
 
-    guard let ftsp = try FTSWalker(options.args, options.fts_options, options.f_nosort ? nil : mastercmp) else {
+    let k = options.f_nosort ? nil : mastercmp
+    guard let ftsp = try? FTSWalker(path: options.args, options: options.fts_options, sort: k) else {
       //    if ((ftsp = fts_open(argv, options, options.f_nosort ? NULL : mastercmp)) == NULL) {
       err(1, "fts_open")
       return
@@ -63,10 +64,8 @@ extension ls {
      * We ignore errors from fts_children here since they will be
      * replicated and signalled on the next call to fts_read() below.
      */
-    chp = fts_children(ftsp, 0);
-    if (chp != NULL) {
-      display(nil, chp, options);
-    }
+    let chp = ftsp.children
+    display(nil, chp)
 
     if (options.f_listdir) {
       //      fts_close(ftsp);
@@ -84,7 +83,7 @@ extension ls {
     for var p in ftsp {
       switch p.info {
         case .DC:
-          warnx("\(p.name): directory causes a cycle")
+          warnx("\(p.name!): directory causes a cycle")
           if (unix2003_compat) {
             rval = 1;
           }
@@ -92,7 +91,7 @@ extension ls {
           warnx("\(p.path): \(p.errno.localizedDescription)")
           rval = 1
         case .D:
-          if p.level != FTS_ROOTLEVEL &&
+          if p.level != CMigration.FTS_ROOTLEVEL &&
               p.name.hasPrefix(".") && !options.f_listdot {
             p.setAction(FTSAction.SKIP)
             break;
@@ -115,38 +114,42 @@ extension ls {
            */
           if (output) {
             putchar('\n');
-            (void)printname(p->fts_path);
-            puts(":");
+            printname(p.path)
+            print(":")
           } else if (argc > 1) {
-            (void)printname(p->fts_path);
-            puts(":");
+            printname(p.path)
+            print(":")
             output = 1;
           }
-          chp = fts_children(ftsp, ch_options);
-          if (unix2003_compat && ((options & FTS_LOGICAL) != 0)) {
-            FTSENT *curr;
-            for (curr = chp; curr; curr = curr->fts_link) {
-              if (curr->fts_info == FTS_SLNONE) {
-                curr->fts_number = NO_PRINT;
+//          if ch_options.contains(.NAMEONLY) {
+//            chp = ftsp.childNames
+//          } else {
+          var chp = ftsp.children
+//          }
+//          chp = fts_children(ftsp, ch_options);
+          if unix2003_compat && options.fts_options.contains(.LOGICAL) {
+            for var curr in chp {
+              if curr.info == FTSInfo.SLNONE {
+                curr.number = NO_PRINT
               }
             }
           }
-          display(p, chp, options);
+          display(p, chp)
 
-          if !options.f_recursive && chp != nil {
+          if !options.f_recursive && !chp.isEmpty {
             p.setAction(FTSAction.SKIP)
           }
           break;
         case .SLNONE:  /* Same as default unless Unix conformance */
           if unix2003_compat {
             if options.fts_options.contains(.LOGICAL) {  /* -L was specified */
-              warnx("\(p.name): \(p.errno.localizedDescription)")
+              warnx("\(p.name!): \(p.errno.localizedDescription)")
               rval = 1
             }
           }
         case .DP:
           /* If we have fts_errno set from the preorder run, just bail out */
-          if p.errno {
+          if p.errno.code != 0  {
             errno = p.errno.code
             break loop
           }
@@ -154,14 +157,12 @@ extension ls {
           break;
       }
     }
-//  out:
+    //  out:
     /* Map ENEEDAUTH to EPERM which is a well-known error code */
-    error = (errno == ENEEDAUTH) ? EPERM : errno;
-    fts_close(ftsp);
+    let error = (errno == ENEEDAUTH) ? EPERM : errno;
     errno = error;
-
-    if (errno) {
-      err(1, "fts_read");
+    if 0 != errno {
+      err(1, "fts_read")
     }
   }
 
@@ -170,8 +171,8 @@ extension ls {
    * along with any other necessary information to the print function.  P
    * points to the parent directory of the display list.
    */
-  func display(_ p : FtsEntry?, FTSENT *list, int options) {
-    struct stat *sp;
+  func display(_ p : FTSEntry?, _ list : [FTSEntry]) {
+/*    struct stat *sp;
     DISPLAY d;
     FTSENT *cur;
     NAMES *np;
@@ -201,320 +202,302 @@ extension ls {
 
     u_long width[9];
     int i;
+*/
 
-    needstats = options.f_inode || options.f_longform || options.f_size;
-    flen = 0;
-    btotal = 0;
+    let needstats = options.f_inode || options.f_longform || options.f_size
+    var flen = 0
+    var btotal = UInt(0)
 
-    #define LS_COLWIDTHS_FIELDS  9
-    initmax = getenv("LS_COLWIDTHS");
+    let LS_COLWIDTHS_FIELDS = 9
+    var initmax = Environment["LS_COLWIDTHS"]
+    var width = Array(repeating: UInt(0), count: LS_COLWIDTHS_FIELDS)
+    var d = DISPLAY()
 
-    for (i = 0 ; i < LS_COLWIDTHS_FIELDS; i++)
-          width[i] = 0;
-
-    if (initmax != NULL) {
-      char *endp;
-
-      for (i = 0; i < LS_COLWIDTHS_FIELDS && *initmax != '\0'; i++) {
-        if (*initmax == ':') {
-          width[i] = 0;
+    if var initmax {
+      var exl = false
+      for i in 0..<LS_COLWIDTHS_FIELDS {
+        if initmax.isEmpty { exl = true; break }
+        if initmax.hasPrefix(":") {
+          width[i] = 0
         } else {
-          width[i] = strtoul(initmax, &endp, 10);
-          initmax = endp;
-          while (isspace(*initmax))
-                  initmax++;
-          if (*initmax != ':') {
-            break;
-          }
-          initmax++;
+          let k = initmax.prefix { $0.isWholeNumber }
+          width[i] = Int(k) ?? 0
+          initmax.removeFirst(k.count)
+          initmax = String(initmax.drop { $0.isWhitespace })
+          if !initmax.hasPrefix(":") { exl = true; break }
+          initmax.removeFirst()
         }
       }
-      if (i < LS_COLWIDTHS_FIELDS) {
-
+      if exl {
         if (!options.f_color) {
-
           options.f_notabs = 0;
         }
       }
+    }
 
-      /* Fields match -lios order.  New ones should be added at the end. */
-      maxinode = width[0];
-      maxblock = width[1];
-      maxnlink = width[2];
-      maxuser = width[3];
-      maxgroup = width[4];
-      maxflags = width[5];
-      maxsize = width[6];
-      maxlen = width[7];
-      maxlabelstr = width[8];
+    /* Fields match -lios order.  New ones should be added at the end. */
+    var maxinode = width[0]
+    var maxblock = width[1]
+    var maxnlink = width[2]
+    var maxuser = width[3]
+    var maxgroup = width[4]
+    var maxflags = width[5]
+    var maxsize = width[6]
+    var maxlen = width[7]
+    var maxlabelstr = width[8]
 
-      MAKENINES(maxinode);
-      MAKENINES(maxblock);
-      MAKENINES(maxnlink);
-      MAKENINES(maxsize);
+    maxinode = MAKENINES(maxinode)
+    maxblock = MAKENINES(maxblock)
+    maxnlink = MAKENINES(maxnlink)
+    maxsize = MAKENINES(maxsize)
 
-      d.s_size = 0;
-      sizelen = 0;
-      flags = NULL;
-      for (cur = list, entries = 0; cur; cur = cur->fts_link) {
-        if (cur->fts_info == FTS_ERR || cur->fts_info == FTS_NS) {
-          warnx("%s: %s",
-                cur->fts_name, strerror(cur->fts_errno));
-          cur->fts_number = NO_PRINT;
-          rval = 1;
+    d.s_size = 0;
+    sizelen = 0;
+    flags = NULL;
+    var entries = UInt(0)
+    var rval : Int32 = 0
+
+    for var cur in list {
+      if cur.info == .ERR || cur.info == .NS {
+        warnx("\(cur.name!): \(cur.errno.localizedDescription)")
+        cur.number = NO_PRINT
+        rval = 1
+        continue
+      }
+      /*
+       * P is NULL if list is the argv list, to which different rules
+       * apply.
+       */
+      if p == nil {
+        /* Directories will be displayed later. */
+        if cur.info == .D && !options.f_listdir {
+          cur.number = NO_PRINT
           continue;
         }
-        /*
-         * P is NULL if list is the argv list, to which different rules
-         * apply.
-         */
-        if (p == NULL) {
-          /* Directories will be displayed later. */
-          if (cur->fts_info == FTS_D && !options.f_listdir) {
-            cur->fts_number = NO_PRINT;
-            continue;
-          }
-        } else {
-          /* Only display dot file if -a/-A set. */
-          if (cur->fts_name[0] == '.' && !options.f_listdot) {
-            cur->fts_number = NO_PRINT;
-            continue;
-          }
+      } else {
+        /* Only display dot file if -a/-A set. */
+        if cur.name.hasPrefix(".") && !options.f_listdot {
+          cur.number = NO_PRINT
+          continue
         }
-        if (cur->fts_namelen > maxlen) {
-          maxlen = cur->fts_namelen;
+      }
+      if cur.name.count > maxlen {
+        maxlen = UInt(cur.name.count)
+      }
+      if (options.f_octal || options.f_octal_escape) {
+        let t = len_octal(cur.name, cur.name.count)
+
+        if (t > maxlen) {
+          maxlen = UInt(t)
         }
-        if (options.f_octal || options.f_octal_escape) {
-          u_long t = len_octal(cur->fts_name, cur->fts_namelen);
-
-          if (t > maxlen) {
-            maxlen = t;
-          }
+      }
+      if (needstats) {
+        let sp = cur.statp!
+        if sp.blocks > maxblock {
+          maxblock = sp.blocks
         }
-        if (needstats) {
-          sp = cur->fts_statp;
-          if (sp->st_blocks > maxblock) {
-            maxblock = sp->st_blocks;
+        if sp.inode > maxinode {
+          maxinode = sp.inode
+        }
+        if sp.links > maxnlink {
+          maxnlink = sp.links
+        }
+        if sp.size > maxsize {
+          maxsize = sp.size
+        }
+
+        btotal += sp.blocks
+        if options.f_longform {
+          if options.f_numericonly {
+            (void)snprintf(nuser, sizeof(nuser),
+                           "%u", sp->st_uid);
+            (void)snprintf(ngroup, sizeof(ngroup),
+                           "%u", sp->st_gid);
+            user = nuser;
+            group = ngroup;
+          } else {
+            user = user_from_uid(sp->st_uid, 0);
+            /*
+             * user_from_uid(..., 0) only returns
+             * NULL in OOM conditions.  We could
+             * format the uid here, but (1) in
+             * general ls(1) exits on OOM, and (2)
+             * there is another allocation/exit
+             * path directly below, which will
+             * likely exit anyway.
+             */
+            if (user == NULL) {
+              err(1, "user_from_uid");
+            }
+            group = group_from_gid(sp->st_gid, 0);
+            /* Ditto. */
+            if (group == NULL) {
+              err(1, "group_from_gid");
+            }
           }
-          if (sp->st_ino > maxinode) {
-            maxinode = sp->st_ino;
+          if ((ulen = strlen(user)) > maxuser) {
+            maxuser = ulen;
           }
-          if (sp->st_nlink > maxnlink) {
-            maxnlink = sp->st_nlink;
+          if ((glen = strlen(group)) > maxgroup) {
+            maxgroup = glen;
           }
-          if (sp->st_size > maxsize) {
-            maxsize = sp->st_size;
+          if (options.f_flags) {
+            if let flags = fflagstostr(sp.flags), !flags.isEmpty {
+              flags = strdup("-");
+            } else {
+              err(1, "fflagstostr");
+            }
+            flen = strlen(flags)
+            if (flen > (size_t)maxflags) {
+              maxflags = flen;
+            }
+          } else {
+            flen = 0;
+          }
+          labelstr = NULL;
+
+          labelstrlen = 0;
+
+          if ((np = calloc(1, sizeof(NAMES) + labelstrlen +
+                           ulen + glen + flen + 4)) == NULL) {
+            err(1, "malloc");
           }
 
-          btotal += sp->st_blocks;
-          if (options.f_longform) {
-            if (options.f_numericonly) {
-              (void)snprintf(nuser, sizeof(nuser),
-                             "%u", sp->st_uid);
-              (void)snprintf(ngroup, sizeof(ngroup),
-                             "%u", sp->st_gid);
-              user = nuser;
-              group = ngroup;
-            } else {
-              user = user_from_uid(sp->st_uid, 0);
-              /*
-               * user_from_uid(..., 0) only returns
-               * NULL in OOM conditions.  We could
-               * format the uid here, but (1) in
-               * general ls(1) exits on OOM, and (2)
-               * there is another allocation/exit
-               * path directly below, which will
-               * likely exit anyway.
-               */
-              if (user == NULL) {
-                err(1, "user_from_uid");
-              }
-              group = group_from_gid(sp->st_gid, 0);
-              /* Ditto. */
-              if (group == NULL) {
-                err(1, "group_from_gid");
-              }
-            }
-            if ((ulen = strlen(user)) > maxuser) {
-              maxuser = ulen;
-            }
-            if ((glen = strlen(group)) > maxgroup) {
-              maxgroup = glen;
-            }
-            if (options.f_flags) {
-              flags = fflagstostr(sp->st_flags);
-              if (flags != NULL && *flags == '\0') {
-                free(flags);
-                flags = strdup("-");
-              }
-              if (flags == NULL) {
-                err(1, "fflagstostr");
-              }
-              flen = strlen(flags);
-              if (flen > (size_t)maxflags) {
-                maxflags = flen;
-              }
-            } else {
-              flen = 0;
-            }
-            labelstr = NULL;
+          np->user = &np->data[0];
+          (void)strcpy(np->user, user);
+          np->group = &np->data[ulen + 1];
+          (void)strcpy(np->group, group);
 
-            labelstrlen = 0;
-
-            if ((np = calloc(1, sizeof(NAMES) + labelstrlen +
-                             ulen + glen + flen + 4)) == NULL) {
-              err(1, "malloc");
+          if cur.level == CMigration.FTS_ROOTLEVEL {
+            filename = cur.name
+          } else {
+            snprintf(path, sizeof(path), "%s/%s", cur.parent!.pointee.fts_accpath, cur.name)
+            filename = path;
+          }
+          xattr_size = listxattr(filename, NULL, 0, XATTR_NOFOLLOW);
+          if (xattr_size < 0) {
+            xattr_size = 0;
+          }
+          if ((xattr_size > 0) && options.f_xattr) {
+            /* collect sizes */
+            np->xattr_names = malloc(xattr_size);
+            listxattr(filename, np->xattr_names, xattr_size, XATTR_NOFOLLOW);
+            for (char *name = np->xattr_names; name < np->xattr_names + xattr_size;
+                 name += strlen(name)+1) {
+              np->xattr_sizes = reallocf(np->xattr_sizes, (np->xattr_count+1) * sizeof(np->xattr_sizes[0]));
+              np->xattr_sizes[np->xattr_count] = getxattr(filename, name, 0, 0, 0, XATTR_NOFOLLOW);
+              np->xattr_count++;
             }
-
-            np->user = &np->data[0];
-            (void)strcpy(np->user, user);
-            np->group = &np->data[ulen + 1];
-            (void)strcpy(np->group, group);
-
-            if (cur->fts_level == FTS_ROOTLEVEL) {
-              filename = cur->fts_name;
-            } else {
-              snprintf(path, sizeof(path), "%s/%s", cur->fts_parent->fts_accpath, cur->fts_name);
-              filename = path;
-            }
-            xattr_size = listxattr(filename, NULL, 0, XATTR_NOFOLLOW);
-            if (xattr_size < 0) {
-              xattr_size = 0;
-            }
-            if ((xattr_size > 0) && options.f_xattr) {
-              /* collect sizes */
-              np->xattr_names = malloc(xattr_size);
-              listxattr(filename, np->xattr_names, xattr_size, XATTR_NOFOLLOW);
-              for (char *name = np->xattr_names; name < np->xattr_names + xattr_size;
-                   name += strlen(name)+1) {
-                np->xattr_sizes = reallocf(np->xattr_sizes, (np->xattr_count+1) * sizeof(np->xattr_sizes[0]));
-                np->xattr_sizes[np->xattr_count] = getxattr(filename, name, 0, 0, 0, XATTR_NOFOLLOW);
-                np->xattr_count++;
-              }
-            }
-            /* symlinks can not have ACLs */
-            np->acl = acl_get_link_np(filename, ACL_TYPE_EXTENDED);
-            if (np->acl) {
-              if (acl_get_entry(np->acl, ACL_FIRST_ENTRY, &dummy) == -1) {
-                acl_free(np->acl);
-                np->acl = NULL;
-              }
-            }
-            if (xattr_size > 0) {
-              np->mode_suffix = '@';
-            } else if (np->acl) {
-              np->mode_suffix = '+';
-            } else {
-              np->mode_suffix = ' ';
-            }
-            if (IS_DATALESS(sp)) {
-              np->mode_suffix = '%';
-            }
-            if (!options.f_acl) {
+          }
+          /* symlinks can not have ACLs */
+          np->acl = acl_get_link_np(filename, ACL_TYPE_EXTENDED);
+          if (np->acl) {
+            if (acl_get_entry(np->acl, ACL_FIRST_ENTRY, &dummy) == -1) {
               acl_free(np->acl);
               np->acl = NULL;
             }
-
-            if (S_ISCHR(sp->st_mode) ||
-                S_ISBLK(sp->st_mode)) {
-              sizelen = snprintf(NULL, 0,
-                                 "%#jx", (uintmax_t)sp->st_rdev);
-              if (d.s_size < sizelen) {
-                d.s_size = sizelen;
-              }
-            }
-
-            if (options.f_flags) {
-              np->flags = &np->data[ulen + glen + 2];
-              (void)strcpy(np->flags, flags);
-              free(flags);
-            }
-
-            cur->fts_pointer = np;
           }
-        }
-        ++entries;
-      }
-
-      /*
-       * If there are no entries to display, we normally stop right
-       * here.  However, we must continue if we have to display the
-       * total block count.  In this case, we display the total only
-       * on the second (p != NULL) pass.
-       */
-      if (!entries && (!(options.f_longform || options.f_size) || p == NULL)) {
-        return;
-      }
-
-      d.list = list;
-      d.entries = entries;
-      d.maxlen = maxlen;
-      if (needstats) {
-        d.btotal = btotal;
-        d.s_block = snprintf(NULL, 0, "%llu", howmany(maxblock, blocksize));
-        d.s_flags = maxflags;
-
-        d.s_group = maxgroup;
-        d.s_inode = snprintf(NULL, 0, "%llu", maxinode);
-        d.s_nlink = snprintf(NULL, 0, "%llu", maxnlink);
-        sizelen = options.f_humanval ? HUMANVALSTR_LEN :
-        snprintf(NULL, 0, "%lld", maxsize);
-        if (d.s_size < sizelen) {
-          d.s_size = sizelen;
-        }
-        d.s_user = maxuser;
-      }
-      if (options.f_thousands) {      /* make space for commas */
-        d.s_size += (d.s_size - 1) / 3;
-      }
-      printfcn(&d);
-      output = 1;
-
-      if (options.f_longform) {
-        for (cur = list; cur; cur = cur->fts_link) {
-          np = cur->fts_pointer;
-          if (np) {
-            if (np->acl) {
-              acl_free(np->acl);
-            }
-            free(np->xattr_names);
-            free(np->xattr_sizes);
-            free(np);
-            cur->fts_pointer = NULL;
+          if (xattr_size > 0) {
+            np->mode_suffix = '@';
+          } else if (np->acl) {
+            np->mode_suffix = '+';
+          } else {
+            np->mode_suffix = ' ';
           }
+          if (IS_DATALESS(sp)) {
+            np->mode_suffix = '%';
+          }
+          if (!options.f_acl) {
+            acl_free(np->acl);
+            np->acl = NULL;
+          }
+
+          if (S_ISCHR(sp->st_mode) ||
+              S_ISBLK(sp->st_mode)) {
+            sizelen = snprintf(NULL, 0,
+                               "%#jx", (uintmax_t)sp->st_rdev);
+            if (d.s_size < sizelen) {
+              d.s_size = sizelen;
+            }
+          }
+
+          if (options.f_flags) {
+            np->flags = &np->data[ulen + glen + 2];
+            (void)strcpy(np->flags, flags);
+            free(flags);
+          }
+
+          cur->fts_pointer = np;
         }
       }
+      entries += 1
     }
 
     /*
-     * Ordering for mastercmp:
-     * If ordering the argv (fts_level = FTS_ROOTLEVEL) return non-directories
-     * as larger than directories.  Within either group, use the sort function.
-     * All other levels use the sort function.  Error entries remain unsorted.
+     * If there are no entries to display, we normally stop right
+     * here.  However, we must continue if we have to display the
+     * total block count.  In this case, we display the total only
+     * on the second (p != NULL) pass.
      */
-    static int
-    mastercmp(const FTSENT **a, const FTSENT **b)
-    {
-      int a_info, b_info;
-
-      a_info = (*a)->fts_info;
-      if (a_info == FTS_ERR)
-          return (0);
-      b_info = (*b)->fts_info;
-      if (b_info == FTS_ERR)
-          return (0);
-
-      if (a_info == FTS_NS || b_info == FTS_NS)
-          return (namecmp(*a, *b));
-
-      if (a_info != b_info &&
-          (*a)->fts_level == FTS_ROOTLEVEL && !options.f_listdir) {
-        if (a_info == FTS_D)
-            return (1);
-        if (b_info == FTS_D)
-            return (-1);
-      }
-      return (sortfcn(*a, *b));
+    if entries == 0 && (!(options.f_longform || options.f_size) || p == nil) {
+      return
     }
+
+    d.list = list;
+    d.entries = entries;
+    d.maxlen = maxlen;
+    if (needstats) {
+      d.btotal = btotal;
+      d.s_block = snprintf(NULL, 0, "%llu", howmany(maxblock, blocksize));
+      d.s_flags = maxflags;
+
+      d.s_group = maxgroup;
+      d.s_inode = snprintf(NULL, 0, "%llu", maxinode);
+      d.s_nlink = snprintf(NULL, 0, "%llu", maxnlink);
+      sizelen = options.f_humanval ? HUMANVALSTR_LEN :
+      snprintf(NULL, 0, "%lld", maxsize);
+      if (d.s_size < sizelen) {
+        d.s_size = sizelen;
+      }
+      d.s_user = maxuser;
+    }
+    if (options.f_thousands) {      /* make space for commas */
+      d.s_size += (d.s_size - 1) / 3;
+    }
+    printfcn(&d);
+    output = 1;
+
+    if (options.f_longform) {
+      for var cur in list {
+        np = cur.pointer;
+        if (np) {
+          if (np->acl) {
+            acl_free(np->acl);
+          }
+          free(np->xattr_names);
+          free(np->xattr_sizes);
+          free(np);
+          cur->fts_pointer = NULL;
+        }
+      }
+    }
+  }
+
+  /*
+   * Ordering for mastercmp:
+   * If ordering the argv (fts_level = FTS_ROOTLEVEL) return non-directories
+   * as larger than directories.  Within either group, use the sort function.
+   * All other levels use the sort function.  Error entries remain unsorted.
+   */
+  @Sendable func mastercmp(_ a : FTSEntry, _ b : FTSEntry) -> ComparisonResult {
+    if a.info == .ERR { return .orderedSame }
+    if b.info == .ERR { return .orderedSame }
+    if a.info == .NS || b.info == .NS { return namecmp(a, b) }
+
+    if a.info != b.info && a.level == CMigration.FTS_ROOTLEVEL && !options.f_listdir {
+      if a.info == .D { return .orderedDescending }
+      if b.info == .D { return .orderedAscending }
+    }
+    return options.sortfcn!(a, b)
   }
 }

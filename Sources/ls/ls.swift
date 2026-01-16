@@ -36,12 +36,15 @@
  */
 
 import CMigration
+import Darwin
 
 enum WhenColor : Int {
   case NEVER = 0
   case AUTO
   case ALWAYS
 }
+
+@main struct ls : ShellCommand {
 
 /*
 /*
@@ -51,26 +54,24 @@ enum WhenColor : Int {
  */
 #define	STRBUF_SIZEOF(t)	(1 + CHAR_BIT * sizeof(t) / 3 + 1)
 
+*/
 
 /*
  * MAKENINES(n) turns n into (10**n)-1.  This is useful for converting a width
  * into a number that wide in decimal.
  * XXX: Overflows are not considered.
  */
-#define MAKENINES(n)							\
-	do {								\
-		intmax_t __i;						\
-									\
-		/* Use a loop as all values of n are small. */		\
-		for (__i = 1; n > 0; __i *= 10)				\
-			n--;						\
-		n = __i - 1;						\
-	} while(0)
+  func MAKENINES(_ n : UInt) -> UInt {
+    /* Use a loop as all values of n are small. */
+    let a = (0 ..< n).reduce(1) { acc, _ in acc * 10 }
+    return a-1
+  }
 
+    /*
 #define	COLOR_OPT	(CHAR_MAX + 1)
 */
 
-var longOptions : [option] = [
+var longOptions : [CMigration.option] = [
   .init("color",  .optional_argument),
   ]
 
@@ -84,10 +85,9 @@ int termwidth = 80;		/* default terminal width */
 
 
 static int rval;
+*/
 
-static bool
-do_color_from_env(void)
-{
+func do_color_from_env() -> Bool {
 	const char *p;
 	bool doit;
 
@@ -108,49 +108,27 @@ do_color_from_env(void)
 	    (isatty(STDOUT_FILENO) || getenv("CLICOLOR_FORCE")));
 }
 
-static bool
-do_color(void)
-{
-
-#ifdef COLORLS
-	if (colorflag == COLORFLAG_NEVER)
-		return (false);
-	else if (colorflag == COLORFLAG_ALWAYS)
-		return (true);
-#endif
-	return (do_color_from_env());
+func do_color() -> Bool {
+  if options.colorflag == .NEVER {
+    return false
+  }
+  else if options.colorflag == .ALWAYS {
+    return true
+  }
+	return do_color_from_env()
 }
 
-#ifdef COLORLS
-static bool
-do_color_always(const char *term)
-{
+  func do_color_always(_ term : String) -> Bool {
+    return term == "always" || term == "yes" || term == "force"
+  }
 
-	return (strcmp(term, "always") == 0 || strcmp(term, "yes") == 0 ||
-	    strcmp(term, "force") == 0);
-}
+  func do_color_never(_ term : String) -> Bool {
+    return term == "never" || term == "no" || term == "none"
+  }
 
-static bool
-do_color_never(const char *term)
-{
-
-	return (strcmp(term, "never") == 0 || strcmp(term, "no") == 0 ||
-	    strcmp(term, "none") == 0);
-}
-
-static bool
-do_color_auto(const char *term)
-{
-
-	return (strcmp(term, "auto") == 0 || strcmp(term, "tty") == 0 ||
-	    strcmp(term, "if-tty") == 0);
-}
-#endif	/* COLORLS */
-
-*/
-
-
-@main struct ls : ShellCommand {
+  func do_color_auto(_ term : String) -> Bool {
+    return term == "auto" || term == "tty" || term == "if-tty"
+  }
 
   func IS_DATALESS(_ sp : FileMetadata?) -> Bool {
     return options.f_dataless && sp != nil && sp!.flags.contains(.SF_DATALESS)
@@ -221,65 +199,86 @@ do_color_auto(const char *term)
 
   struct CommandOptions {
     /* flags */
-           var f_accesstime = false  /* use time of last access */
-           var f_birthtime = false    /* use time of birth */
-           var f_flags = false    /* show flags associated with a file */
-           var f_humanval = false    /* show human-readable file sizes */
-           var f_inode = false    /* print inode */
+    var f_accesstime = false  /* use time of last access */
+    var f_birthtime = false    /* use time of birth */
+    var f_flags = false    /* show flags associated with a file */
+    var f_humanval = false    /* show human-readable file sizes */
+    var f_inode = false    /* print inode */
 
     var f_kblocks = false    /* print size in kilobytes */
-     var f_listdir = false    /* list actual directory, not contents */
-      var f_listdot = false    /* list files beginning with . */
-           var f_longform = false    /* long listing format */
+    var f_listdir = false    /* list actual directory, not contents */
+    var f_listdot = false    /* list files beginning with . */
+    var f_longform = false    /* long listing format */
     var f_noautodot = false    /* do not automatically enable -A for root */
     var f_nofollow = false    /* don't follow symbolic link arguments */
-           var f_nonprint = false    /* show unprintables as ? */
+    var f_nonprint = false    /* show unprintables as ? */
     var f_nosort = false    /* don't sort output */
-           var f_notabs = false    /* don't use tab-separated multi-col output */
-           var f_numericonly = false  /* don't convert uid/gid to name */
-           var f_octal = false    /* show unprintables as \xxx */
-           var f_octal_escape = false  /* like f_octal but use C escapes if possible */
+    var f_notabs = false    /* don't use tab-separated multi-col output */
+    var f_numericonly = false  /* don't convert uid/gid to name */
+    var f_octal = false    /* show unprintables as \xxx */
+    var f_octal_escape = false  /* like f_octal but use C escapes if possible */
     var f_recursive = false    /* ls subdirectories also */
     var f_reversesort = false  /* reverse whatever sort is used */
-           var f_samesort = false    /* sort time and name in same direction */
-           var f_sectime = false    /* print full time information */
+    var f_samesort = false    /* sort time and name in same direction */
+    var f_sectime = false    /* print full time information */
     var f_singlecol = false    /* use single column output */
-           var f_size = false    /* list size in short listing */
+    var f_size = false    /* list size in short listing */
     var f_sizesort = false
-          var f_slash = false    /* similar to f_type, but only for dirs */
-           var f_sortacross = false  /* sort across rows, not down columns */
-           var f_statustime = false  /* use time of last mode change */
+    var f_slash = false    /* similar to f_type, but only for dirs */
+    var f_sortacross = false  /* sort across rows, not down columns */
+    var f_statustime = false  /* use time of last mode change */
     var f_stream = false    /* stream the output, separate with commas */
-           var f_thousands = false    /* show file sizes with thousands separators */
+    var f_thousands = false    /* show file sizes with thousands separators */
     var f_timeformat : String?  /* user-specified time format */
     var f_timesort = false    /* sort by time vice name */
-           var f_type = false    /* add type character for non-regular files */
+    var f_type = false    /* add type character for non-regular files */
     var f_whiteout = false    /* show whiteout entries */
 
-           var f_acl = false    /* show ACLs in long listing */
-           var f_xattr = false    /* show extended attributes in long listing */
-           var f_group = false    /* show group */
-           var f_owner = false    /* show owner */
-           var f_dataless = false          /* distinguish dataless files in long listing,
-               and don't materialize dataless directories. */
+    var f_acl = false    /* show ACLs in long listing */
+    var f_xattr = false    /* show extended attributes in long listing */
+    var f_group = false    /* show group */
+    var f_owner = false    /* show owner */
+    var f_dataless = false          /* distinguish dataless files in long listing,
+                                     and don't materialize dataless directories. */
 
     var colorflag = WhenColor.NEVER    /* passed in colorflag */
-           var f_color = false    /* add type in color for non-regular files */
-           var explicitansi = false  /* Explicit ANSI sequences, no termcap(5) */
+    var f_color = false    /* add type in color for non-regular files */
+    var explicitansi = false  /* Explicit ANSI sequences, no termcap(5) */
     var ansi_bgcol = ""    /* ANSI sequence to set background colour */
     var ansi_fgcol = ""    /* ANSI sequence to set foreground colour */
     var ansi_coloff = ""    /* ANSI sequence to reset colours */
     var attrs_off = ""    /* ANSI sequence to turn off attributes */
     var enter_bold = ""    /* ANSI sequence to set color to bold mode */
 
+    var blocksize : UInt = 0
+
     var fts_options = FTSFlags()
 
+    var sortfcn : ((FTSEntry, FTSEntry) -> ComparisonResult)?
+    var printfcn : ((DISPLAY) -> ())?
     var args : [String] = []
+
+
   }
 
+  
   var options : CommandOptions!
 
 
+  struct DISPLAY {
+    var list : [FTSEntry]?
+    var btotal : UInt = 0
+    var entries : UInt = 0
+    var maxlen : UInt = 0
+    var s_block : UInt = 0
+    var s_flags : UInt = 0
+    var s_label : UInt = 0
+    var s_group : UInt = 0
+    var s_inode : UInt = 0
+    var s_nlink : UInt = 0
+    var s_size : UInt = 0
+    var s_user : UInt = 0
+  }
 
 
   func parseOptions() throws(CmdErr) -> CommandOptions {
@@ -567,66 +566,69 @@ do_color_auto(const char *term)
     /* If -i, -l or -s, figure out block size. */
     if (options.f_inode || options.f_longform || options.f_size) {
       if (options.f_kblocks) {
-        blocksize = 2;
+        options.blocksize = 2
       }
       else {
-        (void)getbsize(&notused, &blocksize);
-        blocksize /= 512;
+        var blocksize : Int = 0
+        var notused : Int32 = 0
+        getbsize(&notused, &blocksize);
+        blocksize /= 512
+        options.blocksize = UInt(blocksize)
       }
     }
     /* Select a sort function. */
     if (options.f_reversesort) {
       if (!options.f_timesort && !options.f_sizesort) {
-        sortfcn = revnamecmp;
+        options.sortfcn = revnamecmp;
       }
       else if (options.f_sizesort) {
-        sortfcn = revsizecmp;
+        options.sortfcn = revsizecmp;
       }
       else if (options.f_accesstime) {
-        sortfcn = revacccmp;
+        options.sortfcn = revacccmp;
       }
       else if (options.f_birthtime) {
-        sortfcn = revbirthcmp;
+        options.sortfcn = revbirthcmp;
       }
       else if (options.f_statustime) {
-        sortfcn = revstatcmp;
+        options.sortfcn = revstatcmp;
       }
       else {    /* Use modification time. */
-        sortfcn = revmodcmp;
+        options.sortfcn = revmodcmp;
       }
     } else {
       if (!options.f_timesort && !options.f_sizesort) {
-        sortfcn = namecmp;
+        options.sortfcn = namecmp;
       }
       else if (options.f_sizesort) {
-        sortfcn = sizecmp;
+        options.sortfcn = sizecmp;
       }
       else if (options.f_accesstime) {
-        sortfcn = acccmp;
+        options.sortfcn = acccmp;
       }
       else if (options.f_birthtime) {
-        sortfcn = birthcmp;
+        options.sortfcn = birthcmp;
       }
       else if (options.f_statustime) {
-        sortfcn = statcmp;
+        options.sortfcn = statcmp;
       }
       else {    /* Use modification time. */
-        sortfcn = modcmp;
+        options.sortfcn = modcmp;
       }
     }
 
     /* Select a print function. */
     if (options.f_singlecol) {
-      printfcn = printscol;
+      options.printfcn = printscol;
     }
     else if (options.f_longform) {
-      printfcn = printlong;
+      options.printfcn = printlong;
     }
     else if (options.f_stream) {
-      printfcn = printstream;
+      options.printfcn = printstream;
     }
     else {
-      printfcn = printcol;
+      options.printfcn = printcol;
     }
 
     return options
@@ -639,7 +641,7 @@ do_color_auto(const char *term)
       // don't materialize dataless directories from the cloud
       // (particularly useful when listing recursively)
       int state = 1;
-      if (sysctlbyname("vfs.nspace.prevent_materialization", NULL, NULL, &state, sizeof(state)) < 0) {
+      if (sysctlbyname("vfs.nspace.prevent_materialization", nil, nil, &state, sizeof(state)) < 0) {
         err(1, "prevent materialization sysctl failed");
       }
     }
