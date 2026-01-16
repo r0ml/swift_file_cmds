@@ -1055,11 +1055,7 @@ fix_path( char *or_name, int *or_len, char *dir_name, int dir_len)
  */
 
 static int
-#ifdef __APPLE__
 rep_name(char *name, size_t nsize, int *nlen, int prnt)
-#else
-rep_name(char *name, int *nlen, int prnt)
-#endif /* __APPLE__ */
 {
 	REPLACE *pt;
 	char *inpt;
@@ -1091,9 +1087,9 @@ rep_name(char *name, int *nlen, int prnt)
 	 */
 	while (pt != NULL) {
 		do {
-#ifdef __APPLE__
+
 			char *oinpt = inpt;
-#endif /* __APPLE__ */
+
 			/*
 			 * check for a successful substitution, if not go to
 			 * the next pattern, or cleanup if we were global
@@ -1125,11 +1121,9 @@ rep_name(char *name, int *nlen, int prnt)
 			 * replacement string and place it the prefix in the
 			 * final output. If we have problems, skip it.
 			 */
-#ifdef __APPLE__
+
 			if ((res = resub(&(pt->rcmp),pm,pt->nstr,oinpt,outpt,endpt))
-#else
-			if ((res = resub(&(pt->rcmp),pm,inpt,pt->nstr,outpt,endpt))
-#endif /* __APPLE__ */
+
 			    < 0) {
         if (prnt) {
           paxwarn(1, "Replacement name error %s",
@@ -1209,12 +1203,8 @@ rep_name(char *name, int *nlen, int prnt)
     if (*nname == '\0') {
       return(1);
     }
-#ifdef __APPLE__
 		*nlen = strlcpy(name, nname, nsize);
-#else
-		*nlen = l_strncpy(name, nname, PAXPATHLEN + 1);
-		name[PAXPATHLEN] = '\0';
-#endif /* __APPLE__ */
+
 	}
 	return(0);
 }
@@ -1229,11 +1219,9 @@ rep_name(char *name, int *nlen, int prnt)
  */
 
 static int
-#ifdef __APPLE__
-resub(regex_t *rp, regmatch_t *pm, char *src, char *inpt, char *dest,
-#else
-resub(regex_t *rp, regmatch_t *pm, char *orig, char *src, char *dest,
-#endif /* __APPLE__ */
+
+    resub(regex_t *rp, regmatch_t *pm, char *src, char *inpt, char *dest,
+
 	char *destend)
 {
 	char *spt;
@@ -1264,11 +1252,9 @@ resub(regex_t *rp, regmatch_t *pm, char *orig, char *src, char *dest,
  			/*
 			 * Ordinary character, just copy it
 			 */
-#ifdef __APPLE__
+
       if ((c == '\\') && (*spt != '\0')) {
-#else
-        if ((c == '\\') && ((*spt == '\\') || (*spt == '&'))) {
-#endif /* __APPLE__ */
+
           c = *spt++;
         }
  			*dpt++ = c;
@@ -1290,13 +1276,9 @@ resub(regex_t *rp, regmatch_t *pm, char *orig, char *src, char *dest,
     if (len > (destend - dpt)) {
       len = destend - dpt;
     }
-#ifdef __APPLE__
+
 		strncpy(dpt, inpt + pmpt->rm_so, len);
-#else
-    if (l_strncpy(dpt, orig + pmpt->rm_so, len) != len) {
-      return(-1);
-    }
-#endif
+
 		dpt += len;
 	}
 	return(dpt - dest);

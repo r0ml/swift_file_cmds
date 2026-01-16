@@ -453,8 +453,9 @@ pax_options(int argc, char **argv)
 			}
 			paxwarn(1, "Unknown -x format: %s", optarg);
 			(void)fputs("pax: Known -x formats are:", stderr);
-			for (i = 0; i < (sizeof(fsub)/sizeof(FSUB)); ++i)
-				(void)fprintf(stderr, " %s", fsub[i].name);
+          for (i = 0; i < (sizeof(fsub)/sizeof(FSUB)); ++i) {
+            (void)fprintf(stderr, " %s", fsub[i].name);
+          }
 			(void)fputs("\n\n", stderr);
 			pax_usage();
 			break;
@@ -1508,7 +1509,7 @@ bad_opt(void)
 	 * print all we were given
 	 */
 	paxwarn(1,"These format options are not supported");
-#ifdef __APPLE__
+
 	while ((opt = opt_next()) != NULL) {
 		if (opt->separator == SEP_EQ) {
 			(void)fprintf(stderr, "\t%s = %s\n", opt->name, opt->value);
@@ -1518,10 +1519,7 @@ bad_opt(void)
 			(void)fprintf(stderr, "\t%s\n", opt->name);
 		}
 	}
-#else
-	while ((opt = opt_next()) != NULL)
-		(void)fprintf(stderr, "\t%s = %s\n", opt->name, opt->value);
-#endif /* __APPLE__ */
+
 	pax_usage();
 	return(0);
 }
@@ -1552,11 +1550,8 @@ opt_add(const char *str)
 		paxwarn(0, "Unable to allocate space for option list");
 		return(-1);
 	}
-#ifdef __APPLE__
+
 	frpt = lstr;
-#else
-	frpt = endpt = lstr;
-#endif /* __APPLE__ */
 
 	/*
 	 * break into name and values pieces and stuff each one into a
@@ -1577,15 +1572,13 @@ opt_add(const char *str)
 			free(lstr);
 			return(-1);
 		}
-#ifndef __APPLE__
-		lstr = NULL;	/* parts of string going onto the OPLIST */
-#endif /* __APPLE__ */
+
 		*pt++ = '\0';
 		opt->name = frpt;
 		opt->value = pt;
-#ifdef __APPLE__
+
 		opt->separator = SEP_EQ;
-#endif /* __APPLE__ */
+
 		opt->fow = NULL;
     if (endpt != NULL) {
       frpt = endpt + 1;
@@ -1600,13 +1593,10 @@ opt_add(const char *str)
 		optail->fow = opt;
 		optail = opt;
 	}
-#ifndef __APPLE__
-	free(lstr);
-#endif /* __APPLE__ */
+
 	return(0);
 }
 
-#ifdef __APPLE__
 /*
  * pax_format_opt_add()
  *	breaks the value supplied to -o into a option name and value. options
@@ -1679,7 +1669,6 @@ pax_format_opt_add(register char *str)
 	}
 	return(0);
 }
-#endif /* __APPLE__ */
 
 /*
  * str_offt()
@@ -1797,56 +1786,48 @@ no_op(void)
 void
 pax_usage(void)
 {
-#ifdef __APPLE__
+
 	(void)fputs("usage: pax [-0cdjnOvz] [-E limit] [-f archive] ", stderr);
-#else
-	(void)fputs("usage: pax [-cdnOvz] [-E limit] [-f archive] ", stderr);
-#endif
+
 	(void)fputs("[-s replstr] ... [-U user] ...", stderr);
 	(void)fputs("\n	   [-G group] ... ", stderr);
 	(void)fputs("[-T [from_date][,to_date]] ... ", stderr);
-#ifdef __APPLE__
+
 	(void)fputs("[--insecure] ", stderr);
-#endif
+
 	(void)fputs("[pattern ...]\n", stderr);
-#ifdef __APPLE__
+
 	(void)fputs("       pax -r [-0cdijknOuvzDYZ] [-E limit] ", stderr);
-#else
-	(void)fputs("       pax -r [-cdiknOuvzDYZ] [-E limit] ", stderr);
-#endif
+
 	(void)fputs("[-f archive] [-o options] ... \n", stderr);
 	(void)fputs("	   [-p string] ... [-s replstr] ... ", stderr);
 	(void)fputs("[-U user] ... [-G group] ...\n	   ", stderr);
 	(void)fputs("[-T [from_date][,to_date]] ... ", stderr);
-#ifdef __APPLE__
+
 	(void)fputs("[--insecure] ", stderr);
-#endif
+
 	(void)fputs(" [pattern ...]\n", stderr);
-#ifdef __APPLE__
+
 	(void)fputs("       pax -w [-0dijtuvzHLOPX] [-b blocksize] ", stderr);
-#else
-	(void)fputs("       pax -w [-dituvzHLOPX] [-b blocksize] ", stderr);
-#endif
+
 	(void)fputs("[ [-a] [-f archive] ] [-x format] \n", stderr);
 	(void)fputs("	   [-B bytes] [-s replstr] ... ", stderr);
 	(void)fputs("[-o options] ... [-U user] ...", stderr);
 	(void)fputs("\n	   [-G group] ... ", stderr);
 	(void)fputs("[-T [from_date][,to_date][/[c][m]]] ... ", stderr);
-#ifdef __APPLE__
+
 	(void)fputs("[--insecure] ", stderr);
-#endif
+
 	(void)fputs("[file ...]\n", stderr);
-#ifdef __APPLE__
+
 	(void)fputs("       pax -r -w [-0dijklntuvDHLOPXYZ] ", stderr);
-#else
-	(void)fputs("       pax -r -w [-diklntuvDHLOPXYZ] ", stderr);
-#endif
+
 	(void)fputs("[-p string] ... [-s replstr] ...", stderr);
 	(void)fputs("\n	   [-U user] ... [-G group] ... ", stderr);
 	(void)fputs("[-T [from_date][,to_date][/[c][m]]] ... ", stderr);
-#ifdef __APPLE__
+
 	(void)fputs("[--insecure] ", stderr);
-#endif
+
 	(void)fputs("\n	   [file ...] directory\n", stderr);
 	exit(1);
 }

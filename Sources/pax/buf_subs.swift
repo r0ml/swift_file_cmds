@@ -715,8 +715,9 @@ rd_wrfile(ARCHD *arcn, int ofd, off_t *left)
 			 * update the actual crc value
 			 */
 			cnt = res;
-			while (--cnt >= 0)
-				crc += *bufpt++ & 0xff;
+      while (--cnt >= 0) {
+        crc += *bufpt++ & 0xff;
+      }
     } else {
       bufpt += res;
     }

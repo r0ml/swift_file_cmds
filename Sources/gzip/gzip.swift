@@ -2493,13 +2493,11 @@ static void
 display_license(void)
 {
 
-#ifdef __APPLE__
+
 	fprintf(stderr,
 	    "%s (based on FreeBSD gzip 20190107, NetBSD gzip 20150113)\n",
 	    gzip_version);
-#else
-	fprintf(stderr, "%s (based on NetBSD gzip 20150113)\n", gzip_version);
-#endif
+
 	fprintf(stderr, "%s\n", gzip_copyright);
 	exit(0);
 }

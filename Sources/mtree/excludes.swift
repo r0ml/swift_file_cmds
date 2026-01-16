@@ -30,22 +30,8 @@
  * SUCH DAMAGE.
  */
 
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/usr.sbin/mtree/excludes.c,v 1.8 2003/10/21 08:27:05 phk Exp $");
+import CMigration
 
-#include <sys/types.h>
-#include <sys/queue.h>
-
-#include <err.h>
-#include <errno.h>
-#include <fnmatch.h>
-#include <fts.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-
-#include "metrics.h"
-#include "extern.h"
 
 /*
  * We're assuming that there won't be a whole lot of excludes,
@@ -58,15 +44,11 @@ struct exclude {
 };
 static LIST_HEAD(, exclude) excludes;
 
-void
-init_excludes(void)
-{
+func init_excludes() {
 	LIST_INIT(&excludes);
 }
 
-void
-read_excludes_file(const char *name)
-{
+func read_excludes_file(_ name : String) {
 	FILE *fp;
 	char *line, *str;
 	struct exclude *e;
@@ -85,7 +67,7 @@ read_excludes_file(const char *name)
 		str = malloc(len + 1);
 		e = malloc(sizeof *e);
 		if (str == 0 || e == 0) {
-			RECORD_FAILURE(59, ENOMEM);
+			mtree_record_failure(59, ENOMEM);
 			errx(1, "memory allocation error");
 		}
 		e->glob = str;
@@ -100,9 +82,7 @@ read_excludes_file(const char *name)
 	fclose(fp);
 }
 
-int
-check_excludes(const char *fname, const char *path)
-{
+func check_excludes(_ fname : String, _ path : String) -> Bool {
 	struct exclude *e;
 
 	/* fnmatch(3) has a funny return value convention... */
@@ -111,7 +91,7 @@ check_excludes(const char *fname, const char *path)
 	LIST_FOREACH(e, &excludes, link) {
 		if ((e->pathname && MATCH(e->glob, path))
 		    || MATCH(e->glob, fname))
-			return 1;
+			return true
 	}
-	return 0;
+	return false
 }

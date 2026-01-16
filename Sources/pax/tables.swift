@@ -1427,8 +1427,9 @@ st_hash(char *name, int len, int tabsz)
 		val = 0;
 		end = pt + res;
 		dest = (char *)&val;
-		while (pt < end)
-			*dest++ = *pt++;
+    while (pt < end) {
+      *dest++ = *pt++;
+    }
 		key += val;
 	}
 

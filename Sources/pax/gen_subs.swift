@@ -127,12 +127,10 @@ ls_list(ARCHD *arcn, time_t now, FILE *fp)
 	/*
 	 * time format based on age compared to the time pax was started.
 	 */
-#ifdef __APPLE__
+
 	if ((sbp->st_mtime + SIXMONTHS) <= now ||
 		sbp->st_mtime > now)
-#else
-	if ((sbp->st_mtime + SIXMONTHS) <= now)
-#endif /* __APPLE__ */
+
   {
     timefrmt = d_first ? OLDFRMTD : OLDFRMTM;
   }
@@ -146,16 +144,11 @@ ls_list(ARCHD *arcn, time_t now, FILE *fp)
   if (strftime(f_date,DATELEN,timefrmt,localtime(&(sbp->st_mtime))) == 0) {
     f_date[0] = '\0';
   }
-#ifdef __APPLE__
+
 #define UT_NAMESIZE 8
 	(void)fprintf(fp, "%s%2u %-*.*s %-*.*s ", f_mode, sbp->st_nlink,
 		NAME_WIDTH, UT_NAMESIZE, name_uid(sbp->st_uid, 1),
 		NAME_WIDTH, UT_NAMESIZE, name_gid(sbp->st_gid, 1));
-#else
-	(void)fprintf(fp, "%s%2ju %-12s %-12s ", f_mode,
-		(uintmax_t)sbp->st_nlink,
-		name_uid(sbp->st_uid, 1), name_gid(sbp->st_gid, 1));
-#endif /* __APPLE__ */
 
 	/*
 	 * print device id's for devices, or sizes for other nodes
@@ -165,7 +158,7 @@ ls_list(ARCHD *arcn, time_t now, FILE *fp)
                   (unsigned long)MINOR(sbp->st_rdev));
   }
 	else {
-#ifdef __APPLE__
+
 		/*
 		 * UNIX compliance fix: printing filename length for soft links
 		 * from arcn->ln_nlen instead of sbp->st_size, which is 0.
@@ -177,15 +170,12 @@ ls_list(ARCHD *arcn, time_t now, FILE *fp)
 			nlen = sbp->st_size;
 		}
 		(void)fprintf(fp, "%9ju ", (uintmax_t)nlen);
-#else
-		(void)fprintf(fp, "%9ju ", (uintmax_t)sbp->st_size);
-#endif /* __APPLE__ */
 	}
 
 	/*
 	 * print name and link info for hard and soft links
 	 */
-#ifdef __APPLE__
+
 	(void)fputs(f_date, fp);
 	(void)putc(' ', fp);
 	safe_print(arcn->name, fp);
@@ -197,18 +187,7 @@ ls_list(ARCHD *arcn, time_t now, FILE *fp)
 		safe_print(arcn->ln_name, fp);
 	}
 	(void)putc(term, fp);
-#else
-	(void)fprintf(fp, "%s %s", f_date, arcn->name);
-  if ((arcn->type == PAX_HLK) || (arcn->type == PAX_HRG)) {
-    (void)fprintf(fp, " == %s\n", arcn->ln_name);
-  }
-  else if (arcn->type == PAX_SLK) {
-    (void)fprintf(fp, " => %s\n", arcn->ln_name);
-  }
-  else {
-    (void)putc('\n', fp);
-  }
-#endif /* __APPLE__ */
+
 	(void)fflush(fp);
 	return;
 }
@@ -275,7 +254,6 @@ l_strncpy(char *dest, const char *src, int len)
 	return(len);
 }
 
-#ifdef __APPLE__
 void
 safe_print(const char *str, FILE *fp)
 {
@@ -304,7 +282,6 @@ safe_print(const char *str, FILE *fp)
 		(void)fputs(str, fp);
 	}
 }
-#endif /* __APPLE__ */
 
 /*
  * asc_ul()
@@ -327,8 +304,9 @@ asc_ul(char *str, int len, int base)
 	/*
 	 * skip over leading blanks and zeros
 	 */
-	while ((str < stop) && ((*str == ' ') || (*str == '0')))
-		++str;
+  while ((str < stop) && ((*str == ' ') || (*str == '0'))) {
+    ++str;
+  }
 
 	/*
 	 * for each valid digit, shift running value (tval) over to next digit
@@ -350,8 +328,9 @@ asc_ul(char *str, int len, int base)
       }
 		}
 	} else {
- 		while ((str < stop) && (*str >= '0') && (*str <= '7'))
-			tval = (tval << 3) + (*str++ - '0');
+    while ((str < stop) && (*str >= '0') && (*str <= '7')) {
+      tval = (tval << 3) + (*str++ - '0');
+    }
 	}
 	return(tval);
 }
@@ -433,8 +412,9 @@ asc_uqd(char *str, int len, int base)
 	/*
 	 * skip over leading blanks and zeros
 	 */
-	while ((str < stop) && ((*str == ' ') || (*str == '0')))
-		++str;
+  while ((str < stop) && ((*str == ' ') || (*str == '0'))) {
+    ++str;
+  }
 
 	/*
 	 * for each valid digit, shift running value (tval) over to next digit
@@ -456,8 +436,9 @@ asc_uqd(char *str, int len, int base)
       }
 		}
 	} else {
- 		while ((str < stop) && (*str >= '0') && (*str <= '7'))
-			tval = (tval << 3) + (*str++ - '0');
+    while ((str < stop) && (*str >= '0') && (*str <= '7')) {
+      tval = (tval << 3) + (*str++ - '0');
+    }
 	}
 	return(tval);
 }

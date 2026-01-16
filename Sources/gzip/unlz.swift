@@ -396,8 +396,8 @@ lz_bm_init(int *a, size_t l)
 #define LZ_BM_INIT(a)	lz_bm_init(a, nitems(a))
 #define LZ_BM_INIT2(a)	do { \
 	size_t l = nitems(a[0]); \
-	for (size_t i = 0; i < nitems(a); i++) \
-		lz_bm_init(a[i], l); \
+  for (size_t i = 0; i < nitems(a); i++) { \
+    lz_bm_init(a[i], l); } 
 } while (/*CONSTCOND*/0)
 
 #define LZ_MODEL_INIT(a) do { \

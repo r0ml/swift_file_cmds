@@ -156,17 +156,17 @@ compare_nodes(NODE *n1, NODE *n2, char const *path)
 		return 0;
 	} else if (n1 == NULL) {
 		differs = n2->flags;
-		RECORD_FAILURE(111, WARN_MISMATCH);
+		mtree_record_failure(111, WARN_MISMATCH);
 		mismatch(n1, n2, differs, path);
 		return (1);
 	} else if (n2 == NULL) {
 		differs = n1->flags;
-		RECORD_FAILURE(112, WARN_MISMATCH);
+		mtree_record_failure(112, WARN_MISMATCH);
 		mismatch(n1, n2, differs, path);
 		return (1);
 	} else if (n1->type != n2->type) {
 		differs = 0;
-		RECORD_FAILURE(113, WARN_MISMATCH);
+		mtree_record_failure(113, WARN_MISMATCH);
 		mismatch(n1, n2, differs, path);
 		return (1);
 	}
@@ -226,7 +226,7 @@ compare_nodes(NODE *n1, NODE *n2, char const *path)
 		differs |= F_PURGEABLE;
 
 	if (differs) {
-		RECORD_FAILURE(114, WARN_MISMATCH);
+		mtree_record_failure(114, WARN_MISMATCH);
 		mismatch(n1, n2, differs, path);
 		return (1);
 	}
@@ -277,47 +277,47 @@ walk_in_the_forest(NODE *t1, NODE *t2, char const *path)
 			asprintf(&np, "%s%s/", path, c2->name);
 			i = walk_in_the_forest(c1, c2, np);
 			if (i) {
-				RECORD_FAILURE(115, WARN_MISMATCH);
+				mtree_record_failure(115, WARN_MISMATCH);
 			}
 			free(np);
 			c = compare_nodes(c1, c2, path);
 			if (c) {
-				RECORD_FAILURE(116, WARN_MISMATCH);
+				mtree_record_failure(116, WARN_MISMATCH);
 			}
 			i += c;
 		} else if (c2 == NULL && c1->type == F_DIR) {
 			asprintf(&np, "%s%s/", path, c1->name);
 			i = walk_in_the_forest(c1, c2, np);
 			if (i) {
-				RECORD_FAILURE(117, WARN_MISMATCH);
+				mtree_record_failure(117, WARN_MISMATCH);
 			}
 			free(np);
 			c = compare_nodes(c1, c2, path);
 			if (c) {
-				RECORD_FAILURE(118, WARN_MISMATCH);
+				mtree_record_failure(118, WARN_MISMATCH);
 			}
 			i += c;
 		} else if (c1 == NULL || c2 == NULL) {
 			i = compare_nodes(c1, c2, path);
 			if (i) {
-				RECORD_FAILURE(119, WARN_MISMATCH);
+				mtree_record_failure(119, WARN_MISMATCH);
 			}
 		} else if (c1->type == F_DIR && c2->type == F_DIR) {
 			asprintf(&np, "%s%s/", path, c1->name);
 			i = walk_in_the_forest(c1, c2, np);
 			if (i) {
-				RECORD_FAILURE(120, WARN_MISMATCH);
+				mtree_record_failure(120, WARN_MISMATCH);
 			}
 			free(np);
 			c = compare_nodes(c1, c2, path);
 			if (c) {
-				RECORD_FAILURE(121, WARN_MISMATCH);
+				mtree_record_failure(121, WARN_MISMATCH);
 			}
 			i += c;
 		} else {
 			i = compare_nodes(c1, c2, path);
 			if (i) {
-				RECORD_FAILURE(122, WARN_MISMATCH);
+				mtree_record_failure(122, WARN_MISMATCH);
 			}
 		}
 		r += i;
@@ -338,7 +338,7 @@ mtree_specspec(FILE *fi, FILE *fj)
 	rval = walk_in_the_forest(root1, root2, "");
 	rval += compare_nodes(root1, root2, "");
 	if (rval > 0) {
-		RECORD_FAILURE(123, WARN_MISMATCH);
+		mtree_record_failure(123, WARN_MISMATCH);
 		return (MISMATCHEXIT);
 	}
 	return (0);

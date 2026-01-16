@@ -99,10 +99,12 @@ func do_color_from_env() -> Bool {
 		 * honor it as long as it's both set and not empty.
 		 */
 		p = getenv("COLORTERM");
-		if (p != NULL && *p != '\0')
-			doit = true;
-	} else
-		doit = true;
+    if (p != NULL && *p != '\0') {
+      doit = true;
+    }
+  } else {
+    doit = true;
+  }
 
 	return (doit &&
 	    (isatty(STDOUT_FILENO) || getenv("CLICOLOR_FORCE")));

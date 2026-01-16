@@ -57,7 +57,7 @@ Digest_File(CCDigestAlg algorithm, const char *filename, char *buf)
 	io = dispatch_io_create(DISPATCH_IO_STREAM, fd, queue, ^(int error) {
 		if (error != 0) {
 			s_error = error; 
-			RECORD_FAILURE(27440, s_error);
+			mtree_record_failure(27440, s_error);
 		}
 		(void)close(fd);
 		(void)dispatch_semaphore_signal(sema);
@@ -73,7 +73,7 @@ Digest_File(CCDigestAlg algorithm, const char *filename, char *buf)
 
 		if (error != 0) {
 			s_error = error;
-			RECORD_FAILURE(27441, s_error);
+			mtree_record_failure(27441, s_error);
 		}
 	});
 	dispatch_release(io); // it will close on its own
@@ -170,7 +170,7 @@ calculate_SHA256_XATTRs(char *path, char *buf)
 			result = getxattr(path, name, xattrBuf, xattrBufLen, 0, xattr_options);
 			if (result < 0) {
 				error = errno;
-				RECORD_FAILURE(27442, error);
+				mtree_record_failure(27442, error);
 				errc(1, error, "SHA256_Path_XATTRs getxattr of \"%s\" at path \"%s\" failed with error", name, path);
 			}
 			
@@ -201,7 +201,7 @@ calculate_SHA256_XATTRs(char *path, char *buf)
 					xd_obj_id = 0;
 				} else {
 					error = errno;
-					RECORD_FAILURE(27444, error);
+					mtree_record_failure(27444, error);
 					errc(1, error, "%s - SHA256_Path_XATTRs APFSIOC_XDSTREAM_OBJ_ID failed with %d", path, error);
 				}
 			}
@@ -270,7 +270,7 @@ get_xdstream_privateid(char *path, char *buf) {
 					xd_obj_id = 0;
 				} else {
 					error = errno;
-					RECORD_FAILURE(29983, error);
+					mtree_record_failure(29983, error);
 					errc(1, error, "%s - SHA256_Path_XATTRs APFSIOC_XDSTREAM_OBJ_ID failed with %d", path, error);
 				}
 			}
@@ -313,7 +313,7 @@ char *SHA256_Path_ACL(char *path, char *buf)
 	
 	if (result) {
 		error = errno;
-		RECORD_FAILURE(27445, error);
+		mtree_record_failure(27445, error);
 		errc(1, error, "SHA256_Path_ACL: getattrlist");
 	}
 	
@@ -369,7 +369,7 @@ get_sibling_id(const char *path)
 	error = getattrlist(path, &attr_list, &attr_buf, sizeof(attr_buf), FSOPT_ATTR_CMN_EXTENDED | FSOPT_NOFOLLOW);
 	if (error) {
 		error = errno;
-		RECORD_FAILURE(27447, error);
+		mtree_record_failure(27447, error);
 		errc(1, error, "get_sibling_id: getattrlist failed for %s\n", path);
 	}
 
@@ -384,12 +384,12 @@ get_xattr_count(const char *path)
 	if (xattr_size > 0) {
 		char *xattr_buffer = calloc(1, xattr_size);
 		if (xattr_buffer == NULL) {
-			RECORD_FAILURE(611832, ENOMEM);
+			mtree_record_failure(611832, ENOMEM);
 			err(1, "get_xattr_count: failed to allocate xattr buffer size:(%zd)\n", xattr_size);
 		}
 		errno_t error = listxattr(path, xattr_buffer, xattr_size, xattr_options);
 		if (error == -1) {
-			RECORD_FAILURE(611833, errno);
+			mtree_record_failure(611833, errno);
 			err(1, "get_xattr_count: listxattr failed with %s(%d) for <%s>\n", strerror(errno), errno, path);
 		}
 		for (char *xattrname = xattr_buffer; xattrname < (xattr_buffer + xattr_size);) {
@@ -398,7 +398,7 @@ get_xattr_count(const char *path)
 		}
 		free(xattr_buffer);
 	} else if (xattr_size == -1) {
-		RECORD_FAILURE(621936, errno);
+		mtree_record_failure(621936, errno);
 		err(1, "get_xattr_count: listxattr failed with %s(%d) while calculating xattr buffer size for path<%s>\n", strerror(errno), errno, path);
 	}
 

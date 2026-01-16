@@ -24,18 +24,35 @@
 * @APPLE_LICENSE_HEADER_END@
 */
 
-#include <stdlib.h>
-#include <string.h>
+import CMigration
 
-#include "metrics.h"
+// #include "metrics.h"
 
-#define MAX_WARNINGS_LOGGED 5
-#define MAX_ERRORS_LOGGED 5
-#define WARN_FIRST -1
+/*
+ // mtree error logging
+ enum mtree_result {
+   SUCCESS = 0,
+   WARN_TIME = -1,
+   WARN_USAGE = -2,
+   WARN_CHECKSUM = -3,
+   WARN_MISMATCH = -4,
+   WARN_UNAME = -5,
+   /* Could also be a POSIX errno value */
+ };
+
+
+ */
+
+
+
+let MAX_WARNINGS_LOGGED = 5
+let MAX_ERRORS_LOGGED = 5
+let WARN_FIRST = -1
 
 #ifndef ROUNDUP
 #define ROUNDUP(COUNT, MULTIPLE) ((((COUNT) + (MULTIPLE) - 1) / (MULTIPLE)) * (MULTIPLE))
 #endif
+
 
 typedef struct failure_info {
 	int location;
@@ -55,27 +72,19 @@ typedef struct metrics {
 } metrics_t;
 metrics_t metrics = {};
 
-void
-set_metrics_file(FILE *file)
-{
+func set_metrics_file(FILE *file) {
 	metrics.file = file;
 }
 
-void
-set_metric_start_time(time_t time)
-{
+func set_metric_start_time(time_t time) {
 	metrics.start_time = time;
 }
 
-void
-set_metric_path(char *path)
-{
+func set_metric_path(char *path) {
 	metrics.path = strdup(path);
 }
 
-void
-mtree_record_failure(int location, int code)
-{
+func mtree_record_failure(_ location : Int, _ code : Int32) {
 	if (code <= WARN_FIRST) {
 		if (metrics.warning_count < MAX_WARNINGS_LOGGED) {
 			metrics.warning_count++;
@@ -122,9 +131,7 @@ mtree_record_failure(int location, int code)
  * 4) fl is the last failure location of the run which is 0 if there is no failure
  * 5) time is the total time taken for the run
  */
-void
-print_metrics_to_file(void)
-{
+func print_metrics_to_file() {
 	if (metrics.file == NULL) {
 		return;
 	}

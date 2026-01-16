@@ -252,8 +252,9 @@ let EXEC_FAILED : Int32 = 127
         setlocale(LC_MESSAGES, "");
 
         first = ch = getchar();
-        while (ch != '\n' && ch != EOF)
-                ch = getchar();
+        while (ch != '\n' && ch != EOF) {
+          ch = getchar();
+        }
 
         /* only care about the first character */
         resp[0] = first;

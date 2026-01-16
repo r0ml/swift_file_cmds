@@ -59,8 +59,9 @@ extension ls {
 			n++;
 			continue;
 		}
-		for (i = 0; i < (int)clen; i++)
-			putchar((unsigned char)s[i]);
+    for (i = 0; i < (int)clen; i++) {
+      putchar((unsigned char)s[i]);
+    }
 		s += clen;
     if (iswprint(wc)) {
       n += wcwidth(wc);
@@ -96,8 +97,9 @@ extension ls {
 			n++;
 			continue;
 		}
-		for (i = 0; i < (int)clen; i++)
-			putchar((unsigned char)s[i]);
+    for (i = 0; i < (int)clen; i++) {
+      putchar((unsigned char)s[i]);
+    }
 		s += clen;
 		n += wcwidth(wc);
 	}
@@ -161,8 +163,9 @@ extension ls {
 	while ((clen = mbrtowc(&wc, s, MB_LEN_MAX, &mbs)) != 0) {
 		goodchar = clen != (size_t)-1 && clen != (size_t)-2;
 		if (goodchar && iswprint(wc) && wc != L'\"' && wc != L'\\') {
-			for (i = 0; i < (int)clen; i++)
-				putchar((unsigned char)s[i]);
+        for (i = 0; i < (int)clen; i++) {
+      putchar((unsigned char)s[i]);
+    }
 			len += wcwidth(wc);
   } else if (goodchar && options.f_octal_escape &&
 #if WCHAR_MIN < 0

@@ -30,343 +30,416 @@
  * SUCH DAMAGE.
  */
 
-#if 0
-#ifndef lint
-static const char copyright[] =
-"@(#) Copyright (c) 1989, 1990, 1993\n\
-	The Regents of the University of California.  All rights reserved.\n";
-#endif /* not lint */
+import CMigration
+import Darwin
+import Darwin.POSIX.sys.xattr
 
-#ifndef lint
-static char sccsid[] = "@(#)mtree.c	8.1 (Berkeley) 6/6/93";
-#endif /* not lint */
-#endif
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/usr.sbin/mtree/mtree.c,v 1.29 2004/06/04 19:29:28 ru Exp $");
+@main struct mtree : ShellCommand {
+  struct MTreeFlags : OptionSet {
+    let rawValue: UInt64
 
-#include <CoreFoundation/CoreFoundation.h>
-#include <sys/param.h>
-#include <sys/stat.h>
-#include <sys/xattr.h>
-#include <err.h>
-#include <errno.h>
-#include <fts.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <unistd.h>
-#include "metrics.h"
-#include "mtree.h"
-#include "extern.h"
+    static let CKSUM = Self(rawValue: 0x000000000001)  /* check sum */
+    static let DONE = Self(rawValue:      0x000000000002)  /* directory done */
+    static let GID = Self(rawValue:      0x000000000004)  /* gid */
+    static let GNAME = Self(rawValue:      0x000000000008)  /* group name */
+    static let IGN = Self(rawValue:      0x000000000010)  /* ignore */
+    static let MAGIC = Self(rawValue:      0x000000000020)  /* name has magic chars */
+    static let MODE = Self(rawValue:      0x000000000040)  /* mode */
+    static let NLINK = Self(rawValue:      0x000000000080)  /* number of links */
+    static let SIZE = Self(rawValue:      0x000000000100)  /* size */
+    static let SLINK = Self(rawValue:      0x000000000200)  /* The file the symbolic link is expected to reference */
+    static let TIME = Self(rawValue:      0x000000000400)  /* modification time (mtime) */
+    static let TYPE = Self(rawValue:      0x000000000800)  /* file type */
+    static let UID = Self(rawValue:      0x000000001000)  /* uid */
+    static let UNAME = Self(rawValue:      0x000000002000)  /* user name */
+    static let VISIT = Self(rawValue:      0x000000004000)  /* file visited */
+    static let MD5 = Self(rawValue:      0x000000008000)  /* MD5 digest */
+    static let NOCHANGE = Self(rawValue:    0x000000010000)  /* If owner/mode "wrong", do not change */
+    static let SHA1 = Self(rawValue:      0x000000020000)  /* SHA-1 digest */
+    static let RMD160 = Self(rawValue:    0x000000040000)  /* RIPEMD160 digest */
+    static let FLAGS = Self(rawValue:      0x000000080000)  /* file flags */
+    static let SHA256 = Self(rawValue:    0x000000100000)  /* SHA-256 digest */
+    static let BTIME = Self(rawValue:      0x000000200000)  /* creation time */
+    static let ATIME = Self(rawValue:      0x000000400000)  /* access time */
+    static let CTIME = Self(rawValue:      0x000000800000)  /* metadata modification time (ctime) */
+    static let PTIME = Self(rawValue:      0x000001000000)  /* time added to parent folder */
+    static let XATTRS = Self(rawValue:    0x000002000000)  /* digest of extended attributes */
+    static let INODE = Self(rawValue:      0x000004000000)  /* inode */
+    static let ACL = Self(rawValue:      0x000008000000)  /* digest of access control list */
+    static let SIBLINGID = Self(rawValue:    0x000010000000)  /* sibling id */
+    static let NXATTR = Self(rawValue:    0x000020000000)  /* number of xattrs (includes decmpfs or not depending on the -D flag)*/
+    static let DATALESS = Self(rawValue:    0x000040000000)  /* dataless */
+    static let PROTECTION_CLASS = Self(rawValue:  0x000080000000)  /* data protection class */
+    static let PURGEABLE = Self(rawValue: 0x000100000000)  /* APFS purgeable flags */
+  }
 
-#define SECONDS_IN_A_DAY (60 * 60 * 24)
+  struct MTreeTypes : OptionSet {
+    var rawValue : Int
 
-int ftsoptions = FTS_PHYSICAL;
-int xattr_options = XATTR_NOFOLLOW | XATTR_SHOWCOMPRESSION;
-int cflag, dflag, eflag, iflag, nflag, qflag, rflag, sflag, uflag, Uflag, wflag, mflag, tflag, xflag;
-int insert_mod, insert_birth, insert_access, insert_change, insert_parent;
-struct timespec ts;
-u_int64_t keys;
-char fullpath[MAXPATHLEN];
-CFMutableDictionaryRef dict;
-char *filepath;
+    static let BLOCK = Self(rawValue: 0x001)        /* block special */
+    static let CHAR = Self(rawValue: 0x002)        /* char special */
+    static let DIR = Self(rawValue: 0x004)        /* directory */
+    static let FIFO = Self(rawValue: 0x008)        /* fifo */
+    static let FILE = Self(rawValue: 0x010)        /* regular file */
+    static let LINK = Self(rawValue: 0x020)        /* symbolic link */
+    static let SOCK = Self(rawValue: 0x040)        /* socket */
+  }
 
-static void usage(void);
-static bool write_plist_to_file(void);
+/* From mtree.h */
 
-static void
-do_cleanup(void) {
+  static let KEYDEFAULT = MTreeFlags([.GID, .MODE, .NLINK, .SIZE, .SLINK, .TIME, .UID, .FLAGS])
 
-	if (mflag) {
-		if (dict)
-			CFRelease(dict);
-		if (filepath)
-			free(filepath);
-	}
-}
+ let MISMATCHEXIT = 2
 
-int
-main(int argc, char *argv[])
-{
-	int error = 0;
-	int ch;
-	char *dir, *p;
-	int status;
-	FILE *spec1, *spec2;
-	char *timestamp = NULL;
-	char *timeformat = "%FT%T";
-	FILE *file = NULL;
+ struct NODE {
+//   struct _node  *parent, *child;  /* up, down */
+//   struct _node  *prev, *next;    /* left, right */
+   var st_size : off_t      /* size */
+   var st_timespec : timespec   /* last modification time */
+   var cksum : UInt        /* check sum */
 
-	dir = NULL;
-	keys = KEYDEFAULT;
-	init_excludes();
-	spec1 = stdin;
-	spec2 = NULL;
-	set_metric_start_time(time(NULL));
+   var md5digest : [UInt8]?      /* MD5 digest */
+   var sha1digest : [UInt8]?      /* SHA-1 digest */
+   var sha256digest : [UInt8]?      /* SHA-256 digest */
+   var rmd160digest : [UInt8]?      /* RIPEMD160 digest */
 
-	atexit(do_cleanup);
-	atexit(print_metrics_to_file);
+   var slink : String?        /* symbolic link reference */
+   var st_uid : uid_t?        /* uid */
+   var st_gid : gid_t?        /* gid */
+// #define  MBITS  (S_ISUID|S_ISGID|S_ISTXT|S_IRWXU|S_IRWXG|S_IRWXO)
+   var st_mode : FilePermissions  /* mode */
+   var st_flags : UInt32      /* flags */
+   var st_nlink : UInt = 0      /* link count */
+   var st_birthtimespec : timespec  /* birth time (creation time) */
+   var st_atimespec : timespec    /* access time */
+   var st_ctimespec : timespec    /* metadata modification time */
+   var st_ptimespec : timespec    /* time added to parent folder */
+   var xattrsdigest : [UInt8]?      /* digest of extended attributes */
+   var xdstream_priv_id : u_quad_t?    /* private id of the xattr data stream */
+   var st_ino : UInt?        /* inode */
+   var acldigest : [UInt8]?      /* digest of access control list */
+   var sibling_id : u_quad_t?      /* sibling id */
+   var nxattr : u_quad_t?     /* xattr count */
+   var protection_class : UInt    /* data protection class */
+   var purgeable : u_quad_t?      /* APFS purgeable flags */
 
-	while ((ch = getopt(argc, argv, "cdef:iK:k:LnPp:qrs:UuwxX:m:F:t:E:SD")) != -1)
-		switch((char)ch) {
-		case 'c':
-			cflag = 1;
-			break;
-		case 'd':
-			dflag = 1;
-			break;
-		case 'e':
-			eflag = 1;
-			break;
-		case 'f':
-			if (spec1 == stdin) {
-				spec1 = fopen(optarg, "r");
-				if (spec1 == NULL) {
-					error = errno;
-					RECORD_FAILURE(88, error);
-					errc(1, error, "%s", optarg);
-				}
-			} else if (spec2 == NULL) {
-				spec2 = fopen(optarg, "r");
-				if (spec2 == NULL) {
-					error = errno;
-					RECORD_FAILURE(89, error);
-					errc(1, error, "%s", optarg);
-				}
-			} else {
-				RECORD_FAILURE(90, WARN_USAGE);
-				usage();
-			}
-			break;
-		case 'i':
-			iflag = 1;
-			break;
-		case 'K':
-			while ((p = strsep(&optarg, " \t,")) != NULL)
-				if (*p != '\0')
-					keys |= parsekey(p, NULL);
-			break;
-		case 'k':
-			keys = F_TYPE;
-			while ((p = strsep(&optarg, " \t,")) != NULL)
-				if (*p != '\0')
-					keys |= parsekey(p, NULL);
-			break;
-		case 'L':
-			ftsoptions &= ~FTS_PHYSICAL;
-			ftsoptions |= FTS_LOGICAL;
-			break;
-		case 'n':
-			nflag = 1;
-			break;
-		case 'P':
-			ftsoptions &= ~FTS_LOGICAL;
-			ftsoptions |= FTS_PHYSICAL;
-			break;
-		case 'p':
-			dir = optarg;
-			break;
-		case 'q':
-			qflag = 1;
-			break;
-		case 'r':
-			rflag = 1;
-			break;
-		case 's':
-			sflag = 1;
-			crc_total = (uint32_t)~strtoul(optarg, &p, 0);
-			if (*p) {
-				RECORD_FAILURE(91, WARN_USAGE);
-				errx(1, "illegal seed value -- %s", optarg);
-			}
-			break;
-		case 'U':
-			Uflag = 1;
-			uflag = 1;
-			break;
-		case 'u':
-			uflag = 1;
-			break;
-		case 'w':
-			wflag = 1;
-			break;
-		case 'x':
-			ftsoptions |= FTS_XDEV;
-			break;
-		case 'X':
-			read_excludes_file(optarg);
-			break;
-		case 'm':
-			mflag = 1;
-			filepath = strdup(optarg);
-			dict = CFDictionaryCreateMutable(kCFAllocatorDefault, 0,
-							 &kCFTypeDictionaryKeyCallBacks,
-							 &kCFTypeDictionaryValueCallBacks);
-			insert_access = insert_mod = insert_birth = insert_change = 0;
-			break;
-		case 'F':
-			timeformat = optarg;
-			break;
-		case 't':
-			timestamp = optarg;
-			tflag = 1;
-			break;
-		case 'E':
-			if (!strcmp(optarg, "-")) {
-				file = stdout;
-			} else {
-				file = fopen(optarg, "w");
-			}
-			if (file == NULL) {
-				warnx("Could not open metrics log file %s", optarg);
-			} else {
-				set_metrics_file(file);
-			}
-			break;
-		case 'S':
-			xflag = 1;
-			break;
-		case 'D':
-			xattr_options &= ~XATTR_SHOWCOMPRESSION;
-			break;
-		case '?':
-		default:
-			RECORD_FAILURE(92, WARN_USAGE);
-			usage();
-		}
-	argc -= optind;
-//	argv += optind;
 
-	if (argc) {
-		RECORD_FAILURE(93, WARN_USAGE);
-		usage();
-	}
+   var flags = KEYDEFAULT     /* items set */
 
-	if (timestamp) {
-		struct tm t = {};
-		char *r = strptime(timestamp, timeformat, &t);
-		if (r && r[0] == '\0') {
-			ts.tv_sec = mktime(&t);
-			if ((ts.tv_sec - time(NULL)) > 30 * SECONDS_IN_A_DAY) {
-				RECORD_FAILURE(94, WARN_TIME);
-				errx(1, "Time is more then 30 days in the future");
-			} else if (ts.tv_sec < 0) {
-				RECORD_FAILURE(95, WARN_TIME);
-				errx(1, "Time is too far in the past");
-			}
-		} else {
-			RECORD_FAILURE(96, WARN_TIME);
-			errx(1,"Cannot parse timestamp '%s' using format \"%s\"\n", timestamp, timeformat);
-		}
-	}
+   var type = MTreeTypes()        /* file type */
+   var name : String      /* file name (must be last) */
+ }
 
-	if (dir && chdir(dir)) {
-		error = errno;
-		RECORD_FAILURE(97, error);
-		errc(1, error, "%s", dir);
-	}
+  var _node : NODE
 
-	if ((cflag || sflag) && !getwd(fullpath)) {
-		RECORD_FAILURE(98, errno);
-		errx(1, "%s", fullpath);
-	}
+  /*
+ #define  RP(p)  \
+   ((p)->fts_path[0] == '.' && (p)->fts_path[1] == '/' ? \
+       (p)->fts_path + 2 : (p)->fts_path)
 
-	if (dir) {
-		set_metric_path(dir);
-	}
+ */
 
-	if (keys & F_DATALESS) {
-		setiopolicy_np(IOPOL_TYPE_VFS_MATERIALIZE_DATALESS_FILES,
-			       IOPOL_SCOPE_PROCESS, IOPOL_MATERIALIZE_DATALESS_FILES_OFF);
-	}
-	if (cflag) {
-		cwalk();
-		exit(0);
-	}
-	if (spec2 != NULL) {
-		status = mtree_specspec(spec1, spec2);
-		if (Uflag & (status == MISMATCHEXIT)) {
-			status = 0;
-		} else {
-			RECORD_FAILURE(99, status);
-		}
-	} else {
-		status = mtree_verifyspec(spec1);
-		if (Uflag & (status == MISMATCHEXIT)) {
-			status = 0;
-		} else if (status) {
-			RECORD_FAILURE(100, status);
-		}
-		if (mflag) {
-			if (!write_plist_to_file()) {
-				RECORD_FAILURE(101, EIO);
-				errx(1, "could not write manifest to the file\n");
-			}
-		}
-	}
-	exit(status);
-}
 
-static void
-usage(void)
-{
-	(void)fprintf(stderr,
-"usage: mtree [-LPUScdeinqruxwD] [-f spec] [-K key] [-k key] [-p path] [-s seed] [-m xml dictionary] [-t timestamp]\n"
-"\t[-X excludes]\n");
-	exit(1);
-}
 
-static bool
-write_plist_to_file(void)
-{
-	if (!dict || !filepath) {
-		RECORD_FAILURE(102, EINVAL);
-		return false;
-	}
 
-	CFIndex bytes_written = 0;
-	bool status = true;
 
-	CFStringRef file_path_str = CFStringCreateWithCString(kCFAllocatorDefault, (const char *)filepath, kCFStringEncodingUTF8);
+  let SECONDS_IN_A_DAY = 60 * 60 * 24
 
-	// Create a URL specifying the file to hold the XML data.
-	CFURLRef fileURL = CFURLCreateWithFileSystemPath(kCFAllocatorDefault,
-							 file_path_str,      	  // file path name
-							 kCFURLPOSIXPathStyle,   // interpret as POSIX path
-							 false);                // is it a directory?
+  struct CommandOptions {
+    var ftsoptions = FTSFlags.PHYSICAL
+    // FIXME: make an XAttrOptions : OptionSet
+    var xattr_options = XATTR_NOFOLLOW | XATTR_SHOWCOMPRESSION
 
-	if (!fileURL) {
-		CFRelease(file_path_str);
-		RECORD_FAILURE(103, EINVAL);
-		return false;
-	}
+    var cflag = false
+    var dflag = false
+    var eflag = false
+    var iflag = false
+    var nflag = false
+    var qflag = false
+    var rflag = false
+    var sflag = false
+    var uflag = false
+    var Uflag = false
+    var wflag = false
+    var mflag = false
+    var tflag = false
+    var xflag = false
 
-	CFWriteStreamRef output_stream = CFWriteStreamCreateWithFile(kCFAllocatorDefault, fileURL);
+    var args : [String] = []
+    // int insert_mod, insert_birth, insert_access, insert_change, insert_parent;
+    // struct timespec ts;
+    // u_int64_t keys;
+    // char fullpath[MAXPATHLEN];
+    // CFMutableDictionaryRef dict;
+    // char *filepath;
+  }
 
-	if (!output_stream) {
-		CFRelease(file_path_str);
-		CFRelease(fileURL);
-		RECORD_FAILURE(104, EIO);
-		return false;
-	}
+  var options : CommandOptions!
 
-	if ((status = CFWriteStreamOpen(output_stream))) {
-		bytes_written = CFPropertyListWrite((CFPropertyListRef)dict, output_stream, kCFPropertyListXMLFormat_v1_0, 0, NULL);
-		CFWriteStreamClose(output_stream);
-	} else {
-		status = false;
-		RECORD_FAILURE(105, EIO);
-		goto out;
-	}
 
-	if (CFDictionaryGetCount(dict) && !bytes_written) {
-		status = false;
-		RECORD_FAILURE(106, EIO);
-	}
+  func parseOptions() throws(CmdErr) -> CommandOptions {
+    /*
+     int error = 0;
+     int ch;
+     char *dir, *p;
+     int status;
+     FILE *spec1, *spec2;
+     char *timestamp = NULL;
+     char *timeformat = "%FT%T";
+     FILE *file = NULL;
 
-out:
-	CFRelease(output_stream);
-	CFRelease(fileURL);
-	CFRelease(file_path_str);
+     dir = NULL;
+     keys = KEYDEFAULT;
+     init_excludes();
+     spec1 = stdin;
+     spec2 = NULL;
+     set_metric_start_time(time(NULL));
+     */
 
-	return status;
+    Darwin.atexit(print_metrics_to_file);
+
+    var options = CommandOptions()
+    let go = BSDGetopt("cdef:iK:k:LnPp:qrs:UuwxX:m:F:t:E:SD")
+    while let (k,v) = try go.getopt() {
+      switch k {
+        case "c":
+          options.cflag = true
+        case "d":
+          options.dflag = true
+        case "e":
+          options.eflag = true
+        case "f":
+          if (spec1 == stdin) {
+            spec1 = fopen(optarg, "r");
+            if (spec1 == NULL) {
+              error = errno;
+              mtree_record_failure(88, error);
+              errc(1, error, "%s", optarg);
+            }
+          } else if (spec2 == NULL) {
+            spec2 = fopen(optarg, "r");
+            if (spec2 == NULL) {
+              error = errno;
+              mtree_record_failure(89, error);
+              errc(1, error, "%s", optarg);
+            }
+          } else {
+            mtree_record_failure(90, WARN_USAGE);
+            usage();
+          }
+        case "i":
+          options.iflag = true
+        case "K":
+          while ((p = strsep(&optarg, " \t,")) != NULL) {
+            if (*p != '\0') {
+              keys |= parsekey(p, NULL);
+            }
+          }
+        case "k":
+          keys = F_TYPE;
+          while ((p = strsep(&optarg, " \t,")) != NULL) {
+            if (*p != '\0') {
+              keys |= parsekey(p, NULL);
+            }
+          }
+        case "L":
+          options.ftsoptions.remove(.PHYSICAL)
+          options.ftsoptions.insert(.LOGICAL)
+        case "n":
+          options.nflag = true
+        case "P":
+          options.ftsoptions.remove(.LOGICAL)
+          options.ftsoptions.insert(.PHYSICAL)
+        case "p":
+          dir = optarg;
+        case "q":
+          options.qflag = true
+        case "r":
+          options.rflag = true
+        case "s":
+          options.sflag = true
+          crc_total = (uint32_t)~strtoul(optarg, &p, 0);
+          if (*p) {
+            mtree_record_failure(91, WARN_USAGE);
+            errx(1, "illegal seed value -- %s", optarg);
+          }
+        case "U":
+          options.Uflag = true
+          options.uflag = true
+        case "u":
+          options.uflag = true
+        case "w":
+          options.wflag = true
+        case "x":
+          ftsoptions |= FTS_XDEV;
+        case "X":
+          read_excludes_file(optarg);
+        case "m":
+          options.mflag = true
+          filepath = strdup(optarg);
+          dict = CFDictionaryCreateMutable(kCFAllocatorDefault, 0,
+                                           &kCFTypeDictionaryKeyCallBacks,
+                                           &kCFTypeDictionaryValueCallBacks);
+          insert_access = insert_mod = insert_birth = insert_change = 0;
+        case "F":
+          timeformat = optarg;
+        case "t":
+          timestamp = optarg;
+          options.tflag = true
+        case "E":
+          if (!strcmp(optarg, "-")) {
+            file = stdout;
+          } else {
+            file = fopen(optarg, "w");
+          }
+          if (file == NULL) {
+            warnx("Could not open metrics log file %s", optarg);
+          } else {
+            set_metrics_file(file);
+          }
+        case "S":
+          options.xflag = true
+        case "D":
+          xattr_options &= ~XATTR_SHOWCOMPRESSION;
+        case "?":
+          fallthrough
+        default:
+          mtree_record_failure(92, WARN_USAGE);
+          usage();
+      }
+    }
+    options.args = go.remaining
+    argc -= optind;
+    //	argv += optind;
+
+    if (argc) {
+      mtree_record_failure(93, WARN_USAGE);
+      usage();
+    }
+
+    if (timestamp) {
+      struct tm t = {};
+      char *r = strptime(timestamp, timeformat, &t);
+      if (r && r[0] == '\0') {
+        ts.tv_sec = mktime(&t);
+        if ((ts.tv_sec - time(NULL)) > 30 * SECONDS_IN_A_DAY) {
+          mtree_record_failure(94, WARN_TIME);
+          errx(1, "Time is more then 30 days in the future");
+        } else if (ts.tv_sec < 0) {
+          mtree_record_failure(95, WARN_TIME);
+          errx(1, "Time is too far in the past");
+        }
+      } else {
+        mtree_record_failure(96, WARN_TIME);
+        errx(1,"Cannot parse timestamp '%s' using format \"%s\"\n", timestamp, timeformat);
+      }
+    }
+
+    if (dir && chdir(dir)) {
+      error = errno;
+      mtree_record_failure(97, error);
+      errc(1, error, "%s", dir);
+    }
+
+    if (options.cflag || options.sflag) && !getwd(fullpath) {
+      mtree_record_failure(98, errno);
+      errx(1, fullpath);
+    }
+
+    if (dir) {
+      set_metric_path(dir);
+    }
+  }
+
+  func runCommand() throws(CmdErr) {
+    if (keys & F_DATALESS) {
+      setiopolicy_np(IOPOL_TYPE_VFS_MATERIALIZE_DATALESS_FILES,
+                     IOPOL_SCOPE_PROCESS, IOPOL_MATERIALIZE_DATALESS_FILES_OFF);
+    }
+    if options.cflag {
+      cwalk();
+      exit(0);
+    }
+    if (spec2 != NULL) {
+      status = mtree_specspec(spec1, spec2);
+      if (Uflag & (status == MISMATCHEXIT)) {
+        status = 0;
+      } else {
+        mtree_record_failure(99, status);
+      }
+    } else {
+      status = mtree_verifyspec(spec1);
+      if (Uflag & (status == MISMATCHEXIT)) {
+        status = 0;
+      } else if (status) {
+        mtree_record_failure(100, status);
+      }
+      if (mflag) {
+        if (!write_plist_to_file()) {
+          mtree_record_failure(101, EIO);
+          errx(1, "could not write manifest to the file\n");
+        }
+      }
+    }
+    exit(status);
+  }
+
+  var usage = """
+usage: mtree [-LPUScdeinqruxwD] [-f spec] [-K key] [-k key] [-p path] [-s seed] [-m xml dictionary] [-t timestamp] [-X excludes]
+"""
+
+
+    func write_plist_to_file() -> Bool {
+    if (!dict || !filepath) {
+      mtree_record_failure(102, EINVAL);
+      return false;
+    }
+
+    CFIndex bytes_written = 0;
+    bool status = true;
+
+    CFStringRef file_path_str = CFStringCreateWithCString(kCFAllocatorDefault, (const char *)filepath, kCFStringEncodingUTF8);
+
+    // Create a URL specifying the file to hold the XML data.
+    CFURLRef fileURL = CFURLCreateWithFileSystemPath(kCFAllocatorDefault,
+                                                     file_path_str,      	  // file path name
+                                                     kCFURLPOSIXPathStyle,   // interpret as POSIX path
+                                                     false);                // is it a directory?
+
+    if (!fileURL) {
+      CFRelease(file_path_str);
+      mtree_record_failure(103, EINVAL);
+      return false;
+    }
+
+    CFWriteStreamRef output_stream = CFWriteStreamCreateWithFile(kCFAllocatorDefault, fileURL);
+
+    if (!output_stream) {
+      CFRelease(file_path_str);
+      CFRelease(fileURL);
+      mtree_record_failure(104, EIO);
+      return false;
+    }
+
+    if ((status = CFWriteStreamOpen(output_stream))) {
+      bytes_written = CFPropertyListWrite((CFPropertyListRef)dict, output_stream, kCFPropertyListXMLFormat_v1_0, 0, NULL);
+      CFWriteStreamClose(output_stream);
+    } else {
+      status = false;
+      mtree_record_failure(105, EIO);
+      goto out;
+    }
+
+    if (CFDictionaryGetCount(dict) && !bytes_written) {
+      status = false;
+      mtree_record_failure(106, EIO);
+    }
+
+  out:
+    CFRelease(output_stream);
+    CFRelease(fileURL);
+    CFRelease(file_path_str);
+
+    return status;
+  }
 }

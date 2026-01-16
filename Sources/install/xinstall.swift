@@ -560,8 +560,9 @@ func parseid(_ name : String) -> UInt? {
     if (target_sb != NULL) {
       (void)snprintf(tmpl, sizeof(tmpl), "%s.inst.XXXXXX", to_name);
       /* This usage is safe. */
-      if (quiet_mktemp(tmpl) == NULL)
-          err(EX_OSERR, "%s: mktemp", tmpl);
+      if (quiet_mktemp(tmpl) == NULL) {
+        err(EX_OSERR, "%s: mktemp", tmpl);
+      }
       ret = link(from_name, tmpl);
       if (ret == 0) {
         if (target_sb->st_mode & S_IFDIR && rmdir(to_name) ==
@@ -570,13 +571,15 @@ func parseid(_ name : String) -> UInt? {
           err(EX_OSERR, "%s", to_name);
         }
 
-        if (target_sb->st_flags & NOCHANGEBITS)
-            (void)chflags(to_name, target_sb->st_flags &
-                          ~NOCHANGEBITS);
+        if (target_sb->st_flags & NOCHANGEBITS) {
+          (void)chflags(to_name, target_sb->st_flags &
+                        ~NOCHANGEBITS);
+        }
 
-        if (verbose)
-            printf("install: link %s -> %s\n",
-                   from_name, to_name);
+        if (verbose) {
+          printf("install: link %s -> %s\n",
+                 from_name, to_name);
+        }
         ret = rename(tmpl, to_name);
         /*
          * If rename has posix semantics, then the temporary
@@ -587,9 +590,10 @@ func parseid(_ name : String) -> UInt? {
       }
       return (ret);
     } else {
-      if (verbose)
-          printf("install: link %s -> %s\n",
-                 from_name, to_name);
+      if (verbose) {
+        printf("install: link %s -> %s\n",
+               from_name, to_name);
+      }
       return (link(from_name, to_name));
     }
   }
@@ -606,35 +610,41 @@ func parseid(_ name : String) -> UInt? {
     if (target_sb != NULL) {
       (void)snprintf(tmpl, sizeof(tmpl), "%s.inst.XXXXXX", to_name);
       /* This usage is safe. */
-      if (quiet_mktemp(tmpl) == NULL)
-          err(EX_OSERR, "%s: mktemp", tmpl);
+      if (quiet_mktemp(tmpl) == NULL) {
+        err(EX_OSERR, "%s: mktemp", tmpl);
+      }
 
-      if (symlink(from_name, tmpl) == -1)
-          err(EX_OSERR, "symlink %s -> %s", from_name, tmpl);
+      if (symlink(from_name, tmpl) == -1) {
+        err(EX_OSERR, "symlink %s -> %s", from_name, tmpl);
+      }
 
       if (target_sb->st_mode & S_IFDIR && rmdir(to_name) == -1) {
         (void)unlink(tmpl);
         err(EX_OSERR, "%s", to_name);
       }
 
-      if (target_sb->st_flags & NOCHANGEBITS)
-          (void)chflags(to_name, target_sb->st_flags &
-                        ~NOCHANGEBITS);
+      if (target_sb->st_flags & NOCHANGEBITS) {
+        (void)chflags(to_name, target_sb->st_flags &
+                      ~NOCHANGEBITS);
+      }
 
-      if (verbose)
-          printf("install: symlink %s -> %s\n",
-                 from_name, to_name);
+      if (verbose) {
+        printf("install: symlink %s -> %s\n",
+               from_name, to_name);
+      }
       if (rename(tmpl, to_name) == -1) {
         /* Remove temporary link before exiting. */
         (void)unlink(tmpl);
         err(EX_OSERR, "%s: rename", to_name);
       }
     } else {
-      if (verbose)
-          printf("install: symlink %s -> %s\n",
-                 from_name, to_name);
-      if (symlink(from_name, to_name) == -1)
-          err(EX_OSERR, "symlink %s -> %s", from_name, to_name);
+      if (verbose) {
+        printf("install: symlink %s -> %s\n",
+               from_name, to_name);
+      }
+      if (symlink(from_name, to_name) == -1) {
+        err(EX_OSERR, "symlink %s -> %s", from_name, to_name);
+      }
     }
   }
 
@@ -653,11 +663,13 @@ func parseid(_ name : String) -> UInt? {
     /* Try hard links first. */
     if (dolink & (LN_HARD|LN_MIXED)) {
       if (do_link(from_name, to_name, target_sb) == -1) {
-        if ((dolink & LN_HARD) || errno != EXDEV)
-            err(EX_OSERR, "link %s -> %s", from_name, to_name);
+        if ((dolink & LN_HARD) || errno != EXDEV) {
+          err(EX_OSERR, "link %s -> %s", from_name, to_name);
+        }
       } else {
-        if (stat(to_name, &to_sb))
-            err(EX_OSERR, "%s: stat", to_name);
+        if (stat(to_name, &to_sb)) {
+          err(EX_OSERR, "%s: stat", to_name);
+        }
         if (S_ISREG(to_sb.st_mode)) {
           /*
            * XXX: hard links to anything other than
@@ -673,17 +685,21 @@ func parseid(_ name : String) -> UInt? {
            * overridden on command line.
            */
           omode = mode;
-          if (!haveopt_m)
-              mode = (to_sb.st_mode & 0777);
+          if (!haveopt_m) {
+            mode = (to_sb.st_mode & 0777);
+          }
           oowner = owner;
-          if (!haveopt_o)
-              owner = NULL;
+          if (!haveopt_o) {
+            owner = NULL;
+          }
           ogroup = group;
-          if (!haveopt_g)
-              group = NULL;
+          if (!haveopt_g) {
+            group = NULL;
+          }
           offlags = fflags;
-          if (!haveopt_f)
-              fflags = NULL;
+          if (!haveopt_f) {
+            fflags = NULL;
+          }
           dres = digest_file(from_name);
           metadata_log(to_name, "file", NULL, NULL,
                        dres, to_sb.st_size);
@@ -700,8 +716,9 @@ func parseid(_ name : String) -> UInt? {
     /* Symbolic links. */
     if (dolink & LN_ABSOLUTE) {
       /* Convert source path to absolute. */
-      if (realpath(from_name, src) == NULL)
-          err(EX_OSERR, "%s: realpath", from_name);
+      if (realpath(from_name, src) == NULL) {
+        err(EX_OSERR, "%s: realpath", from_name);
+      }
       do_symlink(src, to_name, target_sb);
       /* XXX: src may point outside of destdir */
       metadata_log(to_name, "link", NULL, src, NULL, 0);
@@ -718,16 +735,18 @@ func parseid(_ name : String) -> UInt? {
       }
 
       /* Resolve pathnames. */
-      if (realpath(from_name, src) == NULL)
-          err(EX_OSERR, "%s: realpath", from_name);
+      if (realpath(from_name, src) == NULL) {
+        err(EX_OSERR, "%s: realpath", from_name);
+      }
 
       /*
        * The last component of to_name may be a symlink,
        * so use realpath to resolve only the directory.
        */
       to_name_copy = strdup(to_name);
-      if (to_name_copy == NULL)
-          err(EX_OSERR, "%s: strdup", to_name);
+      if (to_name_copy == NULL) {
+        err(EX_OSERR, "%s: strdup", to_name);
+      }
       base = basename(to_name_copy);
       if (base == to_name_copy) {
         /* destination is a file in cwd */
@@ -738,20 +757,24 @@ func parseid(_ name : String) -> UInt? {
       } else {
         /* all other cases: safe to call dirname() */
         dir = dirname(to_name_copy);
-        if (realpath(dir, dst) == NULL)
-            err(EX_OSERR, "%s: realpath", dir);
+        if (realpath(dir, dst) == NULL) {
+          err(EX_OSERR, "%s: realpath", dir);
+        }
         if (strcmp(dst, "/") != 0 &&
-            strlcat(dst, "/", sizeof(dst)) >= sizeof(dst))
-            errx(1, "resolved pathname too long");
-      }
-      if (strlcat(dst, base, sizeof(dst)) >= sizeof(dst))
+            strlcat(dst, "/", sizeof(dst)) >= sizeof(dst)) {
           errx(1, "resolved pathname too long");
+        }
+      }
+      if (strlcat(dst, base, sizeof(dst)) >= sizeof(dst)) {
+        errx(1, "resolved pathname too long");
+      }
       free(to_name_copy);
 
       /* Trim common path components. */
       ls = ld = NULL;
-      for (s = src, d = dst; *s == *d; ls = s, ld = d, s++, d++)
-            continue;
+      for (s = src, d = dst; *s == *d; ls = s, ld = d, s++, d++) {
+        continue;
+      }
       /*
        * If we didn't end after a directory separator, then we've
        * falsely matched the last component.  For example, if one
@@ -760,12 +783,14 @@ func parseid(_ name : String) -> UInt? {
        * destination would terminate in the middle of 'libexec',
        * leading to a full directory getting falsely eaten.
        */
-      if ((ls != NULL && *ls != '/') || (ld != NULL && *ld != '/'))
+      if ((ls != NULL && *ls != '/') || (ld != NULL && *ld != '/')) {
 
-          (void)s--, d--;
+        (void)s--, d--;
+      }
 
-      while (*s != '/')
-              (void)s--, d--;
+      while (*s != '/') {
+        (void)s--, d--;
+      }
 
       /* Count the number of directories we need to backtrack. */
       for (++d, lnk[0] = '\0'; *d; d++) {
@@ -813,10 +838,12 @@ func parseid(_ name : String) -> UInt? {
     /* If try to install NULL file to a directory, fails. */
     if (flags & DIRECTORY || strcmp(from_name, _PATH_DEVNULL)) {
       if (!dolink) {
-        if (stat(from_name, &from_sb))
-            err(EX_OSERR, "%s", from_name);
-        if (!S_ISREG(from_sb.st_mode))
-            errc(EX_OSERR, EFTYPE, "%s", from_name);
+        if (stat(from_name, &from_sb)) {
+          err(EX_OSERR, "%s", from_name);
+        }
+        if (!S_ISREG(from_sb.st_mode)) {
+          errc(EX_OSERR, EFTYPE, "%s", from_name);
+        }
       }
       /* Build the target path. */
       if (flags & DIRECTORY) {
@@ -830,8 +857,9 @@ func parseid(_ name : String) -> UInt? {
     } else {
       devnull = 1;
     }
-    if (*to_name == '\0')
-        errx(EX_USAGE, "destination cannot be an empty string");
+    if (*to_name == '\0') {
+      errx(EX_USAGE, "destination cannot be an empty string");
+    }
 
     target = (lstat(to_name, &to_sb) == 0);
 
@@ -840,26 +868,32 @@ func parseid(_ name : String) -> UInt? {
       return;
     }
 
-    if (target && !S_ISREG(to_sb.st_mode) && !S_ISLNK(to_sb.st_mode))
-        errc(EX_CANTCREAT, EFTYPE, "%s", to_name);
+    if (target && !S_ISREG(to_sb.st_mode) && !S_ISLNK(to_sb.st_mode)) {
+      errc(EX_CANTCREAT, EFTYPE, "%s", to_name);
+    }
 
-    if (!devnull && (from_fd = open(from_name, O_RDONLY, 0)) < 0)
-        err(EX_OSERR, "%s", from_name);
+    if (!devnull && (from_fd = open(from_name, O_RDONLY, 0)) < 0) {
+      err(EX_OSERR, "%s", from_name);
+    }
 
     /* If we don't strip, we can compare first. */
     if (docompare && !dostrip && target && S_ISREG(to_sb.st_mode)) {
-      if ((to_fd = open(to_name, O_RDONLY, 0)) < 0)
-          err(EX_OSERR, "%s", to_name);
-      if (devnull)
-          files_match = to_sb.st_size == 0;
-      else
+      if ((to_fd = open(to_name, O_RDONLY, 0)) < 0) {
+        err(EX_OSERR, "%s", to_name);
+      }
+      if (devnull) {
+        files_match = to_sb.st_size == 0;
+      }
+      else {
         files_match = !(compare(from_fd, from_name,
                                 (size_t)from_sb.st_size, to_fd,
                                 to_name, (size_t)to_sb.st_size, &digestresult));
+      }
 
       /* Close "to" file unless we match. */
-      if (!files_match)
-          (void)close(to_fd);
+      if (!files_match) {
+        (void)close(to_fd);
+      }
     }
 
     if (!files_match) {
@@ -1143,8 +1177,9 @@ func parseid(_ name : String) -> UInt? {
     int do_digest;
     DIGEST_CTX ctx;
 
-    if (from_len != to_len)
-        return 1;
+    if (from_len != to_len) {
+      return 1;
+    }
 
     do_digest = (digesttype != DIGEST_NONE && dresp != NULL &&
                  *dresp == NULL);
@@ -1153,8 +1188,9 @@ func parseid(_ name : String) -> UInt? {
       static size_t bufsize;
       int n1, n2;
 
-      if (do_digest)
-          digest_init(&ctx);
+      if (do_digest) {
+        digest_init(&ctx);
+      }
 
       if (buf == NULL) {
         /*
@@ -1162,13 +1198,16 @@ func parseid(_ name : String) -> UInt? {
          * malloc() fails, it will fail at the start
          * and not copy only some files.
          */
-        if (sysconf(_SC_PHYS_PAGES) > PHYSPAGES_THRESHOLD)
-            bufsize = MIN(BUFSIZE_MAX, MAXPHYS * 8);
-        else
+        if (sysconf(_SC_PHYS_PAGES) > PHYSPAGES_THRESHOLD) {
+          bufsize = MIN(BUFSIZE_MAX, MAXPHYS * 8);
+        }
+        else {
           bufsize = BUFSIZE_SMALL;
+        }
         buf = malloc(bufsize * 2);
-        if (buf == NULL)
-            err(1, "Not enough memory");
+        if (buf == NULL) {
+          err(1, "Not enough memory");
+        }
         buf1 = buf;
         buf2 = buf + bufsize;
       }
@@ -1177,18 +1216,23 @@ func parseid(_ name : String) -> UInt? {
       lseek(to_fd, 0, SEEK_SET);
       while (rv == 0) {
         n1 = read(from_fd, buf1, bufsize);
-        if (n1 == 0)
-            break;		/* EOF */
+        if (n1 == 0){
+          break;		/* EOF */
+        }
         else if (n1 > 0) {
           n2 = read(to_fd, buf2, n1);
-          if (n2 == n1)
-              rv = memcmp(buf1, buf2, n1);
-          else
+          if (n2 == n1) {
+            rv = memcmp(buf1, buf2, n1);
+          }
+          else {
             rv = 1;	/* out of sync */
-        } else
+          }
+        } else {
           rv = 1;		/* read failure */
-        if (do_digest)
-            digest_update(&ctx, buf1, n1);
+        }
+        if (do_digest) {
+          digest_update(&ctx, buf1, n1);
+        }
       }
       lseek(from_fd, 0, SEEK_SET);
       lseek(to_fd, 0, SEEK_SET);
@@ -1197,10 +1241,12 @@ func parseid(_ name : String) -> UInt? {
     }
 
     if (do_digest) {
-      if (rv == 0)
-          *dresp = digest_end(&ctx, NULL);
-      else
+      if (rv == 0) {
+        *dresp = digest_end(&ctx, NULL);
+      }
+      else {
         (void)digest_end(&ctx, NULL);
+      }
     }
 
     return rv;
@@ -1216,10 +1262,12 @@ func parseid(_ name : String) -> UInt? {
 
     (void)strncpy(temp, path, tsize);
     temp[tsize - 1] = '\0';
-    if ((p = strrchr(temp, '/')) != NULL)
-        p++;
-    else
+    if ((p = strrchr(temp, '/')) != NULL) {
+      p++;
+    }
+    else {
       p = temp;
+    }
     (void)strncpy(p, "INS@XXXXXX", &temp[tsize - 1] - p);
     temp[tsize - 1] = '\0';
     return (mkstemp(temp));
@@ -1340,8 +1388,9 @@ func parseid(_ name : String) -> UInt? {
 
     prefixed_from_name = NULL;
     stripbin = getenv("STRIPBIN");
-    if (stripbin == NULL)
-        stripbin = "strip";
+    if (stripbin == NULL) {
+      stripbin = "strip";
+    }
     args[0] = stripbin;
     if (from_name == NULL) {
       args[1] = to_name;
@@ -1352,8 +1401,9 @@ func parseid(_ name : String) -> UInt? {
 
       /* Prepend './' if from_name begins with '-' */
       if (from_name[0] == '-') {
-        if (asprintf(&prefixed_from_name, "./%s", from_name) == -1)
-            return (0);
+        if (asprintf(&prefixed_from_name, "./%s", from_name) == -1) {
+          return (0);
+        }
         args[3] = prefixed_from_name;
       } else {
         args[3] = from_name;
@@ -1375,8 +1425,9 @@ func parseid(_ name : String) -> UInt? {
       /* NOTREACHED */
     }
     if (status != 0) {
-      if (from_name != NULL)
-          return (0);
+      if (from_name != NULL) {
+        return (0);
+      }
       (void)unlink(to_name);
       errx(EX_SOFTWARE, "strip command %s failed on %s",
            stripbin, to_name);
@@ -1387,8 +1438,9 @@ func parseid(_ name : String) -> UInt? {
       errno = serrno;
       err(EX_OSERR, "fsync failed for %s", to_name);
     }
-    if (dresp != NULL)
-        *dresp = digest_file(to_name);
+    if (dresp != NULL) {
+      *dresp = digest_file(to_name);
+    }
     return (1);
   }
 
@@ -1403,37 +1455,44 @@ func parseid(_ name : String) -> UInt? {
     struct stat sb;
     int ch, tried_mkdir;
 
-    for (p = path;; ++p)
-          if (!*p || (p != path && *p  == '/')) {
-      tried_mkdir = 0;
-      ch = *p;
-      *p = '\0';
-    again:
-      if (stat(path, &sb) != 0) {
-        if (errno != ENOENT || tried_mkdir)
+    for (p = path;; ++p) {
+      if (!*p || (p != path && *p  == '/')) {
+        tried_mkdir = 0;
+        ch = *p;
+        *p = '\0';
+      again:
+        if (stat(path, &sb) != 0) {
+          if (errno != ENOENT || tried_mkdir) {
             err(EX_OSERR, "stat %s", path);
-        if (mkdir(path, 0755) < 0) {
-          tried_mkdir = 1;
-          if (errno == EEXIST)
+          }
+          if (mkdir(path, 0755) < 0) {
+            tried_mkdir = 1;
+            if (errno == EEXIST) {
               goto again;
-          err(EX_OSERR, "mkdir %s", path);
-        }
-        if (verbose)
+            }
+            err(EX_OSERR, "mkdir %s", path);
+          }
+          if (verbose) {
             (void)printf("install: mkdir %s\n",
                          path);
-      } else if (!S_ISDIR(sb.st_mode))
-                  errx(EX_OSERR, "%s exists but is not a directory", path);
-      if (!(*p = ch))
+          }
+        } else if (!S_ISDIR(sb.st_mode)) {
+          errx(EX_OSERR, "%s exists but is not a directory", path);
+        }
+        if (!(*p = ch)) {
           break;
+        }
+      }
     }
-
     if (!dounpriv) {
       if ((gid != (gid_t)-1 || uid != (uid_t)-1) &&
-          chown(path, uid, gid))
-          warn("chown %u:%u %s", uid, gid, path);
+          chown(path, uid, gid)) {
+        warn("chown %u:%u %s", uid, gid, path);
+      }
       /* XXXBED: should we do the chmod in the dounpriv case? */
-      if (chmod(path, mode))
-          warn("chmod %o %s", mode, path);
+      if (chmod(path, mode)) {
+        warn("chmod %o %s", mode, path);
+      }
     }
     metadata_log(path, "dir", NULL, NULL, NULL, 0);
   }
@@ -1453,12 +1512,14 @@ func parseid(_ name : String) -> UInt? {
     size_t buflen, destlen;
     struct flock metalog_lock;
 
-    if (!metafp)
-        return;
+    if (!metafp) {
+      return;
+    }
     /* Buffer for strsnvis(3), used for both path and slink. */
     buflen = strlen(path);
-    if (slink && strlen(slink) > buflen)
-        buflen = strlen(slink);
+    if (slink && strlen(slink) > buflen) {
+      buflen = strlen(slink);
+    }
     buflen = 4 * buflen + 1;
     if ((buf = malloc(buflen)) == NULL) {
       warn(NULL);
@@ -1481,33 +1542,38 @@ func parseid(_ name : String) -> UInt? {
     if (destdir) {
       destlen = strlen(destdir);
       if (strncmp(p, destdir, destlen) == 0 &&
-          (p[destlen] == '/' || p[destlen] == '\0'))
-          p += destlen;
+          (p[destlen] == '/' || p[destlen] == '\0')) {
+        p += destlen;
+      }
     }
-    while (*p && *p == '/')
-            p++;
+    while (*p && *p == '/') {
+      p++;
+    }
     strsnvis(buf, buflen, p, VIS_OCTAL, extra);
     p = buf;
     /* Print details. */
     fprintf(metafp, ".%s%s type=%s", *p ? "/" : "", p, type);
-    if (owner)
-        fprintf(metafp, " uname=%s", owner);
-    if (group)
-        fprintf(metafp, " gname=%s", group);
+    if (owner) {
+      fprintf(metafp, " uname=%s", owner);
+    }
+    if (group) {
+      fprintf(metafp, " gname=%s", group);
+    }
     fprintf(metafp, " mode=%#o", mode);
     if (slink) {
       strsnvis(buf, buflen, slink, VIS_CSTYLE, extra);
       fprintf(metafp, " link=%s", buf);
     }
-    if (*type == 'f') /* type=file */
-        fprintf(metafp, " size=%lld", (long long)size);
-    if (ts != NULL && dopreserve)
-        fprintf(metafp, " time=%lld.%09ld",
-                (long long)ts[1].tv_sec, ts[1].tv_nsec);
-
-    if (digestresult && digest)
-        fprintf(metafp, " %s=%s", digest, digestresult);
-
+    if (*type == 'f') { /* type=file */
+      fprintf(metafp, " size=%lld", (long long)size);
+    }
+    if (ts != NULL && dopreserve) {
+      fprintf(metafp, " time=%lld.%09ld",
+              (long long)ts[1].tv_sec, ts[1].tv_nsec);
+    }
+    if (digestresult && digest) {
+      fprintf(metafp, " %s=%s", digest, digestresult);
+    }
     if (fflags) {
       fprintf(metafp, " flags=%s", fflags);
     }

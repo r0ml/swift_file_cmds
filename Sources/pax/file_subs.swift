@@ -851,27 +851,18 @@ set_ftime(char *fnm, time_t mtime, time_t atime, int frc)
 		 */
     if (lstat(fnm, &sb) == 0) {
       if (!patime)
-          #ifdef __APPLE__
       {
         set_ts.atime.tv_sec = sb.st_atime_sec;
         set_ts.atime.tv_nsec = sb.st_atime_nsec;
       }
-#else
-      {
-      tv[0].tv_sec = sb.st_atime;
-    }
-#endif /* __APPLE__ */
+
       if (!pmtime)
-#ifdef __APPLE__
+
 			{
 				set_ts.mtime.tv_sec = sb.st_mtime_sec;
 				set_ts.mtime.tv_nsec = sb.st_mtime_nsec;
 			}
-#else
-      {
-        tv[1].tv_sec = sb.st_mtime;
-      }
-#endif /* __APPLE__ */
+
     } else {
       syswarn(0,errno,"Unable to obtain file stats %s", fnm);
     }
@@ -880,7 +871,7 @@ set_ftime(char *fnm, time_t mtime, time_t atime, int frc)
 	/*
 	 * set the times
 	 */
-#ifdef __APPLE__
+
 	if (pax_invalid_action_write_cwd) {
 		char cwd_buff[MAXPATHLEN];
 		char * cwd;
@@ -899,12 +890,7 @@ set_ftime(char *fnm, time_t mtime, time_t atime, int frc)
               fnm);
     }
 	}
-#else
-  if (lutimes(fnm, tv) < 0) {
-    syswarn(1, errno, "Access/modification time set failed on: %s",
-            fnm);
-  }
-#endif /* __APPLE__ */
+
 	return;
 }
 
@@ -1040,8 +1026,9 @@ file_write(int fd, char *str, int cnt, int *rem, int *isempt, int sz,
 			/*
 			 * look for a zero filled buffer
 			 */
-			while ((pt < end) && (*pt == '\0'))
-				++pt;
+      while ((pt < end) && (*pt == '\0')) {
+        ++pt;
+      }
 
 			if (pt == end) {
 				/*
@@ -1064,7 +1051,7 @@ file_write(int fd, char *str, int cnt, int *rem, int *isempt, int sz,
 		/*
 		 * have non-zero data in this file system block, have to write
 		 */
-#ifdef __APPLE__
+
 		switch (fd) {
 		case -1:
 			strp = &gnu_name_string;
@@ -1089,7 +1076,7 @@ file_write(int fd, char *str, int cnt, int *rem, int *isempt, int sz,
 			(*strp)[wcnt] = '\0';
 			break;
     } else
-#endif /* __APPLE__ */
+
 		if (write(fd, st, wcnt) != wcnt) {
 			syswarn(1, errno, "Failed write to file %s", name);
 			return(-1);
