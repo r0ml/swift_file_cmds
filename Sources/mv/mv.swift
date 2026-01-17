@@ -98,6 +98,7 @@ let EXEC_FAILED : Int32 = 127
     if options.args.count < 2 {
       throw CmdErr(1)
     }
+    return options
   }
 
   func runCommand() throws(CmdErr) {
@@ -250,15 +251,11 @@ let EXEC_FAILED : Int32 = 127
         /* Load user specified locale */
         setlocale(LC_MESSAGES, "");
 
-        first = ch = getchar();
-        while (ch != '\n' && ch != EOF) {
-          ch = getchar();
-        }
+        let chx = readLine()
 
         /* only care about the first character */
-        resp[0] = first;
-
-        if (rpmatch(resp) != 1) {
+        var resp = chx?.first ?? " "
+        if Darwin.rpmatch(&resp) != 1 {
           print("not overwritten", to: &stderr)
           return false
         }
@@ -317,93 +314,102 @@ let EXEC_FAILED : Int32 = 127
   }
 
   func fastcopy(_ from : String, _ to : String, _ sbp : FileMetadata) -> Bool {
-    struct timespec ts[2];
-    static u_int blen = MAXPHYS;
-    static char *bp = NULL;
-    mode_t oldmode;
+    //    struct timespec ts[2];
+    //    static u_int blen = MAXPHYS;
+    //    static char *bp = NULL;
+    //    mode_t oldmode;
     // #ifdef __APPLE__
     /* See rdar://problem/10819384 - implicit conversion precision loss */
-    ssize_t nread;
-    int from_fd, to_fd;
+    //    ssize_t nread;
+    //    int from_fd, to_fd;
     // #else
     //	int nread, from_fd, to_fd;
     // 	struct stat tsb;
     // #endif
 
-    if ((from_fd = open(from, O_RDONLY, 0)) < 0) {
+    guard let from_fd = try? FileDescriptor.open(from, .readOnly) else { //} if ((from_fd = open(from, O_RDONLY, 0)) < 0) {
       warn("fastcopy: open() failed (from): \(from)")
       return true
     }
-    if (bp == NULL && (bp = malloc((size_t)blen)) == NULL) {
-      warnx("malloc(%u) failed", blen);
-      (void)close(from_fd);
-      return true
-    }
-    while ((to_fd =
-            open(to, O_CREAT | O_EXCL | O_TRUNC | O_WRONLY, 0)) < 0) {
-      if (errno == EEXIST && unlink(to) == 0) {
-        continue;
+    /*    if (bp == NULL && (bp = malloc((size_t)blen)) == NULL) {
+     warnx("malloc(%u) failed", blen);
+     (void)close(from_fd);
+     return true
+     }
+     */
+    defer { try? from_fd.close() }
+
+    var to_fd : FileDescriptor
+    while true {
+      do {
+        to_fd = try FileDescriptor.open(to, .writeOnly, options: [.create, .exclusiveCreate, .truncate])
+        break
+      } catch(let e as Errno) {
+        // FIXME: how to I get the error code from FileDescriptor.open?
+        // otherwise I have to revert to using Darwin.open directly
+
+        if e.rawValue == EEXIST && unlink(to) == 0 {
+          continue
+        }
+      } catch (let e) {
       }
       warn("fastcopy: open() failed (to): \(to)")
-      (void)close(from_fd);
       return true
     }
+
+    defer { try? to_fd.close() }
     // #ifdef __APPLE__
-    {
-      struct statfs sfs;
 
-      /*
-       * Pre-allocate blocks for the destination file if it
-       * resides on Xsan.
-       */
-      if (fstatfs(to_fd, &sfs) == 0 &&
-          strcmp(sfs.f_fstypename, "acfs") == 0) {
-        fstore_t fst;
-
-        fst.fst_flags = 0;
-        fst.fst_posmode = F_PEOFPOSMODE;
-        fst.fst_offset = 0;
-        fst.fst_length = sbp->st_size;
-
-        (void) fcntl(to_fd, F_PREALLOCATE, &fst);
-      }
+    /*
+     * Pre-allocate blocks for the destination file if it
+     * resides on Xsan.
+     */
+    if let sfs = try? FileSystemMetadata(for: to_fd),
+       sfs.fstypename == "acfs" {
+      var fst = fstore_t()
+      fst.fst_flags = 0
+      fst.fst_posmode = F_PEOFPOSMODE
+      fst.fst_offset = 0
+      fst.fst_length = off_t(sbp.size)
+      let _ = Darwin.fcntl(to_fd.rawValue, F_PREALLOCATE, &fst)
     }
+
     // #endif /* __APPLE__ */
-    while ((nread = read(from_fd, bp, (size_t)blen)) > 0) {
-      if (write(to_fd, bp, (size_t)nread) != nread) {
+    var bp : [UInt8]?
+    while true {
+      do {
+        bp = try from_fd.readUpToCount(Int(MAXPHYS))
+        if bp == nil { break }
+      } catch(let e) {
+        warn("fastcopy: read() failed: \(from)")
+        return true
+      }
+      do {
+        try to_fd.write(bp!)
+      } catch (let e) {
         warn("fastcopy: write() failed: \(to)")
-        goto err;
+        return true
       }
     }
-    if (nread < 0) {
-      warn("fastcopy: read() failed: \(from)")
-      err:		if 0 != unlink(to) {
-        warn("\(to): remove")
-      }
-      (void)close(from_fd);
-      (void)close(to_fd);
-      return true
-    }
+
     // #ifdef __APPLE__
     /* XATTR can fail if to_fd has mode 000 */
-    if (fcopyfile(from_fd, to_fd, NULL, COPYFILE_ACL | COPYFILE_XATTR) < 0) {
+    if (fcopyfile(from_fd.rawValue, to_fd.rawValue, nil, UInt32(COPYFILE_ACL | COPYFILE_XATTR) ) < 0) {
       warn("\(to): unable to move extended attributes and ACL from \(from)")
     }
     // #endif
 
-    oldmode = sbp->st_mode & ALLPERMS;
-    if 0 != fchown(to_fd, sbp->st_uid, sbp->st_gid) {
-      warn("%s: set owner/group (was: %lu/%lu)", to,
-           (u_long)sbp->st_uid, (u_long)sbp->st_gid);
-      if (oldmode & (S_ISUID | S_ISGID)) {
-        warnx(
-          "%s: owner/group changed; clearing suid/sgid (mode was 0%03o)",
-          to, oldmode);
-        sbp->st_mode &= ~(S_ISUID | S_ISGID);
+    var oldmode = sbp.permissions
+    var newmode = sbp.permissions
+    if 0 != fchown(to_fd.rawValue, uid_t(sbp.userId), gid_t(sbp.groupId) ) {
+      warn("\(to): set owner/group (was: \(sbp.userId)/\(sbp.groupId))")
+      if oldmode.contains(.setUserID) || oldmode.contains(.setGroupID) {
+        warnx("\(to): owner/group changed; clearing suid/sgid (mode was \(cFormat("0%03o", oldmode.rawValue))")
+        newmode.remove([.setUserID, .setGroupID])
       }
     }
-    if (fchmod(to_fd, sbp->st_mode)) {
-      warn("%s: set mode (was: 0%03o)", to, oldmode);
+    if 0 != fchmod(to_fd.rawValue, newmode.rawValue) {
+      warn("\(to): set mode (was: \(cFormat("0%03o",oldmode.rawValue))")
     }
     /* #ifndef __APPLE__
      /*
@@ -414,7 +420,7 @@ let EXEC_FAILED : Int32 = 127
      preserve_fd_acls(from_fd, to_fd, from, to);
      #endif
      */
-    (void)close(from_fd);
+     try? from_fd.close()
     /*
      * XXX
      * NFS doesn't support chflags; ignore errors unless there's reason
@@ -423,9 +429,9 @@ let EXEC_FAILED : Int32 = 127
      * on a file that we copied, i.e., that we didn't create.)
      */
     // #ifdef __APPLE__
-    if (fchflags(to_fd, (u_int)sbp->st_flags)) {
-      if (errno != ENOTSUP || sbp->st_flags != 0) {
-        warn("%s: set flags (was: 0%07o)", to, sbp->st_flags);
+    if 0 != fchflags(to_fd.rawValue, sbp.flags.rawValue) {
+      if errno != ENOTSUP || !sbp.flags.isEmpty {
+        warn("\(to): set flags (was: \(cFormat("0%07o", sbp.flags.rawValue))")
       }
     }
     /*
@@ -445,12 +451,12 @@ let EXEC_FAILED : Int32 = 127
      #endif
      */
 
-    var ts = ( sbp.lastAccess, sbp.lastWrite )
-    if 0 != Darwin.futimens(to_fd, &ts) {
+    var ts = ( sbp.lastAccess.timespec, sbp.lastWrite.timespec )
+    if 0 != Darwin.futimens(to_fd.rawValue, &ts.0) {
       warn("\(to): set times")
     }
 
-    if Darwin.close(to_fd) != 0 {
+    if Darwin.close(to_fd.rawValue) != 0 {
       warn(to);
       return true
     }
@@ -489,6 +495,10 @@ let EXEC_FAILED : Int32 = 127
     }
 
     //FIXME: UGLY UGLY UGLY -- forks a call to CP
+    fatalError()
+
+    // FIXME: figure out a better way to do this using the 'cp' code directly
+    /*
     let _PATH_CP = "/bin/cp"
 
     /* Copy source to destination. */
@@ -540,64 +550,8 @@ let EXEC_FAILED : Int32 = 127
         return true
     }
     return false
+     */
   }
-
-  /*
-   #ifndef __APPLE__
-   static void
-   preserve_fd_acls(int source_fd, int dest_fd, const char *source_path,
-   const char *dest_path)
-   {
-   acl_t acl;
-   acl_type_t acl_type;
-   int acl_supported = 0, ret, trivial;
-
-   ret = fpathconf(source_fd, _PC_ACL_NFS4);
-   if (ret > 0 ) {
-   acl_supported = 1;
-   acl_type = ACL_TYPE_NFS4;
-   } else if (ret < 0 && errno != EINVAL) {
-   warn("fpathconf(..., _PC_ACL_NFS4) failed for %s",
-   source_path);
-   return;
-   }
-   if (acl_supported == 0) {
-   ret = fpathconf(source_fd, _PC_ACL_EXTENDED);
-   if (ret > 0 ) {
-   acl_supported = 1;
-   acl_type = ACL_TYPE_ACCESS;
-   } else if (ret < 0 && errno != EINVAL) {
-   warn("fpathconf(..., _PC_ACL_EXTENDED) failed for %s",
-   source_path);
-   return;
-   }
-   }
-   if (acl_supported == 0)
-   return;
-
-   acl = acl_get_fd_np(source_fd, acl_type);
-   if (acl == NULL) {
-   warn("failed to get acl entries for %s", source_path);
-   return;
-   }
-   if (acl_is_trivial_np(acl, &trivial)) {
-   warn("acl_is_trivial() failed for %s", source_path);
-   acl_free(acl);
-   return;
-   }
-   if (trivial) {
-   acl_free(acl);
-   return;
-   }
-   if (acl_set_fd_np(dest_fd, acl, acl_type) < 0) {
-   warn("failed to set acl entries for %s", dest_path);
-   acl_free(acl);
-   return;
-   }
-   acl_free(acl);
-   }
-   #endif
-   */
 
   var usage = """
 usage: mv [-f | -i | -n] [-hv] source target
