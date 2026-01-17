@@ -43,6 +43,8 @@ let EXEC_FAILED : Int32 = 127
 
 @main struct mv : ShellCommand {
 
+  let unix2003 = true
+
   struct CommandOptions {
     var fflg = false
     var hflg = false
@@ -109,7 +111,7 @@ let EXEC_FAILED : Int32 = 127
       if options.args.count > 2 {
         errx(1, "\(options.args.last!) is not a directory")
       }
-      exit(Int32(do_move(options.args[0], options.args[1])))
+      exit( do_move(options.args[0], options.args[1]) ? 1 : 0)
     }
 
     // #ifdef __APPLE__
@@ -166,35 +168,30 @@ let EXEC_FAILED : Int32 = 127
        * Find the last component of the source pathname.  It
        * may have trailing slashes.
        */
-      p = *argv + strlen(*argv);
-      while (p != *argv && p[-1] == '/') {
-        --p;
-      }
-      while (p != *argv && p[-1] != '/') {
-        --p;
-      }
+      var p = argv
+      while p.last == "/" { p.removeLast() }
+      p = String(p.split(separator: "/").last!)
 
-      if ((baselen + (len = strlen(p))) >= PATH_MAX) {
-        warnx("%s: destination pathname too long", *argv);
-        rval = 1;
+      if (path.count + p.count) >= PATH_MAX {
+        warnx("\(argv): destination pathname too long")
+        rval = 1
       } else {
-        memmove(endp, p, (size_t)len + 1);
-        if (COMPAT_MODE("bin/mv", "unix2003")) {
+        var newp = path + p
+        if unix2003 {
           /*
            * For Unix 2003 compatibility, check if old and new are
            * same file, and produce an error * (like on Sun) that
            * conformance test 66 in mv.ex expects.
            */
-          if (!stat(*argv, &fsb) && !stat(path, &tsb) &&
-              fsb.st_ino == tsb.st_ino &&
-              fsb.st_dev == tsb.st_dev &&
-              fsb.st_gen == tsb.st_gen) {
-            (void)fprintf(stderr, "mv: %s and %s are identical\n",
-                          *argv, path);
-            rval = 2; /* Like the Sun */
+          if let fsb = try? FileMetadata(for: argv),
+             let tsb = try? FileMetadata(for: newp),
+             fsb.inode == tsb.inode && fsb.device == tsb.device && fsb.generation == tsb.generation {
+            var stderr = FileDescriptor.standardError
+            print("mv: \(argv) and \(newp) are identical", to: &stderr)
+            rval = 2 /* Like the Sun */
           } else {
-            if (do_move(*argv, path)) {
-              rval = 1;
+            if (do_move(argv, newp)) {
+              rval = 1
             }
           }
         } else {
@@ -220,7 +217,7 @@ let EXEC_FAILED : Int32 = 127
      */
     var ask = 0
 
-    if (!options.fflg && !access(to, F_OK)) {
+    if !options.fflg && 0 == Darwin.access(to, F_OK) {
 
       /* prompt only if source exist */
       guard let sb = try? FileMetadata(for: from, followSymlinks: false) else {
@@ -239,8 +236,10 @@ let EXEC_FAILED : Int32 = 127
       } else if options.iflg {
         print("overwrite \(to)? \(YESNO)", terminator: "", to: &stderr)
         ask = 1
-      } else if (access(to, W_OK) && !stat(to, &sb) && isatty(STDIN_FILENO)) {
-        let modep = strmode(sb.filetype, sb.mode)
+      } else if 0 != Darwin.access(to, W_OK),
+                let sb = try? FileMetadata(for: to),
+                0 != Darwin.isatty(STDIN_FILENO) {
+        let modep = strmode(sb.filetype, sb.permissions)
         let u = Darwin.user_from_uid(UInt32(sb.userId), 0)!
         let g = Darwin.group_from_gid(UInt32(sb.groupId), 0)!
         print("override \(modep.dropFirst())\(modep.last == " " ? "" : " ")\(u)/\(g) for \(to)? \(YESNO)",
@@ -288,11 +287,14 @@ let EXEC_FAILED : Int32 = 127
       }
       if sb.filetype != .symbolicLink {
         /* Can't mv(1) a mount point. */
-        if (realpath(from, path) == nil) {
-          warn("cannot resolve \(from): \(path)")
+        guard let pathx = Darwin.realpath(from, nil) else {
+          warn("cannot resolve \(from)")
           return true
         }
-        if (!statfs(path, &sfs) && !strcmp(path, sfs.f_mntonname)) {
+        let path = String(cString: pathx)
+
+        if let sfs = try? FileSystemMetadata(for: path),
+           path == sfs.mntonname {
           warnx("cannot rename a mount point")
           return true
         }
