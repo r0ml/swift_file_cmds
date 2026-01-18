@@ -39,6 +39,7 @@
 
 import CMigration
 import Darwin
+import libxo
 
 let unix2003 = true
 
@@ -80,6 +81,10 @@ let unix2003 = true
     var Tflag = false
     var kludge_tflag = false
     var thousands = false
+    var skipvfs_l = false
+    var skipvfs_t = false
+    var vfslist_l : [String]?
+    var vfslist_t : [String]?
     var args = [String]()
   }
 
@@ -173,7 +178,7 @@ let unix2003 = true
           if options.lflag {
             break
           }
-          vfslist_l = makevfslist(makenetvfslist(), &skipvfs_l);
+          (options.skipvfs_l, options.vfslist_l) = makevfslist(makenetvfslist())
           options.lflag = true
         case "m":
           setenv("BLOCKSIZE", "1m", 1);
@@ -186,10 +191,10 @@ let unix2003 = true
             options.kludge_tflag = true
           }
         case "T":
-          if (vfslist_t != NULL) {
-            xo_errx(1, "only one -%c option may be specified", ch);
+          if let _ = options.vfslist_t {
+            xo_errx(1, "only one -\(k) option may be specified");
           }
-          vfslist_t = makevfslist(optarg, &skipvfs_t);
+          (options.skipvfs_t, options.vfslist_t) = makevfslist(v)
           break;
         case "Y":
           options.Tflag = true
@@ -206,19 +211,27 @@ let unix2003 = true
     /* If we are in unix2003 mode, have seen a -t but no -T and the first
      non switch arg isn't a file, let's pretend they used -T on it.
      This makes the Lexmark printer installer happy (PR-3918471) */
-    if (vfslist_t == NULL && options.kludge_tflag && *argv &&
-        stat(*argv, &stbuf) < 0 && errno == ENOENT) {
-      vfslist_t = makevfslist(*argv++, &skipvfs_t);
+    if options.vfslist_t == nil && options.kludge_tflag && !options.args.isEmpty {
+      do {
+        let _ = try FileMetadata(for: options.args.first!)
+      } catch(let e) {
+        if e.code == ENOENT {
+          (options.skipvfs_t, options.vfslist_t) = makevfslist(options.args.removeFirst())
+        }
+      }
     }
     return options
   }
 
   func runCommand() async throws(CmdErr) {
-    rv = EXIT_SUCCESS;
-    if (!*argv) {
+    var rv = EXIT_SUCCESS
+    var mntsize : Int
+    if options.args.isEmpty {
       /* everything (modulo -t) */
-      mntsize = getmntinfo(&mntbuf, MNT_NOWAIT);
-      mntsize = regetmntinfo(&mntbuf, mntsize);
+      var mntbufx : UnsafeMutablePointer<statfs>?
+      mntsize = Int(getmntinfo_r_np(&mntbufx, MNT_NOWAIT))
+      var mntbuf = (0..<mntsize).map { FileSystemMetadata(from: mntbufx![$0]) }
+      mntsize = regetmntinfo(mntbuf)
     } else {
       /* just the filesystems specified on the command line */
       mntbuf = malloc(argc * sizeof(*mntbuf));
@@ -234,21 +247,27 @@ let unix2003 = true
 
     /* iterate through specified filesystems */
     for argv in options.args {
-      if (stat(*argv, &stbuf) < 0) {
-        if ((mntpt = getmntpt(*argv)) == NULL) {
-          xo_warn("%s", *argv);
-          rv = EXIT_FAILURE;
+      let stbuf = try? FileMetadata(for: argv)
+      if stbuf == nil {
+        let mntpt = getmntpt(argv)
+        guard let mntpt else {
+          xo_warn(argv)
+          rv = EXIT_FAILURE
           continue;
         }
-      } else if (S_ISCHR(stbuf.st_mode) || S_ISBLK(stbuf.st_mode)) {
-        mntpt = getmntpt(*argv);
-        if (mntpt == NULL) {
-          xo_warnx("%s: not mounted", *argv);
-          rv = EXIT_FAILURE;
-          continue;
+      }
+
+
+      var mntpt : String?
+      if stbuf?.filetype == .characterDevice || stbuf?.filetype == .blockDevice {
+        mntpt = getmntpt(argv)
+        if (mntpt == nil) {
+          xo_warnx("\(argv): not mounted")
+          rv = EXIT_FAILURE
+          continue
         }
       } else {
-        mntpt = *argv;
+        mntpt = argv
       }
 
       /*
@@ -320,52 +339,25 @@ let unix2003 = true
     return nil
   }
 
-  static const char **
-  makevfslist(char *fslist, int *skip)
-  {
-    const char **av;
-    int i;
-    char *nextcp;
+  func makevfslist(_ fslist : String?) -> (Bool, [String]) {
+    var skip = false
+    guard var fslist else {
+      return (false, [])
+    }
 
-    if (fslist == NULL)
-        return (NULL);
-    *skip = 0;
-    if (fslist[0] == 'n' && fslist[1] == 'o') {
-      fslist += 2;
-      *skip = 1;
+    if fslist.hasPrefix("no") {
+      fslist.removeFirst(2)
+      skip = true
     }
-    for (i = 0, nextcp = fslist; *nextcp; nextcp++)
-          if (*nextcp == ',')
-          i++;
-    if ((av = malloc((size_t)(i + 2) * sizeof(char *))) == NULL) {
-      xo_warnx("malloc failed");
-      return (NULL);
-    }
-    nextcp = fslist;
-    i = 0;
-    av[i++] = nextcp;
-    while ((nextcp = strchr(nextcp, ',')) != NULL) {
-      *nextcp++ = '\0';
-      av[i++] = nextcp;
-    }
-    av[i++] = NULL;
-    return (av);
+    return (skip, fslist.split(separator: ",").map { String($0) })
   }
 
-  static int
-  checkvfsname(const char *vfsname, const char **vfslist, int skip)
-  {
-
-    if (vfslist == NULL) {
-      return (0);
+  func checkvfsname(_ vfsname : String, _ vfslist : [String]?, _ skip : Bool) -> Bool  {
+    guard let vfslist else {
+      return false
     }
-    while (*vfslist != NULL) {
-      if (strcmp(vfsname, *vfslist) == 0) {
-        return (skip);
-      }
-      ++vfslist;
-    }
-    return (!skip);
+    if vfslist.contains(vfsname) { return skip }
+    else { return (!skip) }
   }
 
   /*
@@ -374,17 +366,14 @@ let unix2003 = true
    * A -t option modifies the selection by adding or removing further
    * file system types, based on the argument that is passed.
    */
-  static int
-  checkvfsselected(char *fstypename)
-  {
-    int result;
-
+  func checkvfsselected(_ fstypename : String) -> Bool {
+    var result = false
     if (vfslist_t) {
       /* if -t option used then select passed types */
       result = checkvfsname(fstypename, vfslist_t, skipvfs_t);
       if (vfslist_l) {
         /* if -l option then adjust selection */
-        if (checkvfsname(fstypename, vfslist_l, skipvfs_l) == skipvfs_t) {
+        if checkvfsname(fstypename, vfslist_l, skipvfs_l) == skipvfs_t {
           result = skipvfs_t;
         }
       }
@@ -392,7 +381,7 @@ let unix2003 = true
       /* no -t option then -l decides */
       result = checkvfsname(fstypename, vfslist_l, skipvfs_l);
     }
-    return (result);
+    return result
   }
 
   /*
@@ -400,13 +389,18 @@ let unix2003 = true
    * file system types not in vfslist_{l,t} and possibly re-stating to get
    * current (not cached) info.  Returns the new count of valid statfs bufs.
    */
-    func regetmntinfo(struct statfs **mntbufp, long mntsize) -> Int {
-    int error, i, j;
-    struct statfs *mntbuf;
+  func regetmntinfo(_ mntbufp : [FileSystemMetadata]) -> [FileSystemMetadata] {
+//    int error, i, j;
+//    struct statfs *mntbuf;
 
-      if (vfslist_l == NULL && vfslist_t == NULL) {
-        return (nflag ? mntsize : getmntinfo(mntbufp, MNT_WAIT));
+    if options.vfslist_l == nil && options.vfslist_t == nil {
+      if options.nflag {
+        return mntbufp
+      } else {
+        var mntbufpx : UnsafeMutablePointer<statfs>? = .allocate(capacity: 1)
+        return Int(getmntinfo_r_np(&mntbufpx, MNT_WAIT))
       }
+    }
 
     mntbuf = *mntbufp;
     for (j = 0, i = 0; i < mntsize; i++) {
@@ -420,7 +414,7 @@ let unix2003 = true
        * "stale" filesystem statistics.
        */
       error = statfs(mntbuf[i].f_mntonname, &mntbuf[j]);
-      if (nflag || error < 0) {
+      if options.nflag || error < 0 {
         if (i != j) {
           if (error < 0) {
             xo_warnx("%s stats possibly stale",
@@ -462,8 +456,8 @@ let unix2003 = true
                               bytes, options.hflag == UNITS_SI ? "" : "i", nil, flags)
     // #endif
 
-    xo_attr("value", "%lld", (long long) bytes);
-    xo_emit(fmt, buf);
+    xo_attr("value", "%lld", bytes)
+    xo_emit(fmt, buf)
   }
 
   /*
@@ -474,7 +468,7 @@ let unix2003 = true
 
     let buf = humanize_number(6 - (bytes < 0 ? 0 : 1), bytes, "", nil, flags)
 
-    xo_attr("value", "%lld", (long long) bytes);
+    xo_attr("value", "%lld", bytes);
     xo_emit(fmt, buf);
   }
 
@@ -482,7 +476,7 @@ let unix2003 = true
    * Convert statfs returned file system size into BLOCKSIZE units.
    * Attempts to avoid overflow for large filesystems.
    */
-  func fsbtoblk(_ num : Int, _ fsbs : Int, _ bs : Int, _ fs : String) -> Int {
+  func fsbtoblk(_ num : UInt, _ fsbs : UInt, _ bs : UInt, _ fs : String) -> UInt {
     if (num < 0) {
       xo_warnx("negative filesystem block count/size from fs \(fs)")
       return 0
@@ -523,7 +517,7 @@ let unix2003 = true
   /*
    * Print out status about a file system.
    */
-  func prtstat(_ sfsp : inout statfs, _ mwp : inout maxwidths) {
+  func prtstat(_ sfsp : inout FileSystemMetadata, _ mwp : inout maxwidths) {
 /*    static long blocksize;
     static int headerlen, timesthrough = 0;
     static const char *header;
@@ -541,14 +535,21 @@ let unix2003 = true
         mwp.iused += (mwp.iused - 1) / 3;
         mwp.ifree += (mwp.ifree - 1) / 3;
       }
-      if options.hflag {
+
+      var header : String
+      if 0 != options.hflag {
         header = "   Size";
-        mwp.total = mwp.used = mwp.avail = strlen(header)
+        mwp.total = header.count
+        mwp.used = header.count
+        mwp.avail = header.count
       } else {
         header = getbsize(&headerlen, &blocksize)
         mwp.total = max(mwp.total, headerlen)
       }
-      mwp.used = max(mwp.used, strlen("Used"))
+
+      mwp.used = max(mwp.used, "Used".count)
+
+      var avail_str : String
       if unix2003 && !options.hflag {
         avail_str = "Available"
       } else {
@@ -556,17 +557,14 @@ let unix2003 = true
       }
       mwp.avail = max(mwp.avail, strlen(avail_str))
 
-      xo_emit("{T:/%-*s}", mwp.mntfrom, "Filesystem");
+      xo_emit("{T:/\("Filesystem".rightPad(toLength: mwp.mntfrom))}")
       if options.Tflag {
-        xo_emit("  {T:/%-*s}", mwp.fstype, "Type")
+        xo_emit("  {T:/\("Type".rightPad(toLength: mwp.fstype))}")
       }
-      xo_emit(" {T:/%*s} {T:/%*s} {T:/%*s} {T:Capacity}",
-              mwp.total, header,
-              mwp.used, "Used",
-              mwp.avail, avail_str)
+      xo_emit(" {T:/\(header.leftPad(toLength: mwp.total))} {T:/\("Used".leftPad(toLength: mwp.used))} {T:/\(avail_str.leftPad(toLength: mwp.avail))} {T:Capacity}")
       if options.iflag {
-        mwp.iused = max(options.hflag != 0 ? 0 : mwp.iused, strlen("  iused"))
-        mwp.ifree = max(options.hflag != 0 ? 0 : mwp.ifree, strlen("ifree"))
+        mwp.iused = max(options.hflag != 0 ? 0 : mwp.iused, "  iused".count)
+        mwp.ifree = max(options.hflag != 0 ? 0 : mwp.ifree, "ifree".count)
         xo_emit(" {T:/%*s} {T:/%*s} {T:\%iused}",
                 mwp.iused - 2, "iused", mwp.ifree, "ifree")
       }
@@ -575,20 +573,20 @@ let unix2003 = true
 
     xo_open_instance("filesystem");
     /* Check for 0 block size.  Can this happen? */
-    if (sfsp.f_bsize == 0) {
+    if sfsp.bsize == 0) {
       xo_warnx ("File system \(sfsp.f_mntonname) does not have a block size, assuming 512.")
-      sfsp.f_bsize = 512
+      sfs.bsize = 512
     }
     xo_emit("{tk:name/%-*s}", mwp->mntfrom, sfsp->f_mntfromname);
-    if (Tflag) {
+    if options.Tflag {
       xo_emit("  {:type/%-*s}", mwp->fstype, sfsp->f_fstypename);
     }
-    if (sfsp.f_blocks > sfsp.f_bfree) {
+    if (sfs.blocks > sfs.bfree) {
       used = usedblks(sfsp)
     } else {
       used = 0
     }
-    availblks = sfsp.f_bavail + used
+    availblks = sfs.bavail + used
     if options.hflag {
       prthuman(sfsp, used);
     } else {
@@ -601,20 +599,20 @@ let unix2003 = true
         "{t:available-blocks/%*jd}"
       }
       xo_emit(format,
-              mwp->total, fsbtoblk(sfsp->f_blocks, sfsp->f_bsize, blocksize, sfsp->f_mntonname),
-              mwp->used, fsbtoblk(used, sfsp->f_bsize, blocksize, sfsp->f_mntonname),
-              mwp->avail, fsbtoblk(sfsp->f_bavail, sfsp->f_bsize, blocksize, sfsp->f_mntonname));
+              mwp->total, fsbtoblk(sfsp.blocks, sfsp.bsize, blocksize, sfsp.mntonname),
+              mwp->used, fsbtoblk(used, sfsp.bsize, blocksize, sfsp.mntonname),
+              mwp->avail, fsbtoblk(sfsp.bavail, sfsp.bsize, blocksize, sfsp.mntonname))
     }
     if unix2003 {
       /* Standard says percentage must be rounded UP to next
        integer value, not truncated */
-      double value;
-      if (availblks == 0) {
-        value = 100.0;
+      var value : Double
+      if availblks == 0 {
+        value = 100.0
       }
       else {
-        value = (double)used / (double)availblks * 100.0;
-        if ((value-(int)value) > 0.0) {
+        value = Double(used) / Double(availblks) * 100.0
+        if ((value-Int(value)) > 0.0) {
           value = value + 1.0;
         }
       }
@@ -624,12 +622,12 @@ let unix2003 = true
               availblks == 0 ? 100.0 : (double)used / (double)availblks * 100.0);
     }
     if options.iflag {
-      inodes = sfsp->f_files;
-      used = inodes - sfsp->f_ffree;
-      if (hflag) {
+      let inodes = sfsp.files
+      let used = inodes - sfsp.ffree
+      if 0 != options.hflag {
         xo_emit("  ");
-        prthumanvalinode(" {:inodes-used/%5s}", used);
-        prthumanvalinode(" {:inodes-free/%5s}", sfsp->f_ffree);
+        prthumanvalinode(" {:inodes-used/%5s}", Int(used))
+        prthumanvalinode(" {:inodes-free/%5s}", Int(sfsp.ffree))
       } else {
         if (thousands) {
           format = " {:inodes-used/%*j'd} {:inodes-free/%*j'd}";
@@ -637,38 +635,38 @@ let unix2003 = true
         else {
           format = " {:inodes-used/%*jd} {:inodes-free/%*jd}";
         }
-        xo_emit(format, mwp->iused, (intmax_t)used,
-                mwp->ifree, (intmax_t)sfsp->f_ffree);
+        xo_emit(format, mwp->iused, used,
+                mwp->ifree, (intmax_t)sfsp.ffree);
       }
       if (inodes == 0) {
         xo_emit(" {:inodes-used-percent/    -}{U:} ");
       }
       else {
         xo_emit(" {:inodes-used-percent/%4.0f}{U:%%} ",
-                (double)used / (double)inodes * 100.0);
+                Double(used) / Double(inodes) * 100.0);
       }
     } else {
       xo_emit("  ");
     }
-    if (strncmp(sfsp->f_mntfromname, "total", MNAMELEN) != 0) {
-      xo_emit("  {:mounted-on}", sfsp->f_mntonname);
+    if sfsp.mntfromname != "total" {
+      xo_emit("  {:mounted-on/\(sfsp.mntonname)}")
     }
     xo_emit("\n");
     xo_close_instance("filesystem");
   }
 
-  func addstat(_ totalfsp : inout statfs, _ statfsp : statfs) {
-    let bsize = UInt64(statfsp.f_bsize / totalfsp.f_bsize)
-    totalfsp.f_blocks += statfsp.f_blocks * bsize
-    totalfsp.f_bfree += statfsp.f_bfree * bsize
-    totalfsp.f_bavail += statfsp.f_bavail * bsize
-    totalfsp.f_files += statfsp.f_files
-    totalfsp.f_ffree += statfsp.f_ffree
+  func addstat(_ totalfsp : inout FileSystemMetadata, _ statfsp : FileSystemMetadata) {
+    let bsize = statfsp.bsize / totalfsp.bsize
+    totalfsp.blocks += statfsp.blocks * bsize
+    totalfsp.bfree += statfsp.bfree * bsize
+    totalfsp.bavail += statfsp.bavail * bsize
+    totalfsp.files += statfsp.files
+    totalfsp.ffree += statfsp.ffree
   }
 
   var blocksize = {
     var dummy : Int32 = 0
-    var bs : Int = 0
+    var bs : UInt = 0
     Darwin.getbsize(&dummy, &bs)
     return bs
   }()
@@ -677,20 +675,16 @@ let unix2003 = true
    * Update the maximum field-width information in `mwp' based on
    * the file system specified by `sfsp'.
    */
-  func update_maxwidths(_ mwp : inout maxwidths, _ sfs : statfs) {
+  func update_maxwidths(_ mwp : inout maxwidths, _ sfs : FileSystemMetadata) {
     var sfsp = sfs
 
-    mwp.mntfrom = max(mwp.mntfrom, strlen(&sfsp.f_mntfromname))
-    mwp.fstype = max(mwp.fstype, strlen(&sfsp.f_fstypename))
-    mwp.total = max(mwp.total, int64width(
-      fsbtoblk(sfsp.f_blocks, sfsp.f_bsize, blocksize, sfsp.f_mntonname)))
-    mwp.used = max(mwp.used,
-                     int64width(fsbtoblk(sfsp.f_blocks -
-                                         sfsp.f_bfree, sfsp.f_bsize, blocksize, sfsp.f_mntonname)));
-    mwp.avail = max(mwp.avail, int64width(fsbtoblk(sfsp.f_bavail,
-                                                      sfsp.f_bsize, blocksize, sfsp.f_mntonname)));
-    mwp.iused = max(mwp.iused, int64width(Int(sfsp.f_files - sfsp.f_ffree)))
-    mwp.ifree = max(mwp.ifree, int64width(Int(sfsp.f_ffree)))
+    mwp.mntfrom = max(mwp.mntfrom, sfs.mntfromname.count)
+    mwp.fstype = max(mwp.fstype, sfs.fstypename.count)
+    mwp.total = max(mwp.total, uint64width(fsbtoblk(sfs.blocks, sfs.bsize, blocksize, sfs.mntonname)))
+    mwp.used = max(mwp.used, uint64width(fsbtoblk(sfs.blocks - sfs.bfree, sfs.bsize, blocksize, sfs.mntonname)))
+    mwp.avail = max(mwp.avail, uint64width(fsbtoblk(sfs.bavail, sfs.bsize, blocksize, sfs.mntonname)))
+    mwp.iused = max(mwp.iused, uint64width(sfs.files - sfs.ffree))
+    mwp.ifree = max(mwp.ifree, uint64width(sfs.ffree))
   }
 
   /* Return the width in characters of the specified value. */
@@ -710,6 +704,21 @@ let unix2003 = true
     return len
   }
 
+
+  func uint64width(_ valx : UInt) -> Int {
+    var len = 0
+    var val = valx
+    while (val > 0) {
+      len += 1
+      val /= 10
+    }
+    return len
+  }
+
+
+
+
+
   // FIXME: ??  --- what is this xo_error
   // 	xo_error(
   var usage = """
@@ -717,107 +726,73 @@ usage: df [--libxo] [-b | -g | -H | -h | -k | -m | -P] [-acIiln\(unix2003 ? "" :
           [file | filesystem ...]
 """
 
-  func makenetvfslist() -> String {
-    char *str, *strptr, **listptr;
-    //    #ifdef __APPLE__
-    struct vfsconf vfc;
-    void *keep_xvfsp = NULL; /* to avoid special casing free() in non-Apple paths */
-    int mib[4];
-    /*
-     #else /* !__APPLE__ */
-     struct xvfsconf *xvfsp, *keep_xvfsp;
-     #endif /* __APPLE__ */
-     */
-    size_t buflen;
-    int cnt, i, maxvfsconf;
+  func makenetvfslist() -> String? {
+    var listptr : [String] = []
+    var mib = [CTL_VFS, VFS_GENERIC, VFS_MAXTYPENUM]
 
-    //    #ifdef __APPLE__
-    mib[0] = CTL_VFS; mib[1] = VFS_GENERIC; mib[2] = VFS_MAXTYPENUM;
-    buflen = sizeof(maxvfsconf);
-    if (sysctl(mib, 3, &maxvfsconf, &buflen, NULL, 0) != 0) {
-      xo_warn("sysctl failed");
-      return (NULL);
+
+    var maxvfsconf: Int32 = 0
+    var buflen = MemoryLayout.size(ofValue: maxvfsconf)
+
+    let e = withUnsafeMutablePointer(to: &maxvfsconf) {n in
+      var x = MemoryLayout.size(ofValue: n)
+      Darwin.sysctl(&mib, 3, n, &x, nil, 0)
     }
-    /* #else /* !__APPLE__ */
-     if (sysctlbyname("vfs.conflist", NULL, &buflen, NULL, 0) < 0) {
-     xo_warn("sysctl(vfs.conflist)");
-     return (NULL);
-     }
-     xvfsp = malloc(buflen);
-     if (xvfsp == NULL) {
-     xo_warnx("malloc failed");
-     return (NULL);
-     }
-     keep_xvfsp = xvfsp;
-     if (sysctlbyname("vfs.conflist", xvfsp, &buflen, NULL, 0) < 0) {
-     xo_warn("sysctl(vfs.conflist)");
-     free(keep_xvfsp);
-     return (NULL);
-     }
-     maxvfsconf = buflen / sizeof(struct xvfsconf);
-     #endif /* __APPLE__ */
-     */
-
-    if ((listptr = malloc(sizeof(char*) * maxvfsconf)) == NULL) {
-      xo_warnx("malloc failed");
-      free(keep_xvfsp);
-      return (NULL);
+    if Darwin.sysctl(&mib, 3, &maxvfsconf, &buflen, nil, 0) != 0 {
+      xo_warn("sysctl failed")
+      return nil
     }
 
     //    #ifdef __APPLE__
-    buflen = sizeof(struct vfsconf);
-    mib[2] = VFS_CONF;
+    buflen = MemoryLayout<vfsconf>.size
+    var vfc = vfsconf()
+
+    mib[2] = VFS_CONF
+    mib.append(0)
+
     // #endif /* __APPLE__ */
-    for (cnt = 0, i = 0; i < maxvfsconf; i++) {
-      const char *name;
-      //      #ifdef __APPLE__
+    var cnt = 0
+    for i in 0 ..< maxvfsconf {
       mib[3] = i;
-      if (sysctl(mib, 4, &vfc, &buflen, NULL, 0) != 0) {
+      if 0 != sysctl(&mib, UInt32(mib.count), &vfc, &buflen, nil, 0) {
         if (errno != ENOTSUP) {
           xo_warn("sysctl failed");
         }
         continue;
       }
-      if (!(vfc.vfc_flags & MNT_LOCAL)) {
-        name = vfc.vfc_name;
+      if 0 == (vfc.vfc_flags & MNT_LOCAL) {
+        let name = withUnsafeBytes(of: vfc.vfc_name) { n in String(String(decoding: n, as: UTF8.self).prefix { $0 != "\0" }) }
         // #else /* !__APPLE__ */
         //        if (xvfsp->vfc_flags & VFCF_NETWORK) {
         //           name = xvfsp->vfc_name;
         // #endif /* __APPLE__ */
-        listptr[cnt++] = strdup(name);
-        if (listptr[cnt-1] == NULL) {
-          xo_warnx("malloc failed");
-          free(listptr);
-          free(keep_xvfsp);
-          return (NULL);
-        }
+        listptr.append(name)
       }
+
       /*        #ifndef __APPLE__
        xvfsp++;
        #endif /* !__APPLE__ */
-       */      }
-
-    if (cnt == 0 ||
-        (str = malloc(sizeof(char) * (32 * cnt + cnt + 2))) == NULL) {
-      if (cnt > 0) {
-        xo_warnx("malloc failed");
-      }
-      free(listptr);
-      free(keep_xvfsp);
-      return (NULL);
+       */
     }
 
-    *str = 'n'; *(str + 1) = 'o';
-    for (i = 0, strptr = str + 2; i < cnt; i++, strptr++) {
-      strlcpy(strptr, listptr[i], 32);
-      strptr += strlen(listptr[i]);
-      *strptr = ',';
-      free(listptr[i]);
-    }
-    *(--strptr) = '\0';
+    return "no"+listptr.joined(separator: ",")
+  }
+}
 
-    free(keep_xvfsp);
-    free(listptr);
-    return (str);
+public extension String {
+  func leftPad(toLength: Int, withPad: String = " ") -> String {
+    guard toLength > 0 else { return self }
+    guard !self.isEmpty else { return String(repeating: withPad, count: toLength) }
+    let paddingNeeded = toLength - self.count
+    guard paddingNeeded > 0 else { return self }
+    return String(repeating: withPad, count: paddingNeeded) + self
+  }
+
+  func rightPad(toLength: Int, withPad: String = " ") -> String {
+    guard toLength > 0 else { return self }
+    guard !self.isEmpty else { return String(repeating: withPad, count: toLength) }
+    let paddingNeeded = toLength - self.count
+    guard paddingNeeded > 0 else { return self }
+    return self + String(repeating: withPad, count: paddingNeeded)
   }
 }

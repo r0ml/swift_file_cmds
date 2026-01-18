@@ -50,6 +50,7 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
+		E72553272F1C53F000149B5D /* xo in Frameworks */ = {isa = PBXBuildFile; productRef = E72553262F1C53F000149B5D /* xo */; };
 		E77400E52F02D27E00498517 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E77400E42F02D27E00498517 /* ShellTesting */; };
 		E77403C12F038F4900498517 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E77403C02F038F4900498517 /* ShellTesting */; };
 		E77403C52F05C55800498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77403C42F05C55800498517 /* CMigration */; };
@@ -842,6 +843,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				df/df.swift,
+				df/xo_extensions.swift,
 			);
 			target = E77401BC2F02D9E600498517 /* df */;
 		};
@@ -1210,6 +1212,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				E77404E82F06CF4400498517 /* CMigration in Frameworks */,
+				E72553272F1C53F000149B5D /* xo in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1978,6 +1981,7 @@
 			name = df;
 			packageProductDependencies = (
 				E77404E72F06CF4400498517 /* CMigration */,
+				E72553262F1C53F000149B5D /* xo */,
 			);
 			productName = df;
 			productReference = E77401BD2F02D9E600498517 /* df */;
@@ -2819,6 +2823,7 @@
 			packageReferences = (
 				E7A6AA602E428C8C001C9A44 /* XCRemoteSwiftPackageReference "ShellTesting" */,
 				E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */,
+				E72553252F1C53DB00149B5D /* XCRemoteSwiftPackageReference "libxo" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E73707092E4273AC00246ED4 /* Products */;
@@ -6003,6 +6008,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		E72553252F1C53DB00149B5D /* XCRemoteSwiftPackageReference "libxo" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/r0ml/libxo";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
 		E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/r0ml/CMigration";
@@ -6046,6 +6059,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		E72553262F1C53F000149B5D /* xo */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E72553252F1C53DB00149B5D /* XCRemoteSwiftPackageReference "libxo" */;
+			productName = xo;
+		};
 		E77400E42F02D27E00498517 /* ShellTesting */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E7A6AA602E428C8C001C9A44 /* XCRemoteSwiftPackageReference "ShellTesting" */;
