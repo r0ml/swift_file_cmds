@@ -122,7 +122,7 @@ let unix2003 = true
       gopts = "+abcgHhIiklmnPtT:Y,"
       options.iflag = true
     }
-    var go = BSDGetopt_long(gopts, long_options)
+    let go = BSDGetopt_long(gopts, long_options)
 
 
     /*	memset(&maxwidths, 0, sizeof(maxwidths));
@@ -225,20 +225,14 @@ let unix2003 = true
 
   func runCommand() async throws(CmdErr) {
     var rv = EXIT_SUCCESS
-    var mntsize : Int
+    var mntbuf : [FileSystemMetadata]
     if options.args.isEmpty {
       /* everything (modulo -t) */
-      var mntbufx : UnsafeMutablePointer<statfs>?
-      mntsize = Int(getmntinfo_r_np(&mntbufx, MNT_NOWAIT))
-      var mntbuf = (0..<mntsize).map { FileSystemMetadata(from: mntbufx![$0]) }
-      mntsize = regetmntinfo(mntbuf)
+      mntbuf = getmntinfo()
+      mntbuf = regetmntinfo(mntbuf)
     } else {
       /* just the filesystems specified on the command line */
-      mntbuf = malloc(argc * sizeof(*mntbuf));
-      if (mntbuf == NULL) {
-        xo_err(1, "malloc()");
-      }
-      mntsize = 0;
+      mntbuf = []
       /* continued in for loop below */
     }
 
@@ -274,10 +268,10 @@ let unix2003 = true
        * Statfs does not take a `wait' flag, so we cannot
        * implement nflag here.
        */
-      if (statfs(mntpt, &statfsbuf) < 0) {
-        xo_warn("%s", mntpt);
-        rv = EXIT_FAILURE;
-        continue;
+      guard var statfsbuf = try? FileSystemMetadata(for: mntpt!) else {
+        xo_warn(mntpt!)
+        rv = EXIT_FAILURE
+        continue
       }
 
       /*
@@ -286,37 +280,54 @@ let unix2003 = true
        * list a mount point that does not match the other args
        * we've been given (-l, -t, etc.).
        */
-      if (checkvfsselected(statfsbuf.f_fstypename) != 0) {
-        rv = EXIT_FAILURE;
-        continue;
+      if checkvfsselected(statfsbuf.fstypename) {
+        rv = EXIT_FAILURE
+        continue
       }
 
       /* the user asked for it, so ignore the ignore flag */
-      statfsbuf.f_flags &= ~MNT_IGNORE;
+      statfsbuf.flags.remove(.IGNORE_OWNERSHIP) //  &= ~MNT_IGNORE;
 
       /* add to list */
-      mntbuf[mntsize++] = statfsbuf;
+      mntbuf.append(statfsbuf)
     }
 
-    memset(&maxwidths, 0, sizeof(maxwidths));
-    for i in 0..<mntsize {
-      if (options.aflag || (mntbuf[i].f_flags & MNT_IGNORE) == 0) {
-        update_maxwidths(&maxwidths, &mntbuf[i]);
+    var maxwidths = maxwidths()
+    var totalbuf = FileSystemMetadata()
+    totalbuf.bsize = 512
+
+//    memset(&maxwidths, 0, sizeof(maxwidths));
+    for mbi in mntbuf {
+      if options.aflag || !mbi.flags.contains(.IGNORE_OWNERSHIP) {
+        update_maxwidths(&maxwidths, mbi)
         if options.cflag {
-          addstat(&totalbuf, &mntbuf[i]);
+          addstat(&totalbuf, mbi)
         }
       }
     }
-    for i in 0..<mntsize {
-      if (options.aflag || (mntbuf[i].f_flags & MNT_IGNORE) == 0) {
-        prtstat(&mntbuf[i], &maxwidths)
+
+    var timesthrough = 0
+
+    for mbi in mntbuf {
+      if options.aflag || !mbi.flags.contains(.IGNORE_OWNERSHIP) {
+
+        // FIXME: do I need this?
+ /*
+  if mbi.bsize == 0 {
+          xo_warnx ("File system \(sfsp.mntonname) does not have a block size, assuming 512.")
+          mbi.bsize = 512
+        }
+*/
+        timesthrough += 1
+        prtstat(mbi, &maxwidths, timesthrough == 1)
       }
     }
 
     xo_close_list("filesystem");
 
     if options.cflag {
-      prtstat(&totalbuf, &maxwidths);
+      timesthrough += 1
+      prtstat(totalbuf, &maxwidths, timesthrough == 1);
     }
 
     xo_close_container("storage-system-information");
@@ -327,13 +338,11 @@ let unix2003 = true
   }
 
   func getmntpt(_ name : String) -> String? {
-    size_t mntsize, i;
-    struct statfs *mntbuf;
 
-    mntsize = getmntinfo(&mntbuf, MNT_NOWAIT);
-    for (i = 0; i < mntsize; i++) {
-      if (!strcmp(mntbuf[i].f_mntfromname, name)) {
-        return (mntbuf[i].f_mntonname);
+    let mntbuf = getmntinfo()
+    for mbi in mntbuf {
+      if mbi.mntfromname == name {
+        return mbi.mntonname
       }
     }
     return nil
@@ -368,18 +377,18 @@ let unix2003 = true
    */
   func checkvfsselected(_ fstypename : String) -> Bool {
     var result = false
-    if (vfslist_t) {
+    if let ov = options.vfslist_t {
       /* if -t option used then select passed types */
-      result = checkvfsname(fstypename, vfslist_t, skipvfs_t);
-      if (vfslist_l) {
+      result = checkvfsname(fstypename, ov, options.skipvfs_t)
+      if let ol = options.vfslist_l {
         /* if -l option then adjust selection */
-        if checkvfsname(fstypename, vfslist_l, skipvfs_l) == skipvfs_t {
-          result = skipvfs_t;
+        if checkvfsname(fstypename, ol, options.skipvfs_l) == result {
+          result = options.skipvfs_t
         }
       }
     } else {
       /* no -t option then -l decides */
-      result = checkvfsname(fstypename, vfslist_l, skipvfs_l);
+      result = checkvfsname(fstypename, options.vfslist_l, options.skipvfs_l);
     }
     return result
   }
@@ -398,14 +407,17 @@ let unix2003 = true
         return mntbufp
       } else {
         var mntbufpx : UnsafeMutablePointer<statfs>? = .allocate(capacity: 1)
-        return Int(getmntinfo_r_np(&mntbufpx, MNT_WAIT))
+        let _ = Int(getmntinfo_r_np(&mntbufpx, MNT_WAIT))
+        return [FileSystemMetadata(from: mntbufpx![0])]
       }
     }
 
-    mntbuf = *mntbufp;
-    for (j = 0, i = 0; i < mntsize; i++) {
-      if (checkvfsselected(mntbuf[i].f_fstypename) != 0) {
-        continue;
+    var res = [FileSystemMetadata]()
+//    var inj = false
+    for mbi in mntbufp {
+      if checkvfsselected(mbi.fstypename) {
+//        inj = true
+        continue
       }
       /*
        * XXX statfs(2) can fail for various reasons. It may be
@@ -413,28 +425,37 @@ let unix2003 = true
        * pathname, if this happens, we will fall back on
        * "stale" filesystem statistics.
        */
-      error = statfs(mntbuf[i].f_mntonname, &mntbuf[j]);
-      if options.nflag || error < 0 {
-        if (i != j) {
-          if (error < 0) {
-            xo_warnx("%s stats possibly stale",
-                     mntbuf[i].f_mntonname);
-          }
-          mntbuf[j] = mntbuf[i];
+
+      if options.nflag {
+        res.append(mbi)
+      } else {
+        if let mbx = try? FileSystemMetadata(for: mbi.mntonname) {
+          res.append(mbx)
         }
       }
-      j++;
+      // FIXME: this doesn't seem to match the documentation --
+/*      if options.nflag || mbx == nil {
+        if inj {
+          if mbx == nil {
+            xo_warnx("\(mbi.mntonname) stats possibly stale")
+          }
+          res.append(mbi)
+        }
+ */
     }
-    return (j);
+    return res
   }
 
-  func prthuman(_ sfsp : statfs, _ used : Int64) {
-    prthumanval("  {:blocks/%6s}", Int(sfsp.f_blocks) * Int(sfsp.f_bsize))
-    prthumanval("  {:used/%6s}", Int(used) * Int(sfsp.f_bsize))
-    prthumanval("  {:available/%6s}", Int(sfsp.f_bavail) * Int(sfsp.f_bsize))
+  func prthuman(_ sfsp : FileSystemMetadata, _ used : Int) {
+    let buf = prthumanval(Int(sfsp.blocks) * Int(sfsp.bsize))
+    xo_emit("  {:blocks/\(buf.leftPad(toLength: 6))}")
+    let buf2 = prthumanval(Int(used) * Int(sfsp.bsize))
+    xo_emit("  {:used/\(buf2.leftPad(toLength: 6))}")
+    let buf3 = prthumanval(Int(sfsp.bavail) * Int(sfsp.bsize))
+    xo_emit("  {:available/\(buf3.leftPad(toLength: 6))}")
   }
 
-  func prthumanval(_ fmt : String, _ bytes : Int) {
+  func prthumanval(_ bytes : Int) -> String {
     /*#ifndef __APPLE__
      char buf[6];
      #else
@@ -455,21 +476,20 @@ let unix2003 = true
     let buf = humanize_number(7 - (bytes < 0 ? 0 : 1),
                               bytes, options.hflag == UNITS_SI ? "" : "i", nil, flags)
     // #endif
-
-    xo_attr("value", "%lld", bytes)
-    xo_emit(fmt, buf)
+    xo_attr("value", String(bytes))
+    return buf!
   }
 
   /*
    * Print an inode count in "human-readable" format.
    */
-  func prthumanvalinode(_ fmt : String, _ bytes : Int) {
-    var flags : HumanizeFlags = [.nospace, .decimal, .divisor_1000]
+  func prthumanvalinode(_ bytes : Int) -> String {
+    let flags : HumanizeFlags = [.nospace, .decimal, .divisor_1000]
 
     let buf = humanize_number(6 - (bytes < 0 ? 0 : 1), bytes, "", nil, flags)
 
-    xo_attr("value", "%lld", bytes);
-    xo_emit(fmt, buf);
+    xo_attr("value", String(bytes))
+    return buf!
   }
 
   /*
@@ -487,37 +507,39 @@ let unix2003 = true
     }
   }
 
-  func usedblks(_ sfsp : statfs) -> Int {
+  func usedblks(_ sfsp : FileSystemMetadata) -> Int {
 
     /* Call getattrlist(ATTR_VOL_SPACEUSED) to get used space info. */
-    struct {
-      uint32_t size;
-      uint64_t spaceused;
-    } __attribute__((aligned(4), packed)) attrbuf = {0};
-    struct attrlist attrs = {0};
 
-    attrs.bitmapcount = ATTR_BIT_MAP_COUNT;
-    attrs.volattr = ATTR_VOL_INFO | ATTR_VOL_SPACEUSED;
-    if (getattrlist(sfsp.f_mntonname, &attrs, &attrbuf, sizeof(attrbuf), 0) != 0) {
+    struct Attrbuf {
+      var size : UInt32 = 0
+      var spaceused : UInt64 = 0
+    }
+
+    var attrbuf = Attrbuf()
+    var attrs = attrlist()
+    attrs.bitmapcount = UInt16(ATTR_BIT_MAP_COUNT)
+    attrs.volattr = ATTR_VOL_INFO | UInt32(ATTR_VOL_SPACEUSED)
+    if (getattrlist(sfsp.mntonname, &attrs, &attrbuf, MemoryLayout.size(ofValue: attrbuf), 0) != 0) {
       if (errno != EINVAL) {
-        xo_warn("getattrlist failed for \(sfsp.f_mntonname)")
+        xo_warn("getattrlist failed for \(sfsp.mntonname)")
       }
-      return Int(sfsp.f_blocks - sfsp.f_bfree)
+      return Int(sfsp.blocks - sfsp.bfree)
     }
 
     /* The structure passed isn't entirely filled out -
      but use the preferred default value. */
-    if (sfsp.f_bsize == 0) {
-      return attrbuf.spaceused / blocksize;
+    if (sfsp.bsize == 0) {
+      return Int(attrbuf.spaceused) / Int(blocksize)
     }
 
-    return attrbuf.spaceused / sfsp.f_bsize
+    return Int(attrbuf.spaceused) / Int(sfsp.bsize)
   }
 
   /*
    * Print out status about a file system.
    */
-  func prtstat(_ sfsp : inout FileSystemMetadata, _ mwp : inout maxwidths) {
+  func prtstat(_ sfsp : FileSystemMetadata, _ mwp : inout maxwidths, _ tto : Bool) {
 /*    static long blocksize;
     static int headerlen, timesthrough = 0;
     static const char *header;
@@ -525,7 +547,7 @@ let unix2003 = true
     const char *format;
     const char *avail_str;
 */
-    if (++timesthrough == 1) {
+    if tto {
       mwp.mntfrom = max(mwp.mntfrom, strlen("Filesystem"))
       mwp.fstype = max(mwp.fstype, strlen("Type"))
       if (options.thousands) {		/* make space for commas */
@@ -543,14 +565,14 @@ let unix2003 = true
         mwp.used = header.count
         mwp.avail = header.count
       } else {
-        header = getbsize(&headerlen, &blocksize)
-        mwp.total = max(mwp.total, headerlen)
+        mwp.total = max(mwp.total, Int(hlen))
+        header = head
       }
 
       mwp.used = max(mwp.used, "Used".count)
 
       var avail_str : String
-      if unix2003 && !options.hflag {
+      if unix2003 && 0 == options.hflag {
         avail_str = "Available"
       } else {
         avail_str = "Avail"
@@ -565,43 +587,29 @@ let unix2003 = true
       if options.iflag {
         mwp.iused = max(options.hflag != 0 ? 0 : mwp.iused, "  iused".count)
         mwp.ifree = max(options.hflag != 0 ? 0 : mwp.ifree, "ifree".count)
-        xo_emit(" {T:/%*s} {T:/%*s} {T:\%iused}",
-                mwp.iused - 2, "iused", mwp.ifree, "ifree")
+        xo_emit(" {T:/\("iused".leftPad(toLength: mwp.iused-2))} {T:/\("ifree".leftPad(toLength:mwp.ifree))} {T:\\%iused}")
       }
       xo_emit("  {T:Mounted on}\n");
     }
 
     xo_open_instance("filesystem");
     /* Check for 0 block size.  Can this happen? */
-    if sfsp.bsize == 0) {
-      xo_warnx ("File system \(sfsp.f_mntonname) does not have a block size, assuming 512.")
-      sfs.bsize = 512
-    }
-    xo_emit("{tk:name/%-*s}", mwp->mntfrom, sfsp->f_mntfromname);
+    xo_emit("{tk:name/\(sfsp.mntfromname.rightPad(toLength: mwp.mntfrom))}")
     if options.Tflag {
-      xo_emit("  {:type/%-*s}", mwp->fstype, sfsp->f_fstypename);
+      xo_emit("  {:type/\(sfsp.fstypename.rightPad(toLength: mwp.fstype))}")
     }
-    if (sfs.blocks > sfs.bfree) {
-      used = usedblks(sfsp)
-    } else {
-      used = 0
-    }
-    availblks = sfs.bavail + used
-    if options.hflag {
+    let used = (sfsp.blocks > sfsp.bfree) ? usedblks(sfsp) : 0
+
+    let availblks = sfsp.bavail + UInt(used)
+    if options.hflag != 0 {
       prthuman(sfsp, used);
     } else {
-      if options.thousands {
-        format = " {t:total-blocks/%*j'd} {t:used-blocks/%*j'd} "
-        "{t:available-blocks/%*j'd}"
-      }
-      else {
-        format = " {t:total-blocks/%*jd} {t:used-blocks/%*jd} "
-        "{t:available-blocks/%*jd}"
-      }
-      xo_emit(format,
-              mwp->total, fsbtoblk(sfsp.blocks, sfsp.bsize, blocksize, sfsp.mntonname),
-              mwp->used, fsbtoblk(used, sfsp.bsize, blocksize, sfsp.mntonname),
-              mwp->avail, fsbtoblk(sfsp.bavail, sfsp.bsize, blocksize, sfsp.mntonname))
+      let cc = options.thousands ? "%*j'd" : "%*jd"
+      let buf1 = cFormat(cc, mwp.total, fsbtoblk(sfsp.blocks, sfsp.bsize, blocksize, sfsp.mntonname))
+      let buf2 = cFormat(cc, mwp.used, fsbtoblk(UInt(used), sfsp.bsize, blocksize, sfsp.mntonname))
+      let buf3 = cFormat(cc, mwp.avail, fsbtoblk(sfsp.bavail, sfsp.bsize, blocksize, sfsp.mntonname))
+      let format = " {t:total-blocks/\(buf1)} {t:used-blocks/\(buf2)} {t:available-blocks/\(buf3)}"
+      xo_emit(format)
     }
     if unix2003 {
       /* Standard says percentage must be rounded UP to next
@@ -612,31 +620,30 @@ let unix2003 = true
       }
       else {
         value = Double(used) / Double(availblks) * 100.0
-        if ((value-Int(value)) > 0.0) {
-          value = value + 1.0;
+        if ((value - Double(Int(value))) > 0.0) {
+          value = value + 1.0
         }
       }
       xo_emit(" {:used-percent/%5.0f}{U:%%}", trunc(value));
     } else {
-      xo_emit(" {:used-percent/%5.0f}{U:%%}",
-              availblks == 0 ? 100.0 : (double)used / (double)availblks * 100.0);
+      let x = availblks == 0 ? 100.0 : Double(used) / Double(availblks) * 100.0
+      xo_emit(" {:used-percent/%5.0f}{U:%%}", x)
     }
     if options.iflag {
       let inodes = sfsp.files
       let used = inodes - sfsp.ffree
       if 0 != options.hflag {
         xo_emit("  ");
-        prthumanvalinode(" {:inodes-used/%5s}", Int(used))
-        prthumanvalinode(" {:inodes-free/%5s}", Int(sfsp.ffree))
+        let buf = prthumanvalinode(Int(used))
+        xo_emit(" {:inodes-used/\(buf.leftPad(toLength: 5))}")
+        let buf2 = prthumanvalinode(Int(sfsp.ffree))
+        xo_emit(" {:inodes-free/\(buf2.leftPad(toLength: 5))}")
       } else {
-        if (thousands) {
-          format = " {:inodes-used/%*j'd} {:inodes-free/%*j'd}";
-        }
-        else {
-          format = " {:inodes-used/%*jd} {:inodes-free/%*jd}";
-        }
-        xo_emit(format, mwp->iused, used,
-                mwp->ifree, (intmax_t)sfsp.ffree);
+        let cc = options.thousands ? "%*j'd" : "%*jd"
+        let buf1 = cFormat(cc, mwp.iused, used)
+        let buf2 = cFormat(cc, mwp.ifree, sfsp.ffree)
+        let format = " {:inodes-used/\(buf1)} {:inodes-free/\(buf2)}"
+        xo_emit(format)
       }
       if (inodes == 0) {
         xo_emit(" {:inodes-used-percent/    -}{U:} ");
@@ -664,11 +671,11 @@ let unix2003 = true
     totalfsp.ffree += statfsp.ffree
   }
 
-  var blocksize = {
+  var (head, hlen, blocksize) = {
     var dummy : Int32 = 0
     var bs : UInt = 0
-    Darwin.getbsize(&dummy, &bs)
-    return bs
+    let h = Darwin.getbsize(&dummy, &bs)
+    return (String(cString: h!), dummy, bs)
   }()
 
   /*
@@ -796,3 +803,10 @@ public extension String {
     return self + String(repeating: withPad, count: paddingNeeded)
   }
 }
+
+func getmntinfo() -> [FileSystemMetadata] {
+  var mntbufx : UnsafeMutablePointer<statfs>?
+  let mntsize = Int(getmntinfo_r_np(&mntbufx, MNT_NOWAIT))
+  return (0..<mntsize).map { FileSystemMetadata(from: mntbufx![$0]) }
+}
+

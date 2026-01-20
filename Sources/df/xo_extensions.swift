@@ -3,6 +3,12 @@
 
 import libxo
 
+@discardableResult func xo_attr(_ name : String, _ format : String, _ args : CVarArg...) -> xo_ssize_t {
+  withVaList(args) { a in
+      xo_attr_hv(nil, name, format, a)
+  }
+}
+
 func xo_warn(_ fmt : String, _ args : [CVarArg]) {
   let code = errno
   withVaList( args ) {
