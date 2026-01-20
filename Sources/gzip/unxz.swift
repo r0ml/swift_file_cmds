@@ -34,7 +34,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-func unxz(int i, int o, char *pre, size_t prelen, off_t *bytes_in) -> off_t {
+func unxz(_ i : Int, _ o : Int, _ pre : [UInt8], _ prelen : size_t, _ bytes_in : inout off_t) -> off_t {
 	lzma_stream strm = LZMA_STREAM_INIT;
 	static const int flags = LZMA_TELL_UNSUPPORTED_CHECK|LZMA_CONCATENATED;
 	lzma_ret ret;
@@ -149,8 +149,6 @@ func unxz(int i, int o, char *pre, size_t prelen, off_t *bytes_in) -> off_t {
 		}
 	}
 }
-
-#include <stdbool.h>
 
 /*
  * Copied various bits and pieces from xz support code or brute force
@@ -283,7 +281,7 @@ func parse_indexes(_ xfi : xz_file_info, _ src_fd : FileDescriptor) -> Bool {
 	off_t pos = st.st_size;
 
 	// Each loop iteration decodes one Index.
-	do {
+	repeat {
 		// Check that there is enough data left to contain at least
 		// the Stream Header and Stream Footer. This check cannot
 		// fail in the first pass of this loop.
@@ -302,13 +300,15 @@ func parse_indexes(_ xfi : xz_file_info, _ src_fd : FileDescriptor) -> Bool {
 			}
 
 			if (io_pread(src_fd, &buf,
-					LZMA_STREAM_HEADER_SIZE, pos))
-				goto error;
+                   LZMA_STREAM_HEADER_SIZE, pos)) {
+        goto error;
+      }
 
 			// Stream Padding is always a multiple of four bytes.
 			int i = 2;
-			if (buf.u32[i] != 0)
-				break;
+      if (buf.u32[i] != 0) {
+        break;
+      }
 
 			// To avoid calling io_pread() for every four bytes
 			// of Stream Padding, take advantage that we read
@@ -358,8 +358,9 @@ func parse_indexes(_ xfi : xz_file_info, _ src_fd : FileDescriptor) -> Bool {
 			// Don't give the decoder more input than the
 			// Index size.
 			strm.avail_in = my_min(IO_BUFFER_SIZE, index_size);
-			if (io_pread(src_fd, &buf, strm.avail_in, pos))
-				goto error;
+      if (io_pread(src_fd, &buf, strm.avail_in, pos)) {
+        goto error;
+      }
 
 			pos += strm.avail_in;
 			index_size -= strm.avail_in;
@@ -372,9 +373,11 @@ func parse_indexes(_ xfi : xz_file_info, _ src_fd : FileDescriptor) -> Bool {
 		// If the decoding seems to be successful, check also that
 		// the Index decoder consumed as much input as indicated
 		// by the Backward Size field.
-		if (ret == LZMA_STREAM_END)
-			if (index_size != 0 || strm.avail_in != 0)
-				ret = LZMA_DATA_ERROR;
+    if (ret == LZMA_STREAM_END) {
+      if (index_size != 0 || strm.avail_in != 0) {
+        ret = LZMA_DATA_ERROR;
+      }
+    }
 
 		if (ret != LZMA_STREAM_END) {
 			// LZMA_BUFFER_ERROR means that the Index decoder
@@ -382,8 +385,9 @@ func parse_indexes(_ xfi : xz_file_info, _ src_fd : FileDescriptor) -> Bool {
 			// size should be according to Stream Footer.
 			// The message for LZMA_DATA_ERROR makes more
 			// sense in that case.
-			if (ret == LZMA_BUF_ERROR)
-				ret = LZMA_DATA_ERROR;
+      if (ret == LZMA_BUF_ERROR) {
+        ret = LZMA_DATA_ERROR;
+      }
 
 			goto error;
 		}
@@ -396,8 +400,9 @@ func parse_indexes(_ xfi : xz_file_info, _ src_fd : FileDescriptor) -> Bool {
 		}
 
 		pos -= lzma_index_total_size(this_index);
-		if (io_pread(src_fd, &buf, LZMA_STREAM_HEADER_SIZE, pos))
-			goto error;
+    if (io_pread(src_fd, &buf, LZMA_STREAM_HEADER_SIZE, pos)) {
+      goto error;
+    }
 
 		ret = lzma_stream_header_decode(&header_flags, buf.u8);
 		if (ret != LZMA_OK) {
@@ -458,13 +463,13 @@ error:
 /*
  * Small wrapper to extract total length of a file
  */
-func unxz_len(int fd) -> off_t {
-	xz_file_info xfi = XZ_FILE_INFO_INIT;
+func unxz_len(_ fd : FileDescriptor) -> off_t {
+	xfi = xz_file_into()
 	if (!parse_indexes(&xfi, fd)) {
 		off_t res = lzma_index_uncompressed_size(xfi.idx);
 		lzma_index_end(xfi.idx, NULL);
 		return res;
 	}
-	return 0;
+	return 0
 }
 

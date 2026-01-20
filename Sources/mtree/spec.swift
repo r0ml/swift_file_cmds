@@ -49,8 +49,9 @@ extension mtree {
     for (lineno = 1; fgets(buf, sizeof(buf), fi);
          ++lineno, c_cur = c_next, c_next = 0) {
       /* Skip empty lines. */
-      if (buf[0] == '\n')
-          continue;
+      if (buf[0] == '\n') {
+        continue;
+      }
 
       /* Find end of line. */
       if ((p = index(buf, '\n')) == NULL) {
@@ -71,8 +72,9 @@ extension mtree {
       for (p = buf; *p && isspace(*p); ++p);
 
       /* If nothing but whitespace or comment char, continue. */
-      if (!*p || *p == '#')
-          continue;
+      if (!*p || *p == '#') {
+        continue;
+      }
 
       //    (void)fprintf(stderr, "line %d: {%s}\n", lineno, p); // for DEBUG
 
@@ -292,30 +294,37 @@ extension mtree {
         case F_TYPE:
           switch(*val) {
             case 'b':
-              if (!strcmp(val, "block"))
-                  ip->type = F_BLOCK;
+              if (!strcmp(val, "block")) {
+                ip->type = F_BLOCK;
+              }
               break;
             case 'c':
-              if (!strcmp(val, "char"))
-                  ip->type = F_CHAR;
+              if (!strcmp(val, "char")){
+                ip->type = F_CHAR;
+              }
               break;
             case 'd':
-              if (!strcmp(val, "dir"))
-                  ip->type = F_DIR;
+              if (!strcmp(val, "dir")) {
+                ip->type = F_DIR;
+              }
               break;
             case 'f':
-              if (!strcmp(val, "file"))
-                  ip->type = F_FILE;
-              if (!strcmp(val, "fifo"))
-                  ip->type = F_FIFO;
+              if (!strcmp(val, "file")) {
+                ip->type = F_FILE;
+              }
+              if (!strcmp(val, "fifo")) {
+                ip->type = F_FIFO;
+              }
               break;
             case 'l':
-              if (!strcmp(val, "link"))
-                  ip->type = F_LINK;
+              if (!strcmp(val, "link")) {
+                ip->type = F_LINK;
+              }
               break;
             case 's':
-              if (!strcmp(val, "socket"))
-                  ip->type = F_SOCK;
+              if (!strcmp(val, "socket")) {
+                ip->type = F_SOCK;
+              }
               break;
             default:
               mtree_record_failure(43, EINVAL);
@@ -480,7 +489,8 @@ extension mtree {
 
   func unset(_ t : String, _ ip : inout NODE) {
 
-    while ((p = strtok(t, "\n\t ")))
-            ip->flags &= ~parsekey(p, NULL);
+    while ((p = strtok(t, "\n\t "))) {
+      ip->flags &= ~parsekey(p, NULL);
+    }
   }
 }

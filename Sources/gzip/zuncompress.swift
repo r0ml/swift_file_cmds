@@ -129,41 +129,34 @@ struct s_zstate {
 	} u;
 };
 
-static code_int	getcode(struct s_zstate *zs);
+func zuncompress(_ inx : FileDescriptor, _ out : FileDescriptor, _ pre : [UInt8], _ prelen : size_t, _ compressed_bytes : inout off_t ) -> off_t {
 
-func zuncompress(FILE *in, FILE *out, char *pre, size_t prelen,
-	    off_t *compressed_bytes) -> off_t {
-	off_t bin, bout = 0;
-	char *buf;
+  var buf = Array(repeating: UInt8(0), count: BUFSIZE)
+  var bout = 0
 
-	buf = malloc(BUFSIZE);
-	if (buf == NULL)
-		return -1;
+  /* XXX */
+  compressed_prelen = prelen
+  if (prelen != 0) {
+    compressed_pre = pre
+  }
+  else {
+    compressed_pre = nil
+  }
 
-	/* XXX */
-	compressed_prelen = prelen;
-	if (prelen != 0)
-		compressed_pre = pre;
-	else
-		compressed_pre = NULL;
+  while true {
+    let bin = try inx.read(into: buf)
+    if bin == 0 { break }
+    if try !options.tflag && out.write(buf) != bin {
+      return -1
+    }
+    bout += bin
+  }
 
-	while ((bin = fread(buf, 1, BUFSIZE, in)) != 0) {
-		if (tflag == 0 && (off_t)fwrite(buf, 1, bin, out) != bin) {
-			free(buf);
-			return -1;
-		}
-		bout += bin;
-	}
-
-	if (compressed_bytes)
-		*compressed_bytes = total_compressed_bytes;
-
-	free(buf);
-	return bout;
+  compressed_bytes = total_compressed_bytes
+  return bout
 }
 
-func zclose(void *zs) -> Int {
-	free(zs);
+func zclose() -> Int {
 	/* We leave the caller to close the fd passed to zdopen() */
 	return 0;
 }
@@ -173,8 +166,9 @@ zdopen(int fd)
 {
 	struct s_zstate *zs;
 
-	if ((zs = calloc(1, sizeof(struct s_zstate))) == NULL)
-		return (NULL);
+  if ((zs = calloc(1, sizeof(struct s_zstate))) == NULL) {
+    return (NULL);
+  }
 
 	zs->zs_state = S_START;
 
@@ -199,7 +193,7 @@ zdopen(int fd)
 		return NULL;
 	}
 
-	return funopen(zs, zread, NULL, NULL, zclose);
+	return funopen(zs, zread, nil, nil, zclose);
 }
 
 /*
@@ -215,8 +209,9 @@ zread(void *cookie, char *rbp, int num)
 	struct s_zstate *zs;
 	u_char *bp, header[3];
 
-	if (num == 0)
-		return (0);
+  if (num == 0) {
+    return (0);
+  }
 
 	zs = cookie;
 	count = num;
@@ -232,8 +227,9 @@ zread(void *cookie, char *rbp, int num)
 	}
 
 	/* Check the magic number */
-	for (i = 0; i < 3 && compressed_prelen; i++, compressed_prelen--)  
-		header[i] = *compressed_pre++;
+  for (i = 0; i < 3 && compressed_prelen; i++, compressed_prelen--) {
+    header[i] = *compressed_pre++;
+  }
 
 	if (fread(header + i, 1, sizeof(header) - i, zs->zs_fp) !=
 		  sizeof(header) - i ||

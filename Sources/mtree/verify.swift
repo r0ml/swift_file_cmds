@@ -99,8 +99,9 @@ extension mtree {
           warnx("%s: %s", RP(p), strerror(p->fts_errno));
           continue;
         default:
-          if (dflag)
-              continue;
+          if (dflag) {
+            continue;
+          }
       }
 
       if specdepth != p.level {
@@ -116,8 +117,9 @@ extension mtree {
           mtree_record_failure(64, WARN_MISMATCH);
           rval = MISMATCHEXIT;
         }
-        if (ep->flags & F_IGN)
-            (void)fts_set(t, p, FTS_SKIP);
+        if (ep->flags & F_IGN) {
+          (void)fts_set(t, p, FTS_SKIP);
+        }
         else if (ep->child && ep->type == F_DIR &&
                  p->fts_info == FTS_D) {
           level = ep->child;
@@ -126,8 +128,9 @@ extension mtree {
         break;
       }
 
-      if (ep)
-          continue;
+      if (ep) {
+        continue;
+      }
     extra:
       if !options.eflag {
         print("\(RP(p)) extra", terminator: "")
@@ -193,8 +196,9 @@ extension mtree {
     size_t file_name_length = 0;
 
     for (; p; p = p->next) {
-      if (p->type != F_DIR && (dflag || p->flags & F_VISIT))
-          continue;
+      if (p->type != F_DIR && (dflag || p->flags & F_VISIT)) {
+        continue;
+      }
       file_name_length = strnlen(p->name, MAXPATHLEN);
       path_length += file_name_length;
       if (path_length >= MAXPATHLEN) {
@@ -221,10 +225,12 @@ extension mtree {
       }
 
       create = 0;
-      if (p->type == F_LINK)
-          type = "symlink";
-      else
+      if (p->type == F_LINK) {
+        type = "symlink";
+      }
+      else {
         type = "directory";
+      }
       if (!(p->flags & F_VISIT) && uflag) {
         if (!(p->flags & (F_UID | F_UNAME))) {
           (void)printf(" (%s not created: user not specified)", type);
@@ -241,11 +247,13 @@ extension mtree {
           }
           if (lchown(path, p->st_uid, p->st_gid) == -1) {
             serr = errno;
-            if (p->st_uid == (uid_t)-1)
-                what = "group";
+            if (p->st_uid == (uid_t)-1) {
+              what = "group";
+            }
             else if (lchown(path, (uid_t)-1,
-                            p->st_gid) == -1)
-                      what = "user & group";
+                            p->st_gid) == -1) {
+              what = "user & group";
+            }
             else {
               what = "user";
               errno = serr;
@@ -268,8 +276,9 @@ extension mtree {
           (void)printf(" (created)");
         }
       }
-      if (!(p->flags & F_VISIT))
-          (void)putchar('\n');
+      if (!(p->flags & F_VISIT)) {
+        (void)putchar('\n');
+      }
 
       for (tp = tail; *tp; ++tp);
       *tp = '/';
@@ -282,14 +291,17 @@ extension mtree {
       path_length -= (file_name_length + 1);
       *tp = '\0';
 
-      if (!create)
-          continue;
+      if (!create) {
+        continue;
+      }
       if (chown(path, p->st_uid, p->st_gid) == -1) {
         serr = errno;
-        if (p->st_uid == (uid_t)-1)
-            what = "group";
-        else if (chown(path, (uid_t)-1, p->st_gid) == -1)
-                  what = "user & group";
+        if (p->st_uid == (uid_t)-1) {
+          what = "group";
+        }
+        else if (chown(path, (uid_t)-1, p->st_gid) == -1) {
+          what = "user & group";
+        }
         else {
           what = "user";
           errno = serr;

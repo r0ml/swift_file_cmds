@@ -55,14 +55,17 @@ func read_excludes_file(_ name : String) {
 	size_t len;
 
 	fp = fopen(name, "r");
-	if (fp == 0)
-		err(1, "%s", name);
+  if (fp == 0) {
+    err(1, "%s", name);
+  }
 
 	while ((line = fgetln(fp, &len)) != 0) {
-		if (line[len - 1] == '\n')
-			len--;
-		if (len == 0)
-			continue;
+    if (line[len - 1] == '\n') {
+      len--;
+    }
+    if (len == 0) {
+      continue;
+    }
 
 		str = malloc(len + 1);
 		e = malloc(sizeof *e);
@@ -73,10 +76,12 @@ func read_excludes_file(_ name : String) {
 		e->glob = str;
 		memcpy(str, line, len);
 		str[len] = '\0';
-		if (strchr(str, '/'))
-			e->pathname = 1;
-		else
-			e->pathname = 0;
+    if (strchr(str, '/')) {
+      e->pathname = 1;
+    }
+    else {
+      e->pathname = 0;
+    }
 		LIST_INSERT_HEAD(&excludes, e, link);
 	}
 	fclose(fp);
