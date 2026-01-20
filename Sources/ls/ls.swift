@@ -37,6 +37,7 @@
 
 import CMigration
 import Darwin
+import Darwin.C
 
 enum WhenColor : Int {
   case NEVER = 0
@@ -64,7 +65,7 @@ enum WhenColor : Int {
   func MAKENINES(_ n : UInt) -> UInt {
     /* Use a loop as all values of n are small. */
     let a = (0 ..< n).reduce(1) { acc, _ in acc * 10 }
-    return a-1
+    return UInt(a-1)
   }
 
     /*
@@ -88,26 +89,19 @@ static int rval;
 */
 
 func do_color_from_env() -> Bool {
-	const char *p;
-	bool doit;
-
-	doit = false;
-	p = getenv("CLICOLOR");
-	if (p == NULL) {
-		/*
-		 * COLORTERM is the more standard name for this variable.  We'll
-		 * honor it as long as it's both set and not empty.
-		 */
-		p = getenv("COLORTERM");
-    if (p != NULL && *p != '\0') {
-      doit = true;
-    }
+	var doit = false;
+  if let p = Environment["CLICOLOR"] {
+    doit = true
   } else {
-    doit = true;
+    /*
+     * COLORTERM is the more standard name for this variable.  We'll
+     * honor it as long as it's both set and not empty.
+     */
+    if let p = Environment["COLORTERM"], !p.isEmpty {
+      doit = true
+    }
   }
-
-	return (doit &&
-	    (isatty(STDOUT_FILENO) || getenv("CLICOLOR_FORCE")));
+  return (doit && (0 != isatty(STDOUT_FILENO) || Environment["CLICOLOR_FORCE"] != nil))
 }
 
 func do_color() -> Bool {
@@ -246,9 +240,9 @@ func do_color() -> Bool {
     var colorflag = WhenColor.NEVER    /* passed in colorflag */
     var f_color = false    /* add type in color for non-regular files */
     var explicitansi = false  /* Explicit ANSI sequences, no termcap(5) */
-    var ansi_bgcol = ""    /* ANSI sequence to set background colour */
-    var ansi_fgcol = ""    /* ANSI sequence to set foreground colour */
-    var ansi_coloff = ""    /* ANSI sequence to reset colours */
+    var ansi_bgcol : String? = nil    /* ANSI sequence to set background colour */
+    var ansi_fgcol : String? = nil    /* ANSI sequence to set foreground colour */
+    var ansi_coloff : String? = nil    /* ANSI sequence to reset colours */
     var attrs_off = ""    /* ANSI sequence to turn off attributes */
     var enter_bold = ""    /* ANSI sequence to set color to bold mode */
 
@@ -481,7 +475,7 @@ func do_color() -> Bool {
     options.args = go.remaining
 
     /* Root is -A automatically unless -I. */
-    if (!options.f_listdot && getuid() == (uid_t)0 && !options.f_noautodot) {
+    if (!options.f_listdot && getuid() == 0 && !options.f_noautodot) {
       options.f_listdot = true
     }
 
@@ -490,21 +484,24 @@ func do_color() -> Bool {
      * with the --color and -G arguments, if supplied.
      */
     if (do_color()) {
-      if ((term = getenv("TERM")) != NULL &&
-          tgetent(termcapbuf, term) == 1) {
-        ansi_fgcol = tgetstr("AF", &bp);
-        ansi_bgcol = tgetstr("AB", &bp);
-        attrs_off = tgetstr("me", &bp);
-        enter_bold = tgetstr("md", &bp);
+      var termcapbuf = Array(repeating: CChar(0), count: 1024)  /* termcap definition buffer */
+      var tcapbuf : [CChar] = Array(repeating: CChar(0), count: 512)  /* capability buffer */
+      var bp: UnsafeMutablePointer<Int8>?
+
+      if let term = Environment["TERM"], tgetent(&termcapbuf, term) == 1 {
+        options.ansi_fgcol = String(cString: tgetstr("AF", &bp)!)
+        options.ansi_bgcol = String(cString: tgetstr("AB", &bp)!)
+        options.attrs_off = String(cString: tgetstr("me", &bp)!)
+        options.enter_bold = String(cString: tgetstr("md", &bp)!)
 
         /* To switch colours off use 'op' if
          * available, otherwise use 'oc', or
          * don't do colours at all. */
-        ansi_coloff = tgetstr("op", &bp);
-        if (!ansi_coloff) {
-          ansi_coloff = tgetstr("oc", &bp);
+        options.ansi_coloff = String(cString: tgetstr("op", &bp)!)
+        if (options.ansi_coloff == nil) {
+          options.ansi_coloff = String(cString: tgetstr("oc", &bp)!)
         }
-        if (ansi_fgcol && ansi_bgcol && ansi_coloff) {
+        if (options.ansi_fgcol != nil && options.ansi_bgcol != nil && options.ansi_coloff != nil) {
           options.f_color = true
         }
       } else if (options.colorflag == .ALWAYS) {
@@ -525,9 +522,9 @@ func do_color() -> Bool {
        * for "stty oxtabs" mode.
        */
       options.f_notabs = true
-      (void)signal(SIGINT, colorquit);
-      (void)signal(SIGQUIT, colorquit);
-      parsecolors(getenv("LSCOLORS"));
+      signal(SIGINT, colorquit);
+      signal(SIGQUIT, colorquit);
+      parsecolors(Environment["LSCOLORS"])
     }
 
     /*
@@ -642,18 +639,18 @@ func do_color() -> Bool {
     if (options.f_dataless) {
       // don't materialize dataless directories from the cloud
       // (particularly useful when listing recursively)
-      int state = 1;
-      if (sysctlbyname("vfs.nspace.prevent_materialization", nil, nil, &state, sizeof(state)) < 0) {
+      var state : Int32 = 1
+      if (sysctlbyname("vfs.nspace.prevent_materialization", nil, nil, &state, MemoryLayout.size(ofValue: state)) < 0) {
         err(1, "prevent materialization sysctl failed");
       }
     }
 #endif
 
-    if (argc) {
-      traverse(argc, argv, options.fts_options);
+    if !options.args.isEmpty {
+      traverse(options.args, options.fts_options);
     }
     else {
-      traverse(1, dotav, options.fts_options);
+      traverse(["."], options.fts_options);
     }
 
     if (rval == 0 && (ferror(stdout) != 0 || fflush(stdout) != 0)) {
@@ -668,3 +665,48 @@ usage: ls [-@ABCFGHILOPRSTUWXabcdefghiklmnopqrstuvwxy1%%,] [--color=when] [-D fo
 """
 
 }
+
+
+@_silgen_name("tgetent")
+func tgetent(
+    _ bp: UnsafeMutablePointer<CChar>?,
+    _ name: UnsafePointer<CChar>?
+) -> Int32
+
+@_silgen_name("tgetstr")
+func tgetstr(
+    _ id: UnsafePointer<CChar>?,
+    _ area: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
+) -> UnsafeMutablePointer<CChar>?
+
+@_silgen_name("tgetnum")
+func tgetnum(_ id: UnsafePointer<CChar>?) -> Int32
+
+@_silgen_name("tgetflag")
+func tgetflag(_ id: UnsafePointer<CChar>?) -> Int32
+
+func colorquit(_ sig : Int32) {
+  endcolor(sig)
+  signal(sig, SIG_DFL)
+  kill(getpid(), sig)
+}
+
+func endcolor(_ sig : Int32) {
+  if (explicitansi) {
+    endcolor_ansi();
+  }
+  else {
+    endcolor_termcap(sig);
+  }
+ }
+
+func endcolor_ansi() {
+  print("\u{1b}[m", terminator: "")
+}
+
+func endcolor_termcap(_ sig : Int32) {
+  tputs(ansi_coloff, 1, sig ? writech : putch);
+  tputs(attrs_off, 1, sig ? writech : putch);
+}
+
+

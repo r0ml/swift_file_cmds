@@ -44,10 +44,12 @@ let NO_PRINT = 1
 extension ls {
 
 
-  #define	IS_NOPRINT(p)	((p)->fts_number == NO_PRINT)
+  func IS_NOPRINT(_ p : FTSEntry) -> Bool {
+    return p.number == NO_PRINT
+  }
 
   /* Most of these are taken from <sys/stat.h> */
-  enum Colors {
+  enum Colors : Int {
     case DIR			/* directory */
     case LNK			/* symbolic link */
     case SOCK			/* socket */
@@ -69,10 +71,12 @@ extension ls {
   static let defcolors = "exfxcxdxbxegedabagacadah"
 
   /* colors for file types */
-  static struct {
-    int	num[2];
-    int	bold;
-  } colors[C_NUMCOLORS];
+  struct Color {
+    var num : (Int, Int) = (0, 0)
+    var bold : Int = 0
+  }
+  // FIXME: NUMCOLORS relies on an enum hack -- not happy about that.
+  static var colors = Array(repeating: Color(), count: Colors.NUMCOLORS.rawValue)
 
   static size_t padding_for_month[12];
   static size_t month_max_size = 0;
@@ -85,19 +89,19 @@ extension ls {
       }
     }
 
-    for (p = dp->list; p; p = p->fts_link) {
+    for p in dp.list! {
       if (IS_NOPRINT(p)) {
         continue;
       }
-      (void)printaname(p, dp->s_inode, dp->s_block);
-      (void)putchar('\n');
+      printaname(p, dp.s_inode, dp.s_block)
+      print("")
     }
   }
 
   /*
    * print name in current style
    */
-  func printname(_ name : String) -> Int {
+  @discardableResult func printname(_ name : String) -> Int {
     if (options.f_octal || options.f_octal_escape) {
       return prn_octal(name);
     }
@@ -109,25 +113,22 @@ extension ls {
     }
   }
 
-  func get_abmon(int mon) -> String {
-
+  func get_abmon(_ mon : Int) -> String {
     switch (mon) {
-      case 0: return (nl_langinfo(ABMON_1));
-      case 1: return (nl_langinfo(ABMON_2));
-      case 2: return (nl_langinfo(ABMON_3));
-      case 3: return (nl_langinfo(ABMON_4));
-      case 4: return (nl_langinfo(ABMON_5));
-      case 5: return (nl_langinfo(ABMON_6));
-      case 6: return (nl_langinfo(ABMON_7));
-      case 7: return (nl_langinfo(ABMON_8));
-      case 8: return (nl_langinfo(ABMON_9));
-      case 9: return (nl_langinfo(ABMON_10));
-      case 10: return (nl_langinfo(ABMON_11));
-      case 11: return (nl_langinfo(ABMON_12));
+      case 0: return String(cString: nl_langinfo(ABMON_1))
+      case 1: return String(cString: nl_langinfo(ABMON_2))
+      case 2: return String(cString: nl_langinfo(ABMON_3))
+      case 3: return String(cString: nl_langinfo(ABMON_4))
+      case 4: return String(cString: nl_langinfo(ABMON_5))
+      case 5: return String(cString: nl_langinfo(ABMON_6))
+      case 6: return String(cString: nl_langinfo(ABMON_7))
+      case 7: return String(cString: nl_langinfo(ABMON_8))
+      case 8: return String(cString: nl_langinfo(ABMON_9))
+      case 9: return String(cString: nl_langinfo(ABMON_10))
+      case 10: return String(cString: nl_langinfo(ABMON_11))
+      case 11: return String(cString: nl_langinfo(ABMON_12))
+      default: abort() // should never happen
     }
-
-    /* should never happen */
-    abort();
   }
 
   func mbswidth(_ month : String) -> Int {
@@ -149,7 +150,7 @@ extension ls {
     return (width);
   }
 
-    func compute_abbreviated_month_size(void) {
+    func compute_abbreviated_month_size() {
     int i;
     size_t width;
     size_t months_width[12];
@@ -171,49 +172,67 @@ extension ls {
       }
   }
 
+  struct ACLPermFlags : OptionSet {
+    var rawValue : Int32
+
+    static var DIR = Self(rawValue: 1)
+    static var FILE = Self(rawValue: 2)
+  }
   /*
    * print access control list
    */
-  static struct {
-    acl_perm_t	perm;
-    char		*name;
-    int		flags;
-    #define ACL_PERM_DIR	(1<<0)
-    #define ACL_PERM_FILE	(1<<1)
-  } acl_perms[] = {
-    {ACL_READ_DATA,		"read",		ACL_PERM_FILE},
-    {ACL_LIST_DIRECTORY,	"list",		ACL_PERM_DIR},
-    {ACL_WRITE_DATA,	"write",	ACL_PERM_FILE},
-    {ACL_ADD_FILE,		"add_file",	ACL_PERM_DIR},
-    {ACL_EXECUTE,		"execute",	ACL_PERM_FILE},
-    {ACL_SEARCH,		"search",	ACL_PERM_DIR},
-    {ACL_DELETE,		"delete",	ACL_PERM_FILE | ACL_PERM_DIR},
-    {ACL_APPEND_DATA,	"append",	ACL_PERM_FILE},
-    {ACL_ADD_SUBDIRECTORY,	"add_subdirectory", ACL_PERM_DIR},
-    {ACL_DELETE_CHILD,	"delete_child",	ACL_PERM_DIR},
-    {ACL_READ_ATTRIBUTES,	"readattr",	ACL_PERM_FILE | ACL_PERM_DIR},
-    {ACL_WRITE_ATTRIBUTES,	"writeattr",	ACL_PERM_FILE | ACL_PERM_DIR},
-    {ACL_READ_EXTATTRIBUTES, "readextattr",	ACL_PERM_FILE | ACL_PERM_DIR},
-    {ACL_WRITE_EXTATTRIBUTES, "writeextattr", ACL_PERM_FILE | ACL_PERM_DIR},
-    {ACL_READ_SECURITY,	"readsecurity",	ACL_PERM_FILE | ACL_PERM_DIR},
-    {ACL_WRITE_SECURITY,	"writesecurity", ACL_PERM_FILE | ACL_PERM_DIR},
-    {ACL_CHANGE_OWNER,	"chown",	ACL_PERM_FILE | ACL_PERM_DIR},
-    {0, NULL, 0}
-  };
+  struct ACLPerm {
+    var perm : acl_perm_t
+    var name : String
+    var flags : ACLPermFlags
 
-  static struct {
-    acl_flag_t	flag;
-    char		*name;
-    int		flags;
-  } acl_flags[] = {
-    {ACL_ENTRY_FILE_INHERIT, 	"file_inherit",		ACL_PERM_DIR},
-    {ACL_ENTRY_DIRECTORY_INHERIT,	"directory_inherit",	ACL_PERM_DIR},
-    {ACL_ENTRY_LIMIT_INHERIT,	"limit_inherit",	ACL_PERM_FILE | ACL_PERM_DIR},
-    {ACL_ENTRY_ONLY_INHERIT,	"only_inherit",		ACL_PERM_DIR},
-    {0, NULL, 0}
-  };
+    init(_ perm: acl_perm_t, _ name : String, _ flags : ACLPermFlags) {
+      self.perm = perm
+      self.name = name
+      self.flags = flags
+    }
+  }
 
-  func uuid_to_name(uuid_t *uu) -> String {
+  static var acl_perms : [ACLPerm] = [
+    .init(ACL_READ_DATA,		"read",		.FILE),
+    .init(ACL_LIST_DIRECTORY,	"list",		.DIR),
+    .init(ACL_WRITE_DATA,	"write",	.FILE),
+    .init(ACL_ADD_FILE,		"add_file",	.DIR),
+    .init(ACL_EXECUTE,		"execute",	.FILE),
+    .init(ACL_SEARCH,		"search",	.DIR),
+    .init(ACL_DELETE,		"delete",	[.FILE, .DIR]),
+    .init(ACL_APPEND_DATA,	"append",	.FILE),
+    .init(ACL_ADD_SUBDIRECTORY,	"add_subdirectory", .DIR),
+    .init(ACL_DELETE_CHILD,	"delete_child",	.DIR),
+    .init(ACL_READ_ATTRIBUTES,	"readattr",	[.FILE, .DIR]),
+    .init(ACL_WRITE_ATTRIBUTES,	"writeattr",	[.FILE, .DIR]),
+    .init(ACL_READ_EXTATTRIBUTES, "readextattr",	[.FILE, .DIR]),
+    .init(ACL_WRITE_EXTATTRIBUTES, "writeextattr", [.FILE, .DIR]),
+    .init(ACL_READ_SECURITY,	"readsecurity",	[.FILE, .DIR]),
+    .init(ACL_WRITE_SECURITY,	"writesecurity", [.FILE, .DIR]),
+    .init(ACL_CHANGE_OWNER,	"chown",	[.FILE, .DIR]),
+  ]
+
+  struct ACLFlag {
+    var flag : acl_flag_t
+    var name : String
+    var flags : ACLPermFlags
+
+    init(_ flag : acl_flag_t, _ name : String, _ flags : ACLPermFlags) {
+      self.flag = flag
+      self.name = name
+      self.flags = flags
+    }
+  }
+
+  static var acl_flags : [ACLFlag] = [
+    .init(ACL_ENTRY_FILE_INHERIT, 	"file_inherit",		.DIR),
+    .init(ACL_ENTRY_DIRECTORY_INHERIT,	"directory_inherit",	.DIR),
+    .init(ACL_ENTRY_LIMIT_INHERIT,	"limit_inherit",	[.FILE, .DIR]),
+    .init(ACL_ENTRY_ONLY_INHERIT,	"only_inherit",		[.DIR]),
+  ]
+
+  func uuid_to_name(_ uu : uuid_t) -> String {
     int type;
     char *name = NULL;
     char *recname = NULL;
@@ -243,19 +262,18 @@ extension ls {
     return name;
   }
 
-  func printxattr(const DISPLAY *dp, int count, char *buf, int sizes[]) {
-    for (int i = 0; i < count; i++) {
-      putchar('\t');
-      printname(buf);
-      putchar('\t');
-      printsize(dp->s_size, sizes[i]);
-      putchar('\n');
-      buf += strlen(buf) + 1;
+  func printxattr(_ dp : DISPLAY, _ buf : [(String, Int)]) {
+    for ns in buf {
+      print("", terminator: "\t")
+      printname(ns.0)
+      print("", terminator: "\t")
+      printsize(Int(dp.s_size), Int64(ns.1))
+      print("")
     }
   }
 
-func printacl(acl_t acl, int isdir) {
-    acl_entry_t	entry = NULL;
+  func printacl(_ acl : acl_t, _ isdir : Bool) {
+/*    acl_entry_t	entry = NULL;
     int		index;
     uuid_t		*applicable;
     char		*name = NULL;
@@ -264,7 +282,7 @@ func printacl(acl_t acl, int isdir) {
     acl_permset_t	perms;
     char		*type;
     int		i, first;
-
+*/
 
     for (index = 0;
          acl_get_entry(acl, entry == NULL ? ACL_FIRST_ENTRY : ACL_NEXT_ENTRY, &entry) == 0;
@@ -323,38 +341,39 @@ func printacl(acl_t acl, int isdir) {
         (void)printf("%s%s", first++ ? "," : "", acl_flags[i].name);
       }
 
-      (void)putchar('\n');
+      print("")
     }
 
   }
 
-  func printlong(const DISPLAY *dp) {
-    struct stat *sp;
+  func printlong(_ dp : DISPLAY) {
+/*
+ struct stat *sp;
     FTSENT *p;
     NAMES *np;
     char buf[20];
+*/
 
-    int color_printed = 0;
+    var color_printed = false
 
-    if ((dp->list == NULL || dp->list->fts_level != FTS_ROOTLEVEL) &&
+    if ((dp.list == nil || dp.list![0].level != CMigration.FTS_ROOTLEVEL) &&
         (options.f_longform || options.f_size)) {
-      (void)printf("total %qu\n", (u_int64_t)howmany(dp->btotal, blocksize));
+      print("total \(howmany(dp.btotal, blocksize))")
     }
 
-    for (p = dp->list; p; p = p->fts_link) {
-      if (IS_NOPRINT(p)) {
-        continue;
+    for p in dp.list! {
+      if IS_NOPRINT(p) {
+        continue
       }
-      sp = p->fts_statp;
-      if (options.f_inode) {
-        (void)printf("%*ju ",
-                     dp->s_inode, (uintmax_t)sp->st_ino);
+      let sp = p.statp!
+      if options.f_inode {
+        let k = String(sp.inode).leftPad(toLength: Int(dp.s_inode))
+        print("%*ju ", dp.s_inode, sp.inode)
       }
       if (options.f_size) {
-        (void)printf("%*lld ",
-                     dp->s_block, howmany(sp->st_blocks, blocksize));
+        print("%*lld ", dp.s_block, howmany(Int(sp.blocks), Int(blocksize)), terminator: "")
       }
-      strmode(sp->st_mode, buf);
+      strmode(sp.mode, buf);
 
       np = p->fts_pointer;
 
@@ -380,45 +399,45 @@ func printacl(acl_t acl, int isdir) {
         (void)printf("%-*s ", dp->s_flags, np->flags);
       }
 
-      if (S_ISCHR(sp->st_mode) || S_ISBLK(sp->st_mode)) {
-        printdev(dp->s_size, sp->st_rdev);
+      if sp.filetype == .characterDevice || sp.filetype == .blockDevice { //  S_ISCHR(sp->st_mode) || S_ISBLK(sp->st_mode)) {
+        printdev(Int(dp.s_size), Int32(sp.rawDevice))
       }
       else {
-        printsize(dp->s_size, sp->st_size);
+        printsize(Int(dp.s_size), Int64(sp.size))
       }
       if (options.f_accesstime) {
-        printtime(sp->st_atime);
+        printtime(sp.lastAccess.secs)
       }
       else if (options.f_birthtime) {
-        printtime(sp->st_birthtime);
+        printtime(sp.created.secs)
       }
       else if (options.f_statustime) {
-        printtime(sp->st_ctime);
+        printtime(sp.lastModification.secs)
       }
       else {
-        printtime(sp->st_mtime);
+        printtime(sp.lastWrite.secs)
       }
 
       if (options.f_color) {
-        color_printed = colortype(sp->st_mode, sp->st_flags);
+        color_printed = colortype(sp.filetype, sp.permissions, UInt(sp.flags.rawValue))
       }
 
-      (void)printname(p->fts_name);
+      printname(p.name)
 
       if (options.f_color && color_printed) {
-        endcolor(0);
+        endcolor(0)
       }
 
       if (options.f_type) {
-        (void)printtype(sp->st_mode);
+        printtype(sp.filetype, sp.permissions)
       }
-      if (S_ISLNK(sp->st_mode)) {
-        printlink(p);
+      if sp.filetype == .symbolicLink {
+        printlink(p)
       }
-      (void)putchar('\n');
+      print("")
 
-      if (np->xattr_count && options.f_xattr) {
-        printxattr(dp, np->xattr_count, np->xattr_names, np->xattr_sizes);
+      if (np.xattr_count && options.f_xattr) {
+        printxattr(dp, np.xattr_count, np.xattr_names, np.xattr_sizes)
       }
       if (np->acl != NULL && options.f_acl) {
         printacl(np->acl, S_ISDIR(sp->st_mode));
@@ -715,6 +734,7 @@ func printacl(acl_t acl, int isdir) {
     return (0);
   }
 
+  /*
   func putch(int c) -> Int {
     (void)putchar(c);
     return 0;
@@ -726,11 +746,12 @@ func printacl(acl_t acl, int isdir) {
     (void)write(STDOUT_FILENO, &tmp, 1);
     return 0;
   }
+*/
 
   func printcolor_termcap(_ c : Colors) {
-    char *ansiseq;
+//    char *ansiseq;
 
-    if (colors[c].bold) {
+    if (colors[c.rawValue].bold) {
       tputs(enter_bold, 1, putch);
     }
 
@@ -761,12 +782,12 @@ func printacl(acl_t acl, int isdir) {
     if (colors[c].num[1] != -1) {
       printf(";4%d", colors[c].num[1]);
     }
-    printf("m");
+    print("m", terminator: "")
   }
 
   func printcolor(_ c : Colors) {
 
-    if (explicitansi) {
+    if options.explicitansi {
       printcolor_ansi(c);
     }
     else {
@@ -774,29 +795,11 @@ func printacl(acl_t acl, int isdir) {
     }
   }
 
-    func endcolor_termcap(int sig) {
-    tputs(ansi_coloff, 1, sig ? writech : putch);
-    tputs(attrs_off, 1, sig ? writech : putch);
-  }
-
-  func endcolor_ansi(void) {
-    printf("\33[m");
-  }
-
- func endcolor(int sig) {
-   if (explicitansi) {
-     endcolor_ansi();
-   }
-   else {
-     endcolor_termcap(sig);
-   }
-  }
-
-  func colortype(_ mode : FileType, _ flags : UInt) -> Bool {
-    switch mode {
+  func colortype(_ ft : FileType, _ mode : FilePermissions, _ flags : UInt) -> Bool {
+    switch ft {
       case .directory:
-        if (mode & S_IWOTH) {
-          if (mode & S_ISTXT) {
+        if mode.contains(.otherWrite) {
+          if mode.contains( .saveText) {
             printcolor(.WSDIR)
           }
           else {
@@ -822,13 +825,14 @@ func printacl(acl_t acl, int isdir) {
       case .characterDevice:
         printcolor(.CHR)
         return true
-      default:;
+      default:
+        break
     }
     if (mode & (S_IXUSR | S_IXGRP | S_IXOTH)) {
-      if (mode & S_ISUID) {
+      if mode.contains(.setUserID) {
         printcolor(.SUID)
       }
-      else if (mode & S_ISGID) {
+      else if mode.contains(.setGroupID) {
         printcolor(.SGID)
       }
       else {
@@ -845,59 +849,50 @@ func printacl(acl_t acl, int isdir) {
     return false
   }
 
-  func parsecolors(_ cs : String) {
-    int i;
+  func parsecolors(_ csx : String?) {
+/*    int i;
     int j;
     size_t len;
     char c[2];
     short legacy_warn = 0;
+*/
+    let cs = csx ?? "" // LSCOLORS not set
+    let len = cs.count
+    for i in 0 ..< Colors.NUMCOLORS {
 
-    if (cs == NULL) {
-      cs = "";	/* LSCOLORS not set */
-    }
-    len = strlen(cs);
-    for (i = 0; i < (int)C_NUMCOLORS; i++) {
       colors[i].bold = 0;
-
+      var c = [0, 0]
       if (len <= 2 * (size_t)i) {
-        c[0] = defcolors[2 * i];
-        c[1] = defcolors[2 * i + 1];
+        c[0] = defcolors[2 * i]
+        c[1] = defcolors[2 * i + 1]
       } else {
         c[0] = cs[2 * i];
         c[1] = cs[2 * i + 1];
       }
-      for (j = 0; j < 2; j++) {
+
+      for j in [0, 1] {
         /* Legacy colours used 0-7 */
-        if (c[j] >= '0' && c[j] <= '7') {
-          colors[i].num[j] = c[j] - '0';
+        if let x = "01234567".firstIndex(of: c[j]) {
+          colors[i].num[j] = x
           if (!legacy_warn) {
-            warnx("LSCOLORS should use "
-                  "characters a-h instead of 0-9 ("
-                  "see the manual page)");
+            warnx("LSCOLORS should use characters a-h instead of 0-9 (see the manual page)")
           }
-          legacy_warn = 1;
-        } else if (c[j] >= 'a' && c[j] <= 'h') {
-          colors[i].num[j] = c[j] - 'a';
+          legacy_warn = 1
+        } else if (c[j] >= "a" && c[j] <= "h") {
+          colors[i].num[j] = c[j] - "a";
         }
-        else if (c[j] >= 'A' && c[j] <= 'H') {
-          colors[i].num[j] = c[j] - 'A';
-          colors[i].bold = 1;
+        else if (c[j] >= "A" && c[j] <= "H") {
+          colors[i].num[j] = c[j] - "A"
+          colors[i].bold = 1
         } else if (tolower((unsigned char)c[j]) == 'x') {
-          colors[i].num[j] = -1;
+          colors[i].num[j] = -1
         }
         else {
-          warnx("invalid character '%c' in LSCOLORS"
-                " env var", c[j]);
-          colors[i].num[j] = -1;
+          warnx("invalid character '\(c[j])' in LSCOLORS env var")
+          colors[i].num[j] = -1
         }
       }
     }
-  }
-
-  func colorquit(_ sig : Int32) {
-    endcolor(sig)
-    signal(sig, SIG_DFL)
-    kill(getpid(), sig)
   }
 
 
@@ -941,5 +936,24 @@ func printacl(acl_t acl, int isdir) {
     }
     let b2 = String(repeating: " ", count: max(0, width - buf.count)) + buf
     print(b2, terminator: " ")
+  }
+}
+
+// FIXME: copied from df.  Promote to CMigration
+public extension String {
+  func leftPad(toLength: Int, withPad: String = " ") -> String {
+    guard toLength > 0 else { return self }
+    guard !self.isEmpty else { return String(repeating: withPad, count: toLength) }
+    let paddingNeeded = toLength - self.count
+    guard paddingNeeded > 0 else { return self }
+    return String(repeating: withPad, count: paddingNeeded) + self
+  }
+
+  func rightPad(toLength: Int, withPad: String = " ") -> String {
+    guard toLength > 0 else { return self }
+    guard !self.isEmpty else { return String(repeating: withPad, count: toLength) }
+    let paddingNeeded = toLength - self.count
+    guard paddingNeeded > 0 else { return self }
+    return self + String(repeating: withPad, count: paddingNeeded)
   }
 }

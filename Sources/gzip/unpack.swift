@@ -62,8 +62,11 @@
  * range [0..254], so all levels' symbol count would fit into 1 byte.
  */
 
-#define	PACK_HEADER_LENGTH	7
-#define	HTREE_MAXLEVEL		24
+import CMigration
+import Darwin
+
+let	PACK_HEADER_LENGTH = 7
+let HTREE_MAXLEVEL = 24
 
 /*
  * unpack descriptor
@@ -74,9 +77,9 @@
  * that, maintain two counts for each level: inner nodes count and
  * leaf nodes count.
  */
-typedef struct {
-	int	symbol_size;		/* Size of the symbol table */
-	int	treelevels;		/* Levels for the huffman tree */
+struct unpack_descriptor_t {
+  var symbol_size : Int		/* Size of the symbol table */
+  var treelevels : Int		/* Levels for the huffman tree */
 
 	int    *symbolsin;		/* Table of leaf symbols count in each
 					 * level */
@@ -88,10 +91,10 @@ typedef struct {
 	char  **tree;			/* Decoding huffman tree (pointers to
 					 * first symbol of each tree level */
 
-	off_t	uncompressed_size;	/* Uncompressed size */
-	FILE   *fpIn;			/* Input stream */
-	FILE   *fpOut;			/* Output stream */
-} unpack_descriptor_t;
+  var uncompressed_size : UInt	/* Uncompressed size */
+  var fpIn : FileDescriptor			/* Input stream */
+  var fpOut : FileDescriptor			/* Output stream */
+}
 
 /*
  * Release resource allocated to an unpack descriptor.
@@ -101,9 +104,7 @@ typedef struct {
  * We don't zero out pointers here because nobody else would ever
  * reference the memory block without scrubbing them.
  */
-static void
-unpack_descriptor_fini(unpack_descriptor_t *unpackd)
-{
+func unpack_descriptor_fini(_ unpackd : unpack_descriptor_t) {
 
 	free(unpackd->symbolsin);
 	free(unpackd->inodesin);
@@ -117,32 +118,30 @@ unpack_descriptor_fini(unpack_descriptor_t *unpackd)
 /*
  * Recursively fill the internal node count table
  */
-static void
-unpackd_fill_inodesin(const unpack_descriptor_t *unpackd, int level)
-{
+func unpackd_fill_inodesin(_ unpackd : inout unpack_descriptor_t, _ level : Int) {
 
 	/*
 	 * The internal nodes would be 1/2 of total internal nodes and
 	 * leaf nodes in the next level.  For the last level there
 	 * would be no internal node by definition.
 	 */
-	if (level < unpackd->treelevels) {
-		unpackd_fill_inodesin(unpackd, level + 1);
-		unpackd->inodesin[level] = (unpackd->inodesin[level + 1] +
-		    unpackd->symbolsin[level + 1]) / 2;
-	} else
-		unpackd->inodesin[level] = 0;
+  if level < unpackd.treelevels {
+		unpackd_fill_inodesin(unpackd, level + 1)
+    unpackd.inodesin[level] = (unpackd.inodesin[level + 1] +
+                               unpackd.symbolsin[level + 1]) / 2
+  } else {
+    unpackd.inodesin[level] = 0
+  }
 }
 
 /*
  * Update counter for accepted bytes
  */
-static void
-accepted_bytes(off_t *bytes_in, off_t newbytes)
-{
+func accepted_bytes(_ bytes_in : inout off_t?, _ newbytes : off_t ) {
 
-	if (bytes_in != NULL)
-		(*bytes_in) += newbytes;
+  if bytes_in != nil {
+    bytes_in! += newbytes
+  }
 }
 
 /*
@@ -151,23 +150,23 @@ accepted_bytes(off_t *bytes_in, off_t newbytes)
  *
  * Return value is uncompressed size.
  */
-static void
-unpack_parse_header(int in, int out, char *pre, size_t prelen, off_t *bytes_in,
-    unpack_descriptor_t *unpackd)
-{
+func unpack_parse_header(int in, int out, char *pre, size_t prelen, off_t *bytes_in,
+    unpack_descriptor_t *unpackd) {
 	unsigned char hdr[PACK_HEADER_LENGTH];	/* buffer for header */
 	ssize_t bytesread;		/* Bytes read from the file */
 	int i, j, thisbyte;
 
 	/* Prepend the header buffer if we already read some data */
-	if (prelen != 0)
-		memcpy(hdr, pre, prelen);
+      if (prelen != 0) {
+        memcpy(hdr, pre, prelen);
+      }
 
 	/* Read in and fill the rest bytes of header */
 	bytesread = read(in, hdr + prelen, PACK_HEADER_LENGTH - prelen);
-	if (bytesread < 0)
-		maybe_err("Error reading pack header");
-	infile_newdata(bytesread);
+      if bytesread < 0 {
+        maybe_err("Error reading pack header");
+      }
+	infile_newdata(bytesread)
 
 	accepted_bytes(bytes_in, PACK_HEADER_LENGTH);
 
@@ -180,14 +179,17 @@ unpack_parse_header(int in, int out, char *pre, size_t prelen, off_t *bytes_in,
 
 	/* Get the levels of the tree */
 	unpackd->treelevels = hdr[6];
-	if (unpackd->treelevels > HTREE_MAXLEVEL || unpackd->treelevels < 1)
-		maybe_errx("Huffman tree has insane levels");
+      if (unpackd->treelevels > HTREE_MAXLEVEL || unpackd->treelevels < 1) {
+        maybe_errx("Huffman tree has insane levels");
+      }
 
 	/* Let libc take care for buffering from now on */
-	if ((unpackd->fpIn = fdopen(in, "r")) == NULL)
-		maybe_err("Can not fdopen() input stream");
-	if ((unpackd->fpOut = fdopen(out, "w")) == NULL)
-		maybe_err("Can not fdopen() output stream");
+      if ((unpackd->fpIn = fdopen(in, "r")) == NULL) {
+        maybe_err("Can not fdopen() input stream");
+      }
+      if ((unpackd->fpOut = fdopen(out, "w")) == NULL) {
+        maybe_err("Can not fdopen() output stream");
+      }
 
 	/* Allocate for the tables of bounds and the tree itself */
 	unpackd->inodesin =
@@ -197,8 +199,9 @@ unpack_parse_header(int in, int out, char *pre, size_t prelen, off_t *bytes_in,
 	unpackd->tree =
 	    calloc(unpackd->treelevels, (sizeof(*(unpackd->tree))));
 	if (unpackd->inodesin == NULL || unpackd->symbolsin == NULL ||
-	    unpackd->tree == NULL)
-		maybe_err("calloc");
+      unpackd->tree == NULL) {
+    maybe_err("calloc");
+  }
 
 	/* We count from 0 so adjust to match array upper bound */
 	unpackd->treelevels--;
@@ -206,20 +209,24 @@ unpack_parse_header(int in, int out, char *pre, size_t prelen, off_t *bytes_in,
 	/* Read the levels symbol count table and calculate total */
 	unpackd->symbol_size = 1;	/* EOB */
 	for (i = 0; i <= unpackd->treelevels; i++) {
-		if ((thisbyte = fgetc(unpackd->fpIn)) == EOF)
-			maybe_err("File appears to be truncated");
+    if ((thisbyte = fgetc(unpackd->fpIn)) == EOF) {
+      maybe_err("File appears to be truncated");
+    }
 		unpackd->symbolsin[i] = (unsigned char)thisbyte;
 		unpackd->symbol_size += unpackd->symbolsin[i];
 	}
 	accepted_bytes(bytes_in, unpackd->treelevels);
-	if (unpackd->symbol_size > 256)
-		maybe_errx("Bad symbol table");
+      if (unpackd->symbol_size > 256) {
+        maybe_errx("Bad symbol table");
+      }
 	infile_newdata(unpackd->treelevels);
 
 	/* Allocate for the symbol table, point symbol_eob at the beginning */
-	unpackd->symbol_eob = unpackd->symbol = calloc(1, unpackd->symbol_size);
-	if (unpackd->symbol == NULL)
-		maybe_err("calloc");
+      unpackd.symbol_eob = unpackd.symbol = calloc(1, unpackd->symbol_size);
+
+      if unpackd.symbol == nil {
+        maybe_err("calloc");
+      }
 
 	/*
 	 * Read in the symbol table, which contain [2, 256] symbols.
@@ -234,33 +241,32 @@ unpack_parse_header(int in, int out, char *pre, size_t prelen, off_t *bytes_in,
 	for (i = 0; i <= unpackd->treelevels; i++) {
 		unpackd->tree[i] = unpackd->symbol_eob;
 		for (j = 0; j < unpackd->symbolsin[i]; j++) {
-			if ((thisbyte = fgetc(unpackd->fpIn)) == EOF)
-				maybe_errx("Symbol table truncated");
+      if ((thisbyte = fgetc(unpackd->fpIn)) == EOF) {
+        maybe_errx("Symbol table truncated");
+      }
 			*unpackd->symbol_eob++ = (char)thisbyte;
 		}
-		infile_newdata(unpackd->symbolsin[i]);
-		accepted_bytes(bytes_in, unpackd->symbolsin[i]);
+    infile_newdata(unpackd.symbolsin[i]);
+    accepted_bytes(bytes_in, unpackd.symbolsin[i]);
 	}
 
 	/* Now, take account for the EOB symbol as well */
-	unpackd->symbolsin[unpackd->treelevels]++;
+      unpackd.symbolsin[unpackd.treelevels] += 1
 
 	/*
 	 * The symbolsin table has been constructed now.
 	 * Calculate the internal nodes count table based on it.
 	 */
-	unpackd_fill_inodesin(unpackd, 0);
+	unpackd_fill_inodesin(unpackd, 0)
 }
 
 /*
  * Decode huffman stream, based on the huffman tree.
  */
-static void
-unpack_decode(const unpack_descriptor_t *unpackd, off_t *bytes_in)
-{
-	int thislevel, thiscode, thisbyte, inlevelindex;
-	int i;
-	off_t bytes_out = 0;
+func unpack_decode(_ unpackd : unpack_descriptor_t, _ bytes_in : inout off_t) {
+//	int thislevel, thiscode, thisbyte, inlevelindex;
+//	int i;
+  var bytes_out : off_t = 0
 	const char *thissymbol;	/* The symbol pointer decoded from stream */
 
 	/*
@@ -271,8 +277,9 @@ unpack_decode(const unpack_descriptor_t *unpackd, off_t *bytes_in)
 	 * Assumption: sizeof(int) > ((max tree levels + 1) / 8).
 	 * bad things could happen if not.
 	 */
-	thislevel = 0;
-	thiscode = thisbyte = 0;
+	var thislevel = 0;
+	var thiscode = 0
+  var thisbyte = 0
 
 	while ((thisbyte = fgetc(unpackd->fpIn)) != EOF) {
 		accepted_bytes(bytes_in, 1);
@@ -291,45 +298,50 @@ unpack_decode(const unpack_descriptor_t *unpackd, off_t *bytes_in)
 			if (thiscode >= unpackd->inodesin[thislevel]) {
 				inlevelindex =
 				    thiscode - unpackd->inodesin[thislevel];
-				if (inlevelindex > unpackd->symbolsin[thislevel])
-					maybe_errx("File corrupt");
+        if (inlevelindex > unpackd->symbolsin[thislevel]) {
+          maybe_errx("File corrupt");
+        }
 
 				thissymbol =
 				    &(unpackd->tree[thislevel][inlevelindex]);
 				if ((thissymbol == unpackd->symbol_eob) &&
-				    (bytes_out == unpackd->uncompressed_size))
-					goto finished;
+            (bytes_out == unpackd->uncompressed_size)) {
+          goto finished;
+        }
 
 				fputc((*thissymbol), unpackd->fpOut);
-				bytes_out++;
+				bytes_out += 1
 
 				/* Prepare for next input */
-				thislevel = 0; thiscode = 0;
+				thislevel = 0
+        thiscode = 0
 			} else {
 				thislevel++;
-				if (thislevel > unpackd->treelevels)
-					maybe_errx("File corrupt");
+        if thislevel > unpackd.treelevels {
+          maybe_errx("File corrupt");
+        }
 			}
 		}
 	}
 
 finished:
-	if (bytes_out != unpackd->uncompressed_size)
-		maybe_errx("Premature EOF");
+  if (bytes_out != unpackd->uncompressed_size) {
+    maybe_errx("Premature EOF");
+  }
 }
 
 /* Handler for pack(1)'ed file */
-static off_t
-unpack(int in, int out, char *pre, size_t prelen, off_t *bytes_in)
-{
+func unpack(int in, int out, char *pre, size_t prelen, off_t *bytes_in) -> off_t {
 	unpack_descriptor_t unpackd;
 
 	in = dup(in);
-	if (in == -1)
-		maybe_err("dup");
+  if (in == -1) {
+    maybe_err("dup")
+  }
 	out = dup(out);
-	if (out == -1)
-		maybe_err("dup");
+  if (out == -1) {
+    maybe_err("dup")
+  }
 
 	unpack_parse_header(in, out, pre, prelen, bytes_in, &unpackd);
 	unpack_decode(&unpackd, bytes_in);

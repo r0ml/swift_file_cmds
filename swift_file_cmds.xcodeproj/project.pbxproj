@@ -96,6 +96,9 @@
 		E774082D2F10CE5200498517 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E774082C2F10CE5200498517 /* ShellTesting */; };
 		E774082F2F10CE5600498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E774082E2F10CE5600498517 /* CMigration */; };
 		E78DE7162E43A989001E00CA /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E78DE7152E43A989001E00CA /* ShellTesting */; };
+		E79E5DFD2F20059C00F3CB3F /* liblzma.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = E79E5DFC2F20059C00F3CB3F /* liblzma.tbd */; };
+		E79E5DFF2F2005AD00F3CB3F /* libz.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = E79E5DFE2F2005AD00F3CB3F /* libz.tbd */; };
+		E79E5E012F20071F00F3CB3F /* libbz2.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = E79E5E002F20071F00F3CB3F /* libbz2.tbd */; };
 		E7F4F75F2F1571B0000CC7E1 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E7F4F75E2F1571B0000CC7E1 /* ShellTesting */; };
 		E7F4F8AD2F184E37000CC7E1 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E7F4F8AC2F184E37000CC7E1 /* ShellTesting */; };
 /* End PBXBuildFile section */
@@ -637,6 +640,9 @@
 		E774FF2B2F02333E00498517 /* all.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = all.xctestplan; sourceTree = "<group>"; };
 		E774FFFB2F0239B700498517 /* mkdir */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = mkdir; sourceTree = BUILT_PRODUCTS_DIR; };
 		E78DE70D2E43A97E001E00CA /* chflagsTest.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = chflagsTest.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		E79E5DFC2F20059C00F3CB3F /* liblzma.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = liblzma.tbd; path = usr/lib/liblzma.tbd; sourceTree = SDKROOT; };
+		E79E5DFE2F2005AD00F3CB3F /* libz.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libz.tbd; path = usr/lib/libz.tbd; sourceTree = SDKROOT; };
+		E79E5E002F20071F00F3CB3F /* libbz2.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libbz2.tbd; path = usr/lib/libbz2.tbd; sourceTree = SDKROOT; };
 		E7A6AA562E428C1A001C9A44 /* chflags */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = chflags; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -1195,6 +1201,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E79E5E012F20071F00F3CB3F /* libbz2.tbd in Frameworks */,
+				E79E5DFF2F2005AD00F3CB3F /* libz.tbd in Frameworks */,
+				E79E5DFD2F20059C00F3CB3F /* liblzma.tbd in Frameworks */,
 				E77404EC2F06CF4D00498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1558,6 +1567,9 @@
 		E78DE7142E43A989001E00CA /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				E79E5E002F20071F00F3CB3F /* libbz2.tbd */,
+				E79E5DFE2F2005AD00F3CB3F /* libz.tbd */,
+				E79E5DFC2F20059C00F3CB3F /* liblzma.tbd */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";

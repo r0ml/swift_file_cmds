@@ -43,31 +43,31 @@
 
 /* This file is #included by gzip.c */
 
-static int	zread(void *, char *, int);
-
+/*
 #define	tab_prefixof(i)	(zs->zs_codetab[i])
 #define	tab_suffixof(i)	((char_type *)(zs->zs_htab))[i]
 #define	de_stack	((char_type *)&tab_suffixof(1 << BITS))
+*/
 
-#define BITS		16		/* Default bits. */
-#define HSIZE		69001		/* 95% occupancy */ /* XXX may not need HSIZE */
-#define BIT_MASK	0x1f		/* Defines for third byte of header. */
-#define BLOCK_MASK	0x80
-#define CHECK_GAP	10000		/* Ratio check interval. */
-#define BUFSIZE		(64 * 1024)
+let BITS = 16		/* Default bits. */
+let HSIZE = 69001		/* 95% occupancy */ /* XXX may not need HSIZE */
+let BIT_MASK = 0x1f		/* Defines for third byte of header. */
+let BLOCK_MASK = 0x80
+let CHECK_GAP = 10000		/* Ratio check interval. */
+let BUFSIZE = 64 * 1024
 
 /*                      
  * Masks 0x40 and 0x20 are free.  I think 0x20 should mean that there is
  * a fourth header byte (for expansion).
  */             
-#define INIT_BITS	9	/* Initial number of bits/code. */
+let INIT_BITS = 9	/* Initial number of bits/code. */
 
 /*
  * the next two codes should not be changed lightly, as they must not
  * lie within the contiguous general code space.
  */
-#define	FIRST	257		/* First free entry. */
-#define	CLEAR	256		/* Table clear output code. */
+let FIRST = 257		/* First free entry. */
+let CLEAR = 256		/* Table clear output code. */
 
 
 #define MAXCODE(n_bits)	((1 << (n_bits)) - 1)
@@ -76,11 +76,10 @@ typedef long	code_int;
 typedef long	count_int;
 typedef u_char	char_type;
 
-static char_type magic_header[] =
-	{'\037', '\235'};	/* 1F 9D */
+let magic_header : [UInt8] = [0x1f, 0x9d]
 
-static char_type rmask[9] =
-	{0x00, 0x01, 0x03, 0x07, 0x0f, 0x1f, 0x3f, 0x7f, 0xff};
+let rmask : [UInt8] = [0x00, 0x01, 0x03, 0x07, 0x0f, 0x1f, 0x3f, 0x7f, 0xff]
+
 
 static off_t total_compressed_bytes;
 static size_t compressed_prelen;
@@ -132,10 +131,8 @@ struct s_zstate {
 
 static code_int	getcode(struct s_zstate *zs);
 
-static off_t
-zuncompress(FILE *in, FILE *out, char *pre, size_t prelen,
-	    off_t *compressed_bytes)
-{
+func zuncompress(FILE *in, FILE *out, char *pre, size_t prelen,
+	    off_t *compressed_bytes) -> off_t {
 	off_t bin, bout = 0;
 	char *buf;
 
@@ -165,9 +162,7 @@ zuncompress(FILE *in, FILE *out, char *pre, size_t prelen,
 	return bout;
 }
 
-static int
-zclose(void *zs)
-{
+func zclose(void *zs) -> Int {
 	free(zs);
 	/* We leave the caller to close the fd passed to zdopen() */
 	return 0;

@@ -33,18 +33,8 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
 
-#include <stdarg.h>
-#include <errno.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <lzma.h>
-
-static off_t
-unxz(int i, int o, char *pre, size_t prelen, off_t *bytes_in)
-{
+func unxz(int i, int o, char *pre, size_t prelen, off_t *bytes_in) -> off_t {
 	lzma_stream strm = LZMA_STREAM_INIT;
 	static const int flags = LZMA_TELL_UNSUPPORTED_CHECK|LZMA_CONCATENATED;
 	lzma_ret ret;
@@ -118,7 +108,7 @@ unxz(int i, int o, char *pre, size_t prelen, off_t *bytes_in)
 				if (strm.avail_in != 0 || read(i, ibuf, 1))
 					ret = LZMA_DATA_ERROR;
 				else {
-					lzma_end(&strm);
+					lzma_end(&strm)
 					return bytes_out;
 				}
 			}
@@ -225,26 +215,26 @@ io_pread(int fd, io_buf *buf, size_t size, off_t pos)
 
 
 /// Information about a .xz file
-typedef struct {
+struct xz_file_info {
 	/// Combined Index of all Streams in the file
-	lzma_index *idx;
+  var idx : lzma_index? = nil
 
 	/// Total amount of Stream Padding
-	uint64_t stream_padding;
+  var stream_padding : UInt = 0
 
 	/// Highest memory usage so far
-	uint64_t memusage_max;
+  var memusage_max : UInt = 0
 
 	/// True if all Blocks so far have Compressed Size and
 	/// Uncompressed Size fields
-	bool all_have_sizes;
+  var all_have_sizes : Bool = true
 
 	/// Oldest XZ Utils version that will decompress the file
-	uint32_t min_version;
+  var min_version : UInt = 50000002
 
-} xz_file_info;
+}
 
-#define XZ_FILE_INFO_INIT { NULL, 0, 0, true, 50000002 }
+var XZ_FILE_INFO_INIT = xz_file_info()
 
 
 /// \brief      Parse the Index(es) from the given .xz file
@@ -258,18 +248,21 @@ typedef struct {
 // TODO: This function is pretty big. liblzma should have a function that
 // takes a callback function to parse the Index(es) from a .xz file to make
 // it easy for applications.
-static bool
-parse_indexes(xz_file_info *xfi, int src_fd)
-{
-	struct stat st;
+func parse_indexes(_ xfi : xz_file_info, _ src_fd : FileDescriptor) -> Bool {
 
-	if (fstat(src_fd, &st) != 0) {
-		return true;
+  guard let st = try? FileMetadata(for: src_fd) else {
+		return true
 	}
 
-	if (st.st_size < 2 * LZMA_STREAM_HEADER_SIZE) {
-		return true;
+	if st.size < 2 * LZMA_STREAM_HEADER_SIZE {
+		return true
 	}
+
+  defer {
+    lzma_end(&strm);
+    lzma_index_end(combined_index, NULL);
+    lzma_index_end(this_index, NULL);
+  }
 
 	io_buf buf;
 	lzma_stream_flags header_flags;
@@ -465,9 +458,7 @@ error:
 /*
  * Small wrapper to extract total length of a file
  */
-off_t
-unxz_len(int fd)
-{
+func unxz_len(int fd) -> off_t {
 	xz_file_info xfi = XZ_FILE_INFO_INIT;
 	if (!parse_indexes(&xfi, fd)) {
 		off_t res = lzma_index_uncompressed_size(xfi.idx);

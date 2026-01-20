@@ -33,12 +33,6 @@
  *
  */
 
-#include <sys/cdefs.h>
-#ifndef lint
-__COPYRIGHT("@(#) Copyright (c) 1997, 1998, 2003, 2004, 2006, 2008,\
- 2009, 2010, 2011, 2015, 2017 Matthew R. Green.  All rights reserved.");
-__FBSDID("$FreeBSD$");
-#endif /* not lint */
 
 /*
  * gzip.c -- GPL free gzip using zlib.
@@ -52,40 +46,7 @@ __FBSDID("$FreeBSD$");
  *	- make bzip2/compress -v/-t/-l support work as well as possible
  */
 
-#ifndef __APPLE__
-#include <sys/endian.h>
-#endif
-#include <sys/param.h>
-#include <sys/stat.h>
-#include <sys/time.h>
-
-#include <inttypes.h>
-#include <unistd.h>
 #ifdef __APPLE__
-#include <signal.h>
-#endif
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <err.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <zlib.h>
-#include <fts.h>
-#include <libgen.h>
-#include <stdarg.h>
-#include <getopt.h>
-#include <time.h>
-
-#ifdef __APPLE__
-#include <sys/attr.h>
-#include <copyfile.h>
-#include <get_compat.h>
-int futimens(int fd, const struct timespec times[2]);
-
-#define	st_atim	st_atimespec
-#define	st_mtim	st_mtimespec
-
 /* from sys/param.h */
 #define	nitems(x)	(sizeof((x)) / sizeof((x)[0]))
 
@@ -101,77 +62,56 @@ le32dec(const void *pp)
 
 /* what type of file are we dealing with */
 enum filetype {
-	FT_GZIP,
-#ifndef NO_BZIP2_SUPPORT
-	FT_BZIP2,
-#endif
-#ifndef NO_COMPRESS_SUPPORT
-	FT_Z,
-#endif
-#ifndef NO_PACK_SUPPORT
-	FT_PACK,
-#endif
-#ifndef NO_XZ_SUPPORT
-	FT_XZ,
-#endif
-#ifndef NO_LZ_SUPPORT
-	FT_LZ,
-#endif
-	FT_LAST,
-	FT_UNKNOWN
-};
+	case GZIP
+	case BZIP2
+	case Z
+	case PACK
+	case XZ
+	case LZ
+	case LAST
+	case UNKNOW
+}
 
-#ifndef NO_BZIP2_SUPPORT
-#include <bzlib.h>
+import bz2
 
-#define BZ2_SUFFIX	".bz2"
-#define BZIP2_MAGIC	"BZh"
-#endif
+let BZ2_SUFFIX = ".bz2"
+let BZIP2_MAGIC = "BZh"
 
-#ifndef NO_COMPRESS_SUPPORT
-#define Z_SUFFIX	".Z"
-#define Z_MAGIC		"\037\235"
-#endif
+let Z_SUFFIX = ".Z"
+let Z_MAGIC	= "\037\235"
 
-#ifndef NO_PACK_SUPPORT
-#define PACK_MAGIC	"\037\036"
-#endif
+let PACK_MAGIC = "\037\036"
 
-#ifndef NO_XZ_SUPPORT
-#include <lzma.h>
-#define XZ_SUFFIX	".xz"
-#define XZ_MAGIC	"\3757zXZ"
-#endif
+import lzma
+let XZ_SUFFIX = ".xz"
+let XZ_MAGIC = "\3757zXZ"
 
-#ifndef NO_LZ_SUPPORT
-#define LZ_SUFFIX	".lz"
-#define LZ_MAGIC	"LZIP"
-#endif
+let LZ_SUFFIX = ".lz"
+let LZ_MAGIC = "LZIP"
 
-#define GZ_SUFFIX	".gz"
+let GZ_SUFFIX = ".gz"
 
-#define BUFLEN		(64 * 1024)
+let BUFLEN = 64 * 1024
 
-#define GZIP_MAGIC0	0x1F
-#define GZIP_MAGIC1	0x8B
-#define GZIP_OMAGIC1	0x9E
+let GZIP_MAGIC0 = 0x1F
+let GZIP_MAGIC1 = 0x8B
+let GZIP_OMAGIC1 = 0x9E
 
-#define GZIP_TIMESTAMP	(off_t)4
-#define GZIP_ORIGNAME	(off_t)10
+let GZIP_TIMESTAMP = 4
+let GZIP_ORIGNAME	= 10
 
-#define HEAD_CRC	0x02
-#define EXTRA_FIELD	0x04
-#define ORIG_NAME	0x08
-#define COMMENT		0x10
+let HEAD_CRC = 0x02
+let EXTRA_FIELD = 0x04
+let ORIG_NAME = 0x08
+let COMMENT = 0x10
 
-#define OS_CODE		3	/* Unix */
+let OS_CODE = 3	/* Unix */
 
-typedef struct {
-    const char	*zipped;
-    int		ziplen;
-    const char	*normal;	/* for unzip - must not be longer than zipped */
-} suffixes_t;
-static suffixes_t suffixes[] = {
+struct suffixes_t {
+  var zipped : String
+  var normal : String	/* for unzip - must not be longer than zipped */
+}
+var suffixes : suffixes_t {
 #define	SUFFIX(Z, N) {Z, sizeof Z - 1, N}
 	SUFFIX(GZ_SUFFIX,	""),	/* Overwritten by -S .xxx */
 #ifndef SMALL

@@ -38,6 +38,11 @@
 import CMigration
 import Darwin
 
+func howmany(_ x : Int, _ y : Int) -> Int {
+  return x / y + ((x % y) == 0 ? 0 : 1) /* # y's == x bits? */
+}
+
+
 extension ls {
 
 
@@ -49,7 +54,7 @@ extension ls {
    * traversal it passes linked lists of structures to display() which represent
    * a superset (may be exact set) of the files to be displayed.
    */
-  func traverse() {
+  func traverse(_ args :[String], _ ff : FTSFlags) {
     //    FTSENT *p, *chp;
     //    int ch_options, error;
 
@@ -113,7 +118,7 @@ extension ls {
            * directory with its name.
            */
           if (output) {
-            putchar('\n');
+            print("")
             printname(p.path)
             print(":")
           } else if (argc > 1) {

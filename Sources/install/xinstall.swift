@@ -42,114 +42,111 @@ let BACKUP_SUFFIX = ".old"
 
 @main struct xinstall : ShellCommand {
 
-  
+  /*
+   * Memory strategy threshold, in pages: if physmem is larger than this, use a
+   * large buffer.
+   */
+  let PHYSPAGES_THRESHOLD = 32*1024
 
-/*
- * Memory strategy threshold, in pages: if physmem is larger than this, use a
- * large buffer.
- */
-let PHYSPAGES_THRESHOLD = 32*1024
+  /* Maximum buffer size in bytes - do not allow it to grow larger than this. */
+  let BUFSIZE_MAX = 2*1024*1024
 
-/* Maximum buffer size in bytes - do not allow it to grow larger than this. */
-let BUFSIZE_MAX = 2*1024*1024
+  /*
+   * Small (default) buffer size in bytes. It's inefficient for this to be
+   * smaller than MAXPHYS.
+   */
+  let BUFSIZE_SMALL = MAXPHYS
 
-/*
- * Small (default) buffer size in bytes. It's inefficient for this to be
- * smaller than MAXPHYS.
- */
-let BUFSIZE_SMALL = MAXPHYS
+  /*
+   * We need to build xinstall during the bootstrap stage when building on a
+   * non-FreeBSD system. Linux does not have the st_flags and st_birthtime
+   * members in struct stat so we need to omit support for changing those fields.
+   */
 
-/*
- * We need to build xinstall during the bootstrap stage when building on a
- * non-FreeBSD system. Linux does not have the st_flags and st_birthtime
- * members in struct stat so we need to omit support for changing those fields.
- */
+  let MAX_CMP_SIZE = 16 * 1024 * 1024
 
-let MAX_CMP_SIZE = 16 * 1024 * 1024
+  struct LinkTypes : OptionSet {
+    var rawValue : UInt32
 
-struct LinkTypes : OptionSet {
-  var rawValue : UInt32
+    static var ABSOLUTE = Self(rawValue: 0x01)
+    static var RELATIVE = Self(rawValue: 0x02)
+    static var HARD = Self(rawValue: 0x04)
+    static var SYMBOLIC = Self(rawValue: 0x08)
+    static var MIXED = Self(rawValue: 0x10)
+  }
 
-  static var ABSOLUTE = Self(rawValue: 0x01)
-  static var RELATIVE = Self(rawValue: 0x02)
-  static var HARD = Self(rawValue: 0x04)
-  static var SYMBOLIC = Self(rawValue: 0x08)
-  static var MIXED = Self(rawValue: 0x10)
-}
+  let DIRECTORY : UInt32 = 0x01		/* Tell install it's a directory. */
+  let SETFLAGS	: UInt32 = 0x02		/* Tell install to set flags. */
+  let NOCHANGEBITS : FileFlags = [.UF_IMMUTABLE, .UF_APPEND, .SF_IMMUTABLE, .SF_APPEND]
 
-/*
-#define	DIRECTORY	0x01		/* Tell install it's a directory. */
-#define	SETFLAGS	0x02		/* Tell install to set flags. */
-#define	NOCHANGEBITS	(UF_IMMUTABLE | UF_APPEND | SF_IMMUTABLE | SF_APPEND)
-*/
+  /*
+   typedef union {
+   #ifdef WITH_DIGESTS
+   #ifdef WITH_MD5
+   MD5_CTX		MD5;
+   #endif
+   #ifdef WITH_RIPEMD160
+   RIPEMD160_CTX	RIPEMD160;
+   #endif
+   SHA1_CTX	SHA1;
+   SHA256_CTX	SHA256;
+   SHA512_CTX	SHA512;
+   #endif /* WITH_DIGESTS */
+   }	DIGEST_CTX;
+   */
 
-/*
-typedef union {
-#ifdef WITH_DIGESTS
-#ifdef WITH_MD5
-	MD5_CTX		MD5;
-#endif
-#ifdef WITH_RIPEMD160
-	RIPEMD160_CTX	RIPEMD160;
-#endif
-	SHA1_CTX	SHA1;
-	SHA256_CTX	SHA256;
-	SHA512_CTX	SHA512;
-#endif /* WITH_DIGESTS */
-}	DIGEST_CTX;
-*/
+  enum Digest : Int32 {
+    case NONE = 0
+    case SHA1
+    case SHA256
+    case SHA512
 
-enum Digest : Int32 {
-	case NONE = 0
-	case SHA1
-	case SHA256
-	case SHA512
-
-  init?(_ s : String) {
-    switch s {
-      case "none": self = .NONE
-      case "sha1": self = .SHA1
-      case "sha256": self = .SHA256
-      case "sha512": self = .SHA512
-      default: return nil
+    init?(_ s : String) {
+      switch s {
+        case "none": self = .NONE
+        case "sha1": self = .SHA1
+        case "sha256": self = .SHA256
+        case "sha512": self = .SHA512
+        default: return nil
+      }
     }
   }
-}
 
-struct CommandOptions {
-  var gid : UInt?
-  var uid : UInt?
-  var dobackup = false
-  var docompare = false
-  var dodir = false
-  var dolink = LinkTypes()
-  var dopreserve = false
-  var dostrip = false
-  var dounpriv = false
-  var safecopy = false
-  var verbose = 0
+  struct CommandOptions {
+    var gid : UInt?
+    var uid : UInt?
+    var dobackup = false
+    var docompare = false
+    var dodir = false
+    var dolink = LinkTypes()
+    var dopreserve = false
+    var dostrip = false
+    var dounpriv = false
+    var safecopy = false
+    var verbose = 0
 
-  var haveopt_f = false
-  var haveopt_g = false
-  var haveopt_m = false
-  var haveopt_o = false
+    var haveopt_f = false
+    var haveopt_g = false
+    var haveopt_m = false
+    var haveopt_o = false
 
-  var digesttype = Digest.NONE
+    var digesttype = Digest.NONE
 
-  var owner : String?
-  var group : String?
-  var digest : String?
-  var fflags : String?
-  var metafile : String?
-  var tags : String?
+    var owner : String?
+    var group : String?
+    var digest : String?
+    var fflags : String?
+    var metafile : String?
+    var tags : String?
 
-  var destdir : String?
-  var suffix = BACKUP_SUFFIX
+    var destdir : String?
+    var suffix = BACKUP_SUFFIX
 
-  var setx : String?
+    var metafp : FileDescriptor?
 
-  var args : [String] = []
-}
+
+    var args : [String] = []
+  }
   /*
    static FILE *metafp;
    static const char *group, *owner;
@@ -176,7 +173,6 @@ struct CommandOptions {
    */
 
   func uid_from_user(_ name : String) -> UInt? {
-    CommonCrypto.sha1
     if let pp = getpwnam(name) {
       return UInt(pp.pointee.pw_uid)
     }
@@ -184,7 +180,7 @@ struct CommandOptions {
     return nil
   }
 
-func gid_from_group(_ name : String) -> UInt? {
+  func gid_from_group(_ name : String) -> UInt? {
     if let gp = getgrnam(name) {
       return UInt(gp.pointee.gr_gid)
     }
@@ -194,275 +190,269 @@ func gid_from_group(_ name : String) -> UInt? {
 
   var options : CommandOptions!
 
-func parseOptions() throws(CmdErr) -> CommandOptions {
-  /*    struct stat from_sb, to_sb;
-   mode_t *set;
-   u_long fset;
-   int ch, no_target;
-   u_int iflags;
-   char *p;
-   const char *to_name;
+  func parseOptions() throws(CmdErr) -> CommandOptions {
+    /*    struct stat from_sb, to_sb;
+     mode_t *set;
+     u_long fset;
+     int ch, no_target;
+     u_int iflags;
+     char *p;
+     const char *to_name;
 
-   fset = 0;
-   iflags = 0;
-   set = NULL;
-   group = owner = NULL;
-   */
+     fset = 0;
+     iflags = 0;
+     set = NULL;
+     group = owner = NULL;
+     */
 
-  var options = CommandOptions()
-  let go = BSDGetopt("B:bCcD:df:g:h:l:M:m:N:o:pSsT:Uv")
-  while let (k,v) = try go.getopt() {
-    switch k {
-      case "B":
-        options.suffix = v
-        fallthrough
-      case "b":
-        options.dobackup = true
+    var setx : UnsafeMutableRawPointer?
 
-      case "C":
-        options.docompare = true
-      case "c":
-        /* For backwards compatibility. */
-        break
-      case "D":
-        options.destdir = v
-      case "d":
-        options.dodir = true
-      case "f":
-        options.haveopt_f = true
-        options.fflags = v
-      case "g":
-        options.haveopt_g = true
-        options.group = v
-      case "h":
-        options.digest = v
-      case "l":
-        for p in v {
-          switch p {
-            case "s":
-              options.dolink.remove([.HARD, .MIXED])
-              options.dolink.insert(.SYMBOLIC)
-            case "h":
-              options.dolink.remove([.SYMBOLIC, .MIXED])
-              options.dolink.insert(.HARD)
-            case "m":
-              options.dolink.remove([.SYMBOLIC, .HARD])
-              options.dolink.insert(.MIXED)
-            case "a":
-              options.dolink.remove(.RELATIVE)
-              options.dolink.insert(.ABSOLUTE)
-            case "r":
-              options.dolink.remove(.ABSOLUTE)
-              options.dolink.insert(.RELATIVE)
-            default:
-              errx(1, "\(p): invalid link type")
+    var options = CommandOptions()
+    let go = BSDGetopt("B:bCcD:df:g:h:l:M:m:N:o:pSsT:Uv")
+    while let (k,v) = try go.getopt() {
+      switch k {
+        case "B":
+          options.suffix = v
+          fallthrough
+        case "b":
+          options.dobackup = true
+
+        case "C":
+          options.docompare = true
+        case "c":
+          /* For backwards compatibility. */
+          break
+        case "D":
+          options.destdir = v
+        case "d":
+          options.dodir = true
+        case "f":
+          options.haveopt_f = true
+          options.fflags = v
+        case "g":
+          options.haveopt_g = true
+          options.group = v
+        case "h":
+          options.digest = v
+        case "l":
+          for p in v {
+            switch p {
+              case "s":
+                options.dolink.remove([.HARD, .MIXED])
+                options.dolink.insert(.SYMBOLIC)
+              case "h":
+                options.dolink.remove([.SYMBOLIC, .MIXED])
+                options.dolink.insert(.HARD)
+              case "m":
+                options.dolink.remove([.SYMBOLIC, .HARD])
+                options.dolink.insert(.MIXED)
+              case "a":
+                options.dolink.remove(.RELATIVE)
+                options.dolink.insert(.ABSOLUTE)
+              case "r":
+                options.dolink.remove(.ABSOLUTE)
+                options.dolink.insert(.RELATIVE)
+              default:
+                errx(1, "\(p): invalid link type")
+            }
           }
-        }
-      case "M":
-        options.metafile = v
-      case "m":
-        options.haveopt_m = true
-        guard let s = setmode(v) else {
-          errx(Int(EX_USAGE), "invalid file mode: \(v)")
-        }
-        options.setx = s
+        case "M":
+          options.metafile = v
+        case "m":
+          options.haveopt_m = true
+          guard let s = setmode(v) else {
+            errx(Int(EX_USAGE), "invalid file mode: \(v)")
+          }
+          setx = s
 
-      case "o":
-        options.haveopt_o = true
-        options.owner = v
-      case "p":
-        options.docompare = true
-        options.dopreserve = true
-      case "S":
-        options.safecopy = true
-      case "s":
-        options.dostrip = true
-      case "T":
-        options.tags = v
-      case "U":
-        options.dounpriv = true
-      case "v":
-        options.verbose = 1
-      case "?":
-        fallthrough
-      default:
-        throw CmdErr(1)
-    }
-  }
-  options.args = go.remaining
-
-  /* some options make no sense when creating directories */
-  if options.dostrip && options.dodir {
-    throw CmdErr(1, "-d and -s may not be specified together")
-  }
-
-  /*
-   * Default permissions based on whether we're a directory or not, since
-   * an +X may mean that we need to set the execute bit.
-   */
-  if (set != NULL) {
-    mode = getmode(set, dodir ? S_IFDIR : 0) & ~S_IFDIR;
-  }
-  free(set);
-
-  if let _ = Environment["DONTSTRIP"] {
-    warnx("DONTSTRIP set - will not strip installed binaries");
-    options.dostrip = false
-  }
-
-  /* must have at least two arguments, except when creating directories */
-  if options.args.isEmpty || (options.args.count == 1 && !options.dodir) {
-    throw CmdErr(1)
-  }
-
-
-  if let d = options.digest {
-    if let x = Digest(d) {
-      options.digesttype = x
-    } else {
-      throw CmdErr(1, "unknown digest '\(d)'")
-    }
-  }
-
-
-  /* get group and owner id's */
-  if let g = options.group,
-     !options.dounpriv {
-    if let gid = gid_from_group(g) {
-      options.gid = gid
-    } else {
-      guard let id = parseid(g) else {
-        errx(1, "unknown group \(g)")
-        fatalError()
+        case "o":
+          options.haveopt_o = true
+          options.owner = v
+        case "p":
+          options.docompare = true
+          options.dopreserve = true
+        case "S":
+          options.safecopy = true
+        case "s":
+          options.dostrip = true
+        case "T":
+          options.tags = v
+        case "U":
+          options.dounpriv = true
+        case "v":
+          options.verbose = 1
+        case "?":
+          fallthrough
+        default:
+          throw CmdErr(1)
       }
-      options.gid = id
     }
-  } else {
-    options.gid = nil
-  }
+    options.args = go.remaining
 
-  if let o = options.owner,
-     !options.dounpriv {
-    if (uid_from_user(owner, &uid) == -1) {
-      id_t id;
-      if (!parseid(owner, &id)) {
-        errx(1, "unknown user %s", owner);
+    /* some options make no sense when creating directories */
+    if options.dostrip && options.dodir {
+      throw CmdErr(1, "-d and -s may not be specified together")
+    }
+
+    /*
+     * Default permissions based on whether we're a directory or not, since
+     * an +X may mean that we need to set the execute bit.
+     */
+    if let setx {
+      mode = getmode(setx, options.dodir ? FileType.directory.rawValue : 0) // & ~S_IFDIR;
+    }
+    free(setx)
+
+    if let _ = Environment["DONTSTRIP"] {
+      warnx("DONTSTRIP set - will not strip installed binaries");
+      options.dostrip = false
+    }
+
+    /* must have at least two arguments, except when creating directories */
+    if options.args.isEmpty || (options.args.count == 1 && !options.dodir) {
+      throw CmdErr(1)
+    }
+
+
+    if let d = options.digest {
+      if let x = Digest(d) {
+        options.digesttype = x
+      } else {
+        throw CmdErr(1, "unknown digest '\(d)'")
       }
-      options.uid = id
     }
-  } else {
-    options.uid = nil
-  }
 
-  if let ff = options.fflags,
-     !options.dounpriv {
-    if (strtofflags(ff, &fset, NULL)) {
-      errx(EX_USAGE, "%s: invalid flag", fflags);
-    }
-    options.iflags |= SETFLAGS;
-  }
 
-  if let m = options.metafile {
-
-  } else {
-    options.digesttype = .NONE
-  }
-
-  return options
-}
-
-func runCommand() async throws(CmdErr) {
-
-  if let m = options.metafile {
-    if let metafp = try? FileDescriptor.open(m, .writeOnly, options: [.append] ) {
+    /* get group and owner id's */
+    if let g = options.group,
+       !options.dounpriv {
+      if let gid = gid_from_group(g) {
+        options.gid = gid
+      } else {
+        guard let id = parseid(g) else {
+          errx(1, "unknown group \(g)")
+          fatalError()
+        }
+        options.gid = id
+      }
     } else {
+      options.gid = nil
+    }
+
+    if let o = options.owner,
+       !options.dounpriv {
+      if (uid_from_user(owner, &uid) == -1) {
+        id_t id;
+        if (!parseid(owner, &id)) {
+          errx(1, "unknown user %s", owner);
+        }
+        options.uid = id
+      }
+    } else {
+      options.uid = nil
+    }
+
+    if let ff = options.fflags,
+       !options.dounpriv {
+      if (strtofflags(ff, &fset, NULL)) {
+        errx(EX_USAGE, "\(fflags): invalid flag")
+      }
+      options.iflags |= SETFLAGS;
+    }
+
+    if let m = options.metafile {
+
+    } else {
+      options.digesttype = .NONE
+    }
+
+    if let m = options.metafile {
+      if let metafp = try? FileDescriptor.open(m, .writeOnly, options: [.append] ) {
+        options.metafp = metafp
+      } else {
         warn("open \(m)")
       }
     }
 
+    return options
+  }
 
 
-  if options.dodir {
-      for (; *argv != NULL; ++argv) {
-        install_dir(*argv);
+  func runCommand() async throws(CmdErr) {
+
+
+    if options.dodir {
+      for argv in options.args {
+        install_dir(argv)
       }
       exit(EX_OK);
-      /* NOTREACHED */
     }
 
-    to_name = argv[argc - 1];
-    no_target = stat(to_name, &to_sb);
-    if (!no_target && S_ISDIR(to_sb.st_mode)) {
-      if (dolink & LN_SYMBOLIC) {
-        if (lstat(to_name, &to_sb) != 0) {
-          err(EX_OSERR, "%s vanished", to_name);
+    var to_name = options.args.last!
+    var to_sb = try? FileMetadata(for: to_name)
+    if to_sb != nil, to_sb!.filetype == .directory {
+      if options.dolink.contains(.SYMBOLIC) {
+        to_sb = try? FileMetadata(for: to_name, followSymlinks: false)
+        guard let to_sb else {
+          err(Int(EX_OSERR), "\(to_name) vanished")
         }
-        if (S_ISLNK(to_sb.st_mode)) {
-          if (argc != 2) {
-            errc(EX_CANTCREAT, ENOTDIR, "%s",
-                 to_name);
+        if to_sb.filetype == .symbolicLink {
+          if options.args.count != 2 {
+            errc(Int(EX_CANTCREAT), ENOTDIR, to_name)
           }
-          install(*argv, to_name, fset, iflags);
+          install(options.args[0], to_name, fset, iflags);
           exit(EX_OK);
         }
       }
-      for (; *argv != to_name; ++argv) {
-        install(*argv, to_name, fset, iflags | DIRECTORY);
+      for argv in options.args.dropLast() {
+        install(argv, to_name, fset, iflags | DIRECTORY)
       }
       exit(EX_OK);
-      /* NOTREACHED */
     }
 
     /* can't do file1 file2 directory/file */
-    if (argc != 2) {
-      if (no_target) {
-        warnx("target directory `%s' does not exist",
-              argv[argc - 1]);
+    if options.args.count != 2 {
+      if to_sb == nil {
+        warnx("target directory '\(to_name)' does not exist")
       }
       else {
-        warnx("target `%s' is not a directory",
-              argv[argc - 1]);
+        warnx("target `\(to_name)' is not a directory")
       }
-      usage();
+      throw CmdErr(1, usage)
     }
 
-    if (!no_target && !dolink) {
-      if (stat(*argv, &from_sb)) {
-        err(EX_OSERR, "%s", *argv);
+    if to_sb != nil && options.dolink.isEmpty {
+      let argv = options.args[0]
+      guard let from_sb = try? FileMetadata(for: argv) else {
+        err(Int(EX_OSERR), argv)
       }
-      if (!S_ISREG(to_sb.st_mode)) {
-        errno = EFTYPE;
-        err(EX_OSERR, "%s", to_name);
+      if to_sb!.filetype != .regular {
+        errno = EFTYPE
+        err(Int(EX_OSERR), to_name)
       }
-      if (to_sb.st_dev == from_sb.st_dev &&
-          to_sb.st_ino == from_sb.st_ino) {
-        errx(EX_USAGE,
-             "%s and %s are the same file", *argv, to_name);
+      if to_sb!.device == from_sb.device && to_sb!.inode == from_sb.inode {
+        errx(Int(EX_USAGE), "\(argv) and \(to_name) are the same file")
       }
     }
-    install(*argv, to_name, fset, iflags);
-    exit(EX_OK);
+    install(argv, to_name, fset, iflags)
+    exit(EX_OK)
     /* NOTREACHED */
   }
 
-  func digest_file(const char *name) -> [UInt8]?
-  {
-
-    switch (digesttype) {
-
-
-      case DIGEST_SHA1:
+  func digest_file(_ name : String) -> [UInt8]? {
+    switch options.digesttype {
+      case .SHA1:
         return (SHA1_File(name, NULL));
-      case DIGEST_SHA256:
+      case .SHA256:
         return (SHA256_File(name, NULL));
-      case DIGEST_SHA512:
+      case .SHA512:
         return (SHA512_File(name, NULL));
       default:
-        return (NULL);
+        return nil
     }
   }
 
-  func digest_init(DIGEST_CTX *c) {
+  func digest_init(_ c : DIGEST_CTX) {
 
     switch (digesttype) {
       case DIGEST_NONE:
@@ -481,39 +471,34 @@ func runCommand() async throws(CmdErr) {
     }
   }
 
-  func digest_update(DIGEST_CTX *c, const char *data, size_t len)
-  {
-
-    switch (digesttype) {
-      case DIGEST_NONE:
+  func digest_update(_ c : DIGEST_CTX, _ data : [UInt8], _ len : size_t) {
+    switch options.digesttype {
+      case .NONE:
         break;
 
 
-      case DIGEST_SHA1:
+      case .SHA1:
         SHA1_Update(&(c->SHA1), data, len);
         break;
-      case DIGEST_SHA256:
+      case .SHA256:
         SHA256_Update(&(c->SHA256), data, len);
         break;
-      case DIGEST_SHA512:
+      case .SHA512:
         SHA512_Update(&(c->SHA512), data, len);
         break;
     }
   }
 
-func digest_end(DIGEST_CTX *c, char *buf) -> [UInt8]? {
-
-    switch (digesttype) {
-
-
-      case DIGEST_SHA1:
+  func digest_end(_ c : DIGEST_CTX, _ buf : [UInt8]) -> [UInt8]? {
+    switch options.digesttype {
+      case .SHA1:
         return (SHA1_End(&(c->SHA1), buf));
-      case DIGEST_SHA256:
+      case .SHA256:
         return (SHA256_End(&(c->SHA256), buf));
-      case DIGEST_SHA512:
+      case .SHA512:
         return (SHA512_End(&(c->SHA512), buf));
       default:
-        return (NULL);
+        return nil
     }
   }
 
@@ -521,9 +506,9 @@ func digest_end(DIGEST_CTX *c, char *buf) -> [UInt8]? {
    * parseid --
    *	parse uid or gid from arg into id, returning non-zero if successful
    */
-func parseid(_ name : String) -> UInt? {
-  return UInt(name)
-}
+  func parseid(_ name : String) -> UInt? {
+    return UInt(name)
+  }
 
   /*
    * quiet_mktemp --
@@ -551,9 +536,7 @@ func parseid(_ name : String) -> UInt? {
    *	make a hard link, obeying dorename if set
    *	return -1 on failure
    */
-  func do_link(const char *from_name, const char *to_name,
-          const struct stat *target_sb) -> Int
-  {
+  func do_link(_ from_name : String, _ to_name : String, _ target_sb : FileMetadata?) -> Int {
     char tmpl[MAXPATHLEN];
     int ret;
 
@@ -602,9 +585,7 @@ func parseid(_ name : String) -> UInt? {
    * do_symlink --
    *	Make a symbolic link, obeying dorename if set. Exit on failure.
    */
-  func do_symlink(const char *from_name, const char *to_name,
-             const struct stat *target_sb)
-  {
+  func do_symlink(_ from_name : String, _ to_name : String, _ target_sb : FileMetadata?) {
     char tmpl[MAXPATHLEN];
 
     if (target_sb != NULL) {
@@ -652,9 +633,7 @@ func parseid(_ name : String) -> UInt? {
    * makelink --
    *	make a link from source to destination
    */
-    func makelink(const char *from_name, const char *to_name,
-           const struct stat *target_sb)
-  {
+  func makelink(_ from_name : String, _ to_name : String, _ target_sb : FileMetadata?) {
     char src[MAXPATHLEN], dst[MAXPATHLEN], lnk[MAXPATHLEN];
     char *to_name_copy, *d, *ld, *ls, *s;
     const char *base, *dir;
@@ -820,88 +799,89 @@ func parseid(_ name : String) -> UInt? {
    * install --
    *	build a path name and install the file
    */
-  func
-  install(const char *from_name, const char *to_name, u_long fset, u_int flags)
-  {
-    struct stat from_sb, temp_sb, to_sb;
-    struct timespec tsb[2];
-    int devnull, files_match, from_fd, serrno, stripped, target;
-    int temp_fd, to_fd;
-    char backup[MAXPATHLEN], *p, pathbuf[MAXPATHLEN], tempfile[MAXPATHLEN];
-    char *digestresult;
+  func install(_ from_name : String, _ to_name : String, _ fset : UInt, _ flags : UInt32) {
+//    struct stat from_sb, temp_sb, to_sb;
+//    struct timespec tsb[2];
+//    int devnull, files_match, from_fd, serrno, stripped, target;
+//    int temp_fd, to_fd;
+//    char backup[MAXPATHLEN], *p, pathbuf[MAXPATHLEN], tempfile[MAXPATHLEN];
+//    char *digestresult;
 
-    digestresult = NULL;
+//    digestresult = NULL;
     files_match = stripped = 0;
-    from_fd = -1;
-    to_fd = -1;
+//    from_fd = -1;
+//    to_fd = -1;
+
+    var devnull = false
 
     /* If try to install NULL file to a directory, fails. */
-    if (flags & DIRECTORY || strcmp(from_name, _PATH_DEVNULL)) {
-      if (!dolink) {
-        if (stat(from_name, &from_sb)) {
-          err(EX_OSERR, "%s", from_name);
+    if 0 != (flags & DIRECTORY) || from_name != _PATH_DEVNULL {
+      if !options.dolink {
+        guard let from_sb = try? FileMetadata(for: from_name) else {
+          err(Int(EX_OSERR), from_name)
+          fatalError()
         }
-        if (!S_ISREG(from_sb.st_mode)) {
-          errc(EX_OSERR, EFTYPE, "%s", from_name);
+        if from_sb.filetype != .regular {
+          errno = EFTYPE
+          err(Int(EX_OSERR), from_name)
         }
       }
       /* Build the target path. */
-      if (flags & DIRECTORY) {
-        (void)snprintf(pathbuf, sizeof(pathbuf), "%s%s%s",
-                       to_name,
-                       to_name[strlen(to_name) - 1] == '/' ? "" : "/",
-                       (p = strrchr(from_name, '/')) ? ++p : from_name);
-        to_name = pathbuf;
+      if 0 != (flags & DIRECTORY) {
+        let p1 = to_name.hasSuffix("/") ? "" : "/"
+        let p2 = from_name.split(separator: "/").last!
+        to_name = "\(to_name)\(p1)\(p2)"
       }
-      devnull = 0;
+      devnull = false
     } else {
-      devnull = 1;
+      devnull = true
     }
-    if (*to_name == '\0') {
-      errx(EX_USAGE, "destination cannot be an empty string");
+    if to_name.isEmpty {
+      errx(Int(EX_USAGE), "destination cannot be an empty string")
     }
 
-    target = (lstat(to_name, &to_sb) == 0);
+    let to_sb = try? FileMetadata(for: to_name, followSymlinks: false)
 
-    if (dolink) {
-      makelink(from_name, to_name, target ? &to_sb : NULL);
+    if options.dolink.rawValue != 0 {
+      makelink(from_name, to_name, to_sb)
       return;
     }
 
-    if (target && !S_ISREG(to_sb.st_mode) && !S_ISLNK(to_sb.st_mode)) {
-      errc(EX_CANTCREAT, EFTYPE, "%s", to_name);
+    if let to_sb, to_sb.filetype == .regular, to_sb.filetype == .symbolicLink {
+      errno = EFTYPE
+      err(Int(EX_CANTCREAT), to_name)
     }
 
-    if (!devnull && (from_fd = open(from_name, O_RDONLY, 0)) < 0) {
-      err(EX_OSERR, "%s", from_name);
+
+    guard devnull, let from_fd = try? FileDescriptor.open(from_name, .readOnly) else {
+//    if !devnull && (from_fd = open(from_name, O_RDONLY, 0)) < 0 {
+      err(Int(EX_OSERR), from_name)
     }
 
+    var files_match = false
     /* If we don't strip, we can compare first. */
     if (docompare && !dostrip && target && S_ISREG(to_sb.st_mode)) {
       if ((to_fd = open(to_name, O_RDONLY, 0)) < 0) {
-        err(EX_OSERR, "%s", to_name);
+        err(Int(EX_OSERR), to_name)
       }
       if (devnull) {
-        files_match = to_sb.st_size == 0;
+        files_match = to_sb.size == 0
       }
       else {
-        files_match = !(compare(from_fd, from_name,
-                                (size_t)from_sb.st_size, to_fd,
-                                to_name, (size_t)to_sb.st_size, &digestresult));
+        files_match = !compare(from_fd, from_name,
+                                from_sb.size, to_fd,
+                                to_name, to_sb.size, &digestresult)
       }
 
       /* Close "to" file unless we match. */
-      if (!files_match) {
-        (void)close(to_fd);
+      if !files_match {
+        try? to_fd.close()
       }
     }
 
-    if (!files_match) {
-      to_fd = create_tempfile(to_name, tempfile,
-                              sizeof(tempfile));
-      if (to_fd < 0)
-
-      {
+    if !files_match {
+      to_fd = create_tempfile(to_name, tempfile, sizeof(tempfile));
+      if (to_fd < 0) {
         /*
          * See rdar://138344946
          *
@@ -913,7 +893,7 @@ func parseid(_ name : String) -> UInt? {
          * destination.
          */
         if (errno == EPERM) {
-          warnx("sandbox detected, falling back to direct copy");
+          warnx("sandbox detected, falling back to direct copy")
           if ((!target || unlink(to_name) == 0 || errno == ENOENT) &&
               (to_fd = open(to_name, O_RDWR|O_CREAT|O_EXCL, mode)) >= 0) {
             if (dostrip) {
@@ -930,35 +910,33 @@ func parseid(_ name : String) -> UInt? {
           /* fall through to err() below */
         }
 
-        err(EX_OSERR, "%s", tempfile);
+        err(Int(EX_OSERR), tempfile)
 
       }
 
-      if (!devnull) {
-        if (dostrip) {
-          stripped = strip(tempfile, to_fd, from_name,
-                           &digestresult);
+      if !devnull {
+        if options.dostrip {
+          stripped = strip(tempfile, to_fd, from_name, &digestresult);
         }
         if (!stripped) {
-          digestresult = copy(from_fd, from_name, to_fd,
-                              tempfile, from_sb.st_size);
+          digestresult = copy(from_fd, from_name, to_fd, tempfile, from_sb.size)
         }
       }
     }
 
-    if (dostrip) {
+    if options.dostrip {
       if (!stripped) {
-        (void)strip(tempfile, to_fd, NULL, &digestresult);
+        strip(tempfile, to_fd, nil, &digestresult)
       }
 
       /*
        * Re-open our fd on the target, in case
        * we did not strip in-place.
        */
-      close(to_fd);
-      to_fd = open(tempfile, O_RDONLY, 0);
-      if (to_fd < 0) {
-        err(EX_OSERR, "stripping %s", to_name);
+      try? to_fd.close()
+      to_fd = try? FileDescriptor.open(tempfile, .readOnly)
+      guard to_fd < 0 else {
+        err(Int(EX_OSERR), "stripping \(to_name)")
       }
     }
 
@@ -998,15 +976,15 @@ func parseid(_ name : String) -> UInt? {
         }
         (void) close(temp_fd);
       }
-    } else if (dostrip) {
-      digestresult = digest_file(tempfile);
+    } else if options.dostrip {
+      digestresult = digest_file(tempfile)
     }
 
     /*
      * Move the new file into place if the files are different (or
      * just not compared).
      */
-    if (!files_match) {
+    if !files_match {
 
       /* Try to turn off the immutable bits. */
       if (to_sb.st_flags & NOCHANGEBITS) {
@@ -1168,10 +1146,9 @@ func parseid(_ name : String) -> UInt? {
    *	Compute digest and return its address in *dresp
    *	unless it points to pre-computed digest.
    */
-  func
-  compare(int from_fd, const char *from_name __unused, size_t from_len,
-          int to_fd, const char *to_name __unused, size_t to_len,
-          char **dresp)
+  func compare(_ from_fd : FileDescriptor, _ from_name : String, _ from_len : size_t,
+               _ to_fd : FileDescriptor, _ to_name : String, _ to_len : size_t,
+               _ dresp : inout String)
   {
     int rv;
     int do_digest;
@@ -1256,8 +1233,7 @@ func parseid(_ name : String) -> UInt? {
    * create_tempfile --
    *	create a temporary file based on path and open it
    */
-    func create_tempfile(const char *path, char *temp, size_t tsize)
-  {
+  func create_tempfile(_ path : String, _ temp : String, _ tsize : size_t) {
     char *p;
 
     (void)strncpy(temp, path, tsize);
@@ -1277,9 +1253,7 @@ func parseid(_ name : String) -> UInt? {
    * copy --
    *	copy from one file to another
    */
-  func copy(int from_fd, const char *from_name, int to_fd, const char *to_name,
-       off_t size) -> [UInt8]
-  {
+  func copy(_ from_fd : FileDescriptor, _ from_name : String, _ to_fd : FileDescriptor, _ to_name : String, _ size : off_t) -> [UInt8] {
     static char *buf = NULL;
     static size_t bufsize;
     int nr, nw;
@@ -1378,8 +1352,7 @@ func parseid(_ name : String) -> UInt? {
    *	Return 1 on success and assign result of digest_file(to_name)
    *	to *dresp.
    */
-  func strip(const char *to_name, int to_fd, const char *from_name, char **dresp) -> Bool
-  {
+  func strip(_ to_name : String, _ to_fd : FileDescriptor, _ from_name : String?, _ dresp : inout String) -> Bool {
     const char *stripbin;
     const char *args[5];
     char *prefixed_from_name;
@@ -1387,10 +1360,8 @@ func parseid(_ name : String) -> UInt? {
     int error, serrno, status;
 
     prefixed_from_name = NULL;
-    stripbin = getenv("STRIPBIN");
-    if (stripbin == NULL) {
-      stripbin = "strip";
-    }
+    stripbin = Environment["STRIPBIN"] ?? "strip"
+
     args[0] = stripbin;
     if (from_name == NULL) {
       args[1] = to_name;
@@ -1413,7 +1384,7 @@ func parseid(_ name : String) -> UInt? {
     error = posix_spawnp(&pid, stripbin, NULL, NULL,
                          __DECONST(char **, args), environ);
     if (error != 0) {
-      (void)unlink(to_name);
+      unlink(to_name)
       errc(error == EAGAIN || error == EPROCLIM || error == ENOMEM ?
            EX_TEMPFAIL : EX_OSERR, error, "spawn %s", stripbin);
     }
@@ -1425,76 +1396,74 @@ func parseid(_ name : String) -> UInt? {
       /* NOTREACHED */
     }
     if (status != 0) {
-      if (from_name != NULL) {
-        return (0);
+      if let from_name {
+        return false
       }
-      (void)unlink(to_name);
-      errx(EX_SOFTWARE, "strip command %s failed on %s",
-           stripbin, to_name);
+      unlink(to_name)
+      errx(Int(EX_SOFTWARE), "strip command \(stripbin) failed on \(to_name)")
     }
-    if (from_name != NULL && safecopy && fsync(to_fd) == -1) {
-      serrno = errno;
-      (void)unlink(to_name);
-      errno = serrno;
-      err(EX_OSERR, "fsync failed for %s", to_name);
+    if let from_name, safecopy, fsync(to_fd) == -1 {
+      let serrno = errno
+      unlink(to_name)
+      errno = serrno
+      err(Int(EX_OSERR), "fsync failed for \(to_name)")
     }
-    if (dresp != NULL) {
+    if (dresp != nil) {
       *dresp = digest_file(to_name);
     }
-    return (1);
+    return true
   }
 
   /*
    * install_dir --
    *	build directory hierarchy
    */
-  static void
-  install_dir(char *path)
-  {
-    char *p;
-    struct stat sb;
-    int ch, tried_mkdir;
+  func install_dir(_ pathx : String) {
 
-    for (p = path;; ++p) {
-      if (!*p || (p != path && *p  == '/')) {
-        tried_mkdir = 0;
-        ch = *p;
-        *p = '\0';
-      again:
-        if (stat(path, &sb) != 0) {
-          if (errno != ENOENT || tried_mkdir) {
-            err(EX_OSERR, "stat %s", path);
+    var path = ""
+    for p in pathx.split(separator: "/") {
+      var tried_mkdir = false
+      path.append("/")
+      path.append(contentsOf: p)
+    again:
+      while true {
+        do {
+          let sb = try FileMetadata(for: path)
+          if sb.filetype == .directory {
+            errx(Int(EX_OSERR), "\(path) exists but is not a directory")
           }
-          if (mkdir(path, 0755) < 0) {
-            tried_mkdir = 1;
-            if (errno == EEXIST) {
-              goto again;
+        } catch(let e) {
+          if e.code != ENOENT || tried_mkdir {
+            err(Int(EX_OSERR), "stat \(path)")
+          }
+          if (mkdir(path, 0o0755) < 0) {
+            tried_mkdir = true
+            if errno == EEXIST {
+              continue again
             }
-            err(EX_OSERR, "mkdir %s", path);
+            err(Int(EX_OSERR), "mkdir \(path)")
           }
-          if (verbose) {
-            (void)printf("install: mkdir %s\n",
-                         path);
+          if options.verbose != 0 {
+            print("install: mkdir \(path)")
           }
-        } else if (!S_ISDIR(sb.st_mode)) {
-          errx(EX_OSERR, "%s exists but is not a directory", path);
         }
-        if (!(*p = ch)) {
-          break;
-        }
+        break again
       }
     }
-    if (!dounpriv) {
-      if ((gid != (gid_t)-1 || uid != (uid_t)-1) &&
-          chown(path, uid, gid)) {
-        warn("chown %u:%u %s", uid, gid, path);
+
+    if !options.dounpriv {
+      let u = options.uid == nil ? -1 : uid_t(options.uid!)
+      let g = options.gid == nil ? -1 : gid_t(options.gid!)
+
+      if (options.gid != nil || options.uid != nil) && 0 != chown(path, u, g) {
+        warn("chown \(u):\(g) \(path)")
       }
       /* XXXBED: should we do the chmod in the dounpriv case? */
       if (chmod(path, mode)) {
-        warn("chmod %o %s", mode, path);
+        warn("chmod %o \(path)", mode)
       }
     }
-    metadata_log(path, "dir", NULL, NULL, NULL, 0);
+    metadata_log(path, "dir", nil, nil, nil, 0);
   }
 
   /*
@@ -1503,18 +1472,20 @@ func parseid(_ name : String) -> UInt? {
    *	metafp, to allow permissions to be set correctly by other tools,
    *	or to allow integrity checks to be performed.
    */
-  func metadata_log(const char *path, const char *type, struct timespec *ts,
-               const char *slink, const char *digestresult, off_t size)
-  {
-    static const char extra[] = { ' ', '\t', '\n', '\\', '#', '\0' };
-    const char *p;
-    char *buf;
-    size_t buflen, destlen;
-    struct flock metalog_lock;
+  func metadata_log(_ path : String, _ type : String, _ ts : timespec?,
+                    _ slink : String? , _ digestresult : [UInt8]?, _ size : off_t) {
+    let extra = [ " ", "\t", "\n", "\\", "#", "\0"]
 
-    if (!metafp) {
-      return;
+    /*    const char *p;
+     char *buf;
+     size_t buflen, destlen;
+     struct flock metalog_lock;
+     */
+
+    guard var metafp = options.metafp else {
+      return
     }
+
     /* Buffer for strsnvis(3), used for both path and slink. */
     buflen = strlen(path);
     if (slink && strlen(slink) > buflen) {
@@ -1572,17 +1543,17 @@ func parseid(_ name : String) -> UInt? {
               (long long)ts[1].tv_sec, ts[1].tv_nsec);
     }
     if (digestresult && digest) {
-      fprintf(metafp, " %s=%s", digest, digestresult);
+      fprintf(metafp, " \(digest)=\(digestresult)")
     }
     if (fflags) {
-      fprintf(metafp, " flags=%s", fflags);
+      fprintf(metafp, " flags=\(fflags)")
     }
     if (tags) {
-      fprintf(metafp, " tags=%s", tags);
+      fprintf(metafp, " tags=\(tags)")
     }
-    fputc('\n', metafp);
+    print("", to: &metafp)
     /* Flush line. */
-    fflush(metafp);
+//    fflush(metafp);
 
     /* Unlock log file. */
     metalog_lock.l_type = F_UNLCK;

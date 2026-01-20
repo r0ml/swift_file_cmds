@@ -27,77 +27,85 @@
  * SUCH DAMAGE.
  */
 
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
-
-#include <sys/stat.h>
-
-#include <errno.h>
-#include <fcntl.h>
-#include <time.h>
-#include <sys/time.h>
-
+/*
 #ifndef UTIME_NOW
 #define UTIME_NOW -1
 #endif
+*/
 
+/*
 #ifndef UTIME_OMIT
 #define UTIME_OMIT -2
 #endif
-int futimens(int fd, const struct timespec times[2]);
+ */
 
-int
-futimens(int fd, const struct timespec times[2])
-{
-	struct timeval now, tv[2], *tvp;
-	struct stat sb;
+import CMigration
+import Darwin
 
-	if (times == NULL || (times[0].tv_nsec == UTIME_NOW &&
-	    times[1].tv_nsec == UTIME_NOW))
-		tvp = NULL;
-	else if (times[0].tv_nsec == UTIME_OMIT &&
-	    times[1].tv_nsec == UTIME_OMIT)
-		return (0);
+func futimens(_ fd : FileDescriptor, _ times : (Darwin.timespec, Darwin.timespec)? ) -> Int32 {
+//  struct timeval now, tv[2];
+
+  var tvp : (timeval, timeval)?
+
+  if times == nil || (times!.0.tv_nsec == UTIME_NOW &&
+                      times!.1.tv_nsec == UTIME_NOW) {
+    tvp = nil
+  }
+  else if (times!.0.tv_nsec == UTIME_OMIT &&
+           times!.1.tv_nsec == UTIME_OMIT) {
+    return 0
+  }
 	else {
-		if ((times[0].tv_nsec < 0 || times[0].tv_nsec > 999999999) &&
-		    times[0].tv_nsec != UTIME_NOW &&
-		    times[0].tv_nsec != UTIME_OMIT) {
+    if ((times!.0.tv_nsec < 0 || times!.0.tv_nsec > 999999999) &&
+        times!.0.tv_nsec != UTIME_NOW &&
+        times!.0.tv_nsec != UTIME_OMIT) {
 			errno = EINVAL;
-			return (-1);
+			return -1
 		}
-		if ((times[1].tv_nsec < 0 || times[1].tv_nsec > 999999999) &&
-		    times[1].tv_nsec != UTIME_NOW &&
-		    times[1].tv_nsec != UTIME_OMIT) {
+    if ((times!.1.tv_nsec < 0 || times!.1.tv_nsec > 999999999) &&
+        times!.1.tv_nsec != UTIME_NOW &&
+        times!.1.tv_nsec != UTIME_OMIT) {
 			errno = EINVAL;
-			return (-1);
+			return -1
 		}
-		tv[0].tv_sec = times[0].tv_sec;
-		tv[0].tv_usec = times[0].tv_nsec / 1000;
-		tv[1].tv_sec = times[1].tv_sec;
-		tv[1].tv_usec = times[1].tv_nsec / 1000;
-		tvp = tv;
-		if (times[0].tv_nsec == UTIME_OMIT ||
-		    times[1].tv_nsec == UTIME_OMIT) {
-			if (fstat(fd, &sb) == -1)
-				return (-1);
-			if (times[0].tv_nsec == UTIME_OMIT) {
-				tv[0].tv_sec = sb.st_atimespec.tv_sec;
-				tv[0].tv_usec = sb.st_atimespec.tv_nsec / 1000;
+
+    var tv = (Darwin.timeval(), Darwin.timeval())
+    tv.0.tv_sec = times!.0.tv_sec
+    tv.0.tv_usec = Int32(times!.0.tv_nsec / 1000)
+    tv.1.tv_sec = times!.1.tv_sec
+    tv.1.tv_usec = Int32(times!.1.tv_nsec / 1000)
+		tvp = tv
+    if (times!.0.tv_nsec == UTIME_OMIT ||
+        times!.1.tv_nsec == UTIME_OMIT) {
+      guard let sb = try? FileMetadata(for: fd) else {
+        return -1
+      }
+      if times!.0.tv_nsec == UTIME_OMIT {
+        tv.0.tv_sec = sb.lastAccess.timespec.tv_sec
+        tv.0.tv_usec = Int32(sb.lastAccess.timespec.tv_nsec / 1000)
 			}
-			if (times[1].tv_nsec == UTIME_OMIT) {
-				tv[1].tv_sec = sb.st_mtimespec.tv_sec;
-				tv[1].tv_usec = sb.st_mtimespec.tv_nsec / 1000;
+      if times!.1.tv_nsec == UTIME_OMIT {
+        tv.1.tv_sec = sb.lastWrite.timespec.tv_sec
+        tv.1.tv_usec = Int32(sb.lastWrite.timespec.tv_nsec / 1000)
 			}
 		}
-		if (times[0].tv_nsec == UTIME_NOW ||
-		    times[1].tv_nsec == UTIME_NOW) {
-			if (gettimeofday(&now, NULL) == -1)
-				return (-1);
-			if (times[0].tv_nsec == UTIME_NOW)
-				tv[0] = now;
-			if (times[1].tv_nsec == UTIME_NOW)
-				tv[1] = now;
+    if times!.0.tv_nsec == UTIME_NOW ||
+        times!.1.tv_nsec == UTIME_NOW {
+      var now = timeval()
+      if (gettimeofday(&now, nil) == -1) {
+        return -1
+      }
+      if times!.0.tv_nsec == UTIME_NOW {
+        tv.0 = now
+      }
+      if times!.1.tv_nsec == UTIME_NOW {
+        tv.1 = now
+      }
 		}
 	}
-	return (futimes(fd, tvp));
+  if var tvp {
+    return futimes(fd.rawValue, &tvp.0)
+  } else {
+    return futimes(fd.rawValue, nil)
+  }
 }
