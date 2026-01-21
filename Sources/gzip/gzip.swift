@@ -1009,32 +1009,31 @@ import Darwin
   }
 
   /* check the outfile is OK. */
-  func check_outfile(_ outfile : String) -> Int {
-    struct stat sb;
-    int ok = 1;
+  func check_outfile(_ outfile : String) -> Bool {
+//    struct stat sb;
+    var ok = true
+    var stderr = FileDescriptor.standardError
 
-    if (!options.lflag && stat(outfile, &sb) == 0) {
-      if (options.fflag) {
-        unlink(outfile);
+    if !options.lflag,
+       let sb = try? FileMetadata(for: outfile) {
+      if options.fflag {
+        unlink(outfile)
       }
-      else if (isatty(STDIN_FILENO)) {
-        char ans[10] = { 'n', '\0' };	/* default */
-
-        fprintf(stderr, "%s already exists -- do you wish to "
-                "overwrite (y or n)? " , outfile);
-        fgets(ans, sizeof(ans) - 1, stdin);
-        if (ans[0] != 'y' && ans[0] != 'Y') {
-          fprintf(stderr, "\tnot overwriting\n");
-          ok = 0;
+      else if 0 != isatty(STDIN_FILENO) {
+        print("\(outfile) already exists -- do you wish to overwrite (y or n)? ", terminator: "", to: &stderr)
+        let ans = readLine() ?? "\n"
+        if ans.first != "y" && ans.first != "Y" {
+          print("\tnot overwriting", to: &stderr)
+          ok = false
         } else {
-          unlink(outfile);
+          unlink(outfile)
         }
       } else {
-        maybe_warnx("%s already exists -- skipping", outfile);
-        ok = 0;
+        maybe_warnx("\(outfile) already exists -- skipping")
+        ok = false
       }
     }
-    return ok;
+    return ok
   }
 
   func unlink_input(_ file : String, _ sb : FileMetadata) {
@@ -1148,49 +1147,38 @@ import Darwin
    * original.
    */
   func file_compress(_ file : String, _ outfile : String, _ outsize : size_t) -> off_t {
-    int in;
-    int out;
-    off_t size, in_size;
+ //   int in;
+//    int out;
+//    off_t size, in_size;
 
-    struct stat isb, osb;
-    const suffixes_t *suff;
+//    struct stat isb, osb;
+//    const suffixes_t *suff;
 
-    in = open(file, O_RDONLY);
-    if (in == -1) {
-      maybe_warn("can't open %s", file);
-      return (-1);
+    guard let inx = try? FileDescriptor.open(file, .readOnly) else {
+      maybe_warn("can't open \(file)")
+      return -1
     }
 
-    bzero(&isb, sizeof(isb));
-    if (fstat(in, &isb) != 0) {
-      maybe_warn("couldn't stat: %s", file);
-      close(in);
-      return (-1);
+    defer { try? inx.close() }
+
+//    bzero(&isb, sizeof(isb));
+    guard let isb = try? FileMetadata(for: inx) else {
+      maybe_warn("couldn't stat: \(file)")
+      return -1
     }
 
-    if (fstat(in, &isb) != 0) {
-      close(in);
-      maybe_warn("can't stat %s", file);
-      return -1;
-    }
-    infile_set(file, isb.st_size);
+    infile_set(file, isb.size)
 
     if !options.cflag {
-      if (isb.st_nlink > 1 && !options.fflag) {
-        maybe_warnx("%s has %ju other link%s -- "
-                    "skipping", file,
-                    (uintmax_t)isb.st_nlink - 1,
-                    isb.st_nlink == 1 ? "" : "s");
-        close(in);
-        return -1;
+      if isb.links > 1 && !options.fflag {
+        maybe_warnx("\(file) has \(isb.links-1) other link\(isb.links == 2 ? "" : "s") -- skipping")
+        return -1
       }
 
       if (!options.fflag && (suff = check_suffix(file, 0)) &&
           suff->zipped[0] != 0) {
-        maybe_warnx("%s already has %s suffix -- unchanged",
-                    file, suff->zipped);
-        close(in);
-        return (-1);
+        maybe_warnx("\(file) already has \(suff.zipped) suffix -- unchanged")
+        return -1
       }
 
       /* Add (usually) .gz to filename */
@@ -1201,8 +1189,7 @@ import Darwin
       }
 
       if (check_outfile(outfile) == 0) {
-        close(in);
-        return (-1);
+        return -1
       }
     }
 
@@ -1270,7 +1257,7 @@ import Darwin
 
   /* uncompress the given file and remove the original */
   func file_uncompress(_ file : String, _ outfile : String, _ outsize : size_t) -> off_t {
-    struct stat isb, osb;
+/*    struct stat isb, osb;
     off_t size;
     ssize_t rbytes;
     unsigned char fourbytes[4];
@@ -1282,25 +1269,23 @@ import Darwin
     ssize_t rv;
     time_t timestamp = 0;
     char name[PATH_MAX + 1];
+*/
 
     /* gather the old name info */
 
-    fd = open(file, O_RDONLY);
-    if (fd < 0) {
-      maybe_warn("can't open %s", file);
-      goto lose;
+    guard let fd = try? FileDescriptor.open(file, .readOnly) else {
+      maybe_warn("can't open \(file)")
+      return -1
     }
-    if (fstat(fd, &isb) != 0) {
-      maybe_warn("can't stat %s", file);
-      goto lose;
+    defer { try? fd.close() }
+
+    guard let isb = try? FileMetadata(for: fd) else {
+      maybe_warn("can't stat \(file)")
+      return -1
     }
-    if (S_ISREG(isb.st_mode)) {
-      in_size = isb.st_size;
-    }
-    else {
-      in_size = 0;
-    }
-    infile_set(file, in_size);
+
+    var in_size = isb.filetype == .regular ? isb.size : 0
+    infile_set(file, Int64(in_size))
 
     strlcpy(outfile, file, outsize);
     if (check_suffix(outfile, 1) == NULL && !(options.cflag || options.lflag)) {
@@ -1308,24 +1293,24 @@ import Darwin
       goto lose;
     }
 
-    rbytes = read(fd, fourbytes, sizeof fourbytes);
-    if (rbytes != sizeof fourbytes) {
+    let fourbytes = try? fd.readUpToCount(4)
+    if fourbytes?.count ?? -1 != 4 {
       /* we don't want to fail here. */
 
-      if (options.fflag) {
-        goto lose;
+      if options.fflag {
+        return -1
       }
-      if (rbytes == -1) {
-        maybe_warn("can't read %s", file);
+      if fourbytes == nil {
+        maybe_warn("can't read \(file)")
       }
       else {
         goto unexpected_EOF;
       }
-      goto lose;
+      return -1
     }
     infile_newdata(rbytes);
 
-    method = file_gettype(fourbytes);
+    let method = file_gettype(fourbytes);
 
     if (!options.fflag && method == .UNKNOWN) {
       maybe_warnx("%s: not in gzip format", file);
@@ -1704,7 +1689,7 @@ import Darwin
     let method = file_gettype(fourbytes)
     switch method {
       case .GZIP:
-        usize = gz_uncompress(STDIN_FILENO, STDOUT_FILENO, fourbytes, &gsize, "(stdin)");
+        usize = gz_uncompress(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes, &gsize, "(stdin)");
 
       case .BZIP2:
         usize = unbzip2(STDIN_FILENO, STDOUT_FILENO, fourbytes, &gsize);

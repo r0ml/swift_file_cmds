@@ -152,8 +152,8 @@ class unpack_descriptor_t {
    *
    * Return value is uncompressed size.
    */
-  func parse_header(int in, int out, char *pre, size_t prelen, off_t *bytes_in) {
-    unsigned char hdr[PACK_HEADER_LENGTH];	/* buffer for header */
+  func parse_header(_ inx : FileDescriptor, _ out : FileDescriptor, _ pre : [UInt8], _ prelen : size_t, _ bytes_in : inout off_t) {
+    var hdr = Array(repeating: UInt8(0), count: PACK_HEADER_LENGTH)	/* buffer for header */
 //    ssize_t bytesread;		/* Bytes read from the file */
 //    int i, j, thisbyte;
 
@@ -173,15 +173,15 @@ class unpack_descriptor_t {
 
     /* Obtain uncompressed length (bytes 2,3,4,5) */
     uncompressed_size = 0;
-    for (i = 2; i <= 5; i++) {
-      uncompressed_size <<= 8;
-      uncompressed_size |= hdr[i];
+    for i in 2 ... 5 {
+      uncompressed_size <<= 8
+      uncompressed_size |= UInt(hdr[i])
     }
 
     /* Get the levels of the tree */
-    treelevels = hdr[6];
-    if (treelevels > HTREE_MAXLEVEL || treelevels < 1) {
-      maybe_errx("Huffman tree has insane levels");
+    treelevels = Int(hdr[6])
+    if treelevels > HTREE_MAXLEVEL || treelevels < 1 {
+      maybe_errx("Huffman tree has insane levels")
     }
 
     /* Let libc take care for buffering from now on */
@@ -329,7 +329,7 @@ class unpack_descriptor_t {
   }
 
   /* Handler for pack(1)'ed file */
-  func unpack(int in, int out, char *pre, size_t prelen, off_t *bytes_in) -> UInt {
+  func unpack(_ inx : FileDescriptor, _ out : FileDescriptor, _ pre : [UInt8], _ prelen : size_t, _ bytes_in : inout off_t) -> UInt {
 
     in = dup(in);
     if (in == -1) {

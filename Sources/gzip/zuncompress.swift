@@ -93,6 +93,7 @@ import Darwin
 
     var gbuf = Array(repeating: UInt8(0), count: BITS)
 
+    var compressed_prelen = 0
 
 // iinstance variables above, constants below
 
