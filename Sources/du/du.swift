@@ -318,8 +318,8 @@ struct ignentry {
             }
 
             let curblocks = options.Aflag ?
-            howmany(Int(p.statp!.size), options.cblocksize) :
-            howmany(Int(p.statp!.blocks), options.cblocksize)
+            howmany(Int(p.statp.size), options.cblocksize) :
+            howmany(Int(p.statp.blocks), options.cblocksize)
             p.number += curblocks
             p.parent?.pointee.fts_number += p.number
 
@@ -361,13 +361,13 @@ struct ignentry {
               break
             }
 
-            if !options.lflag && p.statp!.links > 1 && linkchk(p) {
+            if !options.lflag && p.statp.links > 1 && linkchk(p) {
               break
             }
 
             let curblocks = options.Aflag ?
-            howmany(Int(p.statp!.size), options.cblocksize) :
-            howmany(Int(p.statp!.blocks), options.cblocksize)
+            howmany(Int(p.statp.size), options.cblocksize) :
+            howmany(Int(p.statp.blocks), options.cblocksize)
 
             if options.aflag || p.level == 0 {
               if options.hflag > 0 {
@@ -426,7 +426,7 @@ struct ignentry {
     size_t i, new_size;
     int hash;
 */
-    let st = p.statp!
+    let st = p.statp
 
     /* If necessary, initialize the hash table. */
 /*    if (buckets == NULL) {
@@ -590,7 +590,7 @@ struct ignentry {
     if (buf.linkcount == 1) {
       return false
     }
-    let st = p.statp!
+    let st = p.statp
 
     /* If necessary, initialize the hash table. */
     /*
@@ -753,7 +753,7 @@ usage: du [-Aclnx] [-H | -L | -P] [-g | -h | -k | -m] [-a | -s | -d depth] [-B b
 
   func ignorep(_ ent : FTSEntry) -> Bool {
 //    #ifdef __APPLE__
-    if ent.statp?.filetype == .directory && "fd" == ent.name {
+    if ent.statp.filetype == .directory && "fd" == ent.name {
       var sfsb = statfs()
       let rc = statfs(ent.accpath, &sfsb)
       let fstn = withUnsafePointer(to: sfsb.f_fstypename) {
@@ -777,7 +777,7 @@ usage: du [-Aclnx] [-H | -L | -P] [-g | -h | -k | -m] [-a | -s | -d depth] [-B b
     }
 
 // #endif /* __APPLE__ */
-    if options.nodumpflag && ent.statp!.flags.contains(.UF_NODUMP) {
+    if options.nodumpflag && ent.statp.flags.contains(.UF_NODUMP) {
       return true
     }
 

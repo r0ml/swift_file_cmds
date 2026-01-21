@@ -483,8 +483,8 @@ var info : sig_atomic_t = 0
          */
         if let root_stat,
             (curr.info == .D &&
-            root_stat.device == curr.statp!.device &&
-            root_stat.inode == curr.statp!.inode) {
+            root_stat.device == curr.statp.device &&
+            root_stat.inode == curr.statp.inode) {
           assert(recurse_path == nil)
 
           if (rootIsCreated) {
@@ -528,7 +528,7 @@ var info : sig_atomic_t = 0
          * normally want to preserve them on directories.
          */
         if (options.pflag) {
-          if (setfile(curr.statp!, nil, target)) {
+          if (setfile(curr.statp, nil, target)) {
             rval = true
           }
           // #ifdef __APPLE__
@@ -544,7 +544,7 @@ var info : sig_atomic_t = 0
            #endif /* __APPLE__ */
            */
         } else {
-          let mode = curr.statp!.permissions
+          let mode = curr.statp.permissions
           if mode.containsAny(of: [.setUserID, .setGroupID, .saveText]) ||
               mode != [.ownerReadWriteExecute] {
             if (chmod(target, mode.subtracting([.setUserID, .setGroupID, .saveText]).rawValue) != 0) {
@@ -558,12 +558,12 @@ var info : sig_atomic_t = 0
 
       /* Check if source and destination are identical. */
       if let to_stat = try? FileMetadata(for: target),
-          to_stat.device == curr.statp!.device &&
-          to_stat.inode == curr.statp!.inode {
+          to_stat.device == curr.statp.device &&
+          to_stat.inode == curr.statp.inode {
         warnx("\(target) and \(curr.path) are identical (not copied).")
         badcp = true
         rval = true
-        if curr.statp!.filetype == .directory {
+        if curr.statp.filetype == .directory {
           curr.setAction(.SKIP)
         }
         continue;
@@ -573,7 +573,7 @@ var info : sig_atomic_t = 0
       var to_stat = try? FileMetadata(for: target, followSymlinks: false)
       var dne = to_stat == nil
 
-      switch curr.statp!.filetype {
+      switch curr.statp.filetype {
         case .symbolicLink:
           if (options.fts_options.contains(.LOGICAL) ||
               (options.fts_options.contains(.COMFOLLOW) &&
@@ -612,7 +612,7 @@ var info : sig_atomic_t = 0
            * umask blocks owner writes, we fail.
            */
           if (dne) {
-            let mode = curr.statp!.permissions.union([.ownerRead, .ownerWrite, .ownerExecute])
+            let mode = curr.statp.permissions.union([.ownerRead, .ownerWrite, .ownerExecute])
             if (mkdir(target, mode.rawValue) != 0) {
               warn(target)
               curr.setAction(.SKIP)
@@ -667,7 +667,7 @@ var info : sig_atomic_t = 0
           // #endif /* __APPLE__ */
         case .blockDevice, .characterDevice:
           if (options.Rflag && !options.sflag) {
-            if (copy_special(curr.statp!, !dne, target)) {
+            if (copy_special(curr.statp, !dne, target)) {
               badcp = true
               rval = true
             }
@@ -681,7 +681,7 @@ var info : sig_atomic_t = 0
           warnx("\(curr.path) is a socket (not copied).")
         case .fifo:
           if (options.Rflag && !options.sflag) {
-            if (copy_fifo(curr.statp!, !dne, target)) {
+            if (copy_fifo(curr.statp, !dne, target)) {
               badcp = true
               rval = true
             }

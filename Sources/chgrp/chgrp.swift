@@ -68,8 +68,8 @@ let unix2003 = true
 
   func parseOptions() throws(CmdErr) -> CommandOptions {
     var options = CommandOptions()
-    var go = BSDGetopt("HLPRfhnvx")
-    while let (k,v) = try go.getopt() {
+    let go = BSDGetopt("HLPRfhnvx")
+    while let (k,_) = try go.getopt() {
       switch (k) {
         case "H":
           options.Hflag = true
@@ -200,8 +200,8 @@ let unix2003 = true
           continue
         }
     } else {
-      if (options.uid == nil || options.uid == p.statp!.userId) &&
-          (options.gid == nil || options.gid == p.statp?.groupId) {
+      if (options.uid == nil || options.uid == p.statp.userId) &&
+          (options.gid == nil || options.gid == p.statp.groupId) {
         continue
       }
     }
@@ -279,7 +279,7 @@ func print_info(_ p : FTSEntry, _ vflag : Int) {
   print(p.path, terminator: "")
   if (vflag > 1) {
     print(
-      ": \(p.statp!.groupId) -> \(options.gid == nil ? p.statp!.groupId : options.gid!)",
+      ": \(p.statp.groupId) -> \(options.gid == nil ? p.statp.groupId : options.gid!)",
       terminator: ""
     )
 

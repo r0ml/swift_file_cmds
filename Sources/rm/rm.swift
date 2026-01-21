@@ -279,19 +279,19 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
            * Then the option to delete the dir is presented post-order */
           if (!options.fflag &&
               ( (unix2003 && !checkdir(p.path)) ||
-                (!unix2003 && !check(p.path, p.accpath, p.statp!))
+                (!unix2003 && !check(p.path, p.accpath, p.statp))
               )
           ) {
             p.setAction(.SKIP)
             p.number = SKIPPED
           }
           else if (options.uid == 0 &&
-                   (p.statp!.flags.contains(.UF_APPEND) ||
-                    p.statp!.flags.contains(.UF_IMMUTABLE)) &&
-                   !(p.statp!.flags.contains(.SF_APPEND) ||
-                     p.statp!.flags.contains(.SF_IMMUTABLE)) &&
+                   (p.statp.flags.contains(.UF_APPEND) ||
+                    p.statp.flags.contains(.UF_IMMUTABLE)) &&
+                   !(p.statp.flags.contains(.SF_APPEND) ||
+                     p.statp.flags.contains(.SF_IMMUTABLE)) &&
                    lchflags(p.accpath,
-                            p.statp!.flags.subtracting([.UF_APPEND, .UF_IMMUTABLE]).rawValue) < 0) {
+                            p.statp.flags.subtracting([.UF_APPEND, .UF_IMMUTABLE]).rawValue) < 0) {
             warn(p.path)
             eval = 1
           }
@@ -302,7 +302,7 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
             continue
           } else if (unix2003) {
             /* delete directory if force is on, or if user answers Y to prompt */
-            if (options.fflag || check(p.path, p.accpath, p.statp!)) {
+            if (options.fflag || check(p.path, p.accpath, p.statp)) {
               break
             } else {
               continue
@@ -310,19 +310,19 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
           }
         default:
           if (!options.fflag &&
-              !check(p.path, p.accpath, p.statp!)) {
+              !check(p.path, p.accpath, p.statp)) {
             continue
           }
       }
 
       var rval : Int32 = 0
       if (options.uid == 0 &&
-          (p.statp!.flags.contains(.UF_APPEND) ||
-           p.statp!.flags.contains(.UF_IMMUTABLE)) &&
-          !(p.statp!.flags.contains(.SF_APPEND) ||
-            p.statp!.flags.contains(.SF_IMMUTABLE))) {
+          (p.statp.flags.contains(.UF_APPEND) ||
+           p.statp.flags.contains(.UF_IMMUTABLE)) &&
+          !(p.statp.flags.contains(.SF_APPEND) ||
+            p.statp.flags.contains(.SF_IMMUTABLE))) {
         rval = lchflags(p.accpath,
-                        p.statp!.flags.subtracting([.UF_APPEND, .UF_IMMUTABLE]).rawValue)
+                        p.statp.flags.subtracting([.UF_APPEND, .UF_IMMUTABLE]).rawValue)
       }
       if (rval == 0) {
         /*

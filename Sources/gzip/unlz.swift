@@ -55,41 +55,42 @@
 
 import CMigration
 import Darwin
+import LZMA
 
-extension gzip {
+class Lzma {
 
   let LZ_STATES = 12
 
   let LITERAL_CONTEXT_BITS = 3
-  let POS_STATE_BITS = 2
-  let POS_STATES = 1 << POS_STATE_BITS
+  static let POS_STATE_BITS = 2
+  static let POS_STATES = 1 << POS_STATE_BITS
   let POS_STATE_MASK = POS_STATES - 1
 
   let STATES = 4
   let DIS_SLOT_BITS = 6
 
-  let DIS_MODEL_START = 4
-  let DIS_MODEL_END = 14
+  static let DIS_MODEL_START = 4
+  static let DIS_MODEL_END = 14
 
   let MODELED_DISTANCES = (1 << (DIS_MODEL_END / 2))
-  let DIS_ALIGN_BITS = 4
+  static let DIS_ALIGN_BITS = 4
   let DIS_ALIGN_SIZE = (1 << DIS_ALIGN_BITS)
 
-  let LOW_BITS = 3
-  let MID_BITS = 3
-  let HIGH_BITS = 8
+  static let LOW_BITS = 3
+  static let MID_BITS = 3
+  static let HIGH_BITS = 8
 
-  let LOW_SYMBOLS = (1 << LOW_BITS)
-  let MID_SYMBOLS = (1 << MID_BITS)
-  let HIGH_SYMBOLS = (1 << HIGH_BITS)
+  static let LOW_SYMBOLS = (1 << LOW_BITS)
+  static let MID_SYMBOLS = (1 << MID_BITS)
+  static let HIGH_SYMBOLS = (1 << HIGH_BITS)
 
   let MAX_SYMBOLS = (LOW_SYMBOLS + MID_SYMBOLS + HIGH_SYMBOLS)
 
   let MIN_MATCH_LEN = 2
 
-  let BIT_MODEL_MOVE_BITS = 5
-  let BIT_MODEL_TOTAL_BITS = 11
-  let BIT_MODEL_TOTAL = (1 << BIT_MODEL_TOTAL_BITS)
+  static let BIT_MODEL_MOVE_BITS = 5
+  static let BIT_MODEL_TOTAL_BITS = 11
+  static let BIT_MODEL_TOTAL = (1 << BIT_MODEL_TOTAL_BITS)
   let BIT_MODEL_INIT = (BIT_MODEL_TOTAL / 2)
 
   let lz_st_next = [0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 4, 5, ]
@@ -99,19 +100,19 @@ extension gzip {
     return st < 7
   }
 
-func lz_st_get_char(int st) -> Int {
+  func lz_st_get_char(_ st : Int) -> Int {
     return lz_st_next[st]
   }
 
-func lz_st_get_match(int st) -> Int {
+  func lz_st_get_match(_ st : Int) -> Int {
     return st < 7 ? 7 : 10
   }
 
-func lz_st_get_rep(int st) -> Int {
+  func lz_st_get_rep(_ st : Int) -> Int {
     return st < 7 ? 8 : 11;
   }
 
-func lz_st_get_short_rep(int st) -> Int {
+  func lz_st_get_short_rep(_ st : Int) -> Int {
     return st < 7 ? 9 : 11
   }
 

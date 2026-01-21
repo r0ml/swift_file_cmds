@@ -422,14 +422,14 @@ func siginfo_handler(_ sig : Int32) {
       else {
 
         let newmode = withUnsafePointer(to: options.sett) {
-          getmode($0, p.statp!.permissions.rawValue)
+          getmode($0, p.statp.permissions.rawValue)
         }
         /*
          * With NFSv4 ACLs, it is possible that applying a mode
          * identical to the one computed from an ACL will change
          * that ACL.
          */
-        if newmode /* & ALLPERMS) */ == p.statp!.permissions.rawValue /* & ALLPERMS)) */ {
+        if newmode /* & ALLPERMS) */ == p.statp.permissions.rawValue /* & ALLPERMS)) */ {
           continue
         }
         if (fchmodat(AT_FDCWD, p.accpath, newmode, atflag) == -1 && !options.fflag) {
@@ -439,12 +439,12 @@ func siginfo_handler(_ sig : Int32) {
           print(p.path, terminator: "")
 
           if options.vflag > 1 || 0 != siginfo {
-            let m1 = strmode(p.statp!.filetype, p.statp!.permissions)
-            let m2 = strmode(p.statp!.filetype, FilePermissions(rawValue: newmode))
+            let m1 = strmode(p.statp.filetype, p.statp.permissions)
+            let m2 = strmode(p.statp.filetype, FilePermissions(rawValue: newmode))
 
-            let a = String(p.statp!.permissions.rawValue, radix: 8)
+            let a = String(p.statp.permissions.rawValue, radix: 8)
             // FIXME: filetype does not save the rawValue
-            let b = p.statp!.filetype // String(p.statp!.filetype.rawValue, radix: 8)
+            let b = p.statp.filetype // String(p.statp.filetype.rawValue, radix: 8)
             print(": 0\(a) [\(m1)] -> 0\(b) [\(m2)]", terminator: "")
           }
           print("")

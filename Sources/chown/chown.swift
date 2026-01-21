@@ -84,7 +84,7 @@ let unix2003_compat = true  // COMPAT_MODE("bin/chown", "Unix2003");
   func parseOptions() throws(CmdErr) -> CommandOptions {
     var options = CommandOptions()
 
-    var go = BSDGetopt("HLPRfhnvx")
+    let go = BSDGetopt("HLPRfhnvx")
     // #ifdef __APPLE__
     while let (k, _) = try go.getopt() {
       switch k {
@@ -229,8 +229,8 @@ let unix2003_compat = true  // COMPAT_MODE("bin/chown", "Unix2003");
           continue
         }
       } else {
-        if ((options.uid == nil || options.uid! == p.statp!.userId) &&
-            (options.gid == nil || options.gid! == p.statp!.groupId)) {
+        if ((options.uid == nil || options.uid! == p.statp.userId) &&
+            (options.gid == nil || options.gid! == p.statp.groupId)) {
           continue
         }
       }
@@ -325,7 +325,7 @@ usage: chown [-fhnvx] [-R [-H | -L | -P]] owner[:group] file ...
   func print_info(_ p : FTSEntry, _ vflag : Int) {
     print(p.path, terminator: "")
     if (vflag > 1) {
-      print(": \(p.statp!.userId):\(p.statp!.groupId) -> \(options.uid == nil ? p.statp!.userId : UInt(options.uid!) ):\(options.gid == nil ? p.statp!.groupId : UInt(options.gid!) )",
+      print(": \(p.statp.userId):\(p.statp.groupId) -> \(options.uid == nil ? p.statp.userId : UInt(options.uid!) ):\(options.gid == nil ? p.statp.groupId : UInt(options.gid!) )",
             terminator: "")
     }
     print("");

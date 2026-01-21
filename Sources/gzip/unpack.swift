@@ -167,7 +167,7 @@ class unpack_descriptor_t {
     if bytesread < 0 {
       maybe_err("Error reading pack header");
     }
-    infile_newdata(bytesread)
+    r.infile_currebnt += bytesread
 
     accepted_bytes(bytes_in, PACK_HEADER_LENGTH);
 
@@ -217,7 +217,7 @@ class unpack_descriptor_t {
     if (symbol_size > 256) {
       maybe_errx("Bad symbol table");
     }
-    infile_newdata(treelevels);
+    r.infile_current += treelevels
 
     /* Allocate for the symbol table, point symbol_eob at the beginning */
     symbol_eob = symbol = calloc(1, symbol_size);
@@ -281,7 +281,7 @@ class unpack_descriptor_t {
 
     while ((thisbyte = fgetc(fpIn)) != EOF) {
       accepted_bytes(bytes_in, 1);
-      infile_newdata(1);
+      r.infile_current += 1
       check_siginfo();
 
       /*

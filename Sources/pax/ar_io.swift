@@ -36,26 +36,6 @@
  * SUCH DAMAGE.
  */
 
-#include <sys/types.h>
-#include <sys/ioctl.h>
-#ifndef __APPLE__
-#include <sys/mtio.h>
-#endif	/* !__APPLE__ */
-#include <sys/stat.h>
-#include <sys/wait.h>
-#include <err.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <signal.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include "pax.h"
-#include "options.h"
-#include "extern.h"
-
 /*
  * Routines which deal directly with the archive I/O device/file.
  */
@@ -83,9 +63,6 @@ const char *arcname;		  	/* printable name of archive */
 const char *gzip_program;		/* name of gzip program */
 static pid_t zpid = -1; 		/* pid of child process */
 
-#ifndef __APPLE__
-static int get_phys(void);
-#endif	/* __APPLE__ */
 static void ar_start_gzip(int, const char *, int);
 
 /*
@@ -100,10 +77,6 @@ static void ar_start_gzip(int, const char *, int);
 int
 ar_open(const char *name)
 {
-#ifndef __APPLE__
-	struct mtget mb;
-#endif	/* __APPLE__ */
-
   if (arfd != -1) {
     (void)close(arfd);
   }
@@ -122,11 +95,9 @@ ar_open(const char *name)
         arfd = STDIN_FILENO;
         arcname = stdn;
       } else if ((arfd = open(name, EXT_MODE, DMOD)) < 0) {
-        #ifdef __APPLE__
+
         syswarn(1, errno, "Failed open to read on %s", name);
-#else
-        syswarn(0, errno, "Failed open to read on %s", name);
-#endif /* __APPLE__ */
+
       }
       if (arfd != -1 && gzip_program != NULL) {
         ar_start_gzip(arfd, gzip_program, 0);
@@ -137,11 +108,9 @@ ar_open(const char *name)
         arfd = STDOUT_FILENO;
         arcname = stdo;
       } else if ((arfd = open(name, AR_MODE, DMOD)) < 0) {
-        #ifdef __APPLE__
+
         syswarn(1, errno, "Failed open to write on %s", name);
-#else
-        syswarn(0, errno, "Failed open to write on %s", name);
-#endif /* __APPLE__ */
+
       } else {
         can_unlnk = 1;
       }
@@ -154,11 +123,9 @@ ar_open(const char *name)
         arfd = STDOUT_FILENO;
         arcname = stdo;
       } else if ((arfd = open(name, APP_MODE, DMOD)) < 0) {
-        #ifdef __APPLE__
+
         syswarn(1, errno, "Failed open to read/write on %s",
-                #else
-                syswarn(0, errno, "Failed open to read/write on %s",
-                        #endif /* __APPLE__ */
+
                         name);
       }
 		break;
@@ -175,16 +142,11 @@ ar_open(const char *name)
   }
 
   if (chdname != NULL) {
-    #ifdef __APPLE__
+
     if (dochdir(chdname) == -1) {
       return(-1);
     }
-#else
-    if (chdir(chdname) != 0) {
-      syswarn(1, errno, "Failed chdir to %s", chdname);
-      return(-1);
-    }
-#endif /* __APPLE__*/
+
   }
 	/*
 	 * set up is based on device type
@@ -206,11 +168,9 @@ ar_open(const char *name)
 	}
 
   if (S_ISCHR(arsb.st_mode)) {
-    #ifndef __APPLE__
-    artyp = ioctl(arfd, MTIOCGET, &mb) ? ISCHR : ISTAPE;
-#else
+
     artyp = ISCHR;
-#endif	/* !__APPLE__ */
+
   } else if (S_ISBLK(arsb.st_mode)) {
     artyp = ISBLK;
   }
@@ -445,11 +405,9 @@ ar_close(void)
     (void)fprintf(listf, "%llu blocks\n",
                   (unsigned long long)((rdcnt ? rdcnt : wrcnt) / 5120));
   }
-#ifdef __APPLE__
+
   else if (strcmp(NM_TAR, argv0) != 0 && strcmp(NM_PAX, argv0) != 0) {
-#else
-    else if (strcmp(NM_TAR, argv0) != 0) {
-#endif
+
       (void)fprintf(listf,
                     "%s: %s vol %d, %ju files, %ju bytes read, %ju bytes written.\n",
                     argv0, frmt->name, arvol-1, (uintmax_t)flcnt,
@@ -670,7 +628,7 @@ ar_write(char *buf, int bsz)
 		wr_trail = 1;
 		io_ok = 1;
 		return(bsz);
-#ifdef __APPLE__
+
 	} else if (res < 0 && artyp == ISPIPE && errno == EPIPE) { /* ignore it */
 		wr_trail = 1;
 		io_ok = 1;
@@ -678,7 +636,7 @@ ar_write(char *buf, int bsz)
 		arfd = open("/dev/null", AR_MODE, DMOD);
 		artyp = ISREG;
 		return bsz;
-#endif /* __APPLE__ */
+
 	}
 	/*
 	 * write broke, see what we can do with it. We try to send any partial
@@ -799,9 +757,6 @@ ar_rdsync(void)
 	long fsbz;
 	off_t cpos;
 	off_t mpos;
-#ifndef __APPLE__
-	struct mtop mb;
-#endif	/* !__APPLE__ */
 
 	/*
 	 * Fail resync attempts at user request (done) or if this is going to be
@@ -821,29 +776,7 @@ ar_rdsync(void)
   }
 
 	switch(artyp) {
-#ifndef __APPLE__
-	case ISTAPE:
-		/*
-		 * if the last i/o was a successful data transfer, we assume
-		 * the fault is just a bad record on the tape that we are now
-		 * past. If we did not get any data since the last resync try
-		 * to move the tape forward one PHYSICAL record past any
-		 * damaged tape section. Some tape drives are stubborn and need
-		 * to be pushed.
-		 */
-		if (io_ok) {
-			io_ok = 0;
-			lstrval = 1;
-			break;
-		}
-		mb.mt_op = MTFSR;
-		mb.mt_count = 1;
-      if (ioctl(arfd, MTIOCTOP, &mb) < 0) {
-        break;
-      }
-		lstrval = 1;
-		break;
-#endif	/* !__APPLE__ */
+
 	case ISREG:
 	case ISCHR:
 	case ISBLK:
@@ -957,10 +890,6 @@ int
 ar_rev(off_t sksz)
 {
 	off_t cpos;
-#ifndef __APPLE__
-	struct mtop mb;
-	int phyblk;
-#endif	/* __APPLE__ */
 
 	/*
 	 * make sure we do not have try to reverse on a flawed archive
@@ -1026,178 +955,12 @@ ar_rev(off_t sksz)
 			return(-1);
 		}
 		break;
-#ifndef __APPLE__
-	case ISTAPE:
-		/*
-		 * Calculate and move the proper number of PHYSICAL tape
-		 * blocks. If the sksz is not an even multiple of the physical
-		 * tape size, we cannot do the move (this should never happen).
-		 * (We also cannot handle trailers spread over two vols).
-		 * get_phys() also makes sure we are in front of the filemark.
-		 */
-		if ((phyblk = get_phys()) <= 0) {
-			lstrval = -1;
-			return(-1);
-		}
 
-		/*
-		 * make sure future tape reads only go by physical tape block
-		 * size (set rdblksz to the real size).
-		 */
-		rdblksz = phyblk;
-
-		/*
-		 * if no movement is required, just return (we must be after
-		 * get_phys() so the physical blocksize is properly set)
-		 */
-      if (sksz <= 0) {
-        break;
-      }
-
-		/*
-		 * ok we have to move. Make sure the tape drive can do it.
-		 */
-		if (sksz % phyblk) {
-			paxwarn(1,
-			    "Tape drive unable to backspace requested amount");
-			lstrval = -1;
-			return(-1);
-		}
-
-		/*
-		 * move backwards the requested number of bytes
-		 */
-		mb.mt_op = MTBSR;
-		mb.mt_count = sksz/phyblk;
-		if (ioctl(arfd, MTIOCTOP, &mb) < 0) {
-			syswarn(1,errno, "Unable to backspace tape %d blocks.",
-			    mb.mt_count);
-			lstrval = -1;
-			return(-1);
-		}
-		break;
-#endif	/* !__APPLE__ */
 	}
 	lstrval = 1;
 	return(0);
 }
 
-#ifndef __APPLE__
-/*
- * get_phys()
- *	Determine the physical block size on a tape drive. We need the physical
- *	block size so we know how many bytes we skip over when we move with
- *	mtio commands. We also make sure we are BEFORE THE TAPE FILEMARK when
- *	return.
- *	This is one really SLOW routine...
- * Return:
- *	physical block size if ok (ok > 0), -1 otherwise
- */
-
-static int
-get_phys(void)
-{
-	int padsz = 0;
-	int res;
-	int phyblk;
-	struct mtop mb;
-	char scbuf[MAXBLK];
-
-	/*
-	 * move to the file mark, and then back up one record and read it.
-	 * this should tell us the physical record size the tape is using.
-	 */
-	if (lstrval == 1) {
-		/*
-		 * we know we are at file mark when we get back a 0 from
-		 * read()
-		 */
-		while ((res = read(arfd, scbuf, sizeof(scbuf))) > 0)
-			padsz += res;
-		if (res < 0) {
-			syswarn(1, errno, "Unable to locate tape filemark.");
-			return(-1);
-		}
-	}
-
-	/*
-	 * move backwards over the file mark so we are at the end of the
-	 * last record.
-	 */
-	mb.mt_op = MTBSF;
-	mb.mt_count = 1;
-	if (ioctl(arfd, MTIOCTOP, &mb) < 0) {
-		syswarn(1, errno, "Unable to backspace over tape filemark.");
-		return(-1);
-	}
-
-	/*
-	 * move backwards so we are in front of the last record and read it to
-	 * get physical tape blocksize.
-	 */
-	mb.mt_op = MTBSR;
-	mb.mt_count = 1;
-	if (ioctl(arfd, MTIOCTOP, &mb) < 0) {
-		syswarn(1, errno, "Unable to backspace over last tape block.");
-		return(-1);
-	}
-	if ((phyblk = read(arfd, scbuf, sizeof(scbuf))) <= 0) {
-		syswarn(1, errno, "Cannot determine archive tape blocksize.");
-		return(-1);
-	}
-
-	/*
-	 * read forward to the file mark, then back up in front of the filemark
-	 * (this is a bit paranoid, but should be safe to do).
-	 */
-	while ((res = read(arfd, scbuf, sizeof(scbuf))) > 0)
-		;
-	if (res < 0) {
-		syswarn(1, errno, "Unable to locate tape filemark.");
-		return(-1);
-	}
-	mb.mt_op = MTBSF;
-	mb.mt_count = 1;
-	if (ioctl(arfd, MTIOCTOP, &mb) < 0) {
-		syswarn(1, errno, "Unable to backspace over tape filemark.");
-		return(-1);
-	}
-
-	/*
-	 * set lstrval so we know that the filemark has not been seen
-	 */
-	lstrval = 1;
-
-	/*
-	 * return if there was no padding
-	 */
-	if (padsz == 0)
-		return(phyblk);
-
-	/*
-	 * make sure we can move backwards over the padding. (this should
-	 * never fail).
-	 */
-	if (padsz % phyblk) {
-		paxwarn(1, "Tape drive unable to backspace requested amount");
-		return(-1);
-	}
-
-	/*
-	 * move backwards over the padding so the head is where it was when
-	 * we were first called (if required).
-	 */
-	mb.mt_op = MTBSR;
-	mb.mt_count = padsz/phyblk;
-	if (ioctl(arfd, MTIOCTOP, &mb) < 0) {
-		syswarn(1,errno,"Unable to backspace tape over %d pad blocks",
-		    mb.mt_count);
-		return(-1);
-	}
-	return(phyblk);
-}
-
-#endif	/* !__APPLE__ */
 /*
  * ar_next()
  *	prompts the user for the next volume in this archive. For some devices
@@ -1228,12 +991,9 @@ ar_next(void)
     syswarn(0, errno, "Unable to restore signal mask");
   }
 
-#ifdef __APPLE__
   if (frmt == NULL || done || !wr_trail || Oflag || strcmp(NM_TAR, argv0) == 0 ||
       strcmp(NM_PAX, argv0) == 0) {
-#else
-    if (done || !wr_trail || Oflag || strcmp(NM_TAR, argv0) == 0) {
-#endif /* __APPLE__ */
+
       return(-1);
     }
 

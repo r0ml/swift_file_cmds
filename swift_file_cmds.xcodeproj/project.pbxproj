@@ -857,6 +857,8 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				install/xinstall.swift,
+				install/xinstall2.swift,
+				install/xinstall3.swift,
 			);
 			target = E774019B2F02D91D00498517 /* install */;
 		};
@@ -921,7 +923,11 @@
 			membershipExceptions = (
 				gzip/futimens.swift,
 				gzip/gzip.swift,
+				gzip/gzip2.swift,
+				gzip/gzip3.swift,
+				gzip/gzip4.swift,
 				gzip/unbzip2.swift,
+				gzip/unlz.swift,
 				gzip/unpack.swift,
 				gzip/unxz.swift,
 				gzip/zuncompress.swift,

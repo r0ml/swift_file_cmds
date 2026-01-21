@@ -36,16 +36,10 @@
  * SUCH DAMAGE.
  */
 
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <string.h>
-#include "pax.h"
-#include "extern.h"
-#include <stdarg.h>
+import CMigration
+import Darwin
 
+extension pax {
 /*
  * routines that deal with I/O to and from the user
  */
@@ -132,63 +126,62 @@ tty_read(char *str, int len)
 
 void
 paxwarn(int set, const char *fmt, ...)
-{
-	va_list ap;
-	va_start(ap, fmt);
-#ifdef __APPLE__
-  if (set && (pax_invalid_action == 0)) {
-#else
-    if (set) {
-#endif /* __APPLE__ */
-      exit_val = 1;
+  {
+    va_list ap;
+    va_start(ap, fmt);
+
+    if (set && (pax_invalid_action == 0)) {
+
+        exit_val = 1;
+      }
+      /*
+       * when vflag we better ship out an extra \n to get this message on a
+       * line by itself
+       */
+      if (vflag && vfpart) {
+        (void)fflush(listf);
+        (void)fputc('\n', stderr);
+        vfpart = 0;
+      }
+      (void)fprintf(stderr, "%s: ", argv0);
+      (void)vfprintf(stderr, fmt, ap);
+      va_end(ap);
+      (void)fputc('\n', stderr);
     }
-	/*
-	 * when vflag we better ship out an extra \n to get this message on a
-	 * line by itself
-	 */
-	if (vflag && vfpart) {
-		(void)fflush(listf);
-		(void)fputc('\n', stderr);
-		vfpart = 0;
-	}
-	(void)fprintf(stderr, "%s: ", argv0);
-	(void)vfprintf(stderr, fmt, ap);
-	va_end(ap);
-	(void)fputc('\n', stderr);
-}
 
-/*
- * syswarn()
- *	write a warning message to stderr. if "set" the exit value of pax
- *	will be non-zero.
- */
+    /*
+     * syswarn()
+     *	write a warning message to stderr. if "set" the exit value of pax
+     *	will be non-zero.
+     */
 
-void
-syswarn(int set, int errnum, const char *fmt, ...)
-{
-	va_list ap;
-	va_start(ap, fmt);
-  if (set) {
-    exit_val = 1;
+    void
+    syswarn(int set, int errnum, const char *fmt, ...)
+    {
+      va_list ap;
+      va_start(ap, fmt);
+      if (set) {
+        exit_val = 1;
+      }
+      /*
+       * when vflag we better ship out an extra \n to get this message on a
+       * line by itself
+       */
+      if (vflag && vfpart) {
+        (void)fflush(listf);
+        (void)fputc('\n', stderr);
+        vfpart = 0;
+      }
+      (void)fprintf(stderr, "%s: ", argv0);
+      (void)vfprintf(stderr, fmt, ap);
+      va_end(ap);
+
+      /*
+       * format and print the errno
+       */
+      if (errnum > 0) {
+        (void)fprintf(stderr, " <%s>", strerror(errnum));
+      }
+      (void)fputc('\n', stderr);
+    }
   }
-	/*
-	 * when vflag we better ship out an extra \n to get this message on a
-	 * line by itself
-	 */
-	if (vflag && vfpart) {
-		(void)fflush(listf);
-		(void)fputc('\n', stderr);
-		vfpart = 0;
-	}
-	(void)fprintf(stderr, "%s: ", argv0);
-	(void)vfprintf(stderr, fmt, ap);
-	va_end(ap);
-
-	/*
-	 * format and print the errno
-	 */
-  if (errnum > 0) {
-    (void)fprintf(stderr, " <%s>", strerror(errnum));
-  }
-	(void)fputc('\n', stderr);
-}

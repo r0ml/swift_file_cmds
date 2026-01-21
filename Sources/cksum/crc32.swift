@@ -104,7 +104,7 @@ func crc32(_ fd : Int32) -> (UInt32, Int)? {
     var len = 0
   crc32_total = ~crc32_total
 
-  var bufsiz = Int(BUFSIZ)
+  let bufsiz = Int(BUFSIZ)
   var buf = Array<UInt8>(repeating: 0, count: bufsiz)
   while true {
     let nr = read(fd, &buf, bufsiz)

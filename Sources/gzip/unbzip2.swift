@@ -83,7 +83,7 @@ extension gzip {
         if (n == 0) {
           end_of_file = true
         }
-        infile_newdata(n)
+        r.infile_current += n
         bzs.next_in = inbuf
         bzs.avail_in = n
         if bytes_in != 0 {

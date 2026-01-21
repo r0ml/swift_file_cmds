@@ -36,8 +36,12 @@
 
 import CMigration
 import Darwin
+import LZMA
+import zlib
 
 func unxz(_ i : Int, _ o : Int, _ pre : [UInt8], _ prelen : size_t, _ bytes_in : inout off_t) -> off_t {
+
+  /*
 	lzma_stream strm = LZMA_STREAM_INIT;
 	static const int flags = LZMA_TELL_UNSUPPORTED_CHECK|LZMA_CONCATENATED;
 	lzma_ret ret;
@@ -45,33 +49,39 @@ func unxz(_ i : Int, _ o : Int, _ pre : [UInt8], _ prelen : size_t, _ bytes_in :
 	off_t bytes_out, bp;
 	uint8_t ibuf[BUFSIZ];
 	uint8_t obuf[BUFSIZ];
+*/
+  var strm = lzma_stream()
 
-	if (bytes_in == NULL)
-		bytes_in = &bp;
+  if (bytes_in == NULL) {
+    bytes_in = &bp;
+  }
 
 	strm.next_in = ibuf;
 	memcpy(ibuf, pre, prelen);
 	strm.avail_in = read(i, ibuf + prelen, sizeof(ibuf) - prelen);
-	if (strm.avail_in == (size_t)-1)
-		maybe_err("read failed");
-	infile_newdata(strm.avail_in);
-	strm.avail_in += prelen;
-	*bytes_in = strm.avail_in;
+  if (strm.avail_in == -1) {
+    maybe_err("read failed")
+  }
+	infile_newdata(strm.avail_in)
+	strm.avail_in += prelen
+	*bytes_in = strm.avail_in
 
-	if ((ret = lzma_stream_decoder(&strm, UINT64_MAX, flags)) != LZMA_OK)
-		maybe_errx("Can't initialize decoder (%d)", ret);
+  if ((ret = lzma_stream_decoder(&strm, UINT64_MAX, flags)) != LZMA_OK) {
+    maybe_errx("Can't initialize decoder (%d)", ret);
+  }
 
 	strm.next_out = NULL;
 	strm.avail_out = 0;
-	if ((ret = lzma_code(&strm, LZMA_RUN)) != LZMA_OK)
-		maybe_errx("Can't read headers (%d)", ret);
+  if ((ret = lzma_code(&strm, LZMA_RUN)) != LZMA_OK) {
+    maybe_errx("Can't read headers (%d)", ret);
+  }
 
 	bytes_out = 0;
 	strm.next_out = obuf;
 	strm.avail_out = sizeof(obuf);
 
-	for (;;) {
-		check_siginfo();
+	while true {
+		check_siginfo()
 		if (strm.avail_in == 0) {
 			strm.next_in = ibuf;
 			strm.avail_in = read(i, ibuf, sizeof(ibuf));
@@ -97,8 +107,9 @@ func unxz(_ i : Int, _ o : Int, _ pre : [UInt8], _ prelen : size_t, _ bytes_in :
 		if (strm.avail_out == 0 || ret != LZMA_OK) {
 			const size_t write_size = sizeof(obuf) - strm.avail_out;
 
-			if (write(o, obuf, write_size) != (ssize_t)write_size)
-				maybe_err("write failed");
+      if (write(o, obuf, write_size) != (ssize_t)write_size) {
+        maybe_err("write failed");
+      }
 
 			strm.next_out = obuf;
 			strm.avail_out = sizeof(obuf);
@@ -108,8 +119,9 @@ func unxz(_ i : Int, _ o : Int, _ pre : [UInt8], _ prelen : size_t, _ bytes_in :
 		if (ret != LZMA_OK) {
 			if (ret == LZMA_STREAM_END) {
 				// Check that there's no trailing garbage.
-				if (strm.avail_in != 0 || read(i, ibuf, 1))
-					ret = LZMA_DATA_ERROR;
+        if (strm.avail_in != 0 || read(i, ibuf, 1)) {
+          ret = LZMA_DATA_ERROR;
+        }
 				else {
 					lzma_end(&strm)
 					return bytes_out;
@@ -421,14 +433,16 @@ func parse_indexes(_ xfi : xz_file_info, _ src_fd : FileDescriptor) -> Bool {
 		// needed so that we can print which Check is used in each
 		// Stream.
 		ret = lzma_index_stream_flags(this_index, &footer_flags);
-		if (ret != LZMA_OK)
-			goto error;
+    if (ret != LZMA_OK) {
+      goto error;
+    }
 
 		// Store also the size of the Stream Padding field. It is
 		// needed to show the offsets of the Streams correctly.
 		ret = lzma_index_stream_padding(this_index, stream_padding);
-		if (ret != LZMA_OK)
-			goto error;
+    if (ret != LZMA_OK) {
+      goto error;
+    }
 
 		if (combined_index != NULL) {
 			// Append the earlier decoded Indexes
@@ -467,7 +481,7 @@ error:
  * Small wrapper to extract total length of a file
  */
 func unxz_len(_ fd : FileDescriptor) -> off_t {
-	xfi = xz_file_into()
+	xfi = xz_file_info()
 	if (!parse_indexes(&xfi, fd)) {
 		off_t res = lzma_index_uncompressed_size(xfi.idx);
 		lzma_index_end(xfi.idx, NULL);

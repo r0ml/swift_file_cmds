@@ -100,7 +100,7 @@ extension cp {
 
     var rval = false
 
-    let fs = entp.statp!
+    let fs = entp.statp
     // FIXME: MASSIVE KLUDGE
     var from_fd : FileDescriptor = FileDescriptor(rawValue: -1)
     var dne = dnex
@@ -425,7 +425,7 @@ extension cp {
       }
     }
 
-    return options.pflag ? setfile(p.statp!, nil, target) : false
+    return options.pflag ? setfile(p.statp, nil, target) : false
   }
 
   func copy_fifo(_ from_stat : FileMetadata, _ exists : Bool, _ target : String) -> Bool {

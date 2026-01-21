@@ -71,7 +71,7 @@ import Darwin
     } else {
  */
     var options = CommandOptions()
-    var go = BSDGetopt("o:")
+    let go = BSDGetopt("o:")
     while let (k,v) = try go.getopt() {
       switch k {
         case "o":

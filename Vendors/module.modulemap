@@ -6,3 +6,9 @@ module BZip2 [system] {
   link "bz2"
   export *
 }
+
+module LZMA [system] {
+  header "/opt/homebrew/include/lzma.h"
+  link "lzma"
+  export *
+}

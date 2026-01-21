@@ -232,7 +232,7 @@ struct ATFlags : OptionSet {
           break;
       }
       
-      let oflags = UInt(p.statp!.flags.rawValue)
+      let oflags = UInt(p.statp.flags.rawValue)
       if options.oct {
         newflags = options.set
       }

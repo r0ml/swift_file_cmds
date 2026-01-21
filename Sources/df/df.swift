@@ -786,24 +786,6 @@ usage: df [--libxo] [-b | -g | -H | -h | -k | -m | -P] [-acIiln\(unix2003 ? "" :
   }
 }
 
-public extension String {
-  func leftPad(toLength: Int, withPad: String = " ") -> String {
-    guard toLength > 0 else { return self }
-    guard !self.isEmpty else { return String(repeating: withPad, count: toLength) }
-    let paddingNeeded = toLength - self.count
-    guard paddingNeeded > 0 else { return self }
-    return String(repeating: withPad, count: paddingNeeded) + self
-  }
-
-  func rightPad(toLength: Int, withPad: String = " ") -> String {
-    guard toLength > 0 else { return self }
-    guard !self.isEmpty else { return String(repeating: withPad, count: toLength) }
-    let paddingNeeded = toLength - self.count
-    guard paddingNeeded > 0 else { return self }
-    return self + String(repeating: withPad, count: paddingNeeded)
-  }
-}
-
 func getmntinfo() -> [FileSystemMetadata] {
   var mntbufx : UnsafeMutablePointer<statfs>?
   let mntsize = Int(getmntinfo_r_np(&mntbufx, MNT_NOWAIT))

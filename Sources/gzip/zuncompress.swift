@@ -234,12 +234,13 @@ import Darwin
 
         /* Check the magic number */
         var i = 0
-        while i < 3 && compressed_prelen {
+        while i < 3 && 0 != compressed_prelen {
           header[i] = *compressed_pre++;
           i += 1
           compressed_prelen -= 1
         }
 
+        let header2 = fp.readUpToCount(
         if (fread(header + i, 1, sizeof(header) - i, fp) !=
             sizeof(header) - i ||
             memcmp(header, magic_header, sizeof(magic_header)) != 0) {
