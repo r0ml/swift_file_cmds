@@ -261,7 +261,7 @@ class unpack_descriptor_t {
   /*
    * Decode huffman stream, based on the huffman tree.
    */
-  func decode(_ bytes_in : inout off_t) {
+  func decode(_ bytes_in : inout UInt) {
     //	int thislevel, thiscode, thisbyte, inlevelindex;
     //	int i;
     var bytes_out : off_t = 0
@@ -329,7 +329,9 @@ class unpack_descriptor_t {
   }
 
   /* Handler for pack(1)'ed file */
-  func unpack(_ inx : FileDescriptor, _ out : FileDescriptor, _ pre : [UInt8], _ prelen : size_t, _ bytes_in : inout off_t) -> UInt {
+  func unpack(_ inx : FileDescriptor, _ out : FileDescriptor, _ pre : [UInt8]) -> (UInt, UInt) {
+
+    var bytes_in : UInt = 0
 
     in = dup(in);
     if (in == -1) {
@@ -341,10 +343,10 @@ class unpack_descriptor_t {
     }
 
     parse_header(inx, out, pre, prelen, bytes_in)
-    decode(bytes_in)
+    decode(&bytes_in)
     descriptor_fini()
 
     /* If we reached here, the unpack was successful */
-    return uncompressed_size
+    return (uncompressed_size, bytes_in)
   }
 }

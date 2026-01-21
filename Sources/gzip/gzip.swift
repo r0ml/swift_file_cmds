@@ -44,6 +44,9 @@ import zlib
     var infile : String? = nil
     var infile_total : UInt = 0
     var infile_current : UInt = 0
+
+    var outfile : String? = nil
+    var firstPrint = true
   }
 
   let r = Runtime()
@@ -66,17 +69,12 @@ import zlib
    #ifdef __APPLE__
    /* from sys/param.h */
    #define	nitems(x)	(sizeof((x)) / sizeof((x)[0]))
+*/
 
    /* from sys/endian.h */
-   static __inline uint32_t
-   le32dec(const void *pp)
-   {
-   uint8_t const *p = (uint8_t const *)pp;
-
-   return (((unsigned)p[3] << 24) | (p[2] << 16) | (p[1] << 8) | p[0]);
-   }
-   #endif /* __APPLE__ */
-   */
+  func le32dec<S:Sequence>(_ p : S) -> UInt32 where S.Iterator.Element == UInt8 {
+    return UInt32((p[3]) << 24) | UInt32((p[2]) << 16) | UInt32((p[1]) << 8) | UInt32(p[0])
+  }
 
   /*
    import lzma
@@ -372,7 +370,7 @@ from a file containing the following notice:
     }
 
     if !options.qflag && options.lflag && options.args.count > 1 {
-      print_list(-1, 0, "(totals)", 0);
+      print_list(nil, 0, "(totals)", 0);
     }
     if (r.exit_value == 0 && (ferror(stdout) != 0 || fflush(stdout) != 0)) {
       err(1, "stdout")
@@ -431,10 +429,10 @@ from a file containing the following notice:
   }
 
   /* compress input to output. Return bytes read, -1 on error */
-  func gz_compress(_ inx : FileDescriptor, _ out : FileDescriptor, _ orignamex : String, _ mtime : UInt32) -> (Int, Int) {
+  func gz_compress(_ inx : FileDescriptor, _ out : FileDescriptor, _ orignamex : String, _ mtime : DateTime) -> (UInt, UInt) {
     //    char *outbufp, *inbufp;
-    var in_tot = 0
-    var out_tot = 0
+    var in_tot : UInt = 0
+    var out_tot : UInt = 0
     //    ssize_t in_size;
     //    int i, error;
     //    uLong crc;

@@ -47,10 +47,10 @@ fileprivate var outbuf = Array(repeating: UInt8(0), count: gzip.BUFLEN)
 
 extension gzip {
 
-  func unbzip2(_ inx : FileDescriptor, _ out : FileDescriptor, _ pre : [UInt8], _ prelen : size_t, _ bytes_in : inout off_t) -> Int {
+  func unbzip2(_ inx : FileDescriptor, _ out : FileDescriptor, _ pre : [UInt8]) -> (UInt, UInt) {
     //	int		ret, end_of_file;
 
-    var bytes_out = 0
+    var bytes_out : UInt = 0
     //	bz_stream	bzs;
 
     var cold = false
@@ -71,7 +71,7 @@ extension gzip {
     bzs.avail_in = prelen;
     bzs.next_in = pre;
 
-    bytes_in = prelen
+    var bytes_in = UInt(pre.count)
 
     while ret == BZ_OK {
       check_siginfo()
@@ -149,7 +149,7 @@ extension gzip {
       return -1
     }
 
-    return bytes_out
+    return (bytes_out, bytes_in)
   }
 
 }

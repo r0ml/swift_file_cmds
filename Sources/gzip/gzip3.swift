@@ -42,7 +42,7 @@ extension gzip {
    * compress the given file: create a corresponding .gz file and remove the
    * original.
    */
-  func file_compress(_ file : String, _ outfile : String, _ outsize : size_t) -> off_t {
+  func file_compress(_ file : String) -> UInt? {
     //   int in;
     //    int out;
     //    off_t size, in_size;
@@ -52,7 +52,7 @@ extension gzip {
 
     guard let inx = try? FileDescriptor.open(file, .readOnly) else {
       maybe_warn("can't open \(file)")
-      return -1
+      return nil
     }
 
     defer { try? inx.close() }
@@ -60,7 +60,7 @@ extension gzip {
     //    bzero(&isb, sizeof(isb));
     guard let isb = try? FileMetadata(for: inx) else {
       maybe_warn("couldn't stat: \(file)")
-      return -1
+      return nil
     }
 
     r.infile = file
@@ -69,24 +69,21 @@ extension gzip {
     if !options.cflag {
       if isb.links > 1 && !options.fflag {
         maybe_warnx("\(file) has \(isb.links-1) other link\(isb.links == 2 ? "" : "s") -- skipping")
-        return -1
+        return nil
       }
 
       if (!options.fflag && (suff = check_suffix(file, 0)) &&
           suff->zipped[0] != 0) {
         maybe_warnx("\(file) already has \(suff.zipped) suffix -- unchanged")
-        return -1
+        return nil
       }
 
       /* Add (usually) .gz to filename */
-      if ((size_t)snprintf(outfile, outsize, "%s%s",
-                           file, suffixes[0].zipped) >= outsize) {
-        memcpy(outfile + outsize - suffixes[0].ziplen - 1,
-               suffixes[0].zipped, suffixes[0].ziplen + 1);
-      }
+      let outfile = "\(file)\(suffixes[0].zipped)"
+      r.outfile = outfile
 
       if (check_outfile(outfile) == 0) {
-        return -1
+        return nil
       }
     }
 
@@ -95,7 +92,7 @@ extension gzip {
       if (out == -1) {
         maybe_warn("could not create output: %s", outfile);
         fclose(stdin);
-        return (-1);
+        return (nil, outfile)
       }
 
       remove_file = outfile;
@@ -103,7 +100,7 @@ extension gzip {
       out = STDOUT_FILENO;
     }
 
-    in_size = gz_compress(in, out, &size, basename(file), (uint32_t)isb.st_mtime);
+    in_size = gz_compress(inx, out, &size, basename(file), (uint32_t)isb.st_mtime);
 
     /*
      * If there was an error, in_size will be -1.
@@ -140,7 +137,7 @@ extension gzip {
 
     /* output is good, ok to delete input */
     unlink_input(file, &isb);
-    return (size);
+    return (size, outfile)
 
   bad_outfile:
     if (close(out) == -1) {
@@ -149,11 +146,11 @@ extension gzip {
 
     maybe_warnx("leaving original \(file)")
     unlink(outfile)
-    return (size)
+    return size
   }
 
   /* uncompress the given file and remove the original */
-  func file_uncompress(_ file : String, _ outfile : String, _ outsize : size_t) -> off_t {
+  func file_uncompress(_ file : String) -> UInt {
     /*    struct stat isb, osb;
      off_t size;
      ssize_t rbytes;
@@ -185,9 +182,9 @@ extension gzip {
     r.infile = file
     r.infile_total = in_size
 
-    strlcpy(outfile, file, outsize);
+    var outfile = file
     if (check_suffix(outfile, 1) == NULL && !(options.cflag || options.lflag)) {
-      maybe_warnx("%s: unknown suffix -- ignored", file);
+      maybe_warnx("\(file): unknown suffix -- ignored")
       goto lose;
     }
 
@@ -506,7 +503,7 @@ extension gzip {
     print_info = 0;
   }
 
-  func cat_fd(_ prepend : [UInt8], _ count : size_t, _ gsizep : inout off_t, _ fd : FileDescriptor) -> off_t {
+  func cat_fd(_ prepend : [UInt8], _ fd : FileDescriptor) -> UInt {
     char buf[BUFLEN];
     off_t in_tot;
     ssize_t w;
@@ -536,10 +533,7 @@ extension gzip {
       in_tot += rv;
     }
 
-    if (gsizep) {
-      *gsizep = in_tot;
-    }
-    return (in_tot);
+    return in_tot;
   }
 }
 

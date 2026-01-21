@@ -564,9 +564,7 @@ class Lzma {
     return dict_size;
   }
 
-  static off_t
-  unlz(int fin, int fout, char *pre, size_t prelen, off_t *bytes_in)
-  {
+  func unlz(_ fin : FileDescriptor, _ fout : FileDescriptor, _ pre : [UInt8]) -> (UInt, UInt) {
     if (lz_crc[0] == 0)
         lz_crc_init();
 
@@ -578,12 +576,12 @@ class Lzma {
     ssize_t nr = read(fin, header + prelen, sizeof(header) - prelen);
     switch (nr) {
       case -1:
-        return -1;
+        return (-1, bytes_in);
       case 0:
         return prelen ? -1 : 0;
       default:
         if ((size_t)nr != sizeof(header) - prelen)
-            return -1;
+            return (-1, bytes_in);
         break;
     }
 
@@ -594,6 +592,7 @@ class Lzma {
     if (dict_size == 0)
         return -1;
 
-    return lz_decode(fin, fout, dict_size, bytes_in);
+    let bo = lz_decode(fin, fout, dict_size, bytes_in);
+    return (bo, bytes_in)
   }
 }

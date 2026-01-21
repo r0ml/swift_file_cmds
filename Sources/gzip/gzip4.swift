@@ -49,6 +49,9 @@ extension gzip {
      FILE *in;
      */
 
+    var usize : UInt
+    var gsize : UInt
+
     defer {
       r.infile = nil
       r.infile_total = 0
@@ -69,11 +72,11 @@ extension gzip {
     r.infile_total = in_size
 
     if options.lflag {
-      print_list(FileDescriptor.standardInput, in_size, r.infile, isb.lastWrite)
+      print_list(FileDescriptor.standardInput, in_size, r.infile!, isb.lastWrite)
       return
     }
 
-    guard let fourbytes = try? read_retry(STDIN_FILENO, 4) else {
+    guard let fourbytes = try? read_retry(FileDescriptor.standardInput, 4) else {
       maybe_warn("can't read stdin");
       return
     }
@@ -85,40 +88,43 @@ extension gzip {
     let method = file_gettype(fourbytes)
     switch method {
       case .GZIP:
-        usize = gz_uncompress(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes, &gsize, "(stdin)");
+        (usize, gsize) = gz_uncompress(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes, "(stdin)")
 
       case .BZIP2:
-        usize = unbzip2(STDIN_FILENO, STDOUT_FILENO, fourbytes, &gsize);
+        (usize, gsize) = unbzip2(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes)
 
       case .Z:
-        if ((inx = zdopen(STDIN_FILENO)) == NULL) {
-          maybe_warnx("zopen of stdin");
-          return
-        }
+        let inx = s_zstate.zdopen(FileDescriptor.standardInput)
+//          maybe_warnx("zopen of stdin");
+//          return
+//        }
 
-        usize = zuncompress(inx, stdout, fourbytes, &gsize);
-        fclose(inx);
+        (usize, gsize) = inx.zuncompress(FileDescriptor.standardOutput, fourbytes)
+        try? inx.fp.close()
 
       case .PACK:
-        usize = unpack(STDIN_FILENO, STDOUT_FILENO, fourbytes, &gsize);
+        let inx = unpack_descriptor_t()
+        (usize, gsize) = inx.unpack(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes)
 
       case .XZ:
-        usize = unxz(STDIN_FILENO, STDOUT_FILENO, fourbytes, &gsize);
+        (usize, gsize) = unxz(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes)
 
       case .LZ:
-        usize = unlz(STDIN_FILENO, STDOUT_FILENO, fourbytes, &gsize);
-      default:
+        (usize, gsize) = Lzma().unlz(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes)
 
-        if (!options.fflag) {
+      default:
+        if !options.fflag {
           maybe_warnx("unknown compression format");
           return
         }
-        usize = cat_fd(fourbytes, &gsize, STDIN_FILENO);
+        usize = cat_fd(fourbytes, FileDescriptor.standardInput)
+        // FIXME: really?
+        gsize = usize
 
     }
 
     if options.vflag && !options.tflag && usize != -1 && gsize != -1 {
-      print_verbage(NULL, NULL, usize, gsize);
+      print_verbage(nil, nil, usize, gsize)
     }
     if options.vflag && options.tflag {
       print_test("(stdin)", usize != -1);
@@ -148,7 +154,7 @@ extension gzip {
       return;
     }
 
-    var mtime : UInt32
+    var mtime : DateTime
     if sb.filetype == .regular {
       r.infile = "(stdout)"
       r.infile_total = sb.size
@@ -159,10 +165,10 @@ extension gzip {
         maybe_warn("time")
         return;
       }
-      mtime = systime
+      mtime = DateTime(systime)
     }
 
-    let usize = gz_compress(FileDescriptor.standardInput, FileDescriptor.standardOutput, &gsize, "", mtime)
+    let (usize, gsize) = gz_compress(FileDescriptor.standardInput, FileDescriptor.standardOutput, "", mtime)
 
     if options.vflag && !options.tflag && usize != -1 && gsize != -1 {
       print_verbage(nil, nil, usize, gsize);
@@ -188,31 +194,38 @@ extension gzip {
       return
     }
 
+    var ps = path
     if options.zcat && !options.fflag && unix2003 {
-      if let p = path.matches(of: /\.[^.\/]$/), !p.isEmpty, p[0].0 == Z_SUFFIX {
+      let p = path.matches(of: /\.[^.\/]$/)
+      if !p.isEmpty, p[0].0 == Self.Z_SUFFIX {
       } else {
-        path.append(Z_SUFFIX)
+        ps.append(Self.Z_SUFFIX)
       }
     }
 
     var sb : FileMetadata?
+    var second = false
   retry:
     while true {
-      sb = try? FileMetadata(for: path)
-      if nil == sb || (!options.fflag && !options.cflag && nil == (sb = try? FileMetadata(for: path, followSymlinks: false), sb).1 ) {
+      sb = try? FileMetadata(for: ps)
+      if nil == sb || (!options.fflag && !options.cflag && nil == (sb = try? FileMetadata(for: ps, followSymlinks: false), sb).1 ) {
 
         /* lets try <path>.gz if we're decompressing */
-        if options.dflag && s == NULL && errno == ENOENT {
-          path.append(suffixes[0].zipped)
+        if options.dflag && !second && errno == ENOENT {
+          second = true
+          ps.append(suffixes[0].zipped)
           continue retry
         }
 
         /* Include actual path for clarity. */
-        maybe_warn("can't stat: %s (%s)", opath, path);
+        maybe_warn("can't stat: \(path) (\(ps))")
 
         return
       }
       break
+    }
+    guard let sb else {
+      fatalError("unreachable")
     }
     if sb.filetype == .directory {
       if options.rflag {
@@ -234,14 +247,14 @@ extension gzip {
 
   /* compress/decompress a file */
   func handle_file(_ file : String, _ sbp : FileMetadata) {
-    off_t usize, gsize;
-    char  outfile[PATH_MAX];
+    var usize : UInt = 0
+    var gsize : UInt = 0
 
     r.infile = file
     r.infile_total = sbp.size
 
     if options.dflag {
-      usize = file_uncompress(file, outfile, sizeof(outfile));
+      usize = file_uncompress(file)
 
       if (options.vflag && options.tflag) {
         print_test(file, usize != -1);
@@ -250,13 +263,12 @@ extension gzip {
       if (usize == -1) {
         return;
       }
-      gsize = sbp->st_size;
+      gsize = sbp.size
     } else {
-      gsize = file_compress(file, outfile, sizeof(outfile));
-      if (gsize == -1) {
+      guard let gsize = file_compress(file) else {
         return;
       }
-      usize = sbp->st_size;
+      usize = sbp.size
     }
 
     r.infile = nil
@@ -264,7 +276,7 @@ extension gzip {
     r.infile_current = 0
 
     if (options.vflag && !options.tflag) {
-      print_verbage(file, (options.cflag) ? NULL : outfile, usize, gsize);
+      print_verbage(file, (options.cflag) ? nil : r.outfile, usize, gsize)
     }
 
   }
@@ -285,7 +297,10 @@ extension gzip {
           maybe_warn(entry.path)
           continue
         case .F:
-          handle_file(entry.path, entry.statp!)
+          handle_file(entry.path, entry.statp)
+        default:
+          // FIXME: what should I do here?
+          continue
       }
     }
     if (errno != 0) {
@@ -364,78 +379,71 @@ extension gzip {
    compressed uncompressed  ratio uncompressed_name
    354841      1679360  78.8% /usr/pkgsrc/distfiles/libglade-2.0.1.tar
    */
-  func print_list(_ fd : FileDescriptor, _ out : UInt, _ outfile : String, _ ts : DateTime) {
-    static int first = 1;
+  func print_list(_ fd : FileDescriptor?, _ outx : UInt, _ outfile : String, _ ts : DateTime) {
 
-    static off_t in_tot, out_tot;
-    uint32_t crc = 0;
+    // FIXME: These vars were static
+    var in_tot : UInt = 0
+    var out_tot : UInt = 0
 
-    off_t in = 0, rv;
-
-    if (first) {
-
-      if (options.vflag) {
-        printf("method  crc     date  time  ");
+    var crc : UInt32 = 0
+    var inx : UInt = 0
+    var out : UInt = outx
+    if r.firstPrint {
+      r.firstPrint = false
+      if options.vflag {
+        print("method  crc     date  time  ", terminator: "")
       }
 
-      if (!options.qflag) {
-        printf("  compressed uncompressed  "
-               "ratio uncompressed_name\n");
+      if !options.qflag {
+        print("  compressed uncompressed  ratio uncompressed_name")
       }
     }
-    first = 0;
+
 
     /* print totals? */
 
-    if (fd == -1) {
-      in = in_tot;
-      out = out_tot;
-    } else
-
-    {
+    if let fd {
       /* read the last 4 bytes - this is the uncompressed size */
-      rv = lseek(fd, (off_t)(-8), SEEK_END);
-      if (rv != -1) {
-        unsigned char buf[8];
-        uint32_t usize;
-
-        rv = read(fd, (char *)buf, sizeof(buf));
-        if (rv == -1) {
-          maybe_warn("read of uncompressed size");
+      if let rv = try? fd.seek(offset: -8, from: .end) {
+        guard let buf = try? fd.readUpToCount(8) else {
+          maybe_warn("read of uncompressed size")
         }
-        else if (rv != sizeof(buf)) {
-          maybe_warnx("read of uncompressed size");
+        if buf.count != 8 {
+          maybe_warnx("read of uncompressed size")
         }
 
         else {
-          usize = le32dec(&buf[4]);
-          in = (off_t)usize;
-
-          crc = le32dec(&buf[0]);
+          let usize = le32dec(buf[4...])
+          inx = UInt(usize)
+          crc = le32dec(buf)
 
         }
       }
+    } else {
+      inx = in_tot
+      out = out_tot
     }
 
-    if (options.vflag && fd == -1) {
-      printf("                            ");
+    if options.vflag && fd == nil {
+      print("                            ", terminator: "")
     }
     else if (options.vflag) {
-      char *date = ctime(&ts);
-
+      var b = ts.secs
+      let date = String(cString: Darwin.ctime(&b))
+      let dd = date.dropFirst(4).prefix(11)
       /* skip the day, 1/100th second, and year */
-      date += 4;
-      date[12] = 0;
-      printf("%5s %08x %11s ", "defla"/*XXX*/, crc, date);
+      let a = cFormat("%08x", crc)
+      print("defla \(a) \(dd) ", terminator: "")
     }
-    in_tot += in;
-    out_tot += out;
-
-    print_list_out(out, in, outfile);
+    in_tot += inx
+    out_tot += out
+    print_list_out(out, inx, outfile)
   }
 
   func print_list_out(_ out : UInt, _ inx : UInt, _ outfile : String) {
-    printf("%12llu %12llu ", (unsigned long long)out, (unsigned long long)in);
+    let a = cFormat("%12llu", out)
+    let b = cFormat("%12llu", inx)
+    print("\(a) \(b) ", terminator: "")
     print_ratio(inx, out, FileDescriptor.standardOutput)
     print(" \(outfile)")
   }

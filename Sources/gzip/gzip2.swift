@@ -43,7 +43,7 @@ extension gzip {
    * uncompressed size written, and put the compressed sized read
    * into `*gsizep'.
    */
-  func gz_uncompress(_ inx : FileDescriptor, _ out : FileDescriptor, _ pre : [UInt8], _ gsizep : inout off_t, _ filename : String) -> off_t {
+  func gz_uncompress(_ inx : FileDescriptor, _ out : FileDescriptor, _ pre : [UInt8], _ filename : String) -> (UInt, UInt) {
     //    z_stream z;
     //    char *outbufp, *inbufp;
     //    uint32_t out_sub_tot = 0;
@@ -95,8 +95,8 @@ extension gzip {
     z.zfree = nil
     z.opaque = 0
 
-    var in_tot = prelen
-    var out_tot = 0
+    var in_tot = UInt(pre.count)
+    var out_tot : UInt = 0
 
   outer:
     while true {
@@ -383,10 +383,7 @@ extension gzip {
   out1:
     free(outbufp);
   out2:
-    if (gsizep) {
-      *gsizep = in_tot;
-    }
-    return (out_tot);
+    return (out_tot, in_tot)
   }
 
   /*

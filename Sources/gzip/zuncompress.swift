@@ -94,6 +94,7 @@ import Darwin
     var gbuf = Array(repeating: UInt8(0), count: BITS)
 
     var compressed_prelen = 0
+    var total_compressed_bytes : UInt = 0
 
 // iinstance variables above, constants below
 
@@ -139,7 +140,7 @@ import Darwin
 
 
 
-  func zuncompress(_ inx : FileDescriptor, _ out : FileDescriptor, _ pre : [UInt8], _ prelen : size_t, _ compressed_bytes : inout off_t ) -> off_t {
+  func zuncompress(_ out : FileDescriptor, _ pre : [UInt8]) -> (UInt, UInt) {
 
     var buf = Array(repeating: UInt8(0), count: BUFSIZE)
     var bout = 0
@@ -154,7 +155,7 @@ import Darwin
     }
 
     while true {
-      let bin = try inx.read(into: buf)
+      let bin = try fp.read(into: buf)
       if bin == 0 { break }
       if try !options.tflag && out.write(buf) != bin {
         return -1
@@ -163,7 +164,7 @@ import Darwin
     }
 
     compressed_bytes = total_compressed_bytes
-    return bout
+    return (bout, compressed_bytes)
   }
 
   func zclose() -> Int {
@@ -247,7 +248,7 @@ import Darwin
           errno = EFTYPE;
           return (-1);
         }
-        total_compressed_bytes = 0;
+        total_compressed_bytes = 0
         maxbits = header[2];	/* Set -b from file. */
         block_compress = maxbits & BLOCK_MASK;
         maxbits &= BIT_MASK;
@@ -381,7 +382,7 @@ import Darwin
       }
       roffset = 0;
 
-      total_compressed_bytes += size;
+      total_compressed_bytes += size
 
       /* Round size down to integral number of codes. */
       size = (size << 3) - (n_bits - 1);
