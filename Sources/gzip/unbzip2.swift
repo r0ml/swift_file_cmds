@@ -39,111 +39,117 @@
 /* This file is #included by gzip.c */
 
 import CMigration
-import bz2
+import Darwin
+import BZip2
 
-var inbuf = Array(repeating: UInt8(0), BUFLEN)
-var outbuf = Array(repeating: UInt8(0), BUFLEN)
+fileprivate var inbuf = Array(repeating: UInt8(0), count: gzip.BUFLEN)
+fileprivate var outbuf = Array(repeating: UInt8(0), count: gzip.BUFLEN)
 
-func unbzip2(_ inx : FileDescriptor, _ out : FileDescriptor, _ pre : [UInt8], _ prelen : size_t, _ bytes_in : inout off_t) -> off_t {
-  //	int		ret, end_of_file, cold = 0;
-  
-  var bytes_out = 0
-  //	bz_stream	bzs;
-  
-  var bzs = bz_stream()
-  bzs.bzalloc = nil
-  bzs.bzfree = nil
-  bzs.opaque = nil
-  
-  var end_of_file = false
-  
-  var ret = BZ2_bzDecompressInit(&bzs, 0, 0)
-  if ret != BZ_OK {
-    maybe_errx("bzip2 init")
-  }
-  
-  /* Prepend. */
-  bzs.avail_in = prelen;
-  bzs.next_in = pre;
-  
-  bytes_in = prelen
-  
-  while ret == BZ_OK {
-    check_siginfo()
-    if (bzs.avail_in == 0 && !end_of_file) {
-      let n = read(in, inbuf, BUFLEN);
-      if (n < 0) {
-        maybe_err("read")
+extension gzip {
+
+  func unbzip2(_ inx : FileDescriptor, _ out : FileDescriptor, _ pre : [UInt8], _ prelen : size_t, _ bytes_in : inout off_t) -> Int {
+    //	int		ret, end_of_file;
+
+    var bytes_out = 0
+    //	bz_stream	bzs;
+
+    var cold = false
+
+    var bzs = bz_stream()
+    bzs.bzalloc = nil
+    bzs.bzfree = nil
+    bzs.opaque = nil
+
+    var end_of_file = false
+
+    var ret = BZ2_bzDecompressInit(&bzs, 0, 0)
+    if ret != BZ_OK {
+      maybe_errx("bzip2 init")
+    }
+
+    /* Prepend. */
+    bzs.avail_in = prelen;
+    bzs.next_in = pre;
+
+    bytes_in = prelen
+
+    while ret == BZ_OK {
+      check_siginfo()
+      if (bzs.avail_in == 0 && !end_of_file) {
+        let n = read(inx, inbuf, Self.BUFLEN);
+        if (n < 0) {
+          maybe_err("read")
+        }
+        if (n == 0) {
+          end_of_file = true
+        }
+        infile_newdata(n)
+        bzs.next_in = inbuf
+        bzs.avail_in = n
+        if bytes_in != 0 {
+          bytes_in += n
+        }
       }
-      if (n == 0) {
-        end_of_file = true
-      }
-      infile_newdata(n)
-      bzs.next_in = inbuf
-      bzs.avail_in = n
-      if bytes_in != 0 {
-        bytes_in += n
+
+      bzs.next_out = outbuf
+      bzs.avail_out = UInt32(Self.BUFLEN)
+      ret = BZ2_bzDecompress(&bzs)
+
+      switch ret {
+        case BZ_STREAM_END, BZ_OK:
+          if (ret == BZ_OK && end_of_file) {
+            /*
+             * If we hit this after a stream end, consider
+             * it as the end of the whole file and don't
+             * bail out.
+             */
+            if cold {
+              ret = BZ_STREAM_END
+            }
+            else {
+              maybe_errx("truncated file")
+            }
+          }
+          cold = false
+          if (!options.tflag && bzs.avail_out != Self.BUFLEN) {
+            let n = write(out, outbuf, Self.BUFLEN - bzs.avail_out);
+            if (n < 0) {
+              maybe_err("write")
+            }
+            bytes_out += n
+          }
+          if (ret == BZ_STREAM_END && !end_of_file) {
+            if (BZ2_bzDecompressEnd(&bzs) != BZ_OK ||
+                BZ2_bzDecompressInit(&bzs, 0, 0) != BZ_OK) {
+              maybe_errx("bzip2 re-init")
+            }
+            cold = true
+            ret = BZ_OK
+          }
+
+        case BZ_DATA_ERROR:
+          maybe_warnx("bzip2 data integrity error")
+          break
+
+        case BZ_DATA_ERROR_MAGIC:
+          maybe_warnx("bzip2 magic number error")
+          break
+
+        case BZ_MEM_ERROR:
+          maybe_warnx("bzip2 out of memory")
+          break;
+
+        default:
+          maybe_warnx("unknown bzip2 error: %d", ret)
+          break;
       }
     }
-    
-    bzs.next_out = outbuf
-    bzs.avail_out = BUFLEN
-    ret = BZ2_bzDecompress(&bzs)
-    
-    switch ret {
-      case BZ_STREAM_END, BZ_OK:
-        if (ret == BZ_OK && end_of_file) {
-          /*
-           * If we hit this after a stream end, consider
-           * it as the end of the whole file and don't
-           * bail out.
-           */
-          if (cold == 1) {
-            ret = BZ_STREAM_END
-          }
-          else {
-            maybe_errx("truncated file")
-          }
-        }
-        cold = 0;
-        if (!tflag && bzs.avail_out != BUFLEN) {
-          let n = write(out, outbuf, BUFLEN - bzs.avail_out);
-          if (n < 0) {
-            maybe_err("write")
-          }
-          bytes_out += n
-        }
-        if (ret == BZ_STREAM_END && !end_of_file) {
-          if (BZ2_bzDecompressEnd(&bzs) != BZ_OK ||
-              BZ2_bzDecompressInit(&bzs, 0, 0) != BZ_OK) {
-            maybe_errx("bzip2 re-init")
-          }
-          cold = 1
-          ret = BZ_OK
-        }
-        
-      case BZ_DATA_ERROR:
-        maybe_warnx("bzip2 data integrity error")
-        break
-        
-      case BZ_DATA_ERROR_MAGIC:
-        maybe_warnx("bzip2 magic number error")
-        break
-        
-      case BZ_MEM_ERROR:
-        maybe_warnx("bzip2 out of memory")
-        break;
-        
-      default:	
-        maybe_warnx("unknown bzip2 error: %d", ret)
-        break;
+
+    if ret != BZ_STREAM_END || BZ2_bzDecompressEnd(&bzs) != BZ_OK {
+      return -1
     }
+
+    return bytes_out
   }
-  
-  if ret != BZ_STREAM_END || BZ2_bzDecompressEnd(&bzs) != BZ_OK {
-    return -1
-  }
-  
-  return bytes_out
+
 }
-

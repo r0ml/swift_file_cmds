@@ -34,6 +34,9 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+import CMigration
+import Darwin
+
 func unxz(_ i : Int, _ o : Int, _ pre : [UInt8], _ prelen : size_t, _ bytes_in : inout off_t) -> off_t {
 	lzma_stream strm = LZMA_STREAM_INIT;
 	static const int flags = LZMA_TELL_UNSUPPORTED_CHECK|LZMA_CONCATENATED;

@@ -38,6 +38,7 @@ import Darwin
 
 @main struct gzip : ShellCommand {
 
+  let unix2003 = true
 
   /*
    * gzip.c -- GPL free gzip using zlib.
@@ -81,27 +82,26 @@ import Darwin
     case XZ
     case LZ
     case LAST
-    case UNKNOW
+    case UNKNOWN
   }
 
 
-  let BZ2_SUFFIX = ".bz2"
+  static let BZ2_SUFFIX = ".bz2"
   let BZIP2_MAGIC = "BZh"
 
-  let Z_SUFFIX = ".Z"
+  static let Z_SUFFIX = ".Z"
   let Z_MAGIC : [UInt8]	= [0o037, 0o235]
 
   let PACK_MAGIC : [UInt8] = [0o037, 0o036]
 
-  let XZ_SUFFIX = ".xz"
+  static let XZ_SUFFIX = ".xz"
   let XZ_MAGIC : [UInt8] = [0o375] + "7zXZ".map { $0.asciiValue! }
 
-  let LZ_SUFFIX = ".lz"
+  static let LZ_SUFFIX = ".lz"
   let LZ_MAGIC = "LZIP"
 
-  let GZ_SUFFIX = ".gz"
-
-  let BUFLEN = 64 * 1024
+  static let GZ_SUFFIX = ".gz"
+  static let BUFLEN = 64 * 1024
 
   let GZIP_MAGIC0 = 0x1F
   let GZIP_MAGIC1 = 0x8B
@@ -126,7 +126,7 @@ import Darwin
       normal = n
     }
   }
-  var suffixes : suffixes_t = [
+  var suffixes : [suffixes_t] = [
     .init(GZ_SUFFIX,	""),	/* Overwritten by -S .xxx */
 
       .init(GZ_SUFFIX,	""),
@@ -154,12 +154,12 @@ import Darwin
   ]
 
   // #define NUM_SUFFIXES (nitems(suffixes))
-  // #define SUFFIX_MAXLEN	30
+  static let SUFFIX_MAXLEN = 30
 
-  /*
-   #ifdef __APPLE__
-   static	const char	gzip_version[] = "Apple gzip " GZIP_APPLE_VERSION;
-   #else
+  static let GZIP_APPLE_VERSION = 475
+
+   var	gzip_version = "Apple gzip \(GZIP_APPLE_VERSION)"
+/*   #else
    static	const char	gzip_version[] = "FreeBSD gzip 20190107";
    #endif
    */
@@ -213,19 +213,22 @@ import Darwin
     var tflag = false			/* test */
     var vflag = false			/* verbose mode */
 
+    var zcat = false
+
     var args : [String] = []
   }
-  static	int	exit_value = 0;		/* exit value */
 
-  static	const char *infile;		/* name of file coming in */
+  /*
+   static	int	exit_value = 0;		/* exit value */
 
-  static	bool	zcat;
-  static	off_t	infile_total;		/* total expected to read/write */
-  static	off_t	infile_current;		/* current read/write */
+   static	const char *infile;		/* name of file coming in */
 
+   static	off_t	infile_total;		/* total expected to read/write */
+   static	off_t	infile_current;		/* current read/write */
+   */
 
   var longopts : [CMigration.option] = [
-    .init("stdout",		.no_argument), //		0,	'c' },
+    .init("stdout",	.no_argument), //		0,	'c' },
     .init("to-stdout",		.no_argument) // ,		0,	'c' },
       .init( "decompress",		.no_argument), //		0,	'd' },
     .init( "uncompress",		.no_argument), //		0,	'd' },
@@ -233,7 +236,7 @@ import Darwin
     .init( "help",		.no_argument), //		0,	'h' },
     .init( "keep",		.no_argument), //		0,	'k' },
     .init( "list",		.no_argument), //		0,	'l' },
-    .init( "no-name."), //		no_argument,		0,	'n' },
+    .init( "no-name.", .no_argument), //		no_argument,		0,	'n' },
     .init( "name",		.no_argument), //		0,	'N' },
     .init( "quiet",		.no_argument), //		0,	'q' },
     .init( "recursive",		.no_argument), //		0,	'r' },
@@ -245,9 +248,13 @@ import Darwin
     .init( "best",		.no_argument), //		0,	'9' },
     .init( "ascii",		.no_argument), //		0,	'a' },
     .init( "license",		.no_argument), //		0,	'L' },
+    .init( "zcat", .no_argument),
   ]
 
+  var options : CommandOptions!
+
   func parseOptions() throws(CmdErr) -> CommandOptions {
+    var options = CommandOptions()
 
     setup_signals();
 
@@ -261,27 +268,26 @@ import Darwin
      * XXX
      * handle being called `gunzip', `zcat' and `gzcat'
      */
-    if (strcmp(progname, "gunzip") == 0) {
-      dflag = 1;
+    if programName == "gunzip" {
+      options.dflag = true
     }
-    else if (strcmp(progname, "zcat") == 0 ||
-             strcmp(progname, "gzcat") == 0) {
-      dflag = cflag = 1;
+    else if programName == "zcat" || programName == "gzcat" {
+      options.dflag = true
+      options.cflag = true
     }
 
-    if (strcmp(progname, "zcat") == 0) {
-      zcat = true;
+    if programName == "zcat" {
+      options.zcat = true
     }
 
 
     let OPT_LIST = "123456789acdfhklLNnqrS:tVv"
 
-    var options = CommandOptions()
-    let go = BSDGetopt_long(OPT_LIST, longopts, args: prepend + CommandLine.arguments.dropFirst() )
+    let go = BSDGetopt_long(OPT_LIST, longopts, prepend + CommandLine.arguments.dropFirst() )
     while let (k, v) = try go.getopt_long() {
       switch k {
         case "1", "2", "3", "4", "5", "6", "7", "8", "9":
-          numflag = Int(k)!
+          options.numflag = Int(k)!
         case "c", "stdout", "to-stdout":
           options.cflag = true
         case "d", "decompress", "uncompress":
@@ -291,7 +297,7 @@ import Darwin
           options.dflag = true
         case "V", "version":
           display_version()
-          return
+          fatalError()
 
         case "a", "ascii":
           warnx("option --ascii ignored on this system")
@@ -301,7 +307,7 @@ import Darwin
           options.kflag = true
         case "L", "license":
           display_license();
-          return
+          fatalError()
         case "N", "name":
           options.nflag = false
           options.Nflag = true
@@ -315,7 +321,7 @@ import Darwin
         case "S":
           let len = v.count
           if len != 0 {
-            if len > SUFFIX_MAXLEN {
+            if len > Self.SUFFIX_MAXLEN {
               errx(1, "incorrect suffix: '\(v)': too long")
             }
             // FIXME: what is this:
@@ -329,6 +335,10 @@ import Darwin
           options.dflag = true
         case "v", "verbose":
           options.vflag = true
+        case "zcat":
+          options.zcat = true
+          options.dflag = true
+          options.cflag = true
 
         default:
           throw CmdErr(1)
@@ -365,7 +375,9 @@ import Darwin
   /* maybe print a warning */
   func maybe_warn(_ fmt : String, _ ap : CVarArg...) {
     if !options.qflag {
-      vwarn(fmt, ap)
+      withVaList(ap) {
+        vwarn(fmt, $0)
+      }
     }
     if exit_value == 0 {
       exit_value = 1
@@ -376,7 +388,9 @@ import Darwin
   func maybe_warnx(_ fmt : String, _ ap : CVarArg...) {
 
     if !options.qflag {
-      vwarnx(fmt, ap)
+      withVaList(ap) {
+        vwarnx(fmt, $0)
+      }
     }
     if exit_value == 0 {
       exit_value = 1
@@ -385,16 +399,20 @@ import Darwin
 
   /* maybe print an error */
   func maybe_err(_ fmt : String, _ ap : CVarArg...) {
-    if !options.qflag {
-      vwarn(fmt, ap);
+    withVaList(ap) {
+      if !options.qflag {
+        vwarn(fmt, $0);
+      }
     }
     exit(2)
   }
 
   /* ... without an errno. */
   func maybe_errx(_ fmt : String, _ ap : CVarArg...) {
-    if !options.qflag {
-      vwarnx(fmt, ap);
+    withVaList(ap) {
+      if !options.qflag {
+        vwarnx(fmt, $0);
+      }
     }
     exit(2)
   }
@@ -461,19 +479,19 @@ import Darwin
     crc = crc32(0L, Z_NULL, 0);
     for (;;) {
       if (z.avail_out == 0) {
-        if (write_retry(out, outbufp, BUFLEN) != BUFLEN) {
+        if (write_retry(out, outbufp, Self.BUFLEN) != Self.BUFLEN) {
           maybe_warn("write");
           out_tot = -1;
           goto out;
         }
 
-        out_tot += BUFLEN;
+        out_tot += Self.BUFLEN
         z.next_out = (unsigned char *)outbufp;
-        z.avail_out = BUFLEN;
+        z.avail_out = Self.BUFLEN;
       }
 
       if (z.avail_in == 0) {
-        in_size = read(in, inbufp, BUFLEN);
+        in_size = read(in, inbufp, Self.BUFLEN);
         if (in_size < 0) {
           maybe_warn("read");
           in_tot = -1;
@@ -571,9 +589,9 @@ import Darwin
    * into `*gsizep'.
    */
   func gz_uncompress(_ inx : FileDescriptor, _ out : FileDescriptor, _ pre : [UInt8], _ gsizep : inout off_t, _ filename : String) -> off_t {
-//    z_stream z;
-//    char *outbufp, *inbufp;
-//    uint32_t out_sub_tot = 0;
+    //    z_stream z;
+    //    char *outbufp, *inbufp;
+    //    uint32_t out_sub_tot = 0;
     enum GZstate{
       case MAGIC0
       case MAGIC1
@@ -602,7 +620,7 @@ import Darwin
     var wr : ssize_t = 0
     var needmore = 0
 
-//    #define ADVANCE()       { z.next_in++; z.avail_in--; }
+    //    #define ADVANCE()       { z.next_in++; z.avail_in--; }
 
     if ((outbufp = malloc(BUFLEN)) == NULL) {
       maybe_err("malloc failed");
@@ -614,7 +632,7 @@ import Darwin
     }
 
     var z = z_stream()
-//    z.avail_in = prelen
+    //    z.avail_in = prelen
     z.next_in = 0 // use next_in as an index into pre (as opposed to a pointer starting at pre)
     z.avail_out = BUFLEN
     z.next_out = outbufp
@@ -653,7 +671,7 @@ import Darwin
         in_tot += in_size;
       }
       if (z.avail_in == 0) {
-        if (done_reading && state != GZSTATE_MAGIC0) {
+        if (done_reading && state != .MAGIC0) {
           maybe_warnx("%s: unexpected end of file",
                       filename);
           out_tot = -1
@@ -712,7 +730,7 @@ import Darwin
 
         case .EXTRA:
           if ((flags & EXTRA_FIELD) == 0) {
-            state = GZSTATE_ORIGNAME;
+            state = .ORIGNAME;
             break;
           }
           skip_count = pre[z.next_in]
@@ -897,11 +915,11 @@ import Darwin
             out_tot = -1
             break outer
           }
-          state = GZSTATE_MAGIC0;
+          state = .MAGIC0
       }
       continue
     }
-    if (state > GZSTATE_INIT) {
+    if (state > .INIT) {
       inflateEnd(&z);
     }
 
@@ -930,8 +948,8 @@ import Darwin
     if (sbp == NULL) {
       mode_t mask = umask(022);
 
-      (void)fchmod(fd, DEFFILEMODE & ~mask);
-      (void)umask(mask);
+      fchmod(fd, DEFFILEMODE & ~mask);
+      umask(mask);
       return;
     }
     sb = *sbp;
@@ -967,26 +985,26 @@ import Darwin
 
     if (buf[0] == GZIP_MAGIC0 &&
         (buf[1] == GZIP_MAGIC1 || buf[1] == GZIP_OMAGIC1)) {
-      return FT_GZIP;
+      return .GZIP
     }
     else if (memcmp(buf, BZIP2_MAGIC, 3) == 0 &&
              buf[3] >= '0' && buf[3] <= '9') {
-      return FT_BZIP2;
+      return .BZIP2
     }
     else if (memcmp(buf, Z_MAGIC, 2) == 0) {
-      return FT_Z;
+      return .Z
     }
     else if (memcmp(buf, PACK_MAGIC, 2) == 0) {
-      return FT_PACK;
+      return .PACK
     }
     else if (memcmp(buf, XZ_MAGIC, 4) == 0) {	/* XXX: We only have 4 bytes */
-      return FT_XZ;
+      return .XZ
     }
     else if (memcmp(buf, LZ_MAGIC, 4) == 0) {
-      return FT_LZ;
+      return .LZ
     }
     else {
-      return FT_UNKNOWN;
+      return .UNKNOWN
     }
   }
 
@@ -995,8 +1013,8 @@ import Darwin
     struct stat sb;
     int ok = 1;
 
-    if (lflag == 0 && stat(outfile, &sb) == 0) {
-      if (fflag) {
+    if (!options.lflag && stat(outfile, &sb) == 0) {
+      if (options.fflag) {
         unlink(outfile);
       }
       else if (isatty(STDIN_FILENO)) {
@@ -1004,7 +1022,7 @@ import Darwin
 
         fprintf(stderr, "%s already exists -- do you wish to "
                 "overwrite (y or n)? " , outfile);
-        (void)fgets(ans, sizeof(ans) - 1, stdin);
+        fgets(ans, sizeof(ans) - 1, stdin);
         if (ans[0] != 'y' && ans[0] != 'Y') {
           fprintf(stderr, "\tnot overwriting\n");
           ok = 0;
@@ -1022,7 +1040,7 @@ import Darwin
   func unlink_input(_ file : String, _ sb : FileMetadata) {
     struct stat nsb;
 
-    if (kflag) {
+    if options.kflag {
       return;
     }
     bzero(&nsb, sizeof(nsb));
@@ -1157,8 +1175,8 @@ import Darwin
     }
     infile_set(file, isb.st_size);
 
-    if (cflag == 0) {
-      if (isb.st_nlink > 1 && fflag == 0) {
+    if !options.cflag {
+      if (isb.st_nlink > 1 && !options.fflag) {
         maybe_warnx("%s has %ju other link%s -- "
                     "skipping", file,
                     (uintmax_t)isb.st_nlink - 1,
@@ -1167,7 +1185,7 @@ import Darwin
         return -1;
       }
 
-      if (fflag == 0 && (suff = check_suffix(file, 0)) &&
+      if (!options.fflag && (suff = check_suffix(file, 0)) &&
           suff->zipped[0] != 0) {
         maybe_warnx("%s already has %s suffix -- unchanged",
                     file, suff->zipped);
@@ -1188,7 +1206,7 @@ import Darwin
       }
     }
 
-    if (cflag == 0) {
+    if (!options.cflag) {
       out = open(outfile, O_WRONLY | O_CREAT | O_EXCL, 0600);
       if (out == -1) {
         maybe_warn("could not create output: %s", outfile);
@@ -1210,7 +1228,7 @@ import Darwin
      * We only blow away the file if we can stat the output and it
      * has the expected size.
      */
-    if (cflag != 0) {
+    if options.cflag {
       return in_size == -1 ? -1 : size;
     }
 
@@ -1231,7 +1249,7 @@ import Darwin
     copymodes(out, &isb, outfile);
     remove_file = NULL;
 
-    (void)close(in);
+    close(in);
     if (close(out) == -1) {
       maybe_warn("couldn't close output");
     }
@@ -1245,9 +1263,9 @@ import Darwin
       maybe_warn("couldn't close output");
     }
 
-    maybe_warnx("leaving original %s", file);
-    unlink(outfile);
-    return (size);
+    maybe_warnx("leaving original \(file)")
+    unlink(outfile)
+    return (size)
   }
 
   /* uncompress the given file and remove the original */
@@ -1285,7 +1303,7 @@ import Darwin
     infile_set(file, in_size);
 
     strlcpy(outfile, file, outsize);
-    if (check_suffix(outfile, 1) == NULL && !(cflag || lflag)) {
+    if (check_suffix(outfile, 1) == NULL && !(options.cflag || options.lflag)) {
       maybe_warnx("%s: unknown suffix -- ignored", file);
       goto lose;
     }
@@ -1294,7 +1312,7 @@ import Darwin
     if (rbytes != sizeof fourbytes) {
       /* we don't want to fail here. */
 
-      if (fflag) {
+      if (options.fflag) {
         goto lose;
       }
       if (rbytes == -1) {
@@ -1309,12 +1327,12 @@ import Darwin
 
     method = file_gettype(fourbytes);
 
-    if (fflag == 0 && method == FT_UNKNOWN) {
+    if (!options.fflag && method == .UNKNOWN) {
       maybe_warnx("%s: not in gzip format", file);
       goto lose;
     }
 
-    if (method == FT_GZIP && Nflag) {
+    if (method == .GZIP && options.Nflag) {
       unsigned char ts[4];	/* timestamp */
 
       rv = pread(fd, ts, sizeof ts, GZIP_TIMESTAMP);
@@ -1322,7 +1340,7 @@ import Darwin
         goto unexpected_EOF;
       }
       if (rv == -1) {
-        if (!fflag) {
+        if (!options.fflag) {
           maybe_warn("can't read %s", file);
         }
         goto lose;
@@ -1368,14 +1386,14 @@ import Darwin
 
     lseek(fd, 0, SEEK_SET);
 
-    if (cflag == 0 || lflag) {
+    if (!options.cflag || options.lflag) {
 
-      if (isb.st_nlink > 1 && lflag == 0 && fflag == 0) {
+      if (isb.st_nlink > 1 && !options.lflag && !options.fflag) {
         maybe_warnx("%s has %ju other links -- skipping",
                     file, (uintmax_t)isb.st_nlink - 1);
         goto lose;
       }
-      if (nflag == 0 && timestamp) {
+      if (!options.nflag && timestamp) {
         isb.st_mtime = timestamp;
       }
       if (check_outfile(outfile) == 0) {
@@ -1383,10 +1401,10 @@ import Darwin
       }
     }
 
-    if (cflag) {
+    if (options.cflag) {
       zfd = STDOUT_FILENO;
     }
-    else if (lflag) {
+    else if (options.lflag) {
       zfd = -1;
     }
     else {
@@ -1405,9 +1423,9 @@ import Darwin
 
     switch (method) {
 
-      case FT_BZIP2:
+      case .BZIP2:
         /* XXX */
-        if (lflag) {
+        if (options.lflag) {
           maybe_warnx("no -l with bzip2 files");
           goto lose;
         }
@@ -1415,11 +1433,11 @@ import Darwin
         size = unbzip2(fd, zfd, NULL, 0, NULL);
         break;
 
-      case FT_Z: {
+      case .Z: {
         FILE *in, *out;
 
         /* XXX */
-        if (lflag) {
+        if (options.lflag) {
           maybe_warnx("no -l with Lempel-Ziv files");
           goto lose;
         }
@@ -1446,15 +1464,15 @@ import Darwin
           else {
             maybe_warn("failed infile fclose");
           }
-          if (cflag == 0) {
+          if (!options.cflag) {
             unlink(outfile);
           }
-          (void)fclose(out);
+          fclose(out);
           goto lose;
         }
         if (fclose(out) != 0) {
           maybe_warn("failed outfile fclose");
-          if (cflag == 0) {
+          if (!options.cflag) {
             unlink(outfile);
           }
           goto lose;
@@ -1462,8 +1480,8 @@ import Darwin
         break;
       }
 
-      case FT_PACK:
-        if (lflag) {
+      case .PACK:
+        if (options.lflag) {
           maybe_warnx("no -l with packed files");
           goto lose;
         }
@@ -1471,10 +1489,10 @@ import Darwin
         size = unpack(fd, zfd, NULL, 0, NULL);
         break;
 
-      case FT_XZ:
-        if (lflag) {
+      case .XZ:
+        if (options.lflag) {
           size = unxz_len(fd);
-          if (!tflag) {
+          if (!options.tflag) {
             print_list_out(in_size, size, file);
             close(fd);
             return -1;
@@ -1484,16 +1502,16 @@ import Darwin
         }
         break;
 
-      case FT_LZ:
-        if (lflag) {
+      case .LZ:
+        if (options.lflag) {
           maybe_warnx("no -l with lzip files");
           goto lose;
         }
         size = unlz(fd, zfd, NULL, 0, NULL);
         break;
 
-      case FT_UNKNOWN:
-        if (lflag) {
+      case .UNKNOWN:
+        if (options.lflag) {
           maybe_warnx("no -l for unknown filetypes");
           goto lose;
         }
@@ -1501,9 +1519,9 @@ import Darwin
         break;
 
       default:
-        if (lflag) {
+        if (options.lflag) {
           print_list(fd, in_size, outfile, isb.st_mtime);
-          if (!tflag) {
+          if (!options.tflag) {
             close(fd);
             return -1;	/* XXX */
           }
@@ -1521,7 +1539,7 @@ import Darwin
     }
 
     if (size == -1) {
-      if (cflag == 0) {
+      if (!options.cflag) {
         unlink(outfile);
       }
       maybe_warnx("%s: uncompress failed", file);
@@ -1530,12 +1548,12 @@ import Darwin
 
     /* if testing, or we uncompressed to stdout, this is all we need */
 
-    if (tflag) {
+    if (options.tflag) {
       return size;
     }
 
     /* if we are uncompressing to stdin, don't remove the file. */
-    if (cflag) {
+    if (options.cflag) {
       return size;
     }
 
@@ -1615,15 +1633,13 @@ import Darwin
       maybe_warn("write to stdout");
       return -1;
     }
-    for (;;) {
-      ssize_t rv;
-
-      rv = read(fd, buf, sizeof buf);
+    while true {
+      let rv = read(fd, buf, sizeof buf);
       if (rv == 0) {
         break;
       }
       if (rv < 0) {
-        maybe_warn("read from fd %d", fd);
+        maybe_warn("read from fd \(fd.rawValue)")
         break;
       }
       infile_newdata(rv);
@@ -1642,23 +1658,26 @@ import Darwin
   }
 
   func handle_stdin() {
-    struct stat isb;
-    unsigned char fourbytes[4];
-    size_t in_size;
-    off_t usize, gsize;
-    enum filetype method;
-    ssize_t bytes_read;
+    /*    struct stat isb;
+     unsigned char fourbytes[4];
+     size_t in_size;
+     off_t usize, gsize;
+     enum filetype method;
+     ssize_t bytes_read;
 
-    FILE *in;
+     FILE *in;
+     */
 
-    if (fflag == 0 && lflag == 0 && isatty(STDIN_FILENO)) {
-      maybe_warnx("standard input is a terminal -- ignoring");
-      goto out;
+    defer { infile_clear() }
+
+    if !options.fflag && !options.lflag && isatty(STDIN_FILENO) {
+      maybe_warnx("standard input is a terminal -- ignoring")
+      return
     }
 
     if (fstat(STDIN_FILENO, &isb) < 0) {
       maybe_warn("fstat");
-      goto out;
+      return
     }
     if (S_ISREG(isb.st_mode)) {
       in_size = isb.st_size;
@@ -1668,199 +1687,165 @@ import Darwin
     }
     infile_set("(stdin)", in_size);
 
-    if (lflag) {
+    if (options.lflag) {
       print_list(STDIN_FILENO, in_size, infile, isb.st_mtime);
-      goto out;
+      return
     }
 
-    bytes_read = read_retry(STDIN_FILENO, fourbytes, sizeof fourbytes);
-    if (bytes_read == -1) {
+    guard let fourbytes = try? read_retry(STDIN_FILENO, 4) else {
       maybe_warn("can't read stdin");
-      goto out;
-    } else if (bytes_read != sizeof(fourbytes)) {
-      maybe_warnx("(stdin): unexpected end of file");
-      goto out;
+      return
+    }
+    if fourbytes.count != 4 {
+      maybe_warnx("(stdin): unexpected end of file")
+      return
     }
 
-    method = file_gettype(fourbytes);
-    switch (method) {
+    let method = file_gettype(fourbytes)
+    switch method {
+      case .GZIP:
+        usize = gz_uncompress(STDIN_FILENO, STDOUT_FILENO, fourbytes, &gsize, "(stdin)");
+
+      case .BZIP2:
+        usize = unbzip2(STDIN_FILENO, STDOUT_FILENO, fourbytes, &gsize);
+
+      case .Z:
+        if ((inx = zdopen(STDIN_FILENO)) == NULL) {
+          maybe_warnx("zopen of stdin");
+          return
+        }
+
+        usize = zuncompress(inx, stdout, fourbytes, &gsize);
+        fclose(inx);
+
+      case .PACK:
+        usize = unpack(STDIN_FILENO, STDOUT_FILENO, fourbytes, &gsize);
+
+      case .XZ:
+        usize = unxz(STDIN_FILENO, STDOUT_FILENO, fourbytes, &gsize);
+
+      case .LZ:
+        usize = unlz(STDIN_FILENO, STDOUT_FILENO, fourbytes, &gsize);
       default:
 
-        if (fflag == 0) {
+        if (!options.fflag) {
           maybe_warnx("unknown compression format");
-          goto out;
+          return
         }
-        usize = cat_fd(fourbytes, sizeof fourbytes, &gsize, STDIN_FILENO);
-        break;
+        usize = cat_fd(fourbytes, &gsize, STDIN_FILENO);
 
-      case FT_GZIP:
-        usize = gz_uncompress(STDIN_FILENO, STDOUT_FILENO,
-                              (char *)fourbytes, sizeof fourbytes, &gsize, "(stdin)");
-        break;
-
-      case FT_BZIP2:
-        usize = unbzip2(STDIN_FILENO, STDOUT_FILENO,
-                        (char *)fourbytes, sizeof fourbytes, &gsize);
-        break;
-
-      case FT_Z:
-        if ((in = zdopen(STDIN_FILENO)) == NULL) {
-          maybe_warnx("zopen of stdin");
-          goto out;
-        }
-
-        usize = zuncompress(in, stdout, (char *)fourbytes,
-                            sizeof fourbytes, &gsize);
-        fclose(in);
-        break;
-
-      case FT_PACK:
-        usize = unpack(STDIN_FILENO, STDOUT_FILENO,
-                       (char *)fourbytes, sizeof fourbytes, &gsize);
-        break;
-
-      case FT_XZ:
-        usize = unxz(STDIN_FILENO, STDOUT_FILENO,
-                     (char *)fourbytes, sizeof fourbytes, &gsize);
-        break;
-
-      case FT_LZ:
-        usize = unlz(STDIN_FILENO, STDOUT_FILENO,
-                     (char *)fourbytes, sizeof fourbytes, &gsize);
-        break;
     }
 
-    if (vflag && !tflag && usize != -1 && gsize != -1) {
+    if options.vflag && !options.tflag && usize != -1 && gsize != -1 {
       print_verbage(NULL, NULL, usize, gsize);
     }
-    if (vflag && tflag) {
+    if options.vflag && options.tflag {
       print_test("(stdin)", usize != -1);
     }
 
-  out:
-    infile_clear();
   }
 
   func handle_stdout() {
-    off_t gsize;
+    /*    off_t gsize;
 
-    off_t usize;
-    struct stat sb;
-    time_t systime;
-    uint32_t mtime;
-    int ret;
+     off_t usize;
+     time_t systime;
+     int ret;
+     */
 
     infile_set("(stdout)", 0);
 
-    if (fflag == 0 && isatty(STDOUT_FILENO)) {
+    if !options.fflag && 0 != isatty(STDOUT_FILENO) {
       maybe_warnx("standard output is a terminal -- ignoring");
       return;
     }
 
     /* If stdin is a file use its mtime, otherwise use current time */
-    ret = fstat(STDIN_FILENO, &sb);
-    if (ret < 0) {
-      maybe_warn("Can't stat stdin");
+    guard let sb = try? FileMetadata(for: FileDescriptor.standardInput) else {
+      maybe_warn("Can't stat stdin")
       return;
     }
 
-    if (S_ISREG(sb.st_mode)) {
-      infile_set("(stdout)", sb.st_size);
-      mtime = (uint32_t)sb.st_mtime;
+    var mtime : UInt32
+    if sb.filetype == .regular {
+      infile_set("(stdout)", sb.size);
+      mtime = sb.lastWrite
     } else {
-      systime = time(NULL);
+      let systime = Darwin.time(nil)
       if (systime == -1) {
-        maybe_warn("time");
+        maybe_warn("time")
         return;
       }
-      mtime = (uint32_t)systime;
+      mtime = systime
     }
 
-    usize =
+    let usize = gz_compress(FileDescriptor.standardInput, FileDescriptor.standardOutput, &gsize, "", mtime)
 
-    gz_compress(STDIN_FILENO, STDOUT_FILENO, &gsize, "", mtime);
-
-    if (vflag && !tflag && usize != -1 && gsize != -1) {
-      print_verbage(NULL, NULL, usize, gsize);
+    if options.vflag && !options.tflag && usize != -1 && gsize != -1 {
+      print_verbage(nil, nil, usize, gsize);
     }
 
   }
 
   /* do what is asked for, for the path name */
   func handle_pathname(_ path : String) {
-    char *opath = path, *s = NULL;
-    ssize_t len;
-    int slen;
-    struct stat sb;
-
+    /*    char *opath = path, *s = NULL;
+     ssize_t len;
+     int slen;
+     struct stat sb;
+     */
     /* check for stdout/stdin */
-    if (path[0] == '-' && path[1] == '\0') {
-      if (dflag) {
+    if path == "-" {
+      if options.dflag {
         handle_stdin();
       }
       else {
-        handle_stdout();
+        handle_stdout()
       }
-      return;
+      return
     }
 
-    if (zcat && !fflag && COMPAT_MODE("bin/zcat", "Unix2003")) {
-      char *suffix = strrchr(path, '.');
-      if (suffix == NULL || strcmp(suffix, Z_SUFFIX) != 0) {
-        len = strlen(path);
-        slen = sizeof(Z_SUFFIX) - 1;
-        s = malloc(len + slen + 1);
-        memcpy(s, path, len);
-        memcpy(s + len, Z_SUFFIX, slen + 1);
-        path = s;
+    if options.zcat && !options.fflag && unix2003 {
+      if let p = path.matches(of: /\.[^.\/]$/), !p.isEmpty, p[0].0 == Z_SUFFIX {
+      } else {
+        path.append(Z_SUFFIX)
       }
     }
 
+    var sb : FileMetadata?
   retry:
-    if (stat(path, &sb) != 0 || (fflag == 0 && cflag == 0 &&
-                                 lstat(path, &sb) != 0)) {
-      /* lets try <path>.gz if we're decompressing */
-      if (dflag && s == NULL && errno == ENOENT) {
-        len = strlen(path);
-        slen = suffixes[0].ziplen;
-        s = malloc(len + slen + 1);
-        if (s == NULL) {
-          maybe_err("malloc");
+    while true {
+      sb = try? FileMetadata(for: path)
+      if nil == sb || (!options.fflag && !options.cflag && nil == (sb = try? FileMetadata(for: path, followSymlinks: false), sb).1 ) {
+
+        /* lets try <path>.gz if we're decompressing */
+        if options.dflag && s == NULL && errno == ENOENT {
+          path.append(suffixes[0].zipped)
+          continue retry
         }
-        memcpy(s, path, len);
-        memcpy(s + len, suffixes[0].zipped, slen + 1);
-        path = s;
-        goto retry;
+
+        /* Include actual path for clarity. */
+        maybe_warn("can't stat: %s (%s)", opath, path);
+
+        return
       }
-
-      /* Include actual path for clarity. */
-      maybe_warn("can't stat: %s (%s)", opath, path);
-
-      goto out;
+      break
     }
-
-    if (S_ISDIR(sb.st_mode)) {
-
-      if (rflag) {
-        handle_dir(path);
+    if sb.filetype == .directory {
+      if options.rflag {
+        handle_dir(path)
       }
       else {
-
-        maybe_warnx("%s is a directory", path);
+        maybe_warnx("\(path) is a directory")
       }
-      goto out;
+      return
     }
 
-    if (S_ISREG(sb.st_mode)) {
-      handle_file(path, &sb);
+    if sb.filetype == .regular {
+      handle_file(path, sb)
     }
     else {
-      maybe_warnx("%s is not a regular file", path);
-    }
-
-  out:
-    if (s) {
-      free(s);
+      maybe_warnx("\(path) is not a regular file")
     }
   }
 
@@ -1870,10 +1855,10 @@ import Darwin
     char	outfile[PATH_MAX];
 
     infile_set(file, sbp->st_size);
-    if (dflag) {
+    if (options.dflag) {
       usize = file_uncompress(file, outfile, sizeof(outfile));
 
-      if (vflag && tflag) {
+      if (options.vflag && options.tflag) {
         print_test(file, usize != -1);
       }
 
@@ -1890,45 +1875,34 @@ import Darwin
     }
     infile_clear();
 
-    if (vflag && !tflag) {
-      print_verbage(file, (cflag) ? NULL : outfile, usize, gsize);
+    if (options.vflag && !options.tflag) {
+      print_verbage(file, (options.cflag) ? NULL : outfile, usize, gsize);
     }
 
   }
 
   /* this is used with -r to recursively descend directories */
   func handle_dir(_ dir : String) {
-    char *path_argv[2];
-    FTS *fts;
-    FTSENT *entry;
-
-    path_argv[0] = dir;
-    path_argv[1] = 0;
-    fts = fts_open(path_argv, FTS_PHYSICAL | FTS_NOCHDIR, NULL);
-    if (fts == NULL) {
-      warn("couldn't fts_open %s", dir);
-      return;
+    guard let fts = try? FTSWalker(path: [dir], options: [.PHYSICAL,  .NOCHDIR], sort: nil) else {
+      warn("couldn't fts_open \(dir)")
+      return
     }
 
-    while (errno = 0, (entry = fts_read(fts))) {
-      switch(entry->fts_info) {
-        case FTS_D:
-        case FTS_DP:
-          continue;
+    for entry in fts {
+      switch entry.info {
+        case .D, .DP:
+          continue
 
-        case FTS_DNR:
-        case FTS_ERR:
-        case FTS_NS:
-          maybe_warn("%s", entry->fts_path);
-          continue;
-        case FTS_F:
-          handle_file(entry->fts_path, entry->fts_statp);
+        case .DNR, .ERR, .NS:
+          maybe_warn(entry.path)
+          continue
+        case .F:
+          handle_file(entry.path, entry.statp)
       }
     }
     if (errno != 0) {
-      warn("error with fts_read %s", dir);
+      warn("error with fts_read \(dir)")
     }
-    (void)fts_close(fts);
   }
 
   /* print a ratio - size reduction as a fraction of uncompressed size */
@@ -2013,11 +1987,11 @@ import Darwin
 
     if (first) {
 
-      if (vflag) {
+      if (options.vflag) {
         printf("method  crc     date  time  ");
       }
 
-      if (qflag == 0) {
+      if (!options.qflag) {
         printf("  compressed uncompressed  "
                "ratio uncompressed_name\n");
       }
@@ -2056,10 +2030,10 @@ import Darwin
       }
     }
 
-    if (vflag && fd == -1) {
+    if (options.vflag && fd == -1) {
       printf("                            ");
     }
-    else if (vflag) {
+    else if (options.vflag) {
       char *date = ctime(&ts);
 
       /* skip the day, 1/100th second, and year */
@@ -2080,7 +2054,7 @@ import Darwin
   }
 
   /* display the usage of NetBSD gzip */
-  var usage = """
+  var usage : String { get { """
 \(gzip_version)
 usage: \(programName) [-123456789acdfhklLNnqrtVv] [-S .suffix] [<file> [<file> ...]]
  -1 --fast            fastest (worst) compression
@@ -2104,11 +2078,12 @@ usage: \(programName) [-123456789acdfhklLNnqrtVv] [-S .suffix] [<file> [<file> .
  -V --version         display program version
  -v --verbose         print extra statistics
 """
+  }
+  }
+
 
   /* display the license information of FreeBSD gzip */
   func display_license() {
-
-
     fprintf(stderr,
             "%s (based on FreeBSD gzip 20190107, NetBSD gzip 20150113)\n",
             gzip_version);
@@ -2119,28 +2094,20 @@ usage: \(programName) [-123456789acdfhklLNnqrtVv] [-S .suffix] [<file> [<file> .
 
   /* display the version of NetBSD gzip */
   func display_version() {
-    fprintf(stderr, "%s\n", gzip_version);
-    exit(0);
+    var stderr = FileDescriptor.standardError
+    print(gzip_version, to: &stderr)
+    exit(0)
   }
 
-  func read_retry(_ fd : FileDescriptor, _ buf : [UInt8], _ sz: size_t) -> ssize_t {
-    char *cp = buf;
-    size_t left = MIN(sz, (size_t) SSIZE_MAX);
-
-    while (left > 0) {
-      ssize_t ret;
-
-      ret = read(fd, cp, left);
-      if (ret == -1) {
-        return ret;
-      } else if (ret == 0) {
-        break; /* EOF */
-      }
-      cp += ret;
-      left -= ret;
+  func read_retry(_ fd : FileDescriptor, _ sz: size_t) throws -> [UInt8] {
+    var left = min(sz, SSIZE_MAX)
+    var cp = [UInt8]()
+    while cp.count < sz {
+      let ret = fd.readUpToCount(sz)
+      if ret.isEmpty { break } // EOF
+      cp += ret
     }
-
-    return sz - left;
+    return cp
   }
 
   func write_retry(_ fd : FileDescriptor, _ buf : [UInt8], _ sz : size_t) -> ssize_t {

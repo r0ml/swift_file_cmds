@@ -922,7 +922,6 @@
 				gzip/futimens.swift,
 				gzip/gzip.swift,
 				gzip/unbzip2.swift,
-				gzip/unlz.swift,
 				gzip/unpack.swift,
 				gzip/unxz.swift,
 				gzip/zuncompress.swift,
@@ -1047,6 +1046,11 @@
 		E7370ACA2E42749000246ED4 /* Manuals */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Manuals;
+			sourceTree = "<group>";
+		};
+		E79A41BA2F208C5C00060EAE /* Vendors */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Vendors;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -1487,6 +1491,7 @@
 		E73706FF2E4273AC00246ED4 = {
 			isa = PBXGroup;
 			children = (
+				E79A41BA2F208C5C00060EAE /* Vendors */,
 				E774FF2B2F02333E00498517 /* all.xctestplan */,
 				E7370ACB2E4274A500246ED4 /* Package.swift */,
 				E7370ACC2E4274A500246ED4 /* README.md */,
@@ -4284,6 +4289,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = MHEBPE6SV2;
 				ENABLE_HARDENED_RUNTIME = YES;
+				HEADER_SEARCH_PATHS = Vendors;
 				MACOSX_DEPLOYMENT_TARGET = 26.2;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -4298,6 +4304,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = MHEBPE6SV2;
 				ENABLE_HARDENED_RUNTIME = YES;
+				HEADER_SEARCH_PATHS = Vendors;
 				MACOSX_DEPLOYMENT_TARGET = 26.2;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;

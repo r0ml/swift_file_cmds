@@ -43,350 +43,372 @@
 
 /* This file is #included by gzip.c */
 
-/*
-#define	tab_prefixof(i)	(zs->zs_codetab[i])
-#define	tab_suffixof(i)	((char_type *)(zs->zs_htab))[i]
-#define	de_stack	((char_type *)&tab_suffixof(1 << BITS))
-*/
+import CMigration
+import Darwin
 
-let BITS = 16		/* Default bits. */
-let HSIZE = 69001		/* 95% occupancy */ /* XXX may not need HSIZE */
-let BIT_MASK = 0x1f		/* Defines for third byte of header. */
-let BLOCK_MASK = 0x80
-let CHECK_GAP = 10000		/* Ratio check interval. */
-let BUFSIZE = 64 * 1024
+//  static off_t total_compressed_bytes;
+//  static size_t compressed_prelen;
+//  static char *compressed_pre;
 
-/*                      
- * Masks 0x40 and 0x20 are free.  I think 0x20 should mean that there is
- * a fourth header byte (for expansion).
- */             
-let INIT_BITS = 9	/* Initial number of bits/code. */
+  class s_zstate {
+    var fp : FileDescriptor			/* File stream for I/O */
+    var mode : Character    			/* r or w */
+    var n_bits : Int			/* Number of bits/code. */
+    var maxbits : Int			/* User settable max # bits/code. */
+    var maxcode : code_int		/* Maximum code, given n_bits. */
+    var maxmaxcode : code_int		/* Should NEVER generate this code. */
+    var htab = Array(repeating: UInt8(0), count: HSIZE)
+    var codetab = Array(repeating: UInt16(0), count: HSIZE)
+    var hsize : code_int		/* For dynamic table sizing. */
+    var free_ent : code_int		/* First unused entry. */
+    /*
+     * Block compression parameters -- after all codes are used up,
+     * and compression rate changes, start over.
+     */
+    var block_compress : Int
+    var clear_flg : Int
+    var ratio : Int
+    var checkpoint : count_int
+    var offset : Int
+    var in_count : Int		/* Length of input. */
+    var bytes_out : Int		/* Length of compressed output. */
+    var out_count : Int		/* # of codes output (for debugging). */
+    var buf = Array(repeating: UInt8(0), count: BITS)
 
-/*
- * the next two codes should not be changed lightly, as they must not
- * lie within the contiguous general code space.
- */
-let FIRST = 257		/* First free entry. */
-let CLEAR = 256		/* Table clear output code. */
+    // write parameters
+    var fcode : Int
+    var ent : code_int
+    var hsize_reg : code_int
+    var hshift : Int
+
+    // read parameters
+    var stackp : [UInt8]
+    var finchar : Int
+    var code : code_int
+    var oldcode : code_int
+    var incode : code_int
+    var roffset : Int
+    var size : Int
+    var state : State
+
+    var gbuf = Array(repeating: UInt8(0), count: BITS)
 
 
-#define MAXCODE(n_bits)	((1 << (n_bits)) - 1)
+// iinstance variables above, constants below
 
-typedef long	code_int;
-typedef long	count_int;
-typedef u_char	char_type;
+    static let BITS = 16    /* Default bits. */
+    static let HSIZE = 69001    /* 95% occupancy */ /* XXX may not need HSIZE */
+    let BIT_MASK = 0x1f    /* Defines for third byte of header. */
+    let BLOCK_MASK = 0x80
+    let CHECK_GAP = 10000    /* Ratio check interval. */
+    let BUFSIZE = 64 * 1024
 
-let magic_header : [UInt8] = [0x1f, 0x9d]
+    /*
+     * Masks 0x40 and 0x20 are free.  I think 0x20 should mean that there is
+     * a fourth header byte (for expansion).
+     */
+    let INIT_BITS = 9  /* Initial number of bits/code. */
 
-let rmask : [UInt8] = [0x00, 0x01, 0x03, 0x07, 0x0f, 0x1f, 0x3f, 0x7f, 0xff]
+    /*
+     * the next two codes should not be changed lightly, as they must not
+     * lie within the contiguous general code space.
+     */
+    let FIRST = 257    /* First free entry. */
+    let CLEAR = 256    /* Table clear output code. */
 
 
-static off_t total_compressed_bytes;
-static size_t compressed_prelen;
-static char *compressed_pre;
+    func MAXCODE(_ n_bits : Int) -> Int { return  (1 << n_bits) - 1 }
 
-struct s_zstate {
-	FILE *zs_fp;			/* File stream for I/O */
-	char zs_mode;			/* r or w */
-	enum {
-		S_START, S_MIDDLE, S_EOF
-	} zs_state;			/* State of computation */
-	int zs_n_bits;			/* Number of bits/code. */
-	int zs_maxbits;			/* User settable max # bits/code. */
-	code_int zs_maxcode;		/* Maximum code, given n_bits. */
-	code_int zs_maxmaxcode;		/* Should NEVER generate this code. */
-	count_int zs_htab [HSIZE];
-	u_short zs_codetab [HSIZE];
-	code_int zs_hsize;		/* For dynamic table sizing. */
-	code_int zs_free_ent;		/* First unused entry. */
-	/*
-	 * Block compression parameters -- after all codes are used up,
-	 * and compression rate changes, start over.
-	 */
-	int zs_block_compress;
-	int zs_clear_flg;
-	long zs_ratio;
-	count_int zs_checkpoint;
-	int zs_offset;
-	long zs_in_count;		/* Length of input. */
-	long zs_bytes_out;		/* Length of compressed output. */
-	long zs_out_count;		/* # of codes output (for debugging). */
-	char_type zs_buf[BITS];
-	union {
-		struct {
-			long zs_fcode;
-			code_int zs_ent;
-			code_int zs_hsize_reg;
-			int zs_hshift;
-		} w;			/* Write parameters */
-		struct {
-			char_type *zs_stackp;
-			int zs_finchar;
-			code_int zs_code, zs_oldcode, zs_incode;
-			int zs_roffset, zs_size;
-			char_type zs_gbuf[BITS];
-		} r;			/* Read parameters */
-	} u;
-};
+    typealias code_int = Int
+    typealias count_int = Int
 
-func zuncompress(_ inx : FileDescriptor, _ out : FileDescriptor, _ pre : [UInt8], _ prelen : size_t, _ compressed_bytes : inout off_t ) -> off_t {
+    let magic_header : [UInt8] = [0x1f, 0x9d]
 
-  var buf = Array(repeating: UInt8(0), count: BUFSIZE)
-  var bout = 0
+    let rmask : [UInt8] = [0x00, 0x01, 0x03, 0x07, 0x0f, 0x1f, 0x3f, 0x7f, 0xff]
 
-  /* XXX */
-  compressed_prelen = prelen
-  if (prelen != 0) {
-    compressed_pre = pre
-  }
-  else {
-    compressed_pre = nil
-  }
-
-  while true {
-    let bin = try inx.read(into: buf)
-    if bin == 0 { break }
-    if try !options.tflag && out.write(buf) != bin {
-      return -1
+    enum State {   /* State of computation */
+      case START
+      case MIDDLE
+      case END
     }
-    bout += bin
+
+
+
+
+
+
+
+  func zuncompress(_ inx : FileDescriptor, _ out : FileDescriptor, _ pre : [UInt8], _ prelen : size_t, _ compressed_bytes : inout off_t ) -> off_t {
+
+    var buf = Array(repeating: UInt8(0), count: BUFSIZE)
+    var bout = 0
+
+    /* XXX */
+    compressed_prelen = prelen
+    if (prelen != 0) {
+      compressed_pre = pre
+    }
+    else {
+      compressed_pre = nil
+    }
+
+    while true {
+      let bin = try inx.read(into: buf)
+      if bin == 0 { break }
+      if try !options.tflag && out.write(buf) != bin {
+        return -1
+      }
+      bout += bin
+    }
+
+    compressed_bytes = total_compressed_bytes
+    return bout
   }
 
-  compressed_bytes = total_compressed_bytes
-  return bout
-}
-
-func zclose() -> Int {
-	/* We leave the caller to close the fd passed to zdopen() */
-	return 0;
-}
-
-FILE *
-zdopen(int fd)
-{
-	struct s_zstate *zs;
-
-  if ((zs = calloc(1, sizeof(struct s_zstate))) == NULL) {
-    return (NULL);
+  func zclose() -> Int {
+    /* We leave the caller to close the fd passed to zdopen() */
+    return 0;
   }
 
-	zs->zs_state = S_START;
+    static func zdopen( _ fd : FileDescriptor) -> s_zstate {
+      return s_zstate(fd)
+//      return funopen(zs, zread, nil, nil, zclose);
+    }
 
-	/* XXX we can get rid of some of these */
-	zs->zs_hsize = HSIZE;			/* For dynamic table sizing. */
-	zs->zs_free_ent = 0;			/* First unused entry. */
-	zs->zs_block_compress = BLOCK_MASK;
-	zs->zs_clear_flg = 0;			/* XXX we calloc()'d this structure why = 0? */
-	zs->zs_ratio = 0;
-	zs->zs_checkpoint = CHECK_GAP;
-	zs->zs_in_count = 1;			/* Length of input. */
-	zs->zs_out_count = 0;			/* # of codes output (for debugging). */
-	zs->u.r.zs_roffset = 0;
-	zs->u.r.zs_size = 0;
+  init(_ fd : FileDescriptor) {
+    state = .START
 
-	/*
-	 * Layering compress on top of stdio in order to provide buffering,
-	 * and ensure that reads and write work with the data specified.
-	 */
-	if ((zs->zs_fp = fdopen(fd, "r")) == NULL) {
-		free(zs);
-		return NULL;
-	}
+    /* XXX we can get rid of some of these */
+    hsize = Self.HSIZE			/* For dynamic table sizing. */
+    free_ent = 0			/* First unused entry. */
+    block_compress = BLOCK_MASK
+    clear_flg = 0			/* XXX we calloc()'d this structure why = 0? */
+    ratio = 0
+    checkpoint = CHECK_GAP
+    in_count = 1			/* Length of input. */
+    out_count = 0			/* # of codes output (for debugging). */
 
-	return funopen(zs, zread, nil, nil, zclose);
-}
+    roffset = 0
+    size = 0
 
-/*
- * Decompress read.  This routine adapts to the codes in the file building
- * the "string" table on-the-fly; requiring no table to be stored in the
- * compressed file.  The tables used herein are shared with those of the
- * compress() routine.  See the definitions above.
- */
-static int
-zread(void *cookie, char *rbp, int num)
-{
-	u_int count, i;
-	struct s_zstate *zs;
-	u_char *bp, header[3];
+    /*
+     * Layering compress on top of stdio in order to provide buffering,
+     * and ensure that reads and write work with the data specified.
+     */
 
-  if (num == 0) {
-    return (0);
+
+    fp = fd
   }
 
-	zs = cookie;
-	count = num;
-	bp = (u_char *)rbp;
-	switch (zs->zs_state) {
-	case S_START:
-		zs->zs_state = S_MIDDLE;
-		break;
-	case S_MIDDLE:
-		goto middle;
-	case S_EOF:
-		goto eof;
-	}
+  /*
+   * Decompress read.  This routine adapts to the codes in the file building
+   * the "string" table on-the-fly; requiring no table to be stored in the
+   * compressed file.  The tables used herein are shared with those of the
+   * compress() routine.  See the definitions above.
+   */
+    func zread(_ rbp : [UInt8], _ num : Int) -> Int {
+      //    u_int count, i;
+//    u_char *bp, header[3];
 
-	/* Check the magic number */
-  for (i = 0; i < 3 && compressed_prelen; i++, compressed_prelen--) {
-    header[i] = *compressed_pre++;
+    if (num == 0) {
+      return (0);
+    }
+
+    var count = num;
+    var bp = rbp
+      var gotomiddle = state == .MIDDLE
+    switch state {
+      case .START:
+        state = .MIDDLE
+        break;
+      case .MIDDLE:
+        gotomiddle = true
+      case .END:
+        return num - count
+    }
+
+
+      if !gotomiddle {
+
+
+        /* Check the magic number */
+        var i = 0
+        while i < 3 && compressed_prelen {
+          header[i] = *compressed_pre++;
+          i += 1
+          compressed_prelen -= 1
+        }
+
+        if (fread(header + i, 1, sizeof(header) - i, fp) !=
+            sizeof(header) - i ||
+            memcmp(header, magic_header, sizeof(magic_header)) != 0) {
+          errno = EFTYPE;
+          return (-1);
+        }
+        total_compressed_bytes = 0;
+        maxbits = header[2];	/* Set -b from file. */
+        block_compress = maxbits & BLOCK_MASK;
+        maxbits &= BIT_MASK;
+        maxmaxcode = 1 << maxbits;
+        if (maxbits > Self.BITS || maxbits < 12) {
+          errno = EFTYPE;
+          return (-1);
+        }
+        /* As above, initialize the first 256 entries in the table. */
+        maxcode = MAXCODE(n_bits = INIT_BITS);
+        for i in 0..<256 {
+          codetab[i] = 0
+          htab[i] = i
+        }
+        free_ent = block_compress ? FIRST : 256;
+
+        oldcode = -1;
+        stackp = de_stack;
+      }
+
+      while true {
+
+        if !gotomiddle {
+          code = getcode(zs)
+
+          if code < 0 { break }
+
+          if ((code == CLEAR) && block_compress) {
+            for i in 0..<256 {
+              codetab[i] = 0
+            }
+            clear_flg = 1
+            free_ent = FIRST
+            oldcode = -1
+            continue
+          }
+          incode = code;
+
+          /* Special case for KwKwK string. */
+          if (code >= free_ent) {
+            if (code > free_ent ||
+                oldcode == -1) {
+              /* Bad stream. */
+              errno = EFTYPE;
+              return (-1);
+            }
+            *stackp++ = finchar;
+            code = oldcode;
+          }
+          /*
+           * The above condition ensures that code < free_ent.
+           * The construction of tab_prefixof in turn guarantees that
+           * each iteration decreases code and therefore stack usage is
+           * bound by 1 << BITS - 256.
+           */
+
+          /* Generate output characters in reverse order. */
+          while (code >= 256) {
+            *stackp++ = htab[code]
+            code = codetab[code]
+          }
+          *stackp++ = finchar = htab[code]
+        }
+      /* And put them out in forward order.  */
+      middle:
+      repeat {
+        if (count-- == 0) {
+          return (num)
+        }
+        *bp++ = *--stackp;
+      } while (stackp > de_stack);
+
+      /* Generate the new entry. */
+      if ((code = free_ent) < maxmaxcode &&
+          oldcode != -1) {
+        codetab[code] = oldcode
+        htab[code] = finchar
+        free_ent = code + 1;
+      }
+
+      /* Remember previous code. */
+      oldcode = incode;
+    }
+      state = .END
+
+    return (num - count);
   }
 
-	if (fread(header + i, 1, sizeof(header) - i, zs->zs_fp) !=
-		  sizeof(header) - i ||
-	    memcmp(header, magic_header, sizeof(magic_header)) != 0) {
-		errno = EFTYPE;
-		return (-1);
-	}
-	total_compressed_bytes = 0;
-	zs->zs_maxbits = header[2];	/* Set -b from file. */
-	zs->zs_block_compress = zs->zs_maxbits & BLOCK_MASK;
-	zs->zs_maxbits &= BIT_MASK;
-	zs->zs_maxmaxcode = 1L << zs->zs_maxbits;
-	if (zs->zs_maxbits > BITS || zs->zs_maxbits < 12) {
-		errno = EFTYPE;
-		return (-1);
-	}
-	/* As above, initialize the first 256 entries in the table. */
-	zs->zs_maxcode = MAXCODE(zs->zs_n_bits = INIT_BITS);
-	for (zs->u.r.zs_code = 255; zs->u.r.zs_code >= 0; zs->u.r.zs_code--) {
-		tab_prefixof(zs->u.r.zs_code) = 0;
-		tab_suffixof(zs->u.r.zs_code) = (char_type) zs->u.r.zs_code;
-	}
-	zs->zs_free_ent = zs->zs_block_compress ? FIRST : 256;
+  /*-
+   * Read one code from the standard input.  If EOF, return -1.
+   * Inputs:
+   * 	stdin
+   * Outputs:
+   * 	code or -1 is returned.
+   */
+  func getcode() -> code_int {
+//    code_int gcode;
+//    int r_off, bits, i;
+//    char_type *bp;
 
-	zs->u.r.zs_oldcode = -1;
-	zs->u.r.zs_stackp = de_stack;
+    var bp = gbuf
+    if clear_flg > 0 || roffset >= size || free_ent > maxcode {
+      /*
+       * If the next entry will be too big for the current gcode
+       * size, then we must increase the size.  This implies reading
+       * a new buffer full, too.
+       */
+      if free_ent > maxcode {
+        n_bits += 1
+        if (n_bits == maxbits) {	/* Won't get any bigger now. */
+          maxcode = maxmaxcode
+        }
+        else {
+          maxcode = MAXCODE(n_bits)
+        }
+      }
+      if (clear_flg > 0) {
+        n_bits = INIT_BITS
+        maxcode = MAXCODE(n_bits)
+        clear_flg = 0
+      }
+      /* XXX */
+      var i = 0
+      while i < n_bits && compressed_prelen {
+        gbuf[i] = *compressed_pre++;
+      }
+      size = fread(gbuf + i, 1, n_bits - i, fp);
+      size += i;
+      if (size <= 0) {			/* End of file. */
+        return (-1);
+      }
+      roffset = 0;
 
-	while ((zs->u.r.zs_code = getcode(zs)) > -1) {
+      total_compressed_bytes += size;
 
-		if ((zs->u.r.zs_code == CLEAR) && zs->zs_block_compress) {
-			for (zs->u.r.zs_code = 255; zs->u.r.zs_code >= 0;
-			    zs->u.r.zs_code--)
-				tab_prefixof(zs->u.r.zs_code) = 0;
-			zs->zs_clear_flg = 1;
-			zs->zs_free_ent = FIRST;
-			zs->u.r.zs_oldcode = -1;
-			continue;
-		}
-		zs->u.r.zs_incode = zs->u.r.zs_code;
+      /* Round size down to integral number of codes. */
+      size = (size << 3) - (n_bits - 1);
+      i += 1
+      compressed_prelen -= 1
+    }
+    var r_off = roffset
+    var bits = n_bits
 
-		/* Special case for KwKwK string. */
-		if (zs->u.r.zs_code >= zs->zs_free_ent) {
-			if (zs->u.r.zs_code > zs->zs_free_ent ||
-			    zs->u.r.zs_oldcode == -1) {
-				/* Bad stream. */
-				errno = EFTYPE;
-				return (-1);
-			}
-			*zs->u.r.zs_stackp++ = zs->u.r.zs_finchar;
-			zs->u.r.zs_code = zs->u.r.zs_oldcode;
-		}
-		/*
-		 * The above condition ensures that code < free_ent.
-		 * The construction of tab_prefixof in turn guarantees that
-		 * each iteration decreases code and therefore stack usage is
-		 * bound by 1 << BITS - 256.
-		 */
+    /* Get to the first byte. */
+    bp += (r_off >> 3)
+    r_off &= 7;
 
-		/* Generate output characters in reverse order. */
-		while (zs->u.r.zs_code >= 256) {
-			*zs->u.r.zs_stackp++ = tab_suffixof(zs->u.r.zs_code);
-			zs->u.r.zs_code = tab_prefixof(zs->u.r.zs_code);
-		}
-		*zs->u.r.zs_stackp++ = zs->u.r.zs_finchar = tab_suffixof(zs->u.r.zs_code);
+    /* Get first part (low order bits). */
+    var gcode = (*bp++ >> r_off);
+    bits -= (8 - r_off);
+    r_off = 8 - r_off;	/* Now, roffset into gcode word. */
 
-		/* And put them out in forward order.  */
-middle:		do {
-			if (count-- == 0)
-				return (num);
-			*bp++ = *--zs->u.r.zs_stackp;
-		} while (zs->u.r.zs_stackp > de_stack);
+    /* Get any 8 bit parts in the middle (<=1 for up to 16 bits). */
+    if (bits >= 8) {
+      gcode |= *bp++ << r_off;
+      r_off += 8;
+      bits -= 8;
+    }
 
-		/* Generate the new entry. */
-		if ((zs->u.r.zs_code = zs->zs_free_ent) < zs->zs_maxmaxcode &&
-		    zs->u.r.zs_oldcode != -1) {
-			tab_prefixof(zs->u.r.zs_code) = (u_short) zs->u.r.zs_oldcode;
-			tab_suffixof(zs->u.r.zs_code) = zs->u.r.zs_finchar;
-			zs->zs_free_ent = zs->u.r.zs_code + 1;
-		}
+    /* High order bits. */
+    gcode |= (*bp & rmask[bits]) << r_off;
+    roffset += n_bits;
 
-		/* Remember previous code. */
-		zs->u.r.zs_oldcode = zs->u.r.zs_incode;
-	}
-	zs->zs_state = S_EOF;
-eof:	return (num - count);
+    return gcode
+  }
 }
-
-/*-
- * Read one code from the standard input.  If EOF, return -1.
- * Inputs:
- * 	stdin
- * Outputs:
- * 	code or -1 is returned.
- */
-static code_int
-getcode(struct s_zstate *zs)
-{
-	code_int gcode;
-	int r_off, bits, i;
-	char_type *bp;
-
-	bp = zs->u.r.zs_gbuf;
-	if (zs->zs_clear_flg > 0 || zs->u.r.zs_roffset >= zs->u.r.zs_size ||
-	    zs->zs_free_ent > zs->zs_maxcode) {
-		/*
-		 * If the next entry will be too big for the current gcode
-		 * size, then we must increase the size.  This implies reading
-		 * a new buffer full, too.
-		 */
-		if (zs->zs_free_ent > zs->zs_maxcode) {
-			zs->zs_n_bits++;
-			if (zs->zs_n_bits == zs->zs_maxbits)	/* Won't get any bigger now. */
-				zs->zs_maxcode = zs->zs_maxmaxcode;
-			else
-				zs->zs_maxcode = MAXCODE(zs->zs_n_bits);
-		}
-		if (zs->zs_clear_flg > 0) {
-			zs->zs_maxcode = MAXCODE(zs->zs_n_bits = INIT_BITS);
-			zs->zs_clear_flg = 0;
-		}
-		/* XXX */
-		for (i = 0; i < zs->zs_n_bits && compressed_prelen; i++, compressed_prelen--)  
-			zs->u.r.zs_gbuf[i] = *compressed_pre++;
-		zs->u.r.zs_size = fread(zs->u.r.zs_gbuf + i, 1, zs->zs_n_bits - i, zs->zs_fp);
-		zs->u.r.zs_size += i;
-		if (zs->u.r.zs_size <= 0)			/* End of file. */
-			return (-1);
-		zs->u.r.zs_roffset = 0;
-
-		total_compressed_bytes += zs->u.r.zs_size;
-
-		/* Round size down to integral number of codes. */
-		zs->u.r.zs_size = (zs->u.r.zs_size << 3) - (zs->zs_n_bits - 1);
-	}
-	r_off = zs->u.r.zs_roffset;
-	bits = zs->zs_n_bits;
-
-	/* Get to the first byte. */
-	bp += (r_off >> 3);
-	r_off &= 7;
-
-	/* Get first part (low order bits). */
-	gcode = (*bp++ >> r_off);
-	bits -= (8 - r_off);
-	r_off = 8 - r_off;	/* Now, roffset into gcode word. */
-
-	/* Get any 8 bit parts in the middle (<=1 for up to 16 bits). */
-	if (bits >= 8) {
-		gcode |= *bp++ << r_off;
-		r_off += 8;
-		bits -= 8;
-	}
-
-	/* High order bits. */
-	gcode |= (*bp & rmask[bits]) << r_off;
-	zs->u.r.zs_roffset += zs->zs_n_bits;
-
-	return (gcode);
-}
-

@@ -1,0 +1,8 @@
+// Copyright (c) 1868 Charles Babbage
+// Modernized by Robert "r0ml" Lefkowitz <r0ml@liberally.net> in 2026
+
+module BZip2 [system] {
+  header "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/bzlib.h"
+  link "bz2"
+  export *
+}
