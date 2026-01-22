@@ -43,7 +43,7 @@ extension gzip {
    * uncompressed size written, and put the compressed sized read
    * into `*gsizep'.
    */
-  func gz_uncompress(_ inx : FileDescriptor, _ out : FileDescriptor, _ pre : [UInt8], _ filename : String) -> (UInt, UInt) {
+  func gz_uncompress(_ inx : FileDescriptor, _ out : FileDescriptor, _ pre : [UInt8], _ filename : String) -> (UInt, UInt)? {
     //    z_stream z;
     //    char *outbufp, *inbufp;
     //    uint32_t out_sub_tot = 0;
@@ -70,118 +70,117 @@ extension gzip {
     var flags = 0
     var skip_count = 0
     var error = Z_STREAM_ERROR
-    var done_reading = 0
-    var crc = 0
-    var wr : ssize_t = 0
-    var needmore = 0
+    var done_reading = false
+    var crc = UInt(0)
+//    var wr : ssize_t = 0
+    var needmore = false
+    var out_sub_tot = UInt(0)
 
     //    #define ADVANCE()       { z.next_in++; z.avail_in--; }
 
-    if ((outbufp = malloc(BUFLEN)) == NULL) {
-      maybe_err("malloc failed");
-      goto out2;
-    }
-    if ((inbufp = malloc(BUFLEN)) == NULL) {
-      maybe_err("malloc failed");
-      goto out1;
-    }
+    let outbufp = UnsafeMutablePointer<UInt8>.allocate(capacity: Self.BUFLEN)
+    let inbufp = UnsafeMutablePointer<UInt8>.allocate(capacity: Self.BUFLEN)
 
     var z = z_stream()
-    //    z.avail_in = prelen
-    z.next_in = 0 // use next_in as an index into pre (as opposed to a pointer starting at pre)
-    z.avail_out = BUFLEN
+    z.avail_in = UInt32(pre.count)
+    z.next_in = inbufp // use next_in as an index into pre (as opposed to a pointer starting at pre)
+    z.avail_out = UInt32(Self.BUFLEN)
     z.next_out = outbufp
     z.zalloc = nil
     z.zfree = nil
-    z.opaque = 0
+    z.opaque = nil
+
+    z.next_in.update(from: pre, count: pre.count)
+    z.next_in += pre.count
+
+    defer {
+      outbufp.deallocate()
+      inbufp.deallocate()
+      if state == .READ || state == .CRC || state == .LEN {
+        inflateEnd(&z)
+      }
+    }
 
     var in_tot = UInt(pre.count)
     var out_tot : UInt = 0
 
   outer:
     while true {
-      check_siginfo();
-      if (z.avail_in == 0 || needmore) && done_reading == 0 {
-        ssize_t in_size;
-
-        if (z.avail_in > 0) {
-          memmove(inbufp, z.next_in, z.avail_in);
-        }
-        z.next_in = (unsigned char *)inbufp;
-        in_size = read(in, z.next_in + z.avail_in,
-                       BUFLEN - z.avail_in);
-
-        if (in_size == -1) {
-          maybe_warn("failed to read stdin");
+      check_siginfo()
+      if (z.avail_in == 0 || needmore) && !done_reading {
+        guard let in_size = try? inx.read(into: UnsafeMutableRawBufferPointer(start: z.next_in, count: Self.BUFLEN - Int(z.avail_in))) else {
+          maybe_warn("failed to read stdin")
           out_tot = -1
           break outer
-        } else if (in_size == 0) {
-          done_reading = 1;
+        }
+        if in_size == 0 {
+          done_reading = true
         }
 
-        r.infile_current += in_size
+        r.infile_current += UInt(in_size)
 
-        z.avail_in += in_size;
-        needmore = 0;
+        z.avail_in += UInt32(in_size)
+        z.next_in += in_size
 
-        in_tot += in_size;
+        needmore = false
+        in_tot += UInt(in_size)
       }
       if (z.avail_in == 0) {
-        if (done_reading && state != .MAGIC0) {
-          maybe_warnx("%s: unexpected end of file",
-                      filename);
-          out_tot = -1
-          break outer
+        if done_reading && state != .MAGIC0 {
+          maybe_warnx("\(filename): unexpected end of file")
+          return nil
         }
         break outer;
       }
       switch state {
         case .MAGIC0:
-          if pre[z.next_in] != GZIP_MAGIC0 {
-            if (in_tot > 0) {
+          if pre[0] != GZIP_MAGIC0 {
+            if in_tot > 0 {
               maybe_warnx("\(filename): trailing garbage ignored")
-              r.lexit_value = 2
+              r.exit_value = 2
               break outer
             }
             maybe_warnx("input not gziped (MAGIC0)")
-            out_tot = -1
-            break outer
+            return nil
           }
           z.next_in += 1
-          state += 1
-          out_sub_tot = 0;
-          crc = crc32(0, Z_NULL, 0);
+          z.avail_in -= 1
+          state = .MAGIC1
+          out_sub_tot = 0
+          crc = crc32(0, nil, 0)
 
         case .MAGIC1:
-          if pre[z.next_in] != GZIP_MAGIC1 && pre[z.next_in] != GZIP_OMAGIC1 {
+          if z.next_in.pointee != GZIP_MAGIC1 && z.next_in.pointee != GZIP_OMAGIC1 {
             maybe_warnx("input not gziped (MAGIC1)");
-            out_tot = -1
-            break outer
+            return nil
           }
           z.next_in += 1
-          state += 1
+          z.avail_in -= 1
+          state = .METHOD
 
         case .METHOD:
-          if pre[z.next_in] != Z_DEFLATED {
-            maybe_warnx("unknown compression method");
-            out_tot = -1
-            break outer
+          if z.next_in.pointee != Z_DEFLATED {
+            maybe_warnx("unknown compression method")
+            return nil
           }
           z.next_in += 1
-          state += 1
+          z.avail_in -= 1
+          state = .FLAGS
 
         case .FLAGS:
-          flags = pre[z.next_in]
+          flags = Int(z.next_in.pointee)
           z.next_in += 1
+          z.avail_in -= 1
           skip_count = 6;
-          state += 1
+          state = .SKIPPING
 
         case .SKIPPING:
           if (skip_count > 0) {
-            skip_count--;
+            skip_count -= 1
             z.next_in += 1
+            z.avail_in -= 1
           } else {
-            state += 1
+            state = .EXTRA
           }
 
         case .EXTRA:
@@ -189,67 +188,72 @@ extension gzip {
             state = .ORIGNAME;
             break;
           }
-          skip_count = pre[z.next_in]
+          skip_count = Int(z.next_in.pointee)
           z.next_in += 1
-          state += 1
+          z.avail_in -= 1
+          state = .EXTRA2
 
         case .EXTRA2:
-          skip_count |= (pre[z.next_in] << 8)
+          skip_count |= Int(z.next_in.pointee) << 8
           z.next_in += 1
-          state += 1
+          z.avail_in -= 1
+          state = .EXTRA3
 
         case .EXTRA3:
           if (skip_count > 0) {
-            skip_count--;
+            skip_count -= 1
             z.next_in += 1
+            z.avail_in -= 1
           } else {
-            state += 1
+            state = .ORIGNAME
           }
 
         case .ORIGNAME:
           if ((flags & ORIG_NAME) == 0) {
-            state += 1
+            state = .COMMENT
             break;
           }
-          if pre[z.next_in] == 0 {
-            state += 1
+          if z.next_in.pointee == 0 {
+            state = .COMMENT
           }
           z.next_in += 1
+          z.avail_in -= 1
 
         case .COMMENT:
           if ((flags & COMMENT) == 0) {
-            state += 1
+            state = .HEAD_CRC1
             break;
           }
-          if pre[z.next_in] == 0 {
-            state += 1
+          if z.next_in.pointee == 0 {
+            state = .HEAD_CRC1
           }
           z.next_in += 1
+          z.avail_in -= 1
 
         case .HEAD_CRC1:
-          if (flags & HEAD_CRC) {
-            skip_count = 2;
+          if 0 != (flags & HEAD_CRC) {
+            skip_count = 2
           }
           else {
-            skip_count = 0;
+            skip_count = 0
           }
-          state++;
+          state = .HEAD_CRC2
 
         case .HEAD_CRC2:
           if (skip_count > 0) {
-            skip_count--;
+            skip_count -= 1
             z.next_in += 1
+            z.avail_in -= 1
           } else {
-            state += 1
+            state = .INIT
           }
 
         case .INIT:
-          if (inflateInit2(&z, -MAX_WBITS) != Z_OK) {
+          if inflateInit2_(&z, -MAX_WBITS, ZLIB_VERSION, Int32(MemoryLayout<z_stream>.size)) != Z_OK {
             maybe_warnx("failed to inflateInit");
-            out_tot = -1
-            break outer
+            return nil
           }
-          state += 1
+          state = .READ
 
         case .READ:
           let error = inflate(&z, Z_FINISH)
@@ -266,123 +270,95 @@ extension gzip {
 
             case Z_NEED_DICT:
               maybe_warnx("Z_NEED_DICT error");
-              out_tot = -1
-              break outer
+              return nil
             case Z_DATA_ERROR:
               maybe_warnx("data stream error");
-              out_tot = -1
-              break outer
+              return nil
             case Z_STREAM_ERROR:
               maybe_warnx("internal stream error");
-              out_tot = -1
-              break outer
+                return nil
             case Z_MEM_ERROR:
               maybe_warnx("memory allocation error");
-              out_tot = -1
-              break outer
+              return nil
 
             default:
-              maybe_warn("unknown error from inflate(): %d",
-                         error);
+              maybe_warn("unknown error from inflate(): \(error)")
           }
-          wr = BUFLEN - z.avail_out;
+          let wr = Self.BUFLEN - Int(z.avail_out)
 
-          if (wr != 0) {
-            crc = crc32(crc, (const Bytef *)outbufp, (unsigned)wr);
-            if (
-
-              /* don't write anything with -t */
-              tflag == 0 &&
-
-              write_retry(out, outbufp, wr) != wr) {
-              maybe_warn("error writing to output");
-              out_tot = -1
-              break outer
+          if wr != 0 {
+            crc = crc32(crc, outbufp, UInt32(wr))
+            if !options.tflag,               /* don't write anything with -t */
+               let z = try? out.write( UnsafeMutableRawBufferPointer(start: outbufp, count: wr)) {
+              maybe_warn("error writing to output")
+              return nil
             }
 
-            out_tot += wr;
-            out_sub_tot += wr;
+            out_tot += UInt(wr)
+            out_sub_tot += UInt(wr)
           }
 
           if (error == Z_STREAM_END) {
             inflateEnd(&z);
-            state += 1
+            state = .CRC
           }
 
-          z.next_out = (unsigned char *)outbufp;
-          z.avail_out = BUFLEN;
+          z.next_out = outbufp
+          z.avail_out = UInt32(Self.BUFLEN)
 
         case .CRC:
-          {
-            uLong origcrc;
 
-            if (z.avail_in < 4) {
-              if (!done_reading) {
-                needmore = 1;
+            if z.avail_in < 4 {
+              if !done_reading {
+                needmore = true
                 continue;
               }
-              maybe_warnx("truncated input");
-              out_tot = -1
-              break outer
+              maybe_warnx("truncated input")
+              return nil
             }
-            origcrc = le32dec(&z.next_in[0]);
+          let origcrc = le32dec( UnsafeMutableBufferPointer(start: z.next_in, count: 4) )
             if (origcrc != crc) {
               maybe_warnx("invalid compressed data--crc error")
-              out_tot = -1
-              break outer
+              return nil
             }
-          }
 
-          z.avail_in -= 4;
-          z.next_in += 4;
 
-          if (!z.avail_in && done_reading) {
+          z.avail_in -= 4
+          z.next_in += 4
+
+          if 0 == z.avail_in && done_reading {
             break outer
           }
-          state += 1
+          state = .LEN
 
         case .LEN:
-          {
-            uLong origlen;
 
             if (z.avail_in < 4) {
               if (!done_reading) {
-                needmore = 1;
+                needmore = true
                 continue;
               }
               maybe_warnx("truncated input");
-              out_tot = -1
-              break outer
+              return nil
             }
-            origlen = le32dec(&z.next_in[0]);
+          let origlen = le32dec(UnsafeMutableBufferPointer(start: z.next_in, count: 4))
 
             if (origlen != out_sub_tot) {
               maybe_warnx("invalid compressed data--length error")
-              out_tot = -1
-              break outer
+              return nil
             }
-          }
 
           z.avail_in -= 4;
           z.next_in += 4;
 
           if (error < 0) {
             maybe_warnx("decompression error");
-            out_tot = -1
-            break outer
+            return nil
           }
           state = .MAGIC0
       }
       continue
     }
-    if (state > .INIT) {
-      inflateEnd(&z);
-    }
-
-    free(inbufp);
-  out1:
-    free(outbufp);
-  out2:
     return (out_tot, in_tot)
   }
 
@@ -390,46 +366,46 @@ extension gzip {
    * set the owner, mode, flags & utimes using the given file descriptor.
    * file is only used in possible warning messages.
    */
-  func copymodes(_ fd : FileDescriptor, _ sbp : FileMetadata, _ file : String)  {
-    struct timespec times[2];
-    struct stat sb;
+  func copymodes(_ fd : FileDescriptor, _ sbp : FileMetadata?, _ file : String)  {
+//    struct timespec times[2];
+//    struct stat sb;
 
     /*
      * If we have no info on the input, give this file some
      * default values and return..
      */
-    if (sbp == NULL) {
-      mode_t mask = umask(022);
+    let DEFFILEMODE : FilePermissions = [.ownerRead, .ownerWrite, .groupRead, .groupWrite, .otherRead, .otherWrite ]
 
-      fchmod(fd, DEFFILEMODE & ~mask);
-      umask(mask);
-      return;
+    guard let sbp else {
+      let mask = umask(022);
+      fchmod(fd.rawValue, DEFFILEMODE.rawValue & ~mask)
+      umask(mask)
+      return
     }
-    sb = *sbp;
 
+    var pp = sbp.permissions
     /* if the chown fails, remove set-id bits as-per compress(1) */
-    if (fchown(fd, sb.st_uid, sb.st_gid) < 0) {
+    if (fchown(fd.rawValue, UInt32(sbp.userId), UInt32(sbp.groupId) ) < 0) {
       if (errno != EPERM) {
-        maybe_warn("couldn't fchown: %s", file);
+        maybe_warn("couldn't fchown: \(file)")
       }
-      sb.st_mode &= ~(S_ISUID|S_ISGID);
+      pp.remove([.setUserID, .setGroupID])
     }
 
     /* we only allow set-id and the 9 normal permission bits */
-    sb.st_mode &= S_ISUID | S_ISGID | S_IRWXU | S_IRWXG | S_IRWXO;
-    if (fchmod(fd, sb.st_mode) < 0) {
-      maybe_warn("couldn't fchmod: %s", file);
+//    sbp.permissions &= S_ISUID | S_ISGID | S_IRWXU | S_IRWXG | S_IRWXO;
+    if (fchmod(fd.rawValue, pp.rawValue) < 0) {
+      maybe_warn("couldn't fchmod: \(file)")
     }
 
-    times[0] = sb.st_atim;
-    times[1] = sb.st_mtim;
-    if (futimens(fd, times) < 0) {
-      maybe_warn("couldn't futimens: %s", file);
+    let timesx = (sbp.lastAccess.timespec, sbp.lastWrite.timespec)
+    if (futimens(fd, timesx) < 0) {
+      maybe_warn("couldn't futimens: \(file)")
     }
 
     /* only try flags if they exist already */
-    if (sb.st_flags != 0 && fchflags(fd, sb.st_flags) < 0) {
-      maybe_warn("couldn't fchflags: %s", file);
+    if !sbp.flags.isEmpty && fchflags(fd.rawValue, sbp.flags.rawValue) < 0 {
+      maybe_warn("couldn't fchflags: \(file)")
     }
   }
 
@@ -440,8 +416,7 @@ extension gzip {
         (buf[1] == GZIP_MAGIC1 || buf[1] == GZIP_OMAGIC1)) {
       return .GZIP
     }
-    else if (memcmp(buf, BZIP2_MAGIC, 3) == 0 &&
-             buf[3] >= '0' && buf[3] <= '9') {
+    else if (memcmp(buf, BZIP2_MAGIC, 3) == 0 && "0123456789".utf8.contains(buf[3])) {
       return .BZIP2
     }
     else if (memcmp(buf, Z_MAGIC, 2) == 0) {
@@ -490,21 +465,18 @@ extension gzip {
   }
 
   func unlink_input(_ file : String, _ sb : FileMetadata) {
-    struct stat nsb;
-
     if options.kflag {
-      return;
+      return
     }
-    bzero(&nsb, sizeof(nsb));
-    if (stat(file, &nsb) != 0) {
+    guard let nsb = try? FileMetadata(for: file) else {
       /* Must be gone already */
-      return;
+      return
     }
-    if (nsb.st_dev != sb->st_dev || nsb.st_ino != sb->st_ino) {
+    if nsb.device != sb.device || nsb.inode != sb.inode {
       /* Definitely a different file */
-      return;
+      return
     }
-    unlink(file);
+    unlink(file)
   }
 
   func got_sigint(_ signo : Int32)  {
@@ -517,28 +489,27 @@ extension gzip {
      * Re-raise the signal to get the exit status right for conformance
      * purposes.
      */
-    signal(signo, SIG_DFL);
+    signal(signo, SIG_DFL)
     raise(signo);
 
   }
 
   func got_siginfo(_ signo : Int32) {
-
-    print_info = 1;
+    r.print_info = 1
   }
 
   func setup_signals() {
 
-    signal(SIGINFO, got_siginfo);
+    signal(SIGINFO, { s in got_siginfo(s) } )
 
-    if (signal(SIGINT, SIG_IGN) != SIG_IGN) {
-      signal(SIGINT, got_sigint);
-    }
+    // FIXME: what should this do?
+//    if signal(SIGINT, SIG_IGN) != SIG_IGN {
+    signal(SIGINT, { s in got_sigint(s) } )
+// }
   }
 
   func infile_newdata(_ newdata : size_t) {
-
-    infile_current += newdata;
+    r.infile_current += UInt(newdata)
   }
 
   func check_suffix(_ file : String) -> String?  {
@@ -554,19 +525,31 @@ extension gzip {
   }
 
   func clear_type_and_creator(_ fd : FileDescriptor) {
-    struct attrlist alist;
-    struct {
-      u_int32_t length;
-      char info[32];
-    } abuf;
+    var alist = attrlist()
+    struct Abuf {
+      var length : UInt32 = 0
+      var info : (CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar,
+                  CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar,
+                  CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar,
+                  CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar,) = ( 0, 0, 0, 0, 0, 0, 0, 0,
+                                                                               0, 0, 0, 0, 0, 0, 0, 0,
+                                                                               0, 0, 0, 0, 0, 0, 0, 0,
+                                                                               0, 0, 0, 0, 0, 0, 0, 0,)
+    }
 
-    memset(&alist, 0, sizeof(alist));
-    alist.bitmapcount = ATTR_BIT_MAP_COUNT;
-    alist.commonattr = ATTR_CMN_FNDRINFO;
+    var abuf = Abuf()
 
-    if (!fgetattrlist(fd, &alist, &abuf, sizeof(abuf), 0) && abuf.length == sizeof(abuf)) {
-      memset(abuf.info, 0, 8);
-      fsetattrlist(fd, &alist, abuf.info, sizeof(abuf.info), 0);
+    alist.bitmapcount = UInt16(ATTR_BIT_MAP_COUNT)
+    alist.commonattr = UInt32(ATTR_CMN_FNDRINFO)
+
+    let z = fgetattrlist(fd.rawValue, &alist, &abuf, MemoryLayout<Abuf>.size, 0)
+
+    if z == 0 && abuf.length == MemoryLayout<Abuf>.size {
+      abuf.info = ( 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0,)
+      fsetattrlist(fd.rawValue, &alist, &abuf.info, MemoryLayout.size(ofValue: abuf.info), 0)
     }
   }
 }

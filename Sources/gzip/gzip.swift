@@ -48,6 +48,9 @@ import zlib
     var outfile : String? = nil
     var firstPrint = true
 
+    var print_info : sig_atomic_t = 0
+
+
     var remove_file : String? = nil
   }
 
@@ -193,8 +196,6 @@ from a file containing the following notice:
    OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
    SUCH DAMAGE.
 """
-
-  static var print_info : sig_atomic_t = 0
 
   struct CommandOptions {
 
@@ -449,6 +450,7 @@ from a file containing the following notice:
 
     z.next_out.update(from: header, count: header.count)
     z.avail_out = UInt32(Self.BUFLEN - header.count)
+    z.next_out += header.count
 
     var crc = crc32(0, nil, 0)
     while true {
