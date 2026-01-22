@@ -103,7 +103,7 @@ extension gzip {
         try? inx.fp.close()
 
       case .PACK:
-        let inx = unpack_descriptor_t()
+        let inx = unpack_descriptor_t(self)
         (usize, gsize) = inx.unpack(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes)
 
       case .XZ:
@@ -213,7 +213,7 @@ extension gzip {
         /* lets try <path>.gz if we're decompressing */
         if options.dflag && !second && errno == ENOENT {
           second = true
-          ps.append(suffixes[0].zipped)
+          ps.append(options.suffix)
           continue retry
         }
 

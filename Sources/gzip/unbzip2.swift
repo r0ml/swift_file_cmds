@@ -47,7 +47,7 @@ fileprivate var outbuf = Array(repeating: UInt8(0), count: gzip.BUFLEN)
 
 extension gzip {
 
-  func unbzip2(_ inx : FileDescriptor, _ out : FileDescriptor, _ pre : [UInt8]) -> (UInt, UInt) {
+  func unbzip2(_ inx : FileDescriptor, _ out : FileDescriptor, _ pre : [UInt8]) -> (UInt, UInt)? {
     //	int		ret, end_of_file;
 
     var bytes_out : UInt = 0
@@ -68,26 +68,25 @@ extension gzip {
     }
 
     /* Prepend. */
-    bzs.avail_in = prelen;
+    bzs.avail_in = UInt32(pre.count)
     bzs.next_in = pre;
 
     var bytes_in = UInt(pre.count)
 
     while ret == BZ_OK {
       check_siginfo()
-      if (bzs.avail_in == 0 && !end_of_file) {
-        let n = read(inx, inbuf, Self.BUFLEN);
-        if (n < 0) {
+      if bzs.avail_in == 0 && !end_of_file {
+        guard let inbuf = try? inx.readUpToCount(Self.BUFLEN) else {
           maybe_err("read")
         }
-        if (n == 0) {
+        if inbuf.count == 0 {
           end_of_file = true
         }
-        r.infile_current += n
+        r.infile_current += UInt(inbuf.count)
         bzs.next_in = inbuf
-        bzs.avail_in = n
+        bzs.avail_in = UInt32(inbuf.count)
         if bytes_in != 0 {
-          bytes_in += n
+          bytes_in += UInt(inbuf.count)
         }
       }
 
@@ -129,24 +128,20 @@ extension gzip {
 
         case BZ_DATA_ERROR:
           maybe_warnx("bzip2 data integrity error")
-          break
 
         case BZ_DATA_ERROR_MAGIC:
           maybe_warnx("bzip2 magic number error")
-          break
 
         case BZ_MEM_ERROR:
           maybe_warnx("bzip2 out of memory")
-          break;
 
         default:
           maybe_warnx("unknown bzip2 error: %d", ret)
-          break;
       }
     }
 
     if ret != BZ_STREAM_END || BZ2_bzDecompressEnd(&bzs) != BZ_OK {
-      return -1
+      return nil
     }
 
     return (bytes_out, bytes_in)

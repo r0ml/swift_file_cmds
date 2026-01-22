@@ -78,6 +78,8 @@ let HTREE_MAXLEVEL = 24
  * leaf nodes count.
  */
 class unpack_descriptor_t {
+
+  var gzip : gzip
   var symbol_size : Int = 0		/* Size of the symbol table */
   var treelevels : Int = 0		/* Levels for the huffman tree */
 
@@ -98,6 +100,9 @@ class unpack_descriptor_t {
 
   // end of instance variables
 
+  init(_ gzip: gzip) {
+    self.gzip = gzip
+  }
   /*
    * Release resource allocated to an unpack descriptor.
    *
@@ -107,15 +112,15 @@ class unpack_descriptor_t {
    * reference the memory block without scrubbing them.
    */
   func descriptor_fini() {
-/*
-    free(unpackd->symbolsin);
-    free(unpackd->inodesin);
-    free(unpackd->symbol);
-    free(unpackd->tree);
+    /*
+     free(unpackd->symbolsin);
+     free(unpackd->inodesin);
+     free(unpackd->symbol);
+     free(unpackd->tree);
 
-    fclose(unpackd->fpIn);
-    fclose(unpackd->fpOut);
- */
+     fclose(unpackd->fpIn);
+     fclose(unpackd->fpOut);
+     */
   }
 
   /*
@@ -137,25 +142,15 @@ class unpack_descriptor_t {
   }
 
   /*
-   * Update counter for accepted bytes
-   */
-  func accepted_bytes(_ bytes_in : inout off_t?, _ newbytes : off_t ) {
-
-    if bytes_in != nil {
-      bytes_in! += newbytes
-    }
-  }
-
-  /*
    * Read file header and construct the tree.  Also, prepare the buffered I/O
    * for decode routine.
    *
    * Return value is uncompressed size.
    */
-  func parse_header(_ inx : FileDescriptor, _ out : FileDescriptor, _ pre : [UInt8], _ prelen : size_t, _ bytes_in : inout off_t) {
+  func parse_header(_ inx : FileDescriptor, _ out : FileDescriptor, _ pre : [UInt8]) -> UInt {
     var hdr = Array(repeating: UInt8(0), count: PACK_HEADER_LENGTH)	/* buffer for header */
-//    ssize_t bytesread;		/* Bytes read from the file */
-//    int i, j, thisbyte;
+    //    ssize_t bytesread;		/* Bytes read from the file */
+    //    int i, j, thisbyte;
 
     /* Prepend the header buffer if we already read some data */
     if (prelen != 0) {
@@ -167,9 +162,9 @@ class unpack_descriptor_t {
     if bytesread < 0 {
       maybe_err("Error reading pack header");
     }
-    r.infile_currebnt += bytesread
+    gzip.r.infile_current += bytesread
 
-    accepted_bytes(bytes_in, PACK_HEADER_LENGTH);
+    bytes_in += PACK_HEADER_LENGTH
 
     /* Obtain uncompressed length (bytes 2,3,4,5) */
     uncompressed_size = 0;
@@ -181,16 +176,18 @@ class unpack_descriptor_t {
     /* Get the levels of the tree */
     treelevels = Int(hdr[6])
     if treelevels > HTREE_MAXLEVEL || treelevels < 1 {
-      maybe_errx("Huffman tree has insane levels")
+      gzip.maybe_errx("Huffman tree has insane levels")
     }
 
     /* Let libc take care for buffering from now on */
-    if ((fpIn = fdopen(in, "r")) == NULL) {
-      maybe_err("Can not fdopen() input stream");
-    }
-    if ((fpOut = fdopen(out, "w")) == NULL) {
-      maybe_err("Can not fdopen() output stream");
-    }
+    let fpIn = inx
+    //    if ((fpIn = fdopen(in, "r")) == NULL) {
+    //      maybe_err("Can not fdopen() input stream");
+    //    }
+    //    if ((fpOut = fdopen(out, "w")) == NULL) {
+    //      gzip.maybe_err("Can not fdopen() output stream");
+    //    }
+    let fpOut = out
 
     /* Allocate for the tables of bounds and the tree itself */
     inodesin =  calloc(treelevels, sizeof(*(inodesin)));
@@ -198,7 +195,7 @@ class unpack_descriptor_t {
     tree =      calloc(treelevels, (sizeof(*(tree))));
     if (inodesin == NULL || symbolsin == NULL ||
         tree == NULL) {
-      maybe_err("calloc");
+      gzip.maybe_err("calloc");
     }
 
     /* We count from 0 so adjust to match array upper bound */
@@ -206,24 +203,24 @@ class unpack_descriptor_t {
 
     /* Read the levels symbol count table and calculate total */
     symbol_size = 1;	/* EOB */
-    for (i = 0; i <= treelevels; i++) {
+    for i in 0...treelevels {
       if ((thisbyte = fgetc(fpIn)) == EOF) {
-        maybe_err("File appears to be truncated");
+        gzip.maybe_err("File appears to be truncated");
       }
       symbolsin[i] = (unsigned char)thisbyte;
       symbol_size += symbolsin[i];
     }
-    accepted_bytes(bytes_in, treelevels);
-    if (symbol_size > 256) {
-      maybe_errx("Bad symbol table");
+    bytes_in += treelevels
+    if symbol_size > 256 {
+      gzip.maybe_errx("Bad symbol table")
     }
-    r.infile_current += treelevels
+    gip.r.infile_current += treelevels
 
     /* Allocate for the symbol table, point symbol_eob at the beginning */
     symbol_eob = symbol = calloc(1, symbol_size);
 
     if symbol == nil {
-      maybe_err("calloc");
+      gzip.maybe_err("calloc");
     }
 
     /*
@@ -264,8 +261,8 @@ class unpack_descriptor_t {
   func decode(_ bytes_in : inout UInt) {
     //	int thislevel, thiscode, thisbyte, inlevelindex;
     //	int i;
-    var bytes_out : off_t = 0
-    const char *thissymbol;	/* The symbol pointer decoded from stream */
+    var bytes_out = 0
+    /* The symbol pointer decoded from stream */
 
     /*
      * Decode huffman.  Fetch every bytes from the file, get it
@@ -277,72 +274,69 @@ class unpack_descriptor_t {
      */
     var thislevel = 0;
     var thiscode = 0
-    var thisbyte = 0
+    var thisbyte : [UInt8]? = [0]
 
-    while ((thisbyte = fgetc(fpIn)) != EOF) {
-      accepted_bytes(bytes_in, 1);
-      r.infile_current += 1
-      check_siginfo();
+    outer:
+    while true {
+      let thisbyte = try? fpIn.readUpToCount(1)
+      if let thisbyte, thisbyte.count == 1 {
+        bytes_in += 1
+        gzip.r.infile_current += 1
+        gzip.check_siginfo();
 
-      /*
-       * Split one bit from thisbyte, from highest to lowest,
-       * feed the bit into thiscode, until we got a symbol from
-       * the tree.
-       */
-      for (i = 7; i >= 0; i--) {
-        thiscode = (thiscode << 1) | ((thisbyte >> i) & 1);
+        /*
+         * Split one bit from thisbyte, from highest to lowest,
+         * feed the bit into thiscode, until we got a symbol from
+         * the tree.
+         */
+        for i in 0 ..< 8 {
+          thiscode = (thiscode << 1) | ((thisbyte >> (7-i) ) & 1)
 
-        /* Did we got a symbol? (referencing leaf node) */
-        if (thiscode >= inodesin[thislevel]) {
-          inlevelindex =
-          thiscode - inodesin[thislevel];
-          if (inlevelindex > symbolsin[thislevel]) {
-            maybe_errx("File corrupt");
-          }
+          /* Did we got a symbol? (referencing leaf node) */
+          if (thiscode >= inodesin[thislevel]) {
+            inlevelindex = thiscode - inodesin[thislevel];
+            if (inlevelindex > symbolsin[thislevel]) {
+              gzip.maybe_errx("File corrupt");
+            }
 
-          thissymbol =
-          &(tree[thislevel][inlevelindex]);
-          if ((thissymbol == symbol_eob) &&
-              (bytes_out == uncompressed_size)) {
-            goto finished;
-          }
+            thissymbol = &(tree[thislevel][inlevelindex]);
+            if thissymbol == symbol_eob && bytes_out == uncompressed_size {
+              break outer
+            }
 
-          fputc((*thissymbol), fpOut);
-          bytes_out += 1
+            fputc((*thissymbol), fpOut);
+            bytes_out += 1
 
-          /* Prepare for next input */
-          thislevel = 0
-          thiscode = 0
-        } else {
-          thislevel++;
-          if thislevel > reelevels {
-            maybe_errx("File corrupt");
+            /* Prepare for next input */
+            thislevel = 0
+            thiscode = 0
+          } else {
+            thislevel += 1
+            if thislevel > reelevels {
+              maybe_errx("File corrupt");
+            }
           }
         }
       }
     }
-
   finished:
     if (bytes_out != uncompressed_size) {
-      maybe_errx("Premature EOF");
+      gzip.maybe_errx("Premature EOF")
     }
   }
 
   /* Handler for pack(1)'ed file */
-  func unpack(_ inx : FileDescriptor, _ out : FileDescriptor, _ pre : [UInt8]) -> (UInt, UInt) {
+  func unpack(_ iny : FileDescriptor, _ outy : FileDescriptor, _ pre : [UInt8]) -> (UInt, UInt) {
 
-    var bytes_in : UInt = 0
-
-    in = dup(in);
-    if (in == -1) {
-      maybe_err("dup")
+    // FIXME: does dup'ing do anything
+    guard let inx = try? iny.duplicate() else {
+      gzip.maybe_err("dup")
     }
-    out = dup(out);
-    if (out == -1) {
-      maybe_err("dup")
+    guard let out = try? outy.duplicate() else {
+      gzip.maybe_err("dup")
     }
 
-    parse_header(inx, out, pre, prelen, bytes_in)
+    var bytes_in = parse_header(inx, out, pre)
     decode(&bytes_in)
     descriptor_fini()
 

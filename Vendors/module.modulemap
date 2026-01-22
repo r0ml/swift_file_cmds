@@ -2,13 +2,13 @@
 // Modernized by Robert "r0ml" Lefkowitz <r0ml@liberally.net> in 2026
 
 module BZip2 [system] {
-  header "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/bzlib.h"
+  header "bzlib_shim.h"
   link "bz2"
   export *
 }
 
 module LZMA [system] {
-  header "/opt/homebrew/include/lzma.h"
+  header "lzma_shim.h"
   link "lzma"
   export *
 }

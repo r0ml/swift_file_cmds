@@ -47,6 +47,8 @@ import zlib
 
     var outfile : String? = nil
     var firstPrint = true
+
+    var remove_file : String? = nil
   }
 
   let r = Runtime()
@@ -69,11 +71,15 @@ import zlib
    #ifdef __APPLE__
    /* from sys/param.h */
    #define	nitems(x)	(sizeof((x)) / sizeof((x)[0]))
-*/
+   */
 
-   /* from sys/endian.h */
-  func le32dec<S:Sequence>(_ p : S) -> UInt32 where S.Iterator.Element == UInt8 {
-    return UInt32((p[3]) << 24) | UInt32((p[2]) << 16) | UInt32((p[1]) << 8) | UInt32(p[0])
+  /* from sys/endian.h */
+  func le32dec<S:Collection>(_ p : S) -> UInt32 where S.Iterator.Element == UInt8, S.Index == Int {
+    let a = UInt32(p[0])
+    let b = UInt32(p[1]) << 8
+    let c = UInt32(p[2]) << 16
+    let d = UInt32(p[3]) << 24
+    return a | b | c | d
   }
 
   /*
@@ -135,30 +141,19 @@ import zlib
     }
   }
   var suffixes : [suffixes_t] = [
-    .init(GZ_SUFFIX,	""),	/* Overwritten by -S .xxx */
-
-      .init(GZ_SUFFIX,	""),
+    .init(GZ_SUFFIX,	""),
     .init(".z",		""),
     .init("-gz",		""),
     .init("-z",		""),
     .init("_z",		""),
     .init(".taz",		".tar"),
     .init(".tgz",		".tar"),
-
-      .init(BZ2_SUFFIX,	""),
+    .init(BZ2_SUFFIX,	""),
     .init(".tbz",		".tar"),
     .init(".tbz2",		".tar"),
-
-
-      .init(Z_SUFFIX,	""),
-
-
-      .init(XZ_SUFFIX,	""),
-
-
-      .init(LZ_SUFFIX,	""),
-
-      .init(GZ_SUFFIX,	""),	/* Overwritten by -S "" */
+    .init(Z_SUFFIX,	""),
+    .init(XZ_SUFFIX,	""),
+    .init(LZ_SUFFIX,	""),
   ]
 
   // #define NUM_SUFFIXES (nitems(suffixes))
@@ -219,6 +214,8 @@ from a file containing the following notice:
     var rflag = false			/* recursive mode */
     var tflag = false			/* test */
     var vflag = false			/* verbose mode */
+
+    var suffix : String = ".gz"
 
     var zcat = false
 
@@ -330,13 +327,13 @@ from a file containing the following notice:
             if len > Self.SUFFIX_MAXLEN {
               errx(1, "incorrect suffix: '\(v)': too long")
             }
-            // FIXME: what is this:
-            suffixes[0].zipped = v
+            options.suffix = v
           } else {
-            suffixes[NUM_SUFFIXES - 1].zipped = "";
+            // FIXME: what is this?
+            options.suffix = ""
           }
         case "t", "test":
-          optioins.cflag = true
+          options.cflag = true
           options.tflag = true
           options.dflag = true
         case "v", "verbose":
@@ -370,7 +367,7 @@ from a file containing the following notice:
     }
 
     if !options.qflag && options.lflag && options.args.count > 1 {
-      print_list(nil, 0, "(totals)", 0);
+      print_list(nil, 0, "(totals)", DateTime(0) )
     }
     if (r.exit_value == 0 && (ferror(stdout) != 0 || fflush(stdout) != 0)) {
       err(1, "stdout")
@@ -378,50 +375,6 @@ from a file containing the following notice:
     exit(r.exit_value)
   }
 
-  /* maybe print a warning */
-  func maybe_warn(_ fmt : String, _ ap : CVarArg...) {
-    if !options.qflag {
-      withVaList(ap) {
-        vwarn(fmt, $0)
-      }
-    }
-    if r.exit_value == 0 {
-      r.exit_value = 1
-    }
-  }
-
-  /* ... without an errno. */
-  func maybe_warnx(_ fmt : String, _ ap : CVarArg...) {
-
-    if !options.qflag {
-      withVaList(ap) {
-        vwarnx(fmt, $0)
-      }
-    }
-    if r.exit_value == 0 {
-      r.exit_value = 1
-    }
-  }
-
-  /* maybe print an error */
-  func maybe_err(_ fmt : String, _ ap : CVarArg...) {
-    withVaList(ap) {
-      if !options.qflag {
-        vwarn(fmt, $0);
-      }
-    }
-    exit(2)
-  }
-
-  /* ... without an errno. */
-  func maybe_errx(_ fmt : String, _ ap : CVarArg...) {
-    withVaList(ap) {
-      if !options.qflag {
-        vwarnx(fmt, $0);
-      }
-    }
-    exit(2)
-  }
 
   /* split up $GZIP and prepend it to the argument list */
   func prepend_gzip(_ gzip : String) -> [String] {
@@ -429,7 +382,7 @@ from a file containing the following notice:
   }
 
   /* compress input to output. Return bytes read, -1 on error */
-  func gz_compress(_ inx : FileDescriptor, _ out : FileDescriptor, _ orignamex : String, _ mtime : DateTime) -> (UInt, UInt) {
+  func gz_compress(_ inx : FileDescriptor, _ out : FileDescriptor, _ orignamex : String, _ mtimex : DateTime) -> (UInt, UInt)? {
     //    char *outbufp, *inbufp;
     var in_tot : UInt = 0
     var out_tot : UInt = 0
@@ -451,22 +404,36 @@ from a file containing the following notice:
     z.zfree = nil
     z.opaque = nil
 
+    let inbuf = UnsafeMutablePointer<UInt8>.allocate(capacity: Self.BUFLEN)
+    let outbuf = UnsafeMutablePointer<UInt8>.allocate(capacity: Self.BUFLEN)
+
+    defer {
+      inbuf.deallocate()
+      outbuf.deallocate()
+    }
+
+    z.next_in = inbuf
+    z.next_out = outbuf
+    z.avail_in = 0
+    z.avail_out = UInt32(Self.BUFLEN)
+
+    var mtime = mtimex
     if options.nflag {
-      mtime = 0;
+      mtime = DateTime(0)
       origname = ""
     }
 
-    var outbufp : [UInt8] = [ UInt8(GZIP_MAGIC0), UInt8(GZIP_MAGIC1), UInt8(Z_DEFLATED),
+    var header : [UInt8] = [ UInt8(GZIP_MAGIC0), UInt8(GZIP_MAGIC1), UInt8(Z_DEFLATED),
                               !origname.isEmpty ? UInt8(ORIG_NAME) : 0,
-                              UInt8(mtime & 0xff),
-                              UInt8((mtime >> 8) & 0xff),
-                              UInt8((mtime >> 16) & 0xff),
-                              UInt8((mtime >> 24) & 0xff),
+                              UInt8(mtime.secs & 0xff),
+                              UInt8((mtime.secs >> 8) & 0xff),
+                              UInt8((mtime.secs >> 16) & 0xff),
+                              UInt8((mtime.secs >> 24) & 0xff),
                               options.numflag == 1 ? 4 : options.numflag == 9 ? 2 : 0,
-                              UInt8(OS_CODE) ] + origname.utf8
+                              UInt8(OS_CODE) ] + origname.utf8 // .map { UInt8($0) }
 
     if !origname.isEmpty {
-      outbufp.append(0)
+      header.append(0)
     }
 
     //    z.next_out = outbufp + i;
@@ -476,46 +443,47 @@ from a file containing the following notice:
                               (-MAX_WBITS), 8, Z_DEFAULT_STRATEGY, ZLIB_VERSION, Int32(MemoryLayout<z_stream>.size))
     if (error != Z_OK) {
       maybe_warnx("deflateInit2 failed");
-      return (-1, out_tot)
+      return nil
     }
+
+
+    z.next_out.update(from: header, count: header.count)
+    z.avail_out = UInt32(Self.BUFLEN - header.count)
 
     var crc = crc32(0, nil, 0)
     while true {
       if z.avail_out == 0 {
-        if (write_retry(out, outbufp, Self.BUFLEN) != Self.BUFLEN) {
+        guard let n = try? out.write(  UnsafeMutableBufferPointer(start: outbuf, count: Self.BUFLEN) ) else {
           maybe_warn("write");
-          return (in_tot, -1)
+          return nil
         }
 
-        out_tot += Self.BUFLEN
-        outbufp = []
-        //        z.next_out = (unsigned char *)outbufp;
-        //        z.avail_out = Self.BUFLEN;
+        out_tot += UInt(n)
+        z.next_out = outbuf
+        z.avail_out = UInt32(Self.BUFLEN)
       }
 
-      if (z.avail_in == 0) {
-        in_size = read(in, inbufp, Self.BUFLEN);
-        if (in_size < 0) {
+      if z.avail_in == 0 {
+        guard var ai = try? inx.read(into: UnsafeMutableRawBufferPointer(start: z.next_in, count: Self.BUFLEN)) else {
           maybe_warn("read");
-          in_tot = -1;
-          goto out;
+          return nil
         }
-        if (in_size == 0) {
+        if ai == 0 {
           break;
         }
 
-        r.infile_current += in_size
+        r.infile_current += UInt(ai)
 
-        crc = crc32(crc, (const Bytef *)inbufp, (unsigned)in_size);
-        in_tot += in_size;
-        z.next_in = (unsigned char *)inbufp;
-        z.avail_in = in_size;
+        crc = crc32(crc, z.next_in, UInt32(ai))
+        in_tot += UInt(ai)
+        z.next_in = inbuf
+        z.avail_in = UInt32(ai)
       }
 
       let error = deflate(&z, Z_NO_FLUSH);
       if (error != Z_OK && error != Z_STREAM_END) {
         maybe_warnx("deflate failed");
-        return (-1, out_tot)
+        return nil
       }
     }
 
@@ -527,18 +495,16 @@ from a file containing the following notice:
       let error = deflate(&z, Z_FINISH)
       if (error != Z_OK && error != Z_STREAM_END) {
         maybe_warnx("deflate failed");
-        return (-1, out_tot)
+        return nil
       }
 
-      let len = outbufp.count
-      let w = try? out.write(outbufp) //   _retry(out, outbufp, len);
-      if (w == -1 || w != len) {
-        maybe_warn("write");
-        return (in_tot, -1)
+      guard let w = try? out.write( UnsafeMutableBufferPointer(start: outbuf, count: Self.BUFLEN - Int(z.avail_out))) else { //   _retry(out, outbufp, len);
+        maybe_warn("write")
+        return nil
       }
-      out_tot += len;
-      outbufp = []
-      //      z.avail_out = BUFLEN;
+      out_tot += UInt(w)
+      z.next_out = outbuf
+      z.avail_out = UInt32(Self.BUFLEN)
 
       if (error == Z_STREAM_END) {
         break;
@@ -547,19 +513,19 @@ from a file containing the following notice:
 
     if (deflateEnd(&z) != Z_OK) {
       maybe_warnx("deflateEnd failed");
-      return (-1, out_tot)
+      return nil
     }
 
-    outbufp = [UInt8(crc & 0xff), UInt8((crc >> 8) & 0xff), UInt8((crc >> 16) & 0xff), UInt8((crc >> 24) & 0xff),
+    let suffix = [UInt8(crc & 0xff), UInt8((crc >> 8) & 0xff), UInt8((crc >> 16) & 0xff), UInt8((crc >> 24) & 0xff),
                UInt8(in_tot & 0xff), UInt8((in_tot >> 8) & 0xff), UInt8((in_tot >> 16) & 0xff), UInt8((in_tot >> 24) & 0xff)]
 
-    guard let t = try? out.write(outbufp), t == outbufp.count else {
+    guard let t = try? out.write(suffix) else {
       maybe_warn("write")
-      in_tot = -1
+      return nil
     }
-    out_tot += t
+    out_tot += UInt(t)
 
-  out:
+//  out:
     return (in_tot, out_tot)
   }
 }

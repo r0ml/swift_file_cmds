@@ -509,8 +509,8 @@ extension gzip {
 
   func got_sigint(_ signo : Int32)  {
 
-    if (remove_file != NULL) {
-      unlink(remove_file);
+    if r.remove_file != nil {
+      unlink(r.remove_file);
     }
 
     /*
@@ -541,26 +541,16 @@ extension gzip {
     infile_current += newdata;
   }
 
-  func check_suffix(char *file, int xlate) -> [suffixes_t]?  {
-    const suffixes_t *s;
-    int len = strlen(file);
-    char *sp;
-
-    for (s = suffixes; s != suffixes + NUM_SUFFIXES; s++) {
-      /* if it doesn't fit in "a.suf", don't bother */
-      if (s->ziplen >= len) {
-        continue;
-      }
-      sp = file + len - s->ziplen;
-      if (strcmp(s->zipped, sp) != 0) {
-        continue;
-      }
-      if (xlate) {
-        strcpy(sp, s->normal);
-      }
-      return s;
+  func check_suffix(_ file : String) -> String?  {
+    if !options.suffix.isEmpty && file.hasSuffix(options.suffix) {
+      return options.suffix
     }
-    return NULL;
+    for s in suffixes {
+      if !s.zipped.isEmpty && file.hasSuffix(s.zipped) {
+        return s.zipped
+      }
+    }
+    return nil
   }
 
   func clear_type_and_creator(_ fd : FileDescriptor) {

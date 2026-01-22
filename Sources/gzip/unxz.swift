@@ -47,16 +47,20 @@ extension gzip {
      lzma_stream strm = LZMA_STREAM_INIT;
      static const int flags = LZMA_TELL_UNSUPPORTED_CHECK|LZMA_CONCATENATED;
      lzma_ret ret;
-     lzma_action action = LZMA_RUN;
      off_t bytes_out, bp;
      uint8_t ibuf[BUFSIZ];
      uint8_t obuf[BUFSIZ];
      */
-    var strm = lzma_stream()
 
-    if (bytes_in == NULL) {
-      bytes_in = &bp;
-    }
+    var strm = lzma_stream()
+    var action : lzma_action = LZMA_RUN
+
+    // FIXME: not sure why these don't get defined from lzma/container.h
+    let LZMA_TELL_UNSUPPORTED_CHECK = 0x02
+    let LZMA_CONCATENATED = 0x08
+    let flags = UInt32(LZMA_TELL_UNSUPPORTED_CHECK | LZMA_CONCATENATED)
+
+    var bytes_in = UInt(0)
 
     strm.next_in = ibuf;
     memcpy(ibuf, pre, prelen);
@@ -65,43 +69,45 @@ extension gzip {
       maybe_err("read failed")
     }
     infile_newdata(strm.avail_in)
-    strm.avail_in += prelen
-    *bytes_in = strm.avail_in
+    strm.avail_in += pre.count
+    bytes_in = UInt(strm.avail_in)
 
-    if ((ret = lzma_stream_decoder(&strm, UINT64_MAX, flags)) != LZMA_OK) {
-      maybe_errx("Can't initialize decoder (%d)", ret);
+    let ret2 = lzma_stream_decoder(&strm, UINT64_MAX, flags)
+    if ret2 != LZMA_OK {
+      maybe_errx("Can't initialize decoder (\(ret2))")
     }
 
-    strm.next_out = NULL;
-    strm.avail_out = 0;
-    if ((ret = lzma_code(&strm, LZMA_RUN)) != LZMA_OK) {
-      maybe_errx("Can't read headers (%d)", ret);
+    strm.next_out = nil
+    strm.avail_out = 0
+    let ret = lzma_code(&strm, LZMA_RUN)
+    if ret != LZMA_OK {
+      maybe_errx("Can't read headers (\(ret)")
     }
 
-    bytes_out = 0;
+    var bytes_out = UInt(0)
     strm.next_out = obuf;
     strm.avail_out = sizeof(obuf);
 
     while true {
       check_siginfo()
-      if (strm.avail_in == 0) {
-        strm.next_in = ibuf;
+      if strm.avail_in == 0 {
+        strm.next_in = ibuf
         strm.avail_in = read(i, ibuf, sizeof(ibuf));
-        switch (strm.avail_in) {
-          case (size_t)-1:
-            maybe_err("read failed");
-            /*NOTREACHED*/
+        switch strm.avail_in {
+          case -1:
+            maybe_err("read failed")
+
           case 0:
             action = LZMA_FINISH;
             break;
           default:
-            infile_newdata(strm.avail_in);
-            *bytes_in += strm.avail_in;
+            r.infile_current += UInt(strm.avail_in)
+            bytes_in += UInt(strm.avail_in)
             break;
         }
       }
 
-      ret = lzma_code(&strm, action);
+      var ret = lzma_code(&strm, action)
 
       // Write and check write error before checking decoder error.
       // This way as much data as possible gets written to output
@@ -130,39 +136,31 @@ extension gzip {
           }
         }
 
-        const char *msg;
-        switch (ret) {
+        var msg : String
+        switch ret {
           case LZMA_MEM_ERROR:
-            msg = strerror(ENOMEM);
-            break;
+            msg = POSIXErrno(ENOMEM).localizedDescription
 
           case LZMA_FORMAT_ERROR:
             msg = "File format not recognized";
-            break;
 
           case LZMA_OPTIONS_ERROR:
             // FIXME: Better message?
-            msg = "Unsupported compression options";
-            break;
+            msg = "Unsupported compression options"
 
           case LZMA_DATA_ERROR:
-            msg = "File is corrupt";
-            break;
+            msg = "File is corrupt"
 
           case LZMA_BUF_ERROR:
-            msg = "Unexpected end of input";
-            break;
+            msg = "Unexpected end of input"
 
           case LZMA_MEMLIMIT_ERROR:
             msg = "Reached memory limit";
-            break;
 
           default:
-            maybe_errx("Unknown error (%d)", ret);
-            break;
+            msg = "Unknown error (\(ret))"
         }
-        maybe_errx("%s", msg);
-
+        maybe_errx(msg)
       }
     }
   }
@@ -172,16 +170,17 @@ extension gzip {
    * replacements.
    */
 
-  #define	my_min(A,B)	((A)<(B)?(A):(B))
+//  #define	my_min(A,B)	((A)<(B)?(A):(B))
 
   // Some systems have suboptimal BUFSIZ. Use a bit bigger value on them.
   // We also need that IO_BUFFER_SIZE is a multiple of 8 (sizeof(uint64_t))
+/*
 #if BUFSIZ <= 1024
   #       define IO_BUFFER_SIZE 8192
 #else
   #       define IO_BUFFER_SIZE (BUFSIZ & ~7U)
 #endif
-
+*/
   /// is_sparse() accesses the buffer as uint64_t for maximum speed.
   /// Use an union to make sure that the buffer is properly aligned.
   typedef union {
@@ -191,24 +190,19 @@ extension gzip {
   } io_buf;
 
 
-  static bool
-  io_pread(int fd, io_buf *buf, size_t size, off_t pos)
-  {
+  func io_pread(_ fd : FileDescriptor, _ size : size_t, _ pos : off_t) -> [UInt8]? {
     // Using lseek() and read() is more portable than pread() and
     // for us it is as good as real pread().
-    if (lseek(fd, pos, SEEK_SET) != pos) {
-      return true;
+
+    guard let p = try? fd.seek(offset: pos, from: .start), p == pos else {
+      return nil
     }
 
-    const size_t amount = read(fd, buf, size);
-    if (amount == SIZE_MAX)
-        return true;
-
-    if (amount != size) {
-      return true;
+    guard let buf = try? fd.readUpToCount(size), buf.count == size else {
+      return nil
     }
 
-    return false;
+    return buf
   }
 
   /*
@@ -249,7 +243,7 @@ extension gzip {
 
   }
 
-  var XZ_FILE_INFO_INIT = xz_file_info()
+//  var XZ_FILE_INFO_INIT = xz_file_info()
 
 
   /// \brief      Parse the Index(es) from the given .xz file
@@ -285,7 +279,7 @@ extension gzip {
     lzma_ret ret;
 
     // lzma_stream for the Index decoder
-    lzma_stream strm = LZMA_STREAM_INIT;
+    var strm = lzma_stream()
 
     // All Indexes decoded so far
     lzma_index *combined_index = NULL;
@@ -466,7 +460,7 @@ extension gzip {
     lzma_end(&strm);
 
     // All OK. Make combined_index available to the caller.
-    xfi->idx = combined_index;
+    xfi.idx = combined_index
     return false;
 
   error:
@@ -482,12 +476,12 @@ extension gzip {
   /*
    * Small wrapper to extract total length of a file
    */
-  func unxz_len(_ fd : FileDescriptor) -> off_t {
-    xfi = xz_file_info()
-    if (!parse_indexes(&xfi, fd)) {
-      off_t res = lzma_index_uncompressed_size(xfi.idx);
-      lzma_index_end(xfi.idx, NULL);
-      return res;
+  func unxz_len(_ fd : FileDescriptor) -> UInt {
+    let xfi = xz_file_info()
+    if (!parse_indexes(xfi, fd)) {
+      let res = lzma_index_uncompressed_size(xfi.idx)
+      lzma_index_end(xfi.idx, nil)
+      return res
     }
     return 0
   }

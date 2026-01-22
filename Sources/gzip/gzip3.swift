@@ -72,35 +72,35 @@ extension gzip {
         return nil
       }
 
-      if (!options.fflag && (suff = check_suffix(file, 0)) &&
-          suff->zipped[0] != 0) {
-        maybe_warnx("\(file) already has \(suff.zipped) suffix -- unchanged")
+      if !options.fflag, let hs = check_suffix(file) {
+        maybe_warnx("\(file) already has \(hs) suffix -- unchanged")
         return nil
       }
 
       /* Add (usually) .gz to filename */
-      let outfile = "\(file)\(suffixes[0].zipped)"
+      let outfile = "\(file)\(options.suffix)"
       r.outfile = outfile
 
-      if (check_outfile(outfile) == 0) {
+      if !check_outfile(outfile) {
         return nil
       }
     }
 
+    var out : FileDescriptor
+    var outfile = r.outfile!
     if (!options.cflag) {
-      out = open(outfile, O_WRONLY | O_CREAT | O_EXCL, 0600);
-      if (out == -1) {
-        maybe_warn("could not create output: %s", outfile);
+      guard let out = try? FileDescriptor.open(outfile, .writeOnly, options: [.create, .exclusiveCreate], permissions: FilePermissions(rawValue: 0o0600) ) else {
+        maybe_warn("could not create output: \(outfile)")
         fclose(stdin);
-        return (nil, outfile)
+        return nil
       }
 
-      remove_file = outfile;
+      r.remove_file = outfile;
     } else {
-      out = STDOUT_FILENO;
+      out = FileDescriptor.standardOutput
     }
 
-    in_size = gz_compress(inx, out, &size, basename(file), (uint32_t)isb.st_mtime);
+    var (in_size, size) = gz_compress(inx, out, basename(file), isb.lastWrite)
 
     /*
      * If there was an error, in_size will be -1.
@@ -128,7 +128,7 @@ extension gzip {
     clear_type_and_creator(out);
 
     copymodes(out, &isb, outfile);
-    remove_file = NULL;
+    r.remove_file = nil
 
     close(in);
     if (close(out) == -1) {
@@ -183,7 +183,7 @@ extension gzip {
     r.infile_total = in_size
 
     var outfile = file
-    if (check_suffix(outfile, 1) == NULL && !(options.cflag || options.lflag)) {
+    if check_suffix(outfile) == nil && !(options.cflag || options.lflag) {
       maybe_warnx("\(file): unknown suffix -- ignored")
       goto lose;
     }
@@ -299,7 +299,7 @@ extension gzip {
         maybe_warn("can't open %s", outfile);
         goto lose;
       }
-      remove_file = outfile;
+      r.remove_file = outfile
     }
 
     switch (method) {
@@ -466,7 +466,7 @@ extension gzip {
     }
 
     copymodes(ofd, &isb, outfile);
-    remove_file = NULL;
+    r.remove_file = nil
 
     close(ofd);
     unlink_input(file, &isb);

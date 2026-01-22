@@ -926,6 +926,7 @@
 				gzip/gzip2.swift,
 				gzip/gzip3.swift,
 				gzip/gzip4.swift,
+				gzip/maybe.swift,
 				gzip/unbzip2.swift,
 				gzip/unlz.swift,
 				gzip/unpack.swift,
@@ -4295,9 +4296,14 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = MHEBPE6SV2;
 				ENABLE_HARDENED_RUNTIME = YES;
-				HEADER_SEARCH_PATHS = Vendors;
+				HEADER_SEARCH_PATHS = (
+					Vendors,
+					/opt/homebrew/include,
+					/usr/local/include,
+				);
 				MACOSX_DEPLOYMENT_TARGET = 26.2;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PUBLIC_HEADERS_FOLDER_PATH = Vendors;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
@@ -4310,9 +4316,14 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = MHEBPE6SV2;
 				ENABLE_HARDENED_RUNTIME = YES;
-				HEADER_SEARCH_PATHS = Vendors;
+				HEADER_SEARCH_PATHS = (
+					Vendors,
+					/opt/homebrew/include,
+					/usr/local/include,
+				);
 				MACOSX_DEPLOYMENT_TARGET = 26.2;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PUBLIC_HEADERS_FOLDER_PATH = Vendors;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
