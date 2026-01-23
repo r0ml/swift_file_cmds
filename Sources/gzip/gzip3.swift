@@ -398,7 +398,10 @@ extension gzip {
             return nil
           }
         } else {
-          (size, _) = unxz(fd, zfd!, [])
+          guard let k = unxz(fd, zfd!, []) else {
+            return nil
+          }
+          (size, _) = k
         }
 
       case .LZ:

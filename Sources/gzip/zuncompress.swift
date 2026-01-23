@@ -50,120 +50,122 @@ import Darwin
 //  static size_t compressed_prelen;
 //  static char *compressed_pre;
 
-  class s_zstate {
-    var fp : FileDescriptor			/* File stream for I/O */
-    var mode : Character    			/* r or w */
-    var n_bits : Int			/* Number of bits/code. */
-    var maxbits : Int			/* User settable max # bits/code. */
-    var maxcode : code_int		/* Maximum code, given n_bits. */
-    var maxmaxcode : code_int		/* Should NEVER generate this code. */
-    var htab = Array(repeating: UInt8(0), count: HSIZE)
-    var codetab = Array(repeating: UInt16(0), count: HSIZE)
-    var hsize : code_int		/* For dynamic table sizing. */
-    var free_ent : code_int		/* First unused entry. */
-    /*
-     * Block compression parameters -- after all codes are used up,
-     * and compression rate changes, start over.
-     */
-    var block_compress : Int
-    var clear_flg : Int
-    var ratio : Int
-    var checkpoint : count_int
-    var offset : Int
-    var in_count : Int		/* Length of input. */
-    var bytes_out : Int		/* Length of compressed output. */
-    var out_count : Int		/* # of codes output (for debugging). */
-    var buf = Array(repeating: UInt8(0), count: BITS)
+class s_zstate {
+  var gzip : gzip
+  var fp : FileDescriptor			/* File stream for I/O */
+  var mode : Character    			/* r or w */
+  var n_bits : Int			/* Number of bits/code. */
+  var maxbits : Int			/* User settable max # bits/code. */
+  var maxcode : code_int		/* Maximum code, given n_bits. */
+  var maxmaxcode : code_int		/* Should NEVER generate this code. */
+  var htab = Array(repeating: UInt8(0), count: HSIZE)
+  var codetab = Array(repeating: UInt16(0), count: HSIZE)
+  var hsize : code_int		/* For dynamic table sizing. */
+  var free_ent : code_int		/* First unused entry. */
+  /*
+   * Block compression parameters -- after all codes are used up,
+   * and compression rate changes, start over.
+   */
+  var block_compress : Bool
+  var clear_flg : Int
+  var ratio : Int
+  var checkpoint : count_int
+  var offset : Int
+  var in_count : Int		/* Length of input. */
+  var bytes_out : Int		/* Length of compressed output. */
+  var out_count : Int		/* # of codes output (for debugging). */
+  var buf = Array(repeating: UInt8(0), count: BITS)
 
-    // write parameters
-    var fcode : Int
-    var ent : code_int
-    var hsize_reg : code_int
-    var hshift : Int
+  // write parameters
+  var fcode : Int
+  var ent : code_int
+  var hsize_reg : code_int
+  var hshift : Int
 
-    // read parameters
-    var stackp : [UInt8]
-    var finchar : Int
-    var code : code_int
-    var oldcode : code_int
-    var incode : code_int
-    var roffset : Int
-    var size : Int
-    var state : State
+  // read parameters
+  var stackp : Int
+  var finchar : UInt8
+  var code : code_int
+  var oldcode : code_int?
+  var incode : code_int
+  var roffset : Int
+  var size : Int
+  var state : State
 
-    var gbuf = Array(repeating: UInt8(0), count: BITS)
+  var gbuf = Array(repeating: UInt8(0), count: BITS)
 
-    var compressed_prelen = 0
-    var total_compressed_bytes : UInt = 0
+  var compressed_pre : [UInt8] = []
+  var total_compressed_bytes : UInt = 0
 
-// iinstance variables above, constants below
+  // iinstance variables above, constants below
 
-    static let BITS = 16    /* Default bits. */
-    static let HSIZE = 69001    /* 95% occupancy */ /* XXX may not need HSIZE */
-    let BIT_MASK = 0x1f    /* Defines for third byte of header. */
-    let BLOCK_MASK = 0x80
-    let CHECK_GAP = 10000    /* Ratio check interval. */
-    let BUFSIZE = 64 * 1024
+  static let BITS = 16    /* Default bits. */
+  static let HSIZE = 69001    /* 95% occupancy */ /* XXX may not need HSIZE */
+  let BIT_MASK = 0x1f    /* Defines for third byte of header. */
+  let BLOCK_MASK = 0x80
+  let CHECK_GAP = 10000    /* Ratio check interval. */
+  let BUFSIZE = 64 * 1024
 
-    /*
-     * Masks 0x40 and 0x20 are free.  I think 0x20 should mean that there is
-     * a fourth header byte (for expansion).
-     */
-    let INIT_BITS = 9  /* Initial number of bits/code. */
+  /*
+   * Masks 0x40 and 0x20 are free.  I think 0x20 should mean that there is
+   * a fourth header byte (for expansion).
+   */
+  let INIT_BITS = 9  /* Initial number of bits/code. */
 
-    /*
-     * the next two codes should not be changed lightly, as they must not
-     * lie within the contiguous general code space.
-     */
-    let FIRST = 257    /* First free entry. */
-    let CLEAR = 256    /* Table clear output code. */
-
-
-    func MAXCODE(_ n_bits : Int) -> Int { return  (1 << n_bits) - 1 }
-
-    typealias code_int = Int
-    typealias count_int = Int
-
-    let magic_header : [UInt8] = [0x1f, 0x9d]
-
-    let rmask : [UInt8] = [0x00, 0x01, 0x03, 0x07, 0x0f, 0x1f, 0x3f, 0x7f, 0xff]
-
-    enum State {   /* State of computation */
-      case START
-      case MIDDLE
-      case END
-    }
+  /*
+   * the next two codes should not be changed lightly, as they must not
+   * lie within the contiguous general code space.
+   */
+  let FIRST = 257    /* First free entry. */
+  let CLEAR = 256    /* Table clear output code. */
 
 
+  func MAXCODE(_ n_bits : Int) -> Int { return  (1 << n_bits) - 1 }
 
+  typealias code_int = Int
+  typealias count_int = Int
+
+  let magic_header : [UInt8] = [0x1f, 0x9d]
+
+  let rmask : [UInt8] = [0x00, 0x01, 0x03, 0x07, 0x0f, 0x1f, 0x3f, 0x7f, 0xff]
+
+  enum State {   /* State of computation */
+    case START
+    case MIDDLE
+    case END
+  }
 
 
 
 
-  func zuncompress(_ out : FileDescriptor, _ pre : [UInt8]) -> (UInt, UInt) {
 
-    var buf = Array(repeating: UInt8(0), count: BUFSIZE)
-    var bout = 0
+
+
+  func zuncompress(_ out : FileDescriptor, _ pre : [UInt8]) -> (UInt, UInt)? {
+
+    var bout = UInt(0)
 
     /* XXX */
-    compressed_prelen = prelen
-    if (prelen != 0) {
-      compressed_pre = pre
-    }
-    else {
-      compressed_pre = nil
-    }
+    compressed_pre = pre
 
     while true {
-      let bin = try fp.read(into: buf)
-      if bin == 0 { break }
-      if try !options.tflag && out.write(buf) != bin {
-        return -1
+      var buf = UnsafeMutableRawBufferPointer.allocate(byteCount: BUFSIZE, alignment: 8)
+      defer { buf.deallocate() }
+      guard let bin = try? fp.read(into: buf) else {
+        return nil
       }
-      bout += bin
+      if bin == 0 { break }
+      guard gzip.options.tflag else {
+        return nil
+      }
+
+      guard let z = try? out.write( buf[0..<bin] ) else {
+        return nil
+      }
+      bout += UInt(bin)
     }
 
-    compressed_bytes = total_compressed_bytes
+    let compressed_bytes = total_compressed_bytes
     return (bout, compressed_bytes)
   }
 
@@ -172,18 +174,20 @@ import Darwin
     return 0;
   }
 
-    static func zdopen( _ fd : FileDescriptor) -> s_zstate {
-      return s_zstate(fd)
-//      return funopen(zs, zread, nil, nil, zclose);
-    }
+  static func zdopen( _ gzip : gzip, _ fd : FileDescriptor) -> s_zstate {
+    return s_zstate(gzip, fd)
+    //      return funopen(zs, zread, nil, nil, zclose);
+  }
 
-  init(_ fd : FileDescriptor) {
+  init(_ gzip : gzip, _ fd : FileDescriptor) {
     state = .START
+
+    self.gzip = gzip
 
     /* XXX we can get rid of some of these */
     hsize = Self.HSIZE			/* For dynamic table sizing. */
     free_ent = 0			/* First unused entry. */
-    block_compress = BLOCK_MASK
+    block_compress = true
     clear_flg = 0			/* XXX we calloc()'d this structure why = 0? */
     ratio = 0
     checkpoint = CHECK_GAP
@@ -208,17 +212,17 @@ import Darwin
    * compressed file.  The tables used herein are shared with those of the
    * compress() routine.  See the definitions above.
    */
-    func zread(_ rbp : [UInt8], _ num : Int) -> Int {
-      //    u_int count, i;
-//    u_char *bp, header[3];
+  func zread(_ rbp : inout [UInt8], _ num : Int) -> Int? {
+    //    u_int count, i;
+    //    u_char *bp, header[3];
 
     if (num == 0) {
       return (0);
     }
 
     var count = num;
-    var bp = rbp
-      var gotomiddle = state == .MIDDLE
+    var bp = 0
+    var gotomiddle = state == .MIDDLE
     switch state {
       case .START:
         state = .MIDDLE
@@ -230,109 +234,123 @@ import Darwin
     }
 
 
-      if !gotomiddle {
 
+    if !gotomiddle {
 
-        /* Check the magic number */
-        var i = 0
-        while i < 3 && 0 != compressed_prelen {
-          header[i] = *compressed_pre++;
-          i += 1
-          compressed_prelen -= 1
-        }
+      var header = compressed_pre.prefix(3)
+      compressed_pre.removeFirst(header.count)
+      /* Check the magic number */
 
-        let header2 = fp.readUpToCount(
-        if (fread(header + i, 1, sizeof(header) - i, fp) !=
-            sizeof(header) - i ||
-            memcmp(header, magic_header, sizeof(magic_header)) != 0) {
-          errno = EFTYPE;
-          return (-1);
+      if header.count < 3 {
+        guard let header2 = try? fp.readUpToCount(3-header.count) else {
+          errno = EFTYPE
+          return nil
         }
-        total_compressed_bytes = 0
-        maxbits = header[2];	/* Set -b from file. */
-        block_compress = maxbits & BLOCK_MASK;
-        maxbits &= BIT_MASK;
-        maxmaxcode = 1 << maxbits;
-        if (maxbits > Self.BITS || maxbits < 12) {
-          errno = EFTYPE;
-          return (-1);
-        }
-        /* As above, initialize the first 256 entries in the table. */
-        maxcode = MAXCODE(n_bits = INIT_BITS);
-        for i in 0..<256 {
-          codetab[i] = 0
-          htab[i] = i
-        }
-        free_ent = block_compress ? FIRST : 256;
-
-        oldcode = -1;
-        stackp = de_stack;
+        header.append(contentsOf: header2)
       }
 
-      while true {
+      guard Array(header.prefix(magic_header.count)) == magic_header else {
+        errno = EFTYPE
+        return nil
+      }
 
-        if !gotomiddle {
-          code = getcode(zs)
+      total_compressed_bytes = 0
+      maxbits = Int(header[magic_header.count]);	/* Set -b from file. */
+      block_compress = 0 != (maxbits & BLOCK_MASK)
+      maxbits &= BIT_MASK;
+      maxmaxcode = 1 << maxbits;
+      if (maxbits > Self.BITS || maxbits < 12) {
+        errno = EFTYPE;
+        return (-1);
+      }
+      /* As above, initialize the first 256 entries in the table. */
+      n_bits = INIT_BITS
+      maxcode = MAXCODE(n_bits)
+      for i in 0..<256 {
+        codetab[i] = 0
+        htab[i] = UInt8(i)
+      }
+      free_ent = block_compress ? FIRST : 256
 
-          if code < 0 { break }
+      oldcode = nil
+      stackp = 1 << Self.BITS // de_stack
+    }
 
-          if ((code == CLEAR) && block_compress) {
-            for i in 0..<256 {
-              codetab[i] = 0
-            }
-            clear_flg = 1
-            free_ent = FIRST
-            oldcode = -1
-            continue
-          }
-          incode = code;
+    while true {
 
-          /* Special case for KwKwK string. */
-          if (code >= free_ent) {
-            if (code > free_ent ||
-                oldcode == -1) {
-              /* Bad stream. */
-              errno = EFTYPE;
-              return (-1);
-            }
-            *stackp++ = finchar;
-            code = oldcode;
-          }
-          /*
-           * The above condition ensures that code < free_ent.
-           * The construction of tab_prefixof in turn guarantees that
-           * each iteration decreases code and therefore stack usage is
-           * bound by 1 << BITS - 256.
-           */
-
-          /* Generate output characters in reverse order. */
-          while (code >= 256) {
-            *stackp++ = htab[code]
-            code = codetab[code]
-          }
-          *stackp++ = finchar = htab[code]
+      if !gotomiddle {
+        guard var code = getcode() else {
+          break
         }
+
+        if code == CLEAR && block_compress {
+          for i in 0..<256 {
+            codetab[i] = 0
+          }
+          clear_flg = 1
+          free_ent = FIRST
+          oldcode = nil
+          continue
+        }
+        incode = code;
+
+        /* Special case for KwKwK string. */
+        if code >= free_ent {
+          // FIXME: is this right?
+          guard code <= free_ent else {
+            /* Bad stream. */
+            errno = EFTYPE
+            return nil
+          }
+          guard let oldcode else {
+            errno = EFTYPE
+            return nil
+          }
+          htab[stackp] = finchar // *stackp++ = finchar;
+          stackp += 1
+          code = oldcode
+        }
+        /*
+         * The above condition ensures that code < free_ent.
+         * The construction of tab_prefixof in turn guarantees that
+         * each iteration decreases code and therefore stack usage is
+         * bound by 1 << BITS - 256.
+         */
+
+        /* Generate output characters in reverse order. */
+        while (code >= 256) {
+          htab[stackp] = htab[code]
+          stackp += 1
+          code = s_zstate.code_int(codetab[code])
+        }
+        htab[stackp] = htab[code]
+        finchar = htab[code]
+        stackp += 1
+      }
       /* And put them out in forward order.  */
-      middle:
+    middle:
       repeat {
-        if (count-- == 0) {
-          return (num)
+        if count == 0 {
+          return num
         }
-        *bp++ = *--stackp;
-      } while (stackp > de_stack);
+        count -= 1
+        stackp -= 1
+        rbp[bp] = htab[stackp]
+        bp += 1
+      } while stackp > (1 << Self.BITS) // de_stack
 
       /* Generate the new entry. */
-      if ((code = free_ent) < maxmaxcode &&
-          oldcode != -1) {
-        codetab[code] = oldcode
-        htab[code] = finchar
+      code = free_ent
+      if let oldcode, code < maxmaxcode {
+        codetab[code] = UInt16(oldcode)
+        htab[code] = UInt8(finchar)
         free_ent = code + 1;
       }
 
       /* Remember previous code. */
-      oldcode = incode;
+      oldcode = incode
     }
-      state = .END
+    state = .END
 
     return (num - count);
   }
@@ -344,12 +362,12 @@ import Darwin
    * Outputs:
    * 	code or -1 is returned.
    */
-  func getcode() -> code_int {
-//    code_int gcode;
-//    int r_off, bits, i;
-//    char_type *bp;
+  func getcode() -> code_int? {
+    //    code_int gcode;
+    //    int r_off, bits, i;
+    //    char_type *bp;
 
-    var bp = gbuf
+    var bp = 0
     if clear_flg > 0 || roffset >= size || free_ent > maxcode {
       /*
        * If the next entry will be too big for the current gcode
@@ -372,22 +390,19 @@ import Darwin
       }
       /* XXX */
       var i = 0
-      while i < n_bits && compressed_prelen {
-        gbuf[i] = *compressed_pre++;
+      while i < n_bits && compressed_pre.count != 0 {
+        gbuf[i] = compressed_pre.removeFirst()
       }
-      size = fread(gbuf + i, 1, n_bits - i, fp);
-      size += i;
-      if (size <= 0) {			/* End of file. */
-        return (-1);
+      guard let s = try? fp.read(into: withUnsafeMutableBytes(of: &gbuf[i...]) { $0 } ) else {
+        return nil
       }
-      roffset = 0;
+      size = s + i
+      roffset = 0
 
-      total_compressed_bytes += size
+      total_compressed_bytes += UInt(size)
 
       /* Round size down to integral number of codes. */
-      size = (size << 3) - (n_bits - 1);
-      i += 1
-      compressed_prelen -= 1
+      size = (size << 3) - (n_bits - 1)
     }
     var r_off = roffset
     var bits = n_bits
@@ -397,19 +412,22 @@ import Darwin
     r_off &= 7;
 
     /* Get first part (low order bits). */
-    var gcode = (*bp++ >> r_off);
+    var gcode = Int(gbuf[bp]) >> r_off
+    bp += 1
+
     bits -= (8 - r_off);
     r_off = 8 - r_off;	/* Now, roffset into gcode word. */
 
     /* Get any 8 bit parts in the middle (<=1 for up to 16 bits). */
     if (bits >= 8) {
-      gcode |= *bp++ << r_off;
-      r_off += 8;
-      bits -= 8;
+      gcode |= Int(gbuf[bp]) << r_off
+      bp += 1
+      r_off += 8
+      bits -= 8
     }
 
     /* High order bits. */
-    gcode |= (*bp & rmask[bits]) << r_off;
+    gcode |= Int(gbuf[bp] & rmask[bits]) << r_off
     roffset += n_bits;
 
     return gcode
