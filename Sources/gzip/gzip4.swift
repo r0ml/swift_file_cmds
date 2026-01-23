@@ -88,18 +88,25 @@ extension gzip {
     let method = file_gettype(fourbytes)
     switch method {
       case .GZIP:
-        (usize, gsize) = gz_uncompress(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes, "(stdin)")
+        guard let (usize, gsize) = gz_uncompress(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes, "(stdin)") else {
+          return
+        }
 
       case .BZIP2:
-        (usize, gsize) = unbzip2(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes)
+        guard let (usize, gsize) = unbzip2(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes) else {
+          return
+        }
 
       case .Z:
-        let inx = s_zstate.zdopen(FileDescriptor.standardInput)
+        let inx = s_zstate.zdopen(self, FileDescriptor.standardInput)
 //          maybe_warnx("zopen of stdin");
 //          return
 //        }
 
-        (usize, gsize) = inx.zuncompress(FileDescriptor.standardOutput, fourbytes)
+        guard let (usize, gsize) = inx.zuncompress(FileDescriptor.standardOutput, fourbytes) else {
+          try? inx.fp.close()
+          return
+        }
         try? inx.fp.close()
 
       case .PACK:
@@ -107,17 +114,24 @@ extension gzip {
         (usize, gsize) = inx.unpack(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes)
 
       case .XZ:
-        (usize, gsize) = unxz(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes)
+        guard let (usize, gsize) = unxz(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes) else {
+          return
+        }
 
       case .LZ:
-        (usize, gsize) = lz().unlz(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes)
+        guard let (usize, gsize) = lz.unlz(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes) else {
+          return
+        }
 
       default:
         if !options.fflag {
           maybe_warnx("unknown compression format");
           return
         }
-        usize = cat_fd(fourbytes, FileDescriptor.standardInput)
+        guard let u = cat_fd(fourbytes, FileDescriptor.standardInput) else {
+          return
+        }
+        usize = u
         // FIXME: really?
         gsize = usize
 
@@ -168,7 +182,9 @@ extension gzip {
       mtime = DateTime(systime)
     }
 
-    let (usize, gsize) = gz_compress(FileDescriptor.standardInput, FileDescriptor.standardOutput, "", mtime)
+    guard let (usize, gsize) = gz_compress(FileDescriptor.standardInput, FileDescriptor.standardOutput, "", mtime) else {
+      return
+    }
 
     if options.vflag && !options.tflag && usize != -1 && gsize != -1 {
       print_verbage(nil, nil, usize, gsize);
@@ -254,14 +270,15 @@ extension gzip {
     r.infile_total = sbp.size
 
     if options.dflag {
-      usize = file_uncompress(file)
-
-      if (options.vflag && options.tflag) {
-        print_test(file, usize != -1);
+      guard let usize = file_uncompress(file) else {
+        if options.vflag && options.tflag {
+          print_test(file, false)
+        }
+        return
       }
 
-      if (usize == -1) {
-        return;
+      if options.vflag && options.tflag {
+        print_test(file, true)
       }
       gsize = sbp.size
     } else {

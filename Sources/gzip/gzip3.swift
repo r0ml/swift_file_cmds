@@ -170,7 +170,6 @@ extension gzip {
 
      ssize_t rv;
      time_t timestamp = 0;
-     char name[PATH_MAX + 1];
      */
 
     /* gather the old name info */
@@ -184,7 +183,7 @@ extension gzip {
 
     defer { try? fd.close() }
 
-    guard let isb = try? FileMetadata(for: fd) else {
+    guard var isb = try? FileMetadata(for: fd) else {
       maybe_warn("can't stat \(file)")
       return nil
     }
@@ -225,68 +224,58 @@ extension gzip {
       return nil
     }
 
+    var timestamp : DateTime?
+
     if method == .GZIP && options.Nflag {
       //      unsigned char ts[4];  /* timestamp */
 
-      rv = pread(fd, ts, sizeof ts, GZIP_TIMESTAMP);
-      if (rv >= 0 && rv < (ssize_t)(sizeof ts)) {
+      var ts : [UInt8] = [0, 0, 0, 0]
+      guard let four = try? fd.read(fromAbsoluteOffset: Int64(GZIP_TIMESTAMP), into:
+                                      withUnsafeMutablePointer(to: &ts) {p in UnsafeMutableRawBufferPointer(start: p, count: 4)
+      }) else {
+        if !options.fflag {
+          maybe_warn("can't read %s", file);
+          return nil
+        }
+      }
+
+      if four < GZIP_TIMESTAMP {
         maybe_warnx("\(file): unexpected end of file")
         return nil
       }
-      if (rv == -1) {
-        if (!options.fflag) {
-          maybe_warn("can't read %s", file);
+
+      r.infile_current += UInt(four)
+      timestamp = DateTime(le32dec(ts))
+
+      if 0 != (Int(fourbytes[3]) & ORIG_NAME) {
+        var name = Array(repeating: UInt8(0), count: Int(PATH_MAX) + 1)
+
+        guard let rbytes = try? fd.read(fromAbsoluteOffset: Int64(GZIP_ORIGNAME), into: withUnsafeMutablePointer(to: &name) {p in
+          UnsafeMutableRawBufferPointer(start: p, count: name.count-1) } ) else {
+          maybe_warn("can't read \(file)")
+          return nil
         }
-        goto lose;
-      }
-      infile_newdata(rv);
-      timestamp = le32dec(&ts[0]);
 
-      if (fourbytes[3] & ORIG_NAME) {
-        rbytes = pread(fd, name, sizeof(name) - 1, GZIP_ORIGNAME);
-        if (rbytes < 0) {
-          maybe_warn("can't read %s", file);
-          goto lose;
-        }
-        if (name[0] != '\0') {
-          char *dp, *nf;
+        let nn = String(cString: name).prefix(rbytes)
 
-          /* Make sure that name is NUL-terminated */
-          name[rbytes] = '\0';
-
-          /* strip saved directory name */
-          nf = strrchr(name, '/');
-          if (nf == NULL) {
-            nf = name;
-          }
-          else {
-            nf++;
-          }
+        if !nn.isEmpty {
+          let nf = nn.split(separator: "/").last! // strip saved directory name
 
           /* preserve original directory name */
-          dp = strrchr(file, '/');
-          if (dp == NULL) {
-            dp = file;
-          }
-          else {
-            dp++;
-          }
-          snprintf(outfile, outsize, "%.*s%.*s",
-                   (int) (dp - file),
-                   file, (int) rbytes, nf);
+          let dp = file.replacing(/\/[^\/]*$/, with: "/")
+          r.outfile =  dp + nf
         }
       }
     }
 
-    lseek(fd, 0, SEEK_SET);
+    let _ = try? fd.seek(offset: 0, from: .start)
 
     if !options.cflag || options.lflag {
-
       if isb.links > 1 && !options.lflag && !options.fflag {
         maybe_warnx("\(file) has \(isb.links-1) other links -- skipping")
         return nil
       }
-      if !options.nflag && timestamp {
+      if !options.nflag, let timestamp {
         isb.lastWrite = timestamp
       }
       if !check_outfile(outfile) {
@@ -311,7 +300,7 @@ extension gzip {
       if zz == FileDescriptor.standardOutput {
         /* We won't close STDOUT_FILENO later... */
         zfd = try? zz.duplicate()
-        FileDescriptor.standardOutput.close()
+        try? FileDescriptor.standardOutput.close()
       }
       r.remove_file = outfile
     }
@@ -352,16 +341,16 @@ extension gzip {
           return nil
         }
 
-        let inx = s_zstate.zdopen(fd) /* else {
+        let inx = s_zstate.zdopen(self, fd) /* else {
           maybe_warn("zdopen for read: \(file)")
           return nil
         }*/
 
-        let out = zfd!.duplicate() /* else {
+        guard let out = try? zfd!.duplicate() else {
           maybe_warn("fdopen for write: \(outfile)")
-          inx.zclose()
+          _ = inx.zclose()
           return nil
-        }*/
+        }
 
         (size, _) = inx.zuncompress(out, [])
 
@@ -409,7 +398,7 @@ extension gzip {
           maybe_warnx("no -l with lzip files");
           return nil
         }
-        (size, _) = lz().unlz(fd, zfd!, [])
+        (size, _) = lz.unlz(fd, zfd!, [])
         break;
 
       case .UNKNOWN:

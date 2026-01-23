@@ -264,8 +264,7 @@ extension gzip {
                 continue;
               }
 
-            case Z_STREAM_END:
-            case Z_OK:
+            case Z_STREAM_END, Z_OK:
               break;
 
             case Z_NEED_DICT:
