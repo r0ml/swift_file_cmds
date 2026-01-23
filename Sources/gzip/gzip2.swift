@@ -37,6 +37,25 @@ import CMigration
 import Darwin
 import zlib
 
+func got_siginfo(_ signo : Int32) {
+  print_info = true
+}
+
+func got_sigint(_ signo : Int32)  {
+
+  if remove_file != nil {
+    unlink(remove_file)
+  }
+
+  /*
+   * Re-raise the signal to get the exit status right for conformance
+   * purposes.
+   */
+  signal(signo, SIG_DFL)
+  raise(signo);
+
+}
+
 extension gzip {
   /*
    * uncompress input to output then close the input.  return the
@@ -110,8 +129,8 @@ extension gzip {
       if (z.avail_in == 0 || needmore) && !done_reading {
         guard let in_size = try? inx.read(into: UnsafeMutableRawBufferPointer(start: z.next_in, count: Self.BUFLEN - Int(z.avail_in))) else {
           maybe_warn("failed to read stdin")
-          out_tot = -1
-          break outer
+          return nil
+//          break outer
         }
         if in_size == 0 {
           done_reading = true
@@ -478,32 +497,14 @@ extension gzip {
     unlink(file)
   }
 
-  func got_sigint(_ signo : Int32)  {
-
-    if r.remove_file != nil {
-      unlink(r.remove_file);
-    }
-
-    /*
-     * Re-raise the signal to get the exit status right for conformance
-     * purposes.
-     */
-    signal(signo, SIG_DFL)
-    raise(signo);
-
-  }
-
-  func got_siginfo(_ signo : Int32) {
-    r.print_info = true
-  }
 
   func setup_signals() {
 
-    signal(SIGINFO, { s in got_siginfo(s) } )
+    signal(SIGINFO, got_siginfo )
 
     // FIXME: what should this do?
 //    if signal(SIGINT, SIG_IGN) != SIG_IGN {
-    signal(SIGINT, { s in got_sigint(s) } )
+    signal(SIGINT, got_sigint )
 // }
   }
 

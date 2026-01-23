@@ -37,6 +37,10 @@ import CMigration
 import Darwin
 import zlib
 
+// for Signals
+var print_info = false
+var remove_file : String? = nil
+
 @main struct gzip : ShellCommand {
 
   class Runtime {
@@ -47,8 +51,6 @@ import zlib
 
     var outfile : String? = nil
     var firstPrint = true
-
-    var print_info = false
 
 
     var remove_file : String? = nil

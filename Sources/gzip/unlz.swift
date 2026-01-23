@@ -118,7 +118,7 @@ class lz {
 
   var wrapped = false
   var crc = UInt32(0)
-  var obuf : [UInt8]
+  var obuf : [UInt8] = Array(repeating: UInt8(0), count: 1024)
   var rdec : range_decoder
 
   var readBuffer = ArraySlice<UInt8>()
@@ -188,6 +188,7 @@ class lz {
     for bi in buf {
       crc = lz_crc[Int(( (crc ^ UInt32(bi) ) & 0xFF) ^ (crc >> 8))]
     }
+    return crc
   }
 
   class range_decoder {
@@ -350,14 +351,17 @@ class lz {
     self.fout = f2
 
 
-    if (lz_crc[0] == 0) {
-      crc_init()
-    }
-
     guard let rdec = range_decoder(fin) else {
 //    if (rd_create(&rdec, fin) == -1) {
       return nil
     }
+    self.rdec = rdec
+
+
+    if (lz_crc[0] == 0) {
+      crc_init()
+    }
+
   }
 
   func peek(_ ahead : UInt) -> UInt8 {

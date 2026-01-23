@@ -90,24 +90,32 @@ extension gzip {
     var outfile = r.outfile!
     var size = UInt(0)
 
+
+    defer {
+      maybe_warnx("leaving original \(file)")
+      unlink(outfile)
+    }
+
     if (!options.cflag) {
-      guard let out = try? FileDescriptor.open(outfile, .writeOnly, options: [.create, .exclusiveCreate], permissions: FilePermissions(rawValue: 0o0600) ) else {
+      guard let o = try? FileDescriptor.open(outfile, .writeOnly, options: [.create, .exclusiveCreate], permissions: FilePermissions(rawValue: 0o0600) ) else {
         maybe_warn("could not create output: \(outfile)")
         fclose(stdin);
         return nil
       }
-
+      out = o
       r.remove_file = outfile;
     } else {
       out = FileDescriptor.standardOutput
     }
 
     defer {
-      try? out.close()
+      if let _ = try? out.close() {
+      } else {
+        maybe_warn("couldn't close output");
+      }
     }
-    if let k = gz_compress(inx, out, basename(file), isb.lastWrite) {
-      (size, in_size) = k
-    } else {
+
+    guard let (size, in_size) = gz_compress(inx, out, basename(file), isb.lastWrite) else {
       return nil
     }
 
@@ -118,18 +126,22 @@ extension gzip {
      * We only blow away the file if we can stat the output and it
      * has the expected size.
      */
-    if options.cflag {
+
+    // FIXME: returning optional pairs means I can't test in_size separately from size
+    // need to fix all the returns -- maybe use throw?
+/*    if options.cflag {
       return in_size == -1 ? -1 : size;
     }
-
+*/
+    
     guard let osb = try? FileMetadata(for: out) else {
       maybe_warn("couldn't stat: \(outfile)")
-      goto bad_outfile;
+      return size
     }
 
     if (osb.size != size) {
       maybe_warnx("output file: \(outfile) wrong size (\(osb.size) != \(size)), deleting")
-      goto bad_outfile;
+      return size
     }
 
     fcopyfile(inx.rawValue, out.rawValue, nil, copyfile_flags_t(COPYFILE_ACL | COPYFILE_XATTR))
@@ -140,20 +152,13 @@ extension gzip {
 
     try? inx.close()
     guard let _ = try? out.close() else {
-      maybe_warn("couldn't close output");
+      maybe_warn("couldn't close output")
+      // FIXME: is this right?
+      return nil
     }
 
     /* output is good, ok to delete input */
     unlink_input(file, isb)
-    return size
-
-  bad_outfile:
-    if (close(out) == -1) {
-      maybe_warn("couldn't close output");
-    }
-
-    maybe_warnx("leaving original \(file)")
-    unlink(outfile)
     return size
   }
 
@@ -178,7 +183,7 @@ extension gzip {
 
     guard let fd = try? FileDescriptor.open(file, .readOnly) else {
       maybe_warn("can't open \(file)")
-      return -1
+      return nil
     }
 
     defer { try? fd.close() }
@@ -199,7 +204,7 @@ extension gzip {
     }
 
     let fourbytes = try? fd.readUpToCount(4)
-    if fourbytes?.count ?? -1 != 4 {
+    guard fourbytes?.count ?? -1 == 4, let fourbytes else {
       /* we don't want to fail here. */
 
       if options.fflag {
@@ -215,7 +220,7 @@ extension gzip {
       return nil
     }
 
-    r.infile_current += rbytes
+    r.infile_current += 4
 
     let method = file_gettype(fourbytes);
 
@@ -237,6 +242,8 @@ extension gzip {
           maybe_warn("can't read %s", file);
           return nil
         }
+        // FIXME: is this right?
+        return nil
       }
 
       if four < GZIP_TIMESTAMP {
@@ -250,8 +257,9 @@ extension gzip {
       if 0 != (Int(fourbytes[3]) & ORIG_NAME) {
         var name = Array(repeating: UInt8(0), count: Int(PATH_MAX) + 1)
 
+        let nc = name.count
         guard let rbytes = try? fd.read(fromAbsoluteOffset: Int64(GZIP_ORIGNAME), into: withUnsafeMutablePointer(to: &name) {p in
-          UnsafeMutableRawBufferPointer(start: p, count: name.count-1) } ) else {
+          UnsafeMutableRawBufferPointer(start: p, count: nc-1) } ) else {
           maybe_warn("can't read \(file)")
           return nil
         }
@@ -283,7 +291,7 @@ extension gzip {
       }
     }
 
-    let zfd : FileDescriptor?
+    var zfd : FileDescriptor? = nil
 
     if options.cflag {
       zfd = FileDescriptor.standardOutput
@@ -352,22 +360,27 @@ extension gzip {
           return nil
         }
 
-        (size, _) = inx.zuncompress(out, [])
+        guard let (size, _) = inx.zuncompress(out, []) else {
+          return nil
+        }
 
         /* need to fclose() if ferror() is true... */
-        let error = ferror(inx);
-        if (error | fclose(inx)) {
-          if (error) {
+
+        // FIXME: I failed to detect any errors on read
+        //let error = ferror(inx);
+        let error = 0
+        if 0 != error || 0 != inx.zclose() {
+          if 0 != error {
             maybe_warn("failed infile")
           }
           else {
             maybe_warn("failed infile fclose")
           }
-          fclose(out);
+          try? out.close()
           return nil
         }
-        if (fclose(out) != 0) {
-          maybe_warn("failed outfile fclose");
+        guard let _ = try? out.close() else {
+          maybe_warn("failed outfile close");
           return nil
         }
 
@@ -377,7 +390,9 @@ extension gzip {
           return nil
         }
 
-        (size, _) = unpack_descriptor_t(self).unpack(fd, zfd!, [])
+        guard let (size, _) = unpack_descriptor_t(self).unpack(fd, zfd!, []) else {
+          return nil
+        }
 
       case .XZ:
         if options.lflag {
@@ -398,7 +413,9 @@ extension gzip {
           maybe_warnx("no -l with lzip files");
           return nil
         }
-        (size, _) = lz.unlz(fd, zfd!, [])
+        guard let (size, _) = lz.unlz(fd, zfd!, []) else {
+          return nil
+        }
         break;
 
       case .UNKNOWN:
@@ -469,7 +486,7 @@ extension gzip {
 
   func check_siginfo() {
     var stderr = FileDescriptor.standardError
-    if !r.print_info {
+    if !print_info {
       return
     }
     if let inf = r.infile {
@@ -480,7 +497,7 @@ extension gzip {
         print("\(inf): done \(r.infile_current) bytes", to: &stderr)
       }
     }
-    r.print_info = false
+    print_info = false
   }
 
   func cat_fd(_ prepend : [UInt8], _ fd : FileDescriptor) -> UInt? {

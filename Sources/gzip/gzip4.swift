@@ -88,14 +88,16 @@ extension gzip {
     let method = file_gettype(fourbytes)
     switch method {
       case .GZIP:
-        guard let (usize, gsize) = gz_uncompress(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes, "(stdin)") else {
+        guard let (u, g) = gz_uncompress(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes, "(stdin)") else {
           return
         }
+        (usize, gsize) = (u,g)
 
       case .BZIP2:
-        guard let (usize, gsize) = unbzip2(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes) else {
+        guard let (u, g) = unbzip2(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes) else {
           return
         }
+        (usize, gsize) = (u,g)
 
       case .Z:
         let inx = s_zstate.zdopen(self, FileDescriptor.standardInput)
@@ -103,25 +105,31 @@ extension gzip {
 //          return
 //        }
 
-        guard let (usize, gsize) = inx.zuncompress(FileDescriptor.standardOutput, fourbytes) else {
+        guard let (u, g) = inx.zuncompress(FileDescriptor.standardOutput, fourbytes) else {
           try? inx.fp.close()
           return
         }
+        (usize, gsize) = (u,g)
         try? inx.fp.close()
 
       case .PACK:
         let inx = unpack_descriptor_t(self)
-        (usize, gsize) = inx.unpack(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes)
+        guard let (u, g) = inx.unpack(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes) else {
+          return
+        }
+        (usize, gsize) = (u,g)
 
       case .XZ:
-        guard let (usize, gsize) = unxz(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes) else {
+        guard let (u, g) = unxz(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes) else {
           return
         }
+        (usize, gsize) = (u,g)
 
       case .LZ:
-        guard let (usize, gsize) = lz.unlz(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes) else {
+        guard let (u, g) = lz.unlz(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes) else {
           return
         }
+        (usize, gsize) = (u,g)
 
       default:
         if !options.fflag {
@@ -137,11 +145,12 @@ extension gzip {
 
     }
 
-    if options.vflag && !options.tflag && usize != -1 && gsize != -1 {
+    if options.vflag && !options.tflag /* && usize != -1 && gsize != -1 */ {
       print_verbage(nil, nil, usize, gsize)
     }
     if options.vflag && options.tflag {
-      print_test("(stdin)", usize != -1);
+      // FIXME: no way to get bad usize without bad gsize
+      print_test("(stdin)", true /* usize != -1 */);
     }
 
   }
@@ -186,7 +195,7 @@ extension gzip {
       return
     }
 
-    if options.vflag && !options.tflag && usize != -1 && gsize != -1 {
+    if options.vflag && !options.tflag  /* && usize != -1 && gsize != -1  */ {
       print_verbage(nil, nil, usize, gsize);
     }
 
@@ -332,9 +341,9 @@ extension gzip {
     char buff[8];
     int len;
 */
-    var inx = inxx
-    var percent10 : UInt
-    var diff = inx - out/2
+    var inx = Int(inxx)
+    var percent10 : Int
+    var diff = Int(inx) - Int(out)/2
     if inx == 0 && out == 0 {
       percent10 = 0
     }
@@ -343,7 +352,7 @@ extension gzip {
        * Output is more than double size of input! print -99.9%
        * Quite possibly we've failed to get the original size.
        */
-      percent10 = -999;
+      percent10 = -999
     }
     else {
       /*
@@ -355,7 +364,7 @@ extension gzip {
         inx >>= 1
       }
       if inx != 0 {
-        percent10 = (diff * 2000) / inx - 1000
+        percent10 = Int((diff * 2000) / inx - 1000)
       }
       else {
         percent10 = 0
@@ -424,6 +433,7 @@ extension gzip {
       if let rv = try? fd.seek(offset: -8, from: .end) {
         guard let buf = try? fd.readUpToCount(8) else {
           maybe_warn("read of uncompressed size")
+          return
         }
         if buf.count != 8 {
           maybe_warnx("read of uncompressed size")

@@ -42,8 +42,11 @@ import CMigration
 import Darwin
 import BZip2
 
-fileprivate var inbuf = Array(repeating: UInt8(0), count: gzip.BUFLEN)
-fileprivate var outbuf = Array(repeating: UInt8(0), count: gzip.BUFLEN)
+// fileprivate var inbuf = Array(repeating: UInt8(0), count: gzip.BUFLEN)
+// fileprivate var outbuf = Array(repeating: UInt8(0), count: gzip.BUFLEN)
+
+fileprivate var inbuf  = UnsafeMutablePointer<CChar>.allocate(capacity: gzip.BUFLEN)
+fileprivate var outbuf = UnsafeMutablePointer<CChar>.allocate(capacity: gzip.BUFLEN)
 
 extension gzip {
 
@@ -69,24 +72,26 @@ extension gzip {
 
     /* Prepend. */
     bzs.avail_in = UInt32(pre.count)
-    bzs.next_in = pre;
+    bzs.next_in = inbuf
+    inbuf.update(from: pre.map { CChar($0) }, count: pre.count)
 
     var bytes_in = UInt(pre.count)
 
     while ret == BZ_OK {
       check_siginfo()
       if bzs.avail_in == 0 && !end_of_file {
-        guard let inbuf = try? inx.readUpToCount(Self.BUFLEN) else {
+        guard let n = try? inx.read(into: UnsafeMutableRawBufferPointer(start: inbuf, count: Self.BUFLEN)) else {
           maybe_err("read")
+          return nil
         }
-        if inbuf.count == 0 {
+        if n == 0 {
           end_of_file = true
         }
-        r.infile_current += UInt(inbuf.count)
+        r.infile_current += UInt(n)
         bzs.next_in = inbuf
-        bzs.avail_in = UInt32(inbuf.count)
+        bzs.avail_in = UInt32(n)
         if bytes_in != 0 {
-          bytes_in += UInt(inbuf.count)
+          bytes_in += UInt(n)
         }
       }
 
@@ -111,11 +116,11 @@ extension gzip {
           }
           cold = false
           if (!options.tflag && bzs.avail_out != Self.BUFLEN) {
-            let n = write(out, outbuf, Self.BUFLEN - bzs.avail_out);
-            if (n < 0) {
+            guard let n = try? out.write( UnsafeRawBufferPointer(start: outbuf, count: Self.BUFLEN - Int(bzs.avail_out))) else {
               maybe_err("write")
+              return nil
             }
-            bytes_out += n
+            bytes_out += UInt(n)
           }
           if (ret == BZ_STREAM_END && !end_of_file) {
             if (BZ2_bzDecompressEnd(&bzs) != BZ_OK ||

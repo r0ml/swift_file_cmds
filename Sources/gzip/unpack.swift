@@ -148,8 +148,8 @@ class unpack_descriptor_t {
    *
    * Return value is uncompressed size.
    */
-  func parse_header(_ inx : FileDescriptor, _ out : FileDescriptor, _ pre : [UInt8]) -> UInt {
-    var hdr = UnsafeMutablePointer<UInt8>.allocate(capacity: PACK_HEADER_LENGTH)	/* buffer for header */
+  func parse_header(_ inx : FileDescriptor, _ out : FileDescriptor, _ pre : [UInt8]) -> UInt? {
+    let hdr = UnsafeMutablePointer<UInt8>.allocate(capacity: PACK_HEADER_LENGTH)	/* buffer for header */
     //    ssize_t bytesread;		/* Bytes read from the file */
     //    int i, j, thisbyte;
 
@@ -159,6 +159,7 @@ class unpack_descriptor_t {
     /* Read in and fill the rest bytes of header */
     guard let bytesread = try? inx.read(into: UnsafeMutableRawBufferPointer(start: hdr + pre.count, count: PACK_HEADER_LENGTH - pre.count)) else {
       gzip.maybe_err("Error reading pack header")
+      return nil
     }
     gzip.r.infile_current += UInt(bytesread)
 
@@ -178,14 +179,14 @@ class unpack_descriptor_t {
     }
 
     /* Let libc take care for buffering from now on */
-    let fpIn = inx
+    fpIn = inx
     //    if ((fpIn = fdopen(in, "r")) == NULL) {
     //      maybe_err("Can not fdopen() input stream");
     //    }
     //    if ((fpOut = fdopen(out, "w")) == NULL) {
     //      gzip.maybe_err("Can not fdopen() output stream");
     //    }
-    let fpOut = out
+    fpOut = out
 
     /* Allocate for the tables of bounds and the tree itself */
     inodesin =  Array(repeating: UInt(0), count: treelevels)
@@ -200,6 +201,7 @@ class unpack_descriptor_t {
     for i in 0...treelevels {
       guard let thisbyte = fgetc() else {
         gzip.maybe_err("File appears to be truncated")
+        return nil
       }
       symbolsin[i] = UInt(thisbyte)
       symbol_size += symbolsin[i];
@@ -226,9 +228,10 @@ class unpack_descriptor_t {
     symbolsin[treelevels] += 1
     for i in 0...treelevels {
       tree[i] = symbol_eob
-      for j in 0 ..< symbolsin[i] {
+      for _ in 0 ..< symbolsin[i] {
         guard let thisbyte = fgetc() else {
           gzip.maybe_errx("Symbol table truncated")
+          return nil
         }
         symbol[tree[i]] = thisbyte
         symbol_eob += 1
@@ -318,17 +321,22 @@ class unpack_descriptor_t {
   }
 
   /* Handler for pack(1)'ed file */
-  func unpack(_ iny : FileDescriptor, _ outy : FileDescriptor, _ pre : [UInt8]) -> (UInt, UInt) {
+  func unpack(_ iny : FileDescriptor, _ outy : FileDescriptor, _ pre : [UInt8]) -> (UInt, UInt)? {
 
     // FIXME: does dup'ing do anything
     guard let inx = try? iny.duplicate() else {
       gzip.maybe_err("dup")
+      return nil
     }
     guard let out = try? outy.duplicate() else {
       gzip.maybe_err("dup")
+      return nil
     }
 
-    var bytes_in = parse_header(inx, out, pre)
+// FIXME: the file descriptor instance variables should be set before calling parse_header
+    guard var bytes_in = parse_header(inx, out, pre) else {
+      return nil
+    }
     decode(&bytes_in)
     descriptor_fini()
 
@@ -358,6 +366,7 @@ class unpack_descriptor_t {
   func flush() {
     guard let _ = try? fpOut.write(writeBuffer) else {
       gzip.maybe_err("write")
+      return
     }
     writeBuffer.removeAll(keepingCapacity: true)
   }

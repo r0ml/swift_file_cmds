@@ -53,44 +53,44 @@ import Darwin
 class s_zstate {
   var gzip : gzip
   var fp : FileDescriptor			/* File stream for I/O */
-  var mode : Character    			/* r or w */
-  var n_bits : Int			/* Number of bits/code. */
-  var maxbits : Int			/* User settable max # bits/code. */
-  var maxcode : code_int		/* Maximum code, given n_bits. */
-  var maxmaxcode : code_int		/* Should NEVER generate this code. */
+  var mode : Character = "r"    			/* r or w */
+  var n_bits : Int = 0			/* Number of bits/code. */
+  var maxbits : Int = 0			/* User settable max # bits/code. */
+  var maxcode : code_int = 0 /* Maximum code, given n_bits. */
+  var maxmaxcode : code_int = 0 /* Should NEVER generate this code. */
   var htab = Array(repeating: UInt8(0), count: HSIZE)
   var codetab = Array(repeating: UInt16(0), count: HSIZE)
-  var hsize : code_int		/* For dynamic table sizing. */
+  var hsize : code_int = 0		/* For dynamic table sizing. */
   var free_ent : code_int		/* First unused entry. */
   /*
    * Block compression parameters -- after all codes are used up,
    * and compression rate changes, start over.
    */
-  var block_compress : Bool
-  var clear_flg : Int
-  var ratio : Int
-  var checkpoint : count_int
-  var offset : Int
-  var in_count : Int		/* Length of input. */
-  var bytes_out : Int		/* Length of compressed output. */
-  var out_count : Int		/* # of codes output (for debugging). */
+  var block_compress : Bool = false
+  var clear_flg = false
+  var ratio : Int = 0
+  var checkpoint : count_int = 0
+  var offset : Int = 0
+  var in_count : Int = 0	/* Length of input. */
+  var bytes_out : Int = 0	/* Length of compressed output. */
+  var out_count : Int = 0	/* # of codes output (for debugging). */
   var buf = Array(repeating: UInt8(0), count: BITS)
 
   // write parameters
-  var fcode : Int
-  var ent : code_int
-  var hsize_reg : code_int
-  var hshift : Int
+  var fcode : Int = 0
+  var ent : code_int = 0
+  var hsize_reg : code_int = 0
+  var hshift : Int = 0
 
   // read parameters
-  var stackp : Int
-  var finchar : UInt8
-  var code : code_int
+  var stackp : Int = 0
+  var finchar : UInt8 = 0
+  var code : code_int = 0
   var oldcode : code_int?
-  var incode : code_int
-  var roffset : Int
-  var size : Int
-  var state : State
+  var incode : code_int = 0
+  var roffset : Int = 0
+  var size : Int = 0
+  var state : State 
 
   var gbuf = Array(repeating: UInt8(0), count: BITS)
 
@@ -188,7 +188,7 @@ class s_zstate {
     hsize = Self.HSIZE			/* For dynamic table sizing. */
     free_ent = 0			/* First unused entry. */
     block_compress = true
-    clear_flg = 0			/* XXX we calloc()'d this structure why = 0? */
+    clear_flg = false			/* XXX we calloc()'d this structure why = 0? */
     ratio = 0
     checkpoint = CHECK_GAP
     in_count = 1			/* Length of input. */
@@ -287,7 +287,7 @@ class s_zstate {
           for i in 0..<256 {
             codetab[i] = 0
           }
-          clear_flg = 1
+          clear_flg = true
           free_ent = FIRST
           oldcode = nil
           continue
@@ -368,7 +368,7 @@ class s_zstate {
     //    char_type *bp;
 
     var bp = 0
-    if clear_flg > 0 || roffset >= size || free_ent > maxcode {
+    if clear_flg || roffset >= size || free_ent > maxcode {
       /*
        * If the next entry will be too big for the current gcode
        * size, then we must increase the size.  This implies reading
@@ -383,10 +383,10 @@ class s_zstate {
           maxcode = MAXCODE(n_bits)
         }
       }
-      if (clear_flg > 0) {
+      if clear_flg {
         n_bits = INIT_BITS
         maxcode = MAXCODE(n_bits)
-        clear_flg = 0
+        clear_flg = false
       }
       /* XXX */
       var i = 0

@@ -124,6 +124,7 @@ extension gzip {
 
         guard let j = try? o.write(UnsafeRawBufferPointer(start: obuf, count: write_size)) else {
           maybe_err("write failed");
+          return nil
         }
 
         strm.next_out = obuf;
