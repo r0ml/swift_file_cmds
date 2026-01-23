@@ -311,9 +311,9 @@ class lz {
       return -1;
     }
 
-    size_t size = (size_t)offs;
-    lz_crc_update(&lz->crc, lz->obuf + lz->spos, size);
-    if (fwrite(lz->obuf + lz->spos, 1, size, lz->fout) != size) {
+    let size = offs
+    lz_crc_update(&crc, obuf + spos, size);
+    if (fwrite(obuf + spos, 1, size, fout) != size) {
       return -1;
     }
 
@@ -595,7 +595,7 @@ class lz {
       memcpy(header, pre, prelen);
     }
 
-    ssize_t nr = read(fin, header + prelen, sizeof(header) - prelen);
+    let nr = fin.read(header + prelen, sizeof(header) - prelen);
     switch (nr) {
       case -1:
         return (-1, bytes_in);

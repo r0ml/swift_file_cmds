@@ -80,19 +80,19 @@ let HTREE_MAXLEVEL = 24
 class unpack_descriptor_t {
 
   var gzip : gzip
-  var symbol_size : Int = 0		/* Size of the symbol table */
+  var symbol_size : UInt = 0		/* Size of the symbol table */
   var treelevels : Int = 0		/* Levels for the huffman tree */
 
 
-  var symbolsin : [Int] = []		/* Table of leaf symbols count in each level */
-  var inodesin : [Int] = [] 		/* Table of internal nodes count in each level */
+  var symbolsin : [UInt] = []		/* Table of leaf symbols count in each level */
+  var inodesin : [UInt] = [] 		/* Table of internal nodes count in each level */
 
-  /*
-   char   *symbol;			/* The symbol table */
-   char   *symbol_eob;		/* Pointer to the EOB symbol */
-   char  **tree;			/* Decoding huffman tree (pointers to
-                       * first symbol of each tree level */
-   */
+  var readBuffer : ArraySlice<UInt8> = []
+  var writeBuffer : Array<UInt8> = []
+  
+  var symbol : [UInt8] = []  // The symbol table
+  var symbol_eob : Int = 0		/* Index of the EOB symbol */
+  var tree : Array<Int> = []  // Decoding huffman tree (pointers to first symbol of each tree level
 
   var uncompressed_size : UInt = 0	/* Uncompressed size */
   var fpIn =  FileDescriptor.standardInput		/* Input stream */
@@ -121,12 +121,13 @@ class unpack_descriptor_t {
      fclose(unpackd->fpIn);
      fclose(unpackd->fpOut);
      */
+    flush()
   }
 
   /*
    * Recursively fill the internal node count table
    */
-  func unpackd_fill_inodesin(_ level : Int) {
+  func fill_inodesin(_ level : Int) {
 
     /*
      * The internal nodes would be 1/2 of total internal nodes and
@@ -134,7 +135,7 @@ class unpack_descriptor_t {
      * would be no internal node by definition.
      */
     if level < treelevels {
-      unpackd_fill_inodesin(level + 1)
+      fill_inodesin(level + 1)
       inodesin[level] = (inodesin[level + 1] + symbolsin[level + 1]) / 2
     } else {
       inodesin[level] = 0
@@ -148,23 +149,20 @@ class unpack_descriptor_t {
    * Return value is uncompressed size.
    */
   func parse_header(_ inx : FileDescriptor, _ out : FileDescriptor, _ pre : [UInt8]) -> UInt {
-    var hdr = Array(repeating: UInt8(0), count: PACK_HEADER_LENGTH)	/* buffer for header */
+    var hdr = UnsafeMutablePointer<UInt8>.allocate(capacity: PACK_HEADER_LENGTH)	/* buffer for header */
     //    ssize_t bytesread;		/* Bytes read from the file */
     //    int i, j, thisbyte;
 
     /* Prepend the header buffer if we already read some data */
-    if (prelen != 0) {
-      memcpy(hdr, pre, prelen);
-    }
+    hdr.update(from: pre, count: pre.count)
 
     /* Read in and fill the rest bytes of header */
-    bytesread = read(in, hdr + prelen, PACK_HEADER_LENGTH - prelen);
-    if bytesread < 0 {
-      maybe_err("Error reading pack header");
+    guard let bytesread = try? inx.read(into: UnsafeMutableRawBufferPointer(start: hdr + pre.count, count: PACK_HEADER_LENGTH - pre.count)) else {
+      gzip.maybe_err("Error reading pack header")
     }
-    gzip.r.infile_current += bytesread
+    gzip.r.infile_current += UInt(bytesread)
 
-    bytes_in += PACK_HEADER_LENGTH
+    var bytes_in = UInt(PACK_HEADER_LENGTH)
 
     /* Obtain uncompressed length (bytes 2,3,4,5) */
     uncompressed_size = 0;
@@ -190,38 +188,31 @@ class unpack_descriptor_t {
     let fpOut = out
 
     /* Allocate for the tables of bounds and the tree itself */
-    inodesin =  calloc(treelevels, sizeof(*(inodesin)));
-    symbolsin = calloc(treelevels, sizeof(*(symbolsin)));
-    tree =      calloc(treelevels, (sizeof(*(tree))));
-    if (inodesin == NULL || symbolsin == NULL ||
-        tree == NULL) {
-      gzip.maybe_err("calloc");
-    }
+    inodesin =  Array(repeating: UInt(0), count: treelevels)
+    symbolsin = Array(repeating: 0, count: treelevels)
+    tree =      Array(repeating: 0, count: treelevels)
 
     /* We count from 0 so adjust to match array upper bound */
-    treelevels--;
+    treelevels -= 1
 
     /* Read the levels symbol count table and calculate total */
     symbol_size = 1;	/* EOB */
     for i in 0...treelevels {
-      if ((thisbyte = fgetc(fpIn)) == EOF) {
-        gzip.maybe_err("File appears to be truncated");
+      guard let thisbyte = fgetc() else {
+        gzip.maybe_err("File appears to be truncated")
       }
-      symbolsin[i] = (unsigned char)thisbyte;
+      symbolsin[i] = UInt(thisbyte)
       symbol_size += symbolsin[i];
     }
-    bytes_in += treelevels
+    bytes_in += UInt(treelevels)
     if symbol_size > 256 {
       gzip.maybe_errx("Bad symbol table")
     }
-    gip.r.infile_current += treelevels
+    gzip.r.infile_current += UInt(treelevels)
 
     /* Allocate for the symbol table, point symbol_eob at the beginning */
-    symbol_eob = symbol = calloc(1, symbol_size);
-
-    if symbol == nil {
-      gzip.maybe_err("calloc");
-    }
+    symbol = Array(repeating: UInt8(0), count: Int(symbol_size))
+    symbol_eob = 0
 
     /*
      * Read in the symbol table, which contain [2, 256] symbols.
@@ -232,17 +223,18 @@ class unpack_descriptor_t {
      * the EOB symbol is not being transmitted explicitly.  Another
      * adjustment would be done later afterward.
      */
-    symbolsin[treelevels]++;
-    for (i = 0; i <= treelevels; i++) {
-      tree[i] = symbol_eob;
-      for (j = 0; j < symbolsin[i]; j++) {
-        if ((thisbyte = fgetc(fpIn)) == EOF) {
-          maybe_errx("Symbol table truncated");
+    symbolsin[treelevels] += 1
+    for i in 0...treelevels {
+      tree[i] = symbol_eob
+      for j in 0 ..< symbolsin[i] {
+        guard let thisbyte = fgetc() else {
+          gzip.maybe_errx("Symbol table truncated")
         }
-        *symbol_eob++ = (char)thisbyte;
+        symbol[tree[i]] = thisbyte
+        symbol_eob += 1
       }
-      infile_newdata(symbolsin[i]);
-      accepted_bytes(bytes_in, symbolsin[i]);
+      gzip.r.infile_current += symbolsin[i]
+      bytes_in += symbolsin[i]
     }
 
     /* Now, take account for the EOB symbol as well */
@@ -252,7 +244,8 @@ class unpack_descriptor_t {
      * The symbolsin table has been constructed now.
      * Calculate the internal nodes count table based on it.
      */
-    unpackd_fill_inodesin(unpackd, 0)
+    fill_inodesin(0)
+    return bytes_in
   }
 
   /*
@@ -274,12 +267,10 @@ class unpack_descriptor_t {
      */
     var thislevel = 0;
     var thiscode = 0
-    var thisbyte : [UInt8]? = [0]
 
     outer:
     while true {
-      let thisbyte = try? fpIn.readUpToCount(1)
-      if let thisbyte, thisbyte.count == 1 {
+      if let thisbyte = fgetc() {
         bytes_in += 1
         gzip.r.infile_current += 1
         gzip.check_siginfo();
@@ -290,21 +281,22 @@ class unpack_descriptor_t {
          * the tree.
          */
         for i in 0 ..< 8 {
-          thiscode = (thiscode << 1) | ((thisbyte >> (7-i) ) & 1)
+          thiscode = (thiscode << 1) | ((Int(thisbyte) >> (7-i) ) & 1)
 
           /* Did we got a symbol? (referencing leaf node) */
           if (thiscode >= inodesin[thislevel]) {
-            inlevelindex = thiscode - inodesin[thislevel];
-            if (inlevelindex > symbolsin[thislevel]) {
-              gzip.maybe_errx("File corrupt");
+            let inlevelindex = thiscode - Int(inodesin[thislevel])
+            if inlevelindex > symbolsin[thislevel] {
+              gzip.maybe_errx("File corrupt")
             }
 
-            thissymbol = &(tree[thislevel][inlevelindex]);
-            if thissymbol == symbol_eob && bytes_out == uncompressed_size {
+            let thissymbol = symbol[tree[thislevel] + inlevelindex]
+            // FIXME: did i get this right?
+            if inlevelindex == 0 && bytes_out == uncompressed_size {
               break outer
             }
 
-            fputc((*thissymbol), fpOut);
+            fputc(thissymbol)
             bytes_out += 1
 
             /* Prepare for next input */
@@ -312,8 +304,8 @@ class unpack_descriptor_t {
             thiscode = 0
           } else {
             thislevel += 1
-            if thislevel > reelevels {
-              maybe_errx("File corrupt");
+            if thislevel > treelevels {
+              gzip.maybe_errx("File corrupt")
             }
           }
         }
@@ -342,5 +334,31 @@ class unpack_descriptor_t {
 
     /* If we reached here, the unpack was successful */
     return (uncompressed_size, bytes_in)
+  }
+
+
+  func fgetc() -> UInt8? {
+    if !readBuffer.isEmpty {
+      return readBuffer.removeFirst()
+    }
+    guard let bf = try? fpIn.readUpToCount(Int(BUFSIZ)), !bf.isEmpty else {
+      return nil
+    }
+    readBuffer = ArraySlice(bf)
+    return readBuffer.removeFirst()
+  }
+
+  func fputc(_ c : UInt8) {
+    writeBuffer.append(c)
+    if writeBuffer.count >= BUFSIZ {
+      flush()
+    }
+  }
+
+  func flush() {
+    guard let _ = try? fpOut.write(writeBuffer) else {
+      gzip.maybe_err("write")
+    }
+    writeBuffer.removeAll(keepingCapacity: true)
   }
 }
