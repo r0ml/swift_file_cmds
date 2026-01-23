@@ -495,7 +495,7 @@ extension gzip {
   }
 
   func got_siginfo(_ signo : Int32) {
-    r.print_info = 1
+    r.print_info = true
   }
 
   func setup_signals() {

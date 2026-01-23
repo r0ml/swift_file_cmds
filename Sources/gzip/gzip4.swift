@@ -110,7 +110,7 @@ extension gzip {
         (usize, gsize) = unxz(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes)
 
       case .LZ:
-        (usize, gsize) = Lzma().unlz(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes)
+        (usize, gsize) = lz().unlz(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes)
 
       default:
         if !options.fflag {

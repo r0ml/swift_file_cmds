@@ -57,14 +57,32 @@ import CMigration
 import Darwin
 import LZMA
 
-class Lzma {
+func lz_bm_init(_ a : inout [Int]) {
+  for i in 0 ..< a.count {
+    a[i] = Self.BIT_MODEL_INIT
+  }
+}
+
+func LZ_BM_INIT(_ a : inout [Int]) {
+  lz_bm_init(&a)
+}
+
+func LZ_BM_INIT2(_ a : inout [[Int]]) {
+  let l = a[0].count
+  for i in 0 ..< a.count {
+    lz_bm_init(&a[i])
+  }
+}
+
+
+class lz {
 
   let LZ_STATES = 12
 
   let LITERAL_CONTEXT_BITS = 3
   static let POS_STATE_BITS = 2
-  static let POS_STATES = 1 << POS_STATE_BITS
-  let POS_STATE_MASK = POS_STATES - 1
+  static let POS_STATES = Int(1 << POS_STATE_BITS)
+  let POS_STATE_MASK = UInt(POS_STATES - 1)
 
   let STATES = 4
   let DIS_SLOT_BITS = 6
@@ -88,325 +106,318 @@ class Lzma {
 
   let MIN_MATCH_LEN = 2
 
-  static let BIT_MODEL_MOVE_BITS = 5
-  static let BIT_MODEL_TOTAL_BITS = 11
-  static let BIT_MODEL_TOTAL = (1 << BIT_MODEL_TOTAL_BITS)
-  let BIT_MODEL_INIT = (BIT_MODEL_TOTAL / 2)
-
   let lz_st_next = [0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 4, 5, ]
 
+// from lz_decoder
+  var fin : FileDescriptor
+  var fout : FileDescriptor
+  var pos = UInt(0)
+  var ppos = UInt(0)
+  var spos = UInt(0)
+  var dict_size = Int(0)
 
-  func lz_st_is_char(_ st : Int) -> Bool {
-    return st < 7
-  }
-
-  func lz_st_get_char(_ st : Int) -> Int {
-    return lz_st_next[st]
-  }
-
-  func lz_st_get_match(_ st : Int) -> Int {
-    return st < 7 ? 7 : 10
-  }
-
-  func lz_st_get_rep(_ st : Int) -> Int {
-    return st < 7 ? 8 : 11;
-  }
-
-  func lz_st_get_short_rep(_ st : Int) -> Int {
-    return st < 7 ? 9 : 11
-  }
-
-  struct lz_len_model {
-    var choice1 : Int
-    var choice2 : Int
-    var bm_low = Array(repeating: Array(repeating: 0, count: LOW_SYMBOLS), count: POS_STATES)
-    var bm_mid = Array(repeating: Array(repeating: 0, count: MID_SYMBOLS), count: POS_STATES)
-    var bm_high = Array(repeating: 0, count: HIGH_SYMBOLS)
-  }
+  var wrapped = false
+  var crc = UInt32(0)
+  var obuf : [UInt8]
+  var rdec = range_decoder()
 
   var lz_crc = Array(repeating: UInt32(0), count: 256)
 
-  func lz_crc_init() {
-    for (unsigned i = 0; i < nitems(lz_crc); i++) {
-      unsigned c = i;
-      for (unsigned j = 0; j < 8; j++) {
-        if (c & 1)
-            c = 0xEDB88320U ^ (c >> 1);
-        else
-          c >>= 1;
+  func st_is_char(_ st : Int) -> Bool {
+    return st < 7
+  }
+
+  func st_get_char(_ st : Int) -> Int {
+    return lz_st_next[st]
+  }
+
+  func st_get_match(_ st : Int) -> Int {
+    return st < 7 ? 7 : 10
+  }
+
+  func st_get_rep(_ st : Int) -> Int {
+    return st < 7 ? 8 : 11;
+  }
+
+  func st_get_short_rep(_ st : Int) -> Int {
+    return st < 7 ? 9 : 11
+  }
+
+  struct len_model {
+    static let BIT_MODEL_MOVE_BITS = 5
+    static let BIT_MODEL_TOTAL_BITS = 11
+    static let BIT_MODEL_TOTAL = (1 << BIT_MODEL_TOTAL_BITS)
+    static let BIT_MODEL_INIT = (BIT_MODEL_TOTAL / 2)
+
+    var choice1 : Int = BIT_MODEL_INIT
+    var choice2 : Int = BIT_MODEL_INIT
+    var bm_low = Array(repeating: Array(repeating: 0, count: LOW_SYMBOLS), count: POS_STATES)
+    var bm_mid = Array(repeating: Array(repeating: 0, count: MID_SYMBOLS), count: POS_STATES)
+    var bm_high = Array(repeating: 0, count: HIGH_SYMBOLS)
+
+    init() {
+      LZ_BM_INIT2(&bm_low)
+      LZ_BM_INIT2(&bm_mid)
+      LZ_BM_INIT(&bm_high)
+    }
+
+  }
+
+
+  func crc_init() {
+    for i in 0 ..< lz_crc.count {
+      var c = i
+      for j in 0 ..< 8 {
+        if (c & 1) != 0 {
+          c = 0xEDB88320 ^ (c >> 1)
+        }
+        else {
+          c >>= 1
+        }
       }
-      lz_crc[i] = c;
+      lz_crc[i] = UInt32(c)
     }
   }
 
-  func lz_crc_update(_ crcx : UInt32, _ buf : [UInt8]) -> UInt32 {
+  func crc_update(_ crcx : UInt32, _ buf : [UInt8]) -> UInt32 {
     var crc = crcx
     for bi in buf {
-      crc = lz_crc[(crc ^ bi & 0xFF) ^ (crc >> 8)]
+      crc = lz_crc[Int(( (crc ^ UInt32(bi) ) & 0xFF) ^ (crc >> 8))]
     }
   }
 
-  struct lz_range_decoder {
-    FILE *fp;
-    uint32_t code;
-    uint32_t range;
-  };
+  class range_decoder {
+    var fp : FileDescriptor
+    var code : UInt32 = 0
+    var range : UInt32 = 0
 
-  func lz_rd_create(struct lz_range_decoder *rd, FILE *fp) -> Int {
-    rd->fp = fp;
-    rd->code = 0;
-    rd->range = ~0;
-    for (int i = 0; i < 5; i++)
-          rd->code = (rd->code << 8) | (uint8_t)getc(rd->fp);
-    return ferror(rd->fp) ? -1 : 0;
-  }
 
-  func lz_rd_decode(struct lz_range_decoder *rd, int num_bits) -> UInt {
-    unsigned symbol = 0;
-
-    for (int i = num_bits; i > 0; i--) {
-      rd->range >>= 1;
-      symbol <<= 1;
-      if (rd->code >= rd->range) {
-        rd->code -= rd->range;
-        symbol |= 1;
+    init?(_ fp : FileDescriptor) {
+      self.fp = fp;
+      self.code = 0;
+      self.range = ~0
+      guard let cc = try? fp.readUpToCount(5) else {
+        return nil
       }
-      if (rd->range <= 0x00FFFFFFU) {
-        rd->range <<= 8;
-        rd->code = (rd->code << 8) | (uint8_t)getc(rd->fp);
+      for k in cc {
+        code = (code << 8) | UInt32(k)
       }
     }
 
-    return symbol;
-  }
-
-  func lz_rd_decode_bit(struct lz_range_decoder *rd, int *bm) -> UInt {
-    unsigned symbol;
-    const uint32_t bound = (rd->range >> BIT_MODEL_TOTAL_BITS) * *bm;
-
-    if(rd->code < bound) {
-      rd->range = bound;
-      *bm += (BIT_MODEL_TOTAL - *bm) >> BIT_MODEL_MOVE_BITS;
-      symbol = 0;
-    }
-    else {
-      rd->range -= bound;
-      rd->code -= bound;
-      *bm -= *bm >> BIT_MODEL_MOVE_BITS;
-      symbol = 1;
-    }
-
-    if (rd->range <= 0x00FFFFFFU) {
-      rd->range <<= 8;
-      rd->code = (rd->code << 8) | (uint8_t)getc(rd->fp);
-    }
-    return symbol;
-  }
-
-  func lz_rd_decode_tree(struct lz_range_decoder *rd, int *bm, int num_bits) -> UInt {
-    unsigned symbol = 1;
-
-    for (int i = 0; i < num_bits; i++)
-          symbol = (symbol << 1) | lz_rd_decode_bit(rd, &bm[symbol]);
-
-    return symbol - (1 << num_bits);
-  }
-
-  func lz_rd_decode_tree_reversed(struct lz_range_decoder *rd, int *bm, int num_bits) -> UInt {
-    unsigned symbol = lz_rd_decode_tree(rd, bm, num_bits);
-    unsigned reversed_symbol = 0;
-
-    for (int i = 0; i < num_bits; i++) {
-      reversed_symbol = (reversed_symbol << 1) | (symbol & 1);
-      symbol >>= 1;
-    }
-
-    return reversed_symbol;
-  }
-
-  func lz_rd_decode_matched(struct lz_range_decoder *rd, int *bm, int match_byte) -> UInt {
-    unsigned symbol = 1;
-
-    for (int i = 7; i >= 0; i--) {
-      const unsigned match_bit = (match_byte >> i) & 1;
-      const unsigned bit = lz_rd_decode_bit(rd,
-                                            &bm[symbol + (match_bit << 8) + 0x100]);
-      symbol = (symbol << 1) | bit;
-      if (match_bit != bit) {
-        while (symbol < 0x100) {
-          symbol = (symbol << 1) |
-          lz_rd_decode_bit(rd, &bm[symbol]);
+    func decode(_ num_bits : Int) -> UInt {
+      var symbol = UInt(0)
+      for i in 0 ..< num_bits {
+        range >>= 1
+        symbol <<= 1
+        if code >= range {
+          code -= range
+          symbol |= 1
         }
-        break;
+        if range <= 0x00FFFFFF {
+          range <<= 8
+          guard let c = try? fp.readUpToCount(1) else {
+            code = (code << 8) | 0xff
+            continue
+          }
+          let d = c.first ?? 0xff
+          code = (code << 8) | UInt32(d)
+        }
       }
-    }
-    return symbol & 0xFF;
-  }
 
-  func lz_rd_decode_len(struct lz_range_decoder *rd, struct lz_len_model *lm, int pos_state) -> UInt{
-    if (lz_rd_decode_bit(rd, &lm->choice1) == 0)
-        return lz_rd_decode_tree(rd, lm->bm_low[pos_state], LOW_BITS);
-
-    if (lz_rd_decode_bit(rd, &lm->choice2) == 0) {
-      return LOW_SYMBOLS +
-      lz_rd_decode_tree(rd, lm->bm_mid[pos_state], MID_BITS);
+      return symbol;
     }
 
-    return LOW_SYMBOLS + MID_SYMBOLS +
-    lz_rd_decode_tree(rd, lm->bm_high, HIGH_BITS);
+    func decode_bit(_ bm : inout Int) -> Int {
+
+      var symbol : Int
+      let bound = UInt32(range >> len_model.BIT_MODEL_TOTAL_BITS) * UInt32(bm)
+
+      if code < bound {
+        range = bound
+        bm += (len_model.BIT_MODEL_TOTAL - bm) >> len_model.BIT_MODEL_MOVE_BITS
+        symbol = 0
+      }
+      else {
+        range -= bound
+        code -= bound
+        bm -= bm >> len_model.BIT_MODEL_MOVE_BITS
+        symbol = 1
+      }
+
+      if range <= 0x00FFFFFF {
+        range <<= 8
+        let d = try? fp.readUpToCount(1)
+
+        code = code << 8 | UInt32(d?.first ?? 0xff)
+      }
+      return symbol
+    }
+
+    func decode_tree(_ bm : inout Int, _ num_bits : Int ) -> UInt {
+      var symbol = UInt(1)
+
+      for _ in 0 ..< num_bits {
+        symbol = (symbol << 1) | decode_bit(&bm[Int(symbol)]);
+      }
+
+      return symbol - (1 << num_bits)
+    }
+
+    func decode_tree_reversed(_ bm : inout Int, _ num_bits : Int) -> UInt {
+      var symbol = decode_tree(&bm, num_bits)
+      var reversed_symbol = UInt(0)
+
+      for i in 0 ..< num_bits {
+        reversed_symbol = (reversed_symbol << 1) | (symbol & 1)
+        symbol >>= 1
+      }
+
+      return reversed_symbol
+    }
+
+    func decode_matched(_ bm : inout Int, _ match_byte : Int) -> UInt {
+      var symbol = UInt(1)
+
+      for i in 0 ..< 8 {
+        let match_bit = (match_byte >> i) & 1
+        let bit = decode_bit( &bm[symbol + (match_bit << 8) + 0x100])
+        symbol = (symbol << 1) | bit;
+        if (match_bit != bit) {
+          while (symbol < 0x100) {
+            symbol = (symbol << 1) | decode_bit(&bm[symbol])
+          }
+          break
+        }
+      }
+      return symbol & 0xFF
+    }
+
+    func decode_len(_ lm : inout len_model, _ pos_state : Int) -> UInt {
+      if (decode_bit( &lm.choice1 ) == 0) {
+        return decode_tree( lm.bm_low[pos_state], LOW_BITS)
+      }
+
+      if (decode_bit(&lm.choice2) == 0) {
+        return LOW_SYMBOLS + decode_tree(lm.bm_mid[pos_state], MID_BITS)
+      }
+
+      return LOW_SYMBOLS + MID_SYMBOLS + decode_tree(lm.bm_high, HIGH_BITS)
+    }
   }
 
-  struct lz_decoder {
-    FILE *fin, *fout;
-    off_t pos, ppos, spos, dict_size;
-    bool wrapped;
-    uint32_t crc;
-    uint8_t *obuf;
-    struct lz_range_decoder rdec;
-  };
-
-  func lz_flush(struct lz_decoder *lz) -> Int {
-    off_t offs = lz->pos - lz->spos;
-    if (offs <= 0)
-        return -1;
+  @discardableResult func flush() -> Int {
+    let offs = pos - spos
+    if offs <= 0 {
+      return -1;
+    }
 
     size_t size = (size_t)offs;
     lz_crc_update(&lz->crc, lz->obuf + lz->spos, size);
-    if (fwrite(lz->obuf + lz->spos, 1, size, lz->fout) != size)
-        return -1;
-
-    lz->wrapped = lz->pos >= lz->dict_size;
-    if (lz->wrapped) {
-      lz->ppos += lz->pos;
-      lz->pos = 0;
+    if (fwrite(lz->obuf + lz->spos, 1, size, lz->fout) != size) {
+      return -1;
     }
-    lz->spos = lz->pos;
-    return 0;
+
+    wrapped = pos >= dict_size
+    if wrapped {
+      ppos += spos
+      pos = 0
+    }
+    spos = pos
+    return 0
   }
 
-  func lz_destroy(struct lz_decoder *lz) {
-    if (lz->fin)
-        fclose(lz->fin);
-    if (lz->fout)
-        fclose(lz->fout);
-    free(lz->obuf);
+  func destroy() {
+    try? fin.close()
+    try? fout.close()
+    // free(obuf)
   }
 
-  func lz_create(struct lz_decoder *lz, int fin, int fdout, int dict_size) -> Int {
-    memset(lz, 0, sizeof(*lz));
+  init?(_ fin : FileDescriptor, _ fdout : FileDescriptor, _ dict_size : Int) {
+    guard let f = try? fin.duplicate() else {
+      return nil
+    }
+    self.fin = f
 
-    lz->fin = fdopen(dup(fin), "r");
-    if (lz->fin == NULL)
-        goto out;
+    guard let f2 = try? fdout.duplicate() else {
+      return nil
+    }
+    self.fout = f2
 
-    lz->fout = fdopen(dup(fdout), "w");
-    if (lz->fout == NULL)
-        goto out;
+    self.dict_size = dict_size
+    obuf = Array(repeating: UInt8(0), count: dict_size)
 
-    lz->pos = lz->ppos = lz->spos = 0;
-    lz->crc = ~0;
-    lz->dict_size = dict_size;
-    lz->wrapped = false;
-
-    lz->obuf = malloc(dict_size);
-    if (lz->obuf == NULL)
-        goto out;
-
-    if (lz_rd_create(&lz->rdec, lz->fin) == -1)
-        goto out;
-    return 0;
-  out:
-    lz_destroy(lz);
-    return -1;
+    if (rd_create(&rdec, fin) == -1) {
+      return nil
+    }
   }
 
-  func lz_peek(const struct lz_decoder *lz, unsigned ahead) -> UInt8 {
-    off_t diff = lz->pos - ahead - 1;
+  func peek(_ ahead : UInt) -> UInt8 {
+    let diff = Int(pos) - Int(ahead) - 1
 
-    if (diff >= 0)
-        return lz->obuf[diff];
+    if diff >= 0 {
+      return obuf[diff]
+    }
 
-    if (lz->wrapped)
-        return lz->obuf[lz->dict_size + diff];
+    if wrapped {
+      return obuf[dict_size + diff]
+    }
 
-    return 0;
+    return 0
   }
 
-  func lz_put(struct lz_decoder *lz, uint8_t b) {
-    lz->obuf[lz->pos++] = b;
-    if (lz->dict_size == lz->pos)
-        lz_flush(lz);
+  func put(_ b : UInt8) {
+    obuf[Int(pos)] = b
+    pos += 1
+    if dict_size == pos {
+      flush()
+    }
   }
 
-  func lz_get_data_position(const struct lz_decoder *lz) -> off_t {
-    return lz->ppos + lz->pos;
+  func get_data_position() -> UInt {
+    return ppos + pos
   }
 
-  func lz_get_crc(const struct lz_decoder *lz) -> UInt {
-    return lz->crc ^ 0xffffffffU;
+  func get_crc() -> UInt {
+    return UInt(crc) ^ 0xffffffff
   }
 
-  func lz_bm_init(int *a, size_t l) {
-    for (size_t i = 0; i < l; i++)
-          a[i] = BIT_MODEL_INIT;
-  }
 
-  #define LZ_BM_INIT(a)	lz_bm_init(a, nitems(a))
-  #define LZ_BM_INIT2(a)	do { \
-    size_t l = nitems(a[0]); \
-    for (size_t i = 0; i < nitems(a); i++) { \
-      lz_bm_init(a[i], l); }
-  } while (/*CONSTCOND*/0)
+    func decode_member() -> Bool {
+      var bm_literal = Array(repeating: Array(repeating: 0, count: 0x300), count: 1 << LITERAL_CONTEXT_BITS)
+      var bm_match = Array(repeating: Array(repeating: 0, count: Self.POS_STATES), count: LZ_STATES)
+      var bm_rep = Array(repeating: Array(repeating: 0, count: LZ_STATES), count: 4)
+      var bm_len = Array(repeating: Array(repeating: 0, count: Self.POS_STATES), count: LZ_STATES)
+      var bm_dis_slot = Array(repeating: Array(repeating: 0, count: 1 << DIS_SLOT_BITS), count: LZ_STATES)
+      var bm_dis = Array(repeating: 0, count: MODELED_DISTANCES - Self.DIS_MODEL_END + 1)
+      var bm_align = Array(repeating: 0, count: DIS_ALIGN_SIZE)
 
-    #define LZ_MODEL_INIT(a) do { \
-      a.choice1 = BIT_MODEL_INIT; \
-      a.choice2 = BIT_MODEL_INIT; \
-      LZ_BM_INIT2(a.bm_low); \
-      LZ_BM_INIT2(a.bm_mid); \
-      LZ_BM_INIT(a.bm_high); \
-    } while (/*CONSTCOND*/0)
+      LZ_BM_INIT2(&bm_literal)
+      LZ_BM_INIT2(&bm_match)
+      LZ_BM_INIT2(&bm_rep)
+      LZ_BM_INIT2(&bm_len)
+      LZ_BM_INIT2(&bm_dis_slot)
+      LZ_BM_INIT(&bm_dis)
+      LZ_BM_INIT(&bm_align)
 
-      static bool
-      lz_decode_member(struct lz_decoder *lz)
-    {
-      int bm_literal[1 << LITERAL_CONTEXT_BITS][0x300];
-      int bm_match[LZ_STATES][POS_STATES];
-      int bm_rep[4][LZ_STATES];
-      int bm_len[LZ_STATES][POS_STATES];
-      int bm_dis_slot[LZ_STATES][1 << DIS_SLOT_BITS];
-      int bm_dis[MODELED_DISTANCES - DIS_MODEL_END + 1];
-      int bm_align[DIS_ALIGN_SIZE];
+      var match_len_model = len_model()
+      var rep_len_model = len_model()
 
-      LZ_BM_INIT2(bm_literal);
-      LZ_BM_INIT2(bm_match);
-      LZ_BM_INIT2(bm_rep);
-      LZ_BM_INIT2(bm_len);
-      LZ_BM_INIT2(bm_dis_slot);
-      LZ_BM_INIT(bm_dis);
-      LZ_BM_INIT(bm_align);
+      let rd = rdec
 
-      struct lz_len_model match_len_model;
-      struct lz_len_model rep_len_model;
+      var rep : [UInt] = [0, 0, 0, 0]
+      var state = 0
 
-      LZ_MODEL_INIT(match_len_model);
-      LZ_MODEL_INIT(rep_len_model);
-
-      struct lz_range_decoder *rd = &lz->rdec;
-      unsigned rep[4] = { 0 };
-
-
-      int state = 0;
-
-      while (!feof(lz->fin) && !ferror(lz->fin)) {
-        const int pos_state = lz_get_data_position(lz) & POS_STATE_MASK;
+      while (!feof(fin) && !ferror(fin)) {
+        let pos_state = get_data_position() & POS_STATE_MASK
         // bit 1
         if (lz_rd_decode_bit(rd, &bm_match[state][pos_state]) == 0) {
           const uint8_t prev_byte = lz_peek(lz, 0);
           const int literal_state =
           prev_byte >> (8 - LITERAL_CONTEXT_BITS);
           int *bm = bm_literal[literal_state];
-          if (lz_st_is_char(state))
-              lz_put(lz, lz_rd_decode_tree(rd, bm, 8));
+          if (lz_st_is_char(state)) {
+            lz_put(lz, lz_rd_decode_tree(rd, bm, 8));
+          }
           else {
             int peek = lz_peek(lz, rep[0]);
             lz_put(lz, lz_rd_decode_matched(rd, bm, peek));
@@ -414,7 +425,7 @@ class Lzma {
           state = lz_st_get_char(state);
           continue;
         }
-        int len;
+        var len = 0
         // bit 2
         if (lz_rd_decode_bit(rd, &bm_rep[0][state]) != 0) {
           // bit 3
@@ -431,13 +442,15 @@ class Lzma {
             unsigned distance;
             // bit 4
             if (lz_rd_decode_bit(rd, &bm_rep[2][state])
-                == 0)
-                distance = rep[1];
+                == 0) {
+              distance = rep[1];
+            }
             else {
               // bit 5
               if (lz_rd_decode_bit(rd,
-                                   &bm_rep[3][state]) == 0)
-                  distance = rep[2];
+                                   &bm_rep[3][state]) == 0) {
+                distance = rep[2];
+              }
               else {
                 distance = rep[3];
                 rep[3] = rep[2];
@@ -451,21 +464,22 @@ class Lzma {
           len = MIN_MATCH_LEN +
           lz_rd_decode_len(rd, &rep_len_model, pos_state);
         } else {
-          rep[3] = rep[2]; rep[2] = rep[1]; rep[1] = rep[0];
+          rep[3] = rep[2]
+          rep[2] = rep[1]
+          rep[1] = rep[0]
           len = MIN_MATCH_LEN +
           lz_rd_decode_len(rd, &match_len_model, pos_state);
-          const int len_state =
-          MIN(len - MIN_MATCH_LEN, STATES - 1);
-          rep[0] = lz_rd_decode_tree(rd, bm_dis_slot[len_state],
-                                     DIS_SLOT_BITS);
+          let len_state = min(len - MIN_MATCH_LEN, STATES - 1)
+          rep[0] = lz_rd_decode_tree(rd, bm_dis_slot[len_state], DIS_SLOT_BITS)
           if (rep[0] >= DIS_MODEL_START) {
             const unsigned dis_slot = rep[0];
             const int direct_bits = (dis_slot >> 1) - 1;
             rep[0] = (2 | (dis_slot & 1)) << direct_bits;
-            if (dis_slot < DIS_MODEL_END)
-                rep[0] += lz_rd_decode_tree_reversed(rd,
-                                                     &bm_dis[rep[0] - dis_slot],
-                                                     direct_bits);
+            if (dis_slot < DIS_MODEL_END) {
+              rep[0] += lz_rd_decode_tree_reversed(rd,
+                                                   &bm_dis[rep[0] - dis_slot],
+                                                   direct_bits);
+            }
             else {
               rep[0] += lz_rd_decode(rd, direct_bits
                                      - DIS_ALIGN_BITS) << DIS_ALIGN_BITS;
@@ -484,10 +498,11 @@ class Lzma {
             return false;
           }
         }
-        for (int i = 0; i < len; i++)
-              lz_put(lz, lz_peek(lz, rep[0]));
+        for _ in 0 ..< len {
+          put(peek(rep[0]))
+        }
       }
-      lz_flush(lz);
+      flush()
       return false;
     }
 
@@ -499,20 +514,22 @@ class Lzma {
   let TRAILER_SIZE = 20
 
 
-  func lz_decode(int fin, int fdout, unsigned dict_size, off_t *insize) -> UInt {
-    struct lz_decoder lz;
+  func decode(_ fin : FileDescriptor, _ fdout : FileDescriptor, _ dict_size : UInt) -> (UInt, UInt) {
     off_t rv = -1;
 
-    if (lz_create(&lz, fin, fdout, dict_size) == -1)
-        return -1;
+    if (lz_create(&lz, fin, fdout, dict_size) == -1) {
+      return -1;
+    }
 
-    if (!lz_decode_member(&lz))
-        goto out;
+    if (!lz_decode_member(&lz)) {
+      goto out;
+    }
 
     uint8_t trailer[TRAILER_SIZE];
 
-    for(size_t i = 0; i < nitems(trailer); i++)
-        trailer[i] = (uint8_t)getc(lz.fin);
+    for(size_t i = 0; i < nitems(trailer); i++) {
+      trailer[i] = (uint8_t)getc(lz.fin);
+    }
 
     unsigned crc = 0;
     for (int i = 3; i >= 0; --i) {
@@ -526,16 +543,18 @@ class Lzma {
       data_size += trailer[i];
     }
 
-    if (crc != lz_get_crc(&lz) || data_size != lz_get_data_position(&lz))
-        goto out;
+    if (crc != lz_get_crc(&lz) || data_size != lz_get_data_position(&lz)) {
+      goto out;
+    }
 
     rv = 0;
     for (int i = 19; i >= 12; --i) {
       rv <<= 8;
       rv += trailer[i];
     }
-    if (insize)
-        *insize = rv;
+    if (insize) {
+      *insize = rv;
+    }
 
     rv = data_size;
 
@@ -554,24 +573,27 @@ class Lzma {
   let MIN_DICTIONARY_SIZE = (1 << 12)
   let MAX_DICTIONARY_SIZE = (1 << 29)
 
-  lelt hdrmagic : [Character] = [ "L", "Z", "I", "P", "\u{01}" ]
+  let hdrmagic : [Character] = [ "L", "Z", "I", "P", "\u{01}" ]
 
-  func lz_get_dict_size(unsigned char c) -> UInt {
-    unsigned dict_size = 1 << (c & 0x1f);
-    dict_size -= (dict_size >> 2) * ( (c >> 5) & 0x7);
-    if (dict_size < MIN_DICTIONARY_SIZE || dict_size > MAX_DICTIONARY_SIZE)
-        return 0;
+  func get_dict_size(_ c : UInt8) -> Int {
+    var dict_size = 1 << (c & 0x1f)
+    dict_size -= (dict_size >> 2) * ( (Int(c) >> 5) & 0x7)
+    if (dict_size < MIN_DICTIONARY_SIZE || dict_size > MAX_DICTIONARY_SIZE) {
+      return 0;
+    }
     return dict_size;
   }
 
-  func unlz(_ fin : FileDescriptor, _ fout : FileDescriptor, _ pre : [UInt8]) -> (UInt, UInt) {
-    if (lz_crc[0] == 0)
-        lz_crc_init();
+  func unlz(_ fin : FileDescriptor, _ fout : FileDescriptor, _ pre : [UInt8]) -> (UInt, UInt)? {
+    if (lz_crc[0] == 0) {
+      crc_init()
+    }
 
-    char header[HDR_SIZE];
+    var header = Array(repeating: UInt8(0), count: HDR_SIZE)
 
-    if (pre && prelen)
-        memcpy(header, pre, prelen);
+    if (pre && prelen) {
+      memcpy(header, pre, prelen);
+    }
 
     ssize_t nr = read(fin, header + prelen, sizeof(header) - prelen);
     switch (nr) {
@@ -580,19 +602,21 @@ class Lzma {
       case 0:
         return prelen ? -1 : 0;
       default:
-        if ((size_t)nr != sizeof(header) - prelen)
-            return (-1, bytes_in);
+        if ((nr != sizeof(header) - prelen) {
+          return nil
+        }
         break;
     }
 
-    if (memcmp(header, hdrmagic, sizeof(hdrmagic)) != 0)
-        return -1;
+    if (memcmp(header, hdrmagic, sizeof(hdrmagic)) != 0) {
+      return nil
+    }
 
-    unsigned dict_size = lz_get_dict_size(header[5]);
-    if (dict_size == 0)
-        return -1;
+    let dict_size = get_dict_size(header[5])
+    if dict_size == 0 {
+      return nil
+    }
 
-    let bo = lz_decode(fin, fout, dict_size, bytes_in);
-    return (bo, bytes_in)
+    return decode(fin, fout, UInt(dict_size))
   }
 }

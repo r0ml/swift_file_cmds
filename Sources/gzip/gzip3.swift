@@ -88,6 +88,8 @@ extension gzip {
 
     var out : FileDescriptor
     var outfile = r.outfile!
+    var size = UInt(0)
+
     if (!options.cflag) {
       guard let out = try? FileDescriptor.open(outfile, .writeOnly, options: [.create, .exclusiveCreate], permissions: FilePermissions(rawValue: 0o0600) ) else {
         maybe_warn("could not create output: \(outfile)")
@@ -100,7 +102,14 @@ extension gzip {
       out = FileDescriptor.standardOutput
     }
 
-    var (in_size, size) = gz_compress(inx, out, basename(file), isb.lastWrite)
+    defer {
+      try? out.close()
+    }
+    if let k = gz_compress(inx, out, basename(file), isb.lastWrite) {
+      (size, in_size) = k
+    } else {
+      return nil
+    }
 
     /*
      * If there was an error, in_size will be -1.
@@ -113,31 +122,30 @@ extension gzip {
       return in_size == -1 ? -1 : size;
     }
 
-    if (fstat(out, &osb) != 0) {
-      maybe_warn("couldn't stat: %s", outfile);
+    guard let osb = try? FileMetadata(for: out) else {
+      maybe_warn("couldn't stat: \(outfile)")
       goto bad_outfile;
     }
 
-    if (osb.st_size != size) {
-      maybe_warnx("output file: %s wrong size (%ju != %ju), deleting",
-                  outfile, (uintmax_t)osb.st_size, (uintmax_t)size);
+    if (osb.size != size) {
+      maybe_warnx("output file: \(outfile) wrong size (\(osb.size) != \(size)), deleting")
       goto bad_outfile;
     }
 
-    fcopyfile(in, out, 0, COPYFILE_ACL | COPYFILE_XATTR);
+    fcopyfile(inx.rawValue, out.rawValue, nil, copyfile_flags_t(COPYFILE_ACL | COPYFILE_XATTR))
     clear_type_and_creator(out);
 
-    copymodes(out, &isb, outfile);
+    copymodes(out, isb, outfile);
     r.remove_file = nil
 
-    close(in);
-    if (close(out) == -1) {
+    try? inx.close()
+    guard let _ = try? out.close() else {
       maybe_warn("couldn't close output");
     }
 
     /* output is good, ok to delete input */
-    unlink_input(file, &isb);
-    return (size, outfile)
+    unlink_input(file, isb)
+    return size
 
   bad_outfile:
     if (close(out) == -1) {
@@ -150,7 +158,7 @@ extension gzip {
   }
 
   /* uncompress the given file and remove the original */
-  func file_uncompress(_ file : String) -> UInt {
+  func file_uncompress(_ file : String) -> UInt? {
     /*    struct stat isb, osb;
      off_t size;
      ssize_t rbytes;
@@ -167,15 +175,18 @@ extension gzip {
 
     /* gather the old name info */
 
+    var size : UInt? = nil
+
     guard let fd = try? FileDescriptor.open(file, .readOnly) else {
       maybe_warn("can't open \(file)")
       return -1
     }
+
     defer { try? fd.close() }
 
     guard let isb = try? FileMetadata(for: fd) else {
       maybe_warn("can't stat \(file)")
-      return -1
+      return nil
     }
 
     var in_size = isb.filetype == .regular ? isb.size : 0
@@ -185,7 +196,7 @@ extension gzip {
     var outfile = file
     if check_suffix(outfile) == nil && !(options.cflag || options.lflag) {
       maybe_warnx("\(file): unknown suffix -- ignored")
-      goto lose;
+      return nil
     }
 
     let fourbytes = try? fd.readUpToCount(4)
@@ -193,32 +204,34 @@ extension gzip {
       /* we don't want to fail here. */
 
       if options.fflag {
-        return -1
+        return nil
       }
       if fourbytes == nil {
         maybe_warn("can't read \(file)")
       }
       else {
-        goto unexpected_EOF;
+        maybe_warnx("\(file): unexpected end of file")
+        return nil
       }
-      return -1
+      return nil
     }
 
     r.infile_current += rbytes
 
     let method = file_gettype(fourbytes);
 
-    if (!options.fflag && method == .UNKNOWN) {
-      maybe_warnx("%s: not in gzip format", file);
-      goto lose;
+    if !options.fflag && method == .UNKNOWN {
+      maybe_warnx("%s: not in gzip format", file)
+      return nil
     }
 
-    if (method == .GZIP && options.Nflag) {
-      unsigned char ts[4];  /* timestamp */
+    if method == .GZIP && options.Nflag {
+      //      unsigned char ts[4];  /* timestamp */
 
       rv = pread(fd, ts, sizeof ts, GZIP_TIMESTAMP);
       if (rv >= 0 && rv < (ssize_t)(sizeof ts)) {
-        goto unexpected_EOF;
+        maybe_warnx("\(file): unexpected end of file")
+        return nil
       }
       if (rv == -1) {
         if (!options.fflag) {
@@ -267,174 +280,170 @@ extension gzip {
 
     lseek(fd, 0, SEEK_SET);
 
-    if (!options.cflag || options.lflag) {
+    if !options.cflag || options.lflag {
 
-      if (isb.st_nlink > 1 && !options.lflag && !options.fflag) {
-        maybe_warnx("%s has %ju other links -- skipping",
-                    file, (uintmax_t)isb.st_nlink - 1);
-        goto lose;
+      if isb.links > 1 && !options.lflag && !options.fflag {
+        maybe_warnx("\(file) has \(isb.links-1) other links -- skipping")
+        return nil
       }
-      if (!options.nflag && timestamp) {
-        isb.st_mtime = timestamp;
+      if !options.nflag && timestamp {
+        isb.lastWrite = timestamp
       }
-      if (check_outfile(outfile) == 0) {
-        goto lose;
+      if !check_outfile(outfile) {
+        return nil
       }
     }
 
-    if (options.cflag) {
-      zfd = STDOUT_FILENO;
+    let zfd : FileDescriptor?
+
+    if options.cflag {
+      zfd = FileDescriptor.standardOutput
     }
-    else if (options.lflag) {
-      zfd = -1;
+    else if options.lflag {
+      zfd = nil
     }
     else {
-      zfd = open(outfile, O_WRONLY|O_CREAT|O_EXCL, 0600);
-      if (zfd == STDOUT_FILENO) {
-        /* We won't close STDOUT_FILENO later... */
-        zfd = dup(zfd);
-        close(STDOUT_FILENO);
+      guard let zz = try? FileDescriptor.open(outfile, .writeOnly, options: [.create, .exclusiveCreate], permissions: .init(rawValue:  0o0600)) else {
+        maybe_warn("can't open \(outfile)")
+        return nil
       }
-      if (zfd == -1) {
-        maybe_warn("can't open %s", outfile);
-        goto lose;
+
+      if zz == FileDescriptor.standardOutput {
+        /* We won't close STDOUT_FILENO later... */
+        zfd = try? zz.duplicate()
+        FileDescriptor.standardOutput.close()
       }
       r.remove_file = outfile
     }
 
-    switch (method) {
+    defer {
+      if let rf = r.remove_file, !options.cflag {
+        unlink(rf)
+      }
+      r.remove_file = nil
+    }
+
+    defer {
+      if zfd != FileDescriptor.standardOutput {
+        try? zfd?.close()
+      }
+    }
+
+    switch method {
 
       case .BZIP2:
         /* XXX */
-        if (options.lflag) {
+        if options.lflag {
           maybe_warnx("no -l with bzip2 files");
-          goto lose;
+          return nil
         }
 
-        size = unbzip2(fd, zfd, NULL, 0, NULL);
-        break;
+        if let k = unbzip2(fd, zfd!, []) {
+          size = k.0
+        } else {
+          return nil
+        }
 
-      case .Z: {
-        FILE *in, *out;
+      case .Z:
 
         /* XXX */
-        if (options.lflag) {
+        if options.lflag {
           maybe_warnx("no -l with Lempel-Ziv files");
-          goto lose;
+          return nil
         }
 
-        if ((in = zdopen(fd)) == NULL) {
-          maybe_warn("zdopen for read: %s", file);
-          goto lose;
-        }
+        let inx = s_zstate.zdopen(fd) /* else {
+          maybe_warn("zdopen for read: \(file)")
+          return nil
+        }*/
 
-        out = fdopen(dup(zfd), "w");
-        if (out == NULL) {
-          maybe_warn("fdopen for write: %s", outfile);
-          fclose(in);
-          goto lose;
-        }
+        let out = zfd!.duplicate() /* else {
+          maybe_warn("fdopen for write: \(outfile)")
+          inx.zclose()
+          return nil
+        }*/
 
-        size = zuncompress(in, out, NULL, 0, NULL);
+        (size, _) = inx.zuncompress(out, [])
+
         /* need to fclose() if ferror() is true... */
-        error = ferror(in);
-        if (error | fclose(in)) {
+        let error = ferror(inx);
+        if (error | fclose(inx)) {
           if (error) {
-            maybe_warn("failed infile");
+            maybe_warn("failed infile")
           }
           else {
-            maybe_warn("failed infile fclose");
-          }
-          if (!options.cflag) {
-            unlink(outfile);
+            maybe_warn("failed infile fclose")
           }
           fclose(out);
-          goto lose;
+          return nil
         }
         if (fclose(out) != 0) {
           maybe_warn("failed outfile fclose");
-          if (!options.cflag) {
-            unlink(outfile);
-          }
-          goto lose;
+          return nil
         }
-        break;
-      }
 
       case .PACK:
-        if (options.lflag) {
-          maybe_warnx("no -l with packed files");
-          goto lose;
+        if options.lflag {
+          maybe_warnx("no -l with packed files")
+          return nil
         }
 
-        size = unpack(fd, zfd, NULL, 0, NULL);
-        break;
+        (size, _) = unpack_descriptor_t(self).unpack(fd, zfd!, [])
 
       case .XZ:
-        if (options.lflag) {
+        if options.lflag {
           size = unxz_len(fd);
           if (!options.tflag) {
-            print_list_out(in_size, size, file);
-            close(fd);
-            return -1;
+            print_list_out(in_size, size!, file);
+            return nil
           }
         } else {
-          size = unxz(fd, zfd, NULL, 0, NULL);
+          (size, _) = unxz(fd, zfd!, [])
         }
-        break;
 
       case .LZ:
-        if (options.lflag) {
+        if options.lflag {
           maybe_warnx("no -l with lzip files");
-          goto lose;
+          return nil
         }
-        size = unlz(fd, zfd, NULL, 0, NULL);
+        (size, _) = lz().unlz(fd, zfd!, [])
         break;
 
       case .UNKNOWN:
         if (options.lflag) {
-          maybe_warnx("no -l for unknown filetypes");
-          goto lose;
+          maybe_warnx("no -l for unknown filetypes")
+          return nil
         }
-        size = cat_fd(NULL, 0, NULL, fd);
-        break;
+        size = cat_fd([], FileDescriptor.standardInput)
 
       default:
-        if (options.lflag) {
-          print_list(fd, in_size, outfile, isb.st_mtime);
-          if (!options.tflag) {
-            close(fd);
-            return -1;  /* XXX */
+        if options.lflag {
+          print_list(fd, in_size, outfile, isb.lastWrite)
+          if !options.tflag {
+            return nil  /* XXX */
           }
         }
 
-        size = gz_uncompress(fd, zfd, NULL, 0, NULL, file);
-        break;
+        if let k = gz_uncompress(fd, zfd!, [], file) {
+          size = k.0
+        } else {
+          return nil
+        }
     }
 
-    if (close(fd) != 0) {
-      maybe_warn("couldn't close input");
-    }
-    if (zfd != STDOUT_FILENO && close(zfd) != 0) {
-      maybe_warn("couldn't close output");
-    }
-
-    if (size == -1) {
-      if (!options.cflag) {
-        unlink(outfile);
-      }
+    guard let size else {
       maybe_warnx("%s: uncompress failed", file);
-      return -1;
+      return nil
     }
 
     /* if testing, or we uncompressed to stdout, this is all we need */
 
-    if (options.tflag) {
-      return size;
+    if options.tflag {
+      return size
     }
 
     /* if we are uncompressing to stdin, don't remove the file. */
-    if (options.cflag) {
+    if options.cflag {
       return size;
     }
 
@@ -445,92 +454,67 @@ extension gzip {
      * if we can't stat the file don't remove the file.
      */
 
-    ofd = open(outfile, O_RDWR, 0);
-    if (ofd == -1) {
-      maybe_warn("couldn't open (leaving original): %s",
-                 outfile);
-      return -1;
-    }
-    if (fstat(ofd, &osb) != 0) {
-      maybe_warn("couldn't stat (leaving original): %s",
-                 outfile);
-      close(ofd);
-      return -1;
-    }
-    if (osb.st_size != size) {
-      maybe_warnx("stat gave different size: %ju != %ju (leaving original)",
-                  (uintmax_t)size, (uintmax_t)osb.st_size);
-      close(ofd);
-      unlink(outfile);
-      return -1;
+    guard let ofd = try? FileDescriptor.open(outfile, .readWrite) else {
+      maybe_warn("couldn't open (leaving original): \(outfile)")
+      return nil
     }
 
-    copymodes(ofd, &isb, outfile);
-    r.remove_file = nil
+    defer { try? ofd.close() }
 
-    close(ofd);
-    unlink_input(file, &isb);
-    return size;
+    guard let osb = try? FileMetadata(for: ofd) else {
+      maybe_warn("couldn't stat (leaving original): \(outfile)")
+      return nil
+    }
+    if osb.size != size {
+      maybe_warnx("stat gave different size: \(size)) != \(osb.size) (leaving original)")
+      return nil
+    }
 
-  unexpected_EOF:
-    maybe_warnx("%s: unexpected end of file", file);
-  lose:
-    if (fd != -1) {
-      close(fd);
-    }
-    if (zfd != -1 && zfd != STDOUT_FILENO) {
-      close(zfd);
-    }
-    return -1;
+    copymodes(ofd, isb, outfile)
+    unlink_input(file, isb)
+    return size
   }
 
   func check_siginfo() {
-    if (print_info == 0) {
-      return;
+    var stderr = FileDescriptor.standardError
+    if !r.print_info {
+      return
     }
-    if (infile) {
-      if (infile_total) {
-        int pcent = (int)((100.0 * infile_current) / infile_total);
-
-        fprintf(stderr, "%s: done %llu/%llu bytes %d%%\n",
-                infile, (unsigned long long)infile_current,
-                (unsigned long long)infile_total, pcent);
+    if let inf = r.infile {
+      if 0 != r.infile_total {
+        let pcent = Int((100 * r.infile_current) / r.infile_total)
+        print("\(inf): done \(r.infile_current)/\(r.infile_total) bytes \(pcent)%", to: &stderr)
       } else {
-        fprintf(stderr, "%s: done %llu bytes\n",
-                infile, (unsigned long long)infile_current);
+        print("\(inf): done \(r.infile_current) bytes", to: &stderr)
       }
     }
-    print_info = 0;
+    r.print_info = false
   }
 
-  func cat_fd(_ prepend : [UInt8], _ fd : FileDescriptor) -> UInt {
-    char buf[BUFLEN];
-    off_t in_tot;
-    ssize_t w;
+  func cat_fd(_ prepend : [UInt8], _ fd : FileDescriptor) -> UInt? {
 
-    in_tot = count;
-    w = write_retry(STDOUT_FILENO, prepend, count);
-    if (w == -1 || (size_t)w != count) {
+    var in_tot = UInt(prepend.count)
+    guard let w = try? FileDescriptor.standardOutput.write(prepend) else {
       maybe_warn("write to stdout");
-      return -1;
+      return nil
     }
     while true {
-      let rv = read(fd, buf, sizeof buf);
-      if (rv == 0) {
-        break;
-      }
-      if (rv < 0) {
+      guard let buf = try? fd.readUpToCount(Self.BUFLEN) else {
         maybe_warn("read from fd \(fd.rawValue)")
         break;
       }
 
-      r.infile_current += rv
+      if buf.isEmpty {
+        break;
+      }
 
-      if (write_retry(STDOUT_FILENO, buf, rv) != rv) {
+      r.infile_current += UInt(buf.count)
+
+      guard let rv = try? FileDescriptor.standardOutput.write(buf) else {
         maybe_warn("write to stdout");
         break;
       }
-      in_tot += rv;
+      in_tot += UInt(rv)
     }
 
     return in_tot;

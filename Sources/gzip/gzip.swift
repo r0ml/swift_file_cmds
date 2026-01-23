@@ -48,7 +48,7 @@ import zlib
     var outfile : String? = nil
     var firstPrint = true
 
-    var print_info : sig_atomic_t = 0
+    var print_info = false
 
 
     var remove_file : String? = nil

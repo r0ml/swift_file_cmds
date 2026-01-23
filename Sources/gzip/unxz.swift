@@ -39,9 +39,17 @@ import Darwin
 import LZMA
 import zlib
 
+let IO_BUFFER_SIZE = 8192
+
+fileprivate var bufferSize = max(Int(BUFSIZ), Int(IO_BUFFER_SIZE))
+fileprivate var ibuf = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
+fileprivate var obuf = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
+
 extension gzip {
 
-  func unxz(_ i : FileDescriptor, _ o : FileDescriptor, _ pre : [UInt8]) -> (UInt, UInt) {
+
+
+  func unxz(_ i : FileDescriptor, _ o : FileDescriptor, _ pre : [UInt8]) -> (UInt, UInt)? {
 
     /*
      lzma_stream strm = LZMA_STREAM_INIT;
@@ -60,17 +68,19 @@ extension gzip {
     let LZMA_CONCATENATED = 0x08
     let flags = UInt32(LZMA_TELL_UNSUPPORTED_CHECK | LZMA_CONCATENATED)
 
-    var bytes_in = UInt(0)
 
-    strm.next_in = ibuf;
-    memcpy(ibuf, pre, prelen);
-    strm.avail_in = read(i, ibuf + prelen, sizeof(ibuf) - prelen);
-    if (strm.avail_in == -1) {
+    ibuf.update(from: pre, count: pre.count)
+    strm.next_in = UnsafePointer<UInt8>(ibuf) + pre.count
+    strm.avail_in = pre.count
+
+    guard let j = try? i.read(into: UnsafeMutableRawBufferPointer(start: ibuf + strm.avail_in, count: bufferSize)) else {
       maybe_err("read failed")
+      return nil
     }
-    infile_newdata(strm.avail_in)
-    strm.avail_in += pre.count
-    bytes_in = UInt(strm.avail_in)
+
+    r.infile_current += UInt(j)
+    strm.avail_in += j
+    var bytes_in = UInt(strm.avail_in)
 
     let ret2 = lzma_stream_decoder(&strm, UINT64_MAX, flags)
     if ret2 != LZMA_OK {
@@ -86,24 +96,21 @@ extension gzip {
 
     var bytes_out = UInt(0)
     strm.next_out = obuf;
-    strm.avail_out = sizeof(obuf);
+    strm.avail_out = bufferSize
 
     while true {
       check_siginfo()
       if strm.avail_in == 0 {
-        strm.next_in = ibuf
-        strm.avail_in = read(i, ibuf, sizeof(ibuf));
-        switch strm.avail_in {
-          case -1:
-            maybe_err("read failed")
-
-          case 0:
-            action = LZMA_FINISH;
-            break;
-          default:
+        strm.next_in = UnsafePointer<UInt8>(ibuf)
+        guard let j = try? i.read(into: UnsafeMutableRawBufferPointer(start: ibuf, count: bufferSize)) else {
+          maybe_err("read failed")
+          return nil
+        }
+        if j == 0 {
+          action = LZMA_FINISH
+        } else {
             r.infile_current += UInt(strm.avail_in)
             bytes_in += UInt(strm.avail_in)
-            break;
         }
       }
 
@@ -113,21 +120,24 @@ extension gzip {
       // This way as much data as possible gets written to output
       // even if decoder detected an error.
       if (strm.avail_out == 0 || ret != LZMA_OK) {
-        const size_t write_size = sizeof(obuf) - strm.avail_out;
+        let  write_size = bufferSize - strm.avail_out
 
-        if (write(o, obuf, write_size) != (ssize_t)write_size) {
+        guard let j = try? o.write(UnsafeRawBufferPointer(start: obuf, count: write_size)) else {
           maybe_err("write failed");
         }
 
         strm.next_out = obuf;
-        strm.avail_out = sizeof(obuf);
-        bytes_out += write_size;
+        strm.avail_out = bufferSize
+        bytes_out += UInt(write_size);
       }
 
-      if (ret != LZMA_OK) {
-        if (ret == LZMA_STREAM_END) {
+      if ret != LZMA_OK {
+        if ret == LZMA_STREAM_END {
           // Check that there's no trailing garbage.
-          if (strm.avail_in != 0 || read(i, ibuf, 1)) {
+          if strm.avail_in != 0 {
+            ret = LZMA_DATA_ERROR
+          }
+          if let j = try? i.read(into: UnsafeMutableRawBufferPointer(start: ibuf, count: 1)), j > 0 {
             ret = LZMA_DATA_ERROR;
           }
           else {
@@ -181,14 +191,15 @@ extension gzip {
   #       define IO_BUFFER_SIZE (BUFSIZ & ~7U)
 #endif
 */
+
   /// is_sparse() accesses the buffer as uint64_t for maximum speed.
   /// Use an union to make sure that the buffer is properly aligned.
-  typedef union {
+/*  typedef union {
     uint8_t u8[IO_BUFFER_SIZE];
     uint32_t u32[IO_BUFFER_SIZE / sizeof(uint32_t)];
     uint64_t u64[IO_BUFFER_SIZE / sizeof(uint64_t)];
   } io_buf;
-
+*/
 
   func io_pread(_ fd : FileDescriptor, _ size : size_t, _ pos : off_t) -> [UInt8]? {
     // Using lseek() and read() is more portable than pread() and
@@ -226,7 +237,7 @@ extension gzip {
   /// Information about a .xz file
   struct xz_file_info {
     /// Combined Index of all Streams in the file
-    var idx : lzma_index? = nil
+    var idx : OpaquePointer? = nil
 
     /// Total amount of Stream Padding
     var stream_padding : UInt = 0
@@ -257,7 +268,7 @@ extension gzip {
   // TODO: This function is pretty big. liblzma should have a function that
   // takes a callback function to parse the Index(es) from a .xz file to make
   // it easy for applications.
-  func parse_indexes(_ xfi : xz_file_info, _ src_fd : FileDescriptor) -> Bool {
+  func parse_indexes(_ xfi : inout xz_file_info, _ src_fd : FileDescriptor) -> Bool {
 
     guard let st = try? FileMetadata(for: src_fd) else {
       return true
@@ -267,29 +278,34 @@ extension gzip {
       return true
     }
 
-    defer {
-      lzma_end(&strm);
-      lzma_index_end(combined_index, NULL);
-      lzma_index_end(this_index, NULL);
-    }
-
-    io_buf buf;
+/*    io_buf buf;
     lzma_stream_flags header_flags;
     lzma_stream_flags footer_flags;
     lzma_ret ret;
+*/
 
     // lzma_stream for the Index decoder
     var strm = lzma_stream()
+    var header_flags = lzma_stream_flags()
+    var footer_flags = lzma_stream_flags()
+
 
     // All Indexes decoded so far
-    lzma_index *combined_index = NULL;
+    var combined_index : OpaquePointer? = nil
 
     // The Index currently being decoded
-    lzma_index *this_index = NULL;
+    var this_index : OpaquePointer? = nil
+
+    defer {
+      lzma_end(&strm)
+      lzma_index_end(combined_index, nil)
+      lzma_index_end(this_index, nil)
+    }
+
 
     // Current position in the file. We parse the file backwards so
     // initialize it to point to the end of the file.
-    off_t pos = st.st_size;
+    var pos = st.size
 
     // Each loop iteration decodes one Index.
     repeat {
@@ -297,45 +313,49 @@ extension gzip {
       // the Stream Header and Stream Footer. This check cannot
       // fail in the first pass of this loop.
       if (pos < 2 * LZMA_STREAM_HEADER_SIZE) {
-        goto error;
+        return true
       }
 
-      pos -= LZMA_STREAM_HEADER_SIZE;
-      lzma_vli stream_padding = 0;
+      pos -= UInt(LZMA_STREAM_HEADER_SIZE)
+      var stream_padding : lzma_vli = 0
+
+      var buf : [UInt8]
 
       // Locate the Stream Footer. There may be Stream Padding which
       // we must skip when reading backwards.
-      while (true) {
-        if (pos < LZMA_STREAM_HEADER_SIZE) {
-          goto error;
+      while true {
+        if pos < LZMA_STREAM_HEADER_SIZE {
+          return true
         }
 
-        if (io_pread(src_fd, &buf,
-                     LZMA_STREAM_HEADER_SIZE, pos)) {
-          goto error;
+        guard var b = io_pread(src_fd, Int(LZMA_STREAM_HEADER_SIZE), Int64(pos) ) else {
+          return true
         }
+        buf = b
 
         // Stream Padding is always a multiple of four bytes.
-        int i = 2;
-        if (buf.u32[i] != 0) {
-          break;
+        let bi = withUnsafeBytes(of: &buf) { p in
+          p.assumingMemoryBound(to: UInt32.self)[0..<3]
+        }
+        var i = 2
+        if bi[i] != 0 {
+          break
         }
 
         // To avoid calling io_pread() for every four bytes
         // of Stream Padding, take advantage that we read
         // 12 bytes (LZMA_STREAM_HEADER_SIZE) already and
         // check them too before calling io_pread() again.
-        do {
+        repeat {
           stream_padding += 4;
           pos -= 4;
-          --i;
-        } while (i >= 0 && buf.u32[i] == 0);
+          i -= 1
+        } while i >= 0 && bi[i] == 0
       }
 
       // Decode the Stream Footer.
-      ret = lzma_stream_footer_decode(&footer_flags, buf.u8);
-      if (ret != LZMA_OK) {
-        goto error;
+      guard LZMA_OK == lzma_stream_footer_decode(&footer_flags, buf) else {
+        return true
       }
 
       // Check that the Stream Footer doesn't specify something
@@ -346,114 +366,110 @@ extension gzip {
       // It is enough to check Stream Footer. Stream Header must
       // match when it is compared against Stream Footer with
       // lzma_stream_flags_compare().
-      if (footer_flags.version != 0) {
-        goto error;
+      if footer_flags.version != 0 {
+        return true
       }
 
       // Check that the size of the Index field looks sane.
-      lzma_vli index_size = footer_flags.backward_size;
-      if ((lzma_vli)(pos) < index_size + LZMA_STREAM_HEADER_SIZE) {
-        goto error;
+      var index_size = footer_flags.backward_size
+      if pos < index_size + UInt64(LZMA_STREAM_HEADER_SIZE) {
+        return true
       }
 
       // Set pos to the beginning of the Index.
-      pos -= index_size;
+      pos -= UInt(index_size)
 
       // Decode the Index.
-      ret = lzma_index_decoder(&strm, &this_index, UINT64_MAX);
-      if (ret != LZMA_OK) {
-        goto error;
+      guard LZMA_OK == lzma_index_decoder(&strm, &this_index, UINT64_MAX) else {
+        return true
       }
 
-      do {
+      var ret3 = lzma_ret(0)
+      repeat {
         // Don't give the decoder more input than the
         // Index size.
-        strm.avail_in = my_min(IO_BUFFER_SIZE, index_size);
-        if (io_pread(src_fd, &buf, strm.avail_in, pos)) {
-          goto error;
+        strm.avail_in = Int(min(lzma_vli(IO_BUFFER_SIZE), index_size))
+        guard let b = io_pread(src_fd, size_t(strm.avail_in), off_t(pos)) else {
+          return true
         }
+        buf = b
+        pos += UInt(strm.avail_in)
+        index_size -= UInt64(strm.avail_in)
 
-        pos += strm.avail_in;
-        index_size -= strm.avail_in;
+        ibuf.update(from: buf, count: b.count)
 
-        strm.next_in = buf.u8;
-        ret = lzma_code(&strm, LZMA_RUN);
+        strm.next_in = UnsafePointer<UInt8>(ibuf)
+        ret3 = lzma_code(&strm, LZMA_RUN);
 
-      } while (ret == LZMA_OK);
+      } while ret3 == LZMA_OK
 
       // If the decoding seems to be successful, check also that
       // the Index decoder consumed as much input as indicated
       // by the Backward Size field.
-      if (ret == LZMA_STREAM_END) {
+      if ret3 == LZMA_STREAM_END {
         if (index_size != 0 || strm.avail_in != 0) {
-          ret = LZMA_DATA_ERROR;
+          ret3 = LZMA_DATA_ERROR;
         }
       }
 
-      if (ret != LZMA_STREAM_END) {
+      if ret3 != LZMA_STREAM_END {
         // LZMA_BUFFER_ERROR means that the Index decoder
         // would have liked more input than what the Index
         // size should be according to Stream Footer.
         // The message for LZMA_DATA_ERROR makes more
         // sense in that case.
-        if (ret == LZMA_BUF_ERROR) {
-          ret = LZMA_DATA_ERROR;
+        if ret3 == LZMA_BUF_ERROR {
+          ret3 = LZMA_DATA_ERROR;
         }
 
-        goto error;
+        return true
       }
 
       // Decode the Stream Header and check that its Stream Flags
       // match the Stream Footer.
-      pos -= footer_flags.backward_size + LZMA_STREAM_HEADER_SIZE;
-      if ((lzma_vli)(pos) < lzma_index_total_size(this_index)) {
-        goto error;
+      pos -= UInt(footer_flags.backward_size) + UInt(LZMA_STREAM_HEADER_SIZE)
+      if pos < lzma_index_total_size(this_index) {
+        return true
       }
 
-      pos -= lzma_index_total_size(this_index);
-      if (io_pread(src_fd, &buf, LZMA_STREAM_HEADER_SIZE, pos)) {
-        goto error;
+      pos -= UInt(lzma_index_total_size(this_index))
+      guard let buf = io_pread(src_fd, size_t(LZMA_STREAM_HEADER_SIZE), off_t(pos)) else {
+        return true
       }
 
-      ret = lzma_stream_header_decode(&header_flags, buf.u8);
-      if (ret != LZMA_OK) {
-        goto error;
+      guard LZMA_OK == lzma_stream_header_decode(&header_flags, buf) else {
+        return true
       }
 
-      ret = lzma_stream_flags_compare(&header_flags, &footer_flags);
-      if (ret != LZMA_OK) {
-        goto error;
+      guard LZMA_OK == lzma_stream_flags_compare(&header_flags, &footer_flags) else {
+        return true
       }
 
       // Store the decoded Stream Flags into this_index. This is
       // needed so that we can print which Check is used in each
       // Stream.
-      ret = lzma_index_stream_flags(this_index, &footer_flags);
-      if (ret != LZMA_OK) {
-        goto error;
+      guard LZMA_OK == lzma_index_stream_flags(this_index, &footer_flags) else {
+        return true
       }
 
       // Store also the size of the Stream Padding field. It is
       // needed to show the offsets of the Streams correctly.
-      ret = lzma_index_stream_padding(this_index, stream_padding);
-      if (ret != LZMA_OK) {
-        goto error;
+      guard LZMA_OK == lzma_index_stream_padding(this_index, stream_padding) else {
+        return true
       }
 
-      if (combined_index != NULL) {
+      if (combined_index != nil) {
         // Append the earlier decoded Indexes
         // after this_index.
-        ret = lzma_index_cat(
-          this_index, combined_index, NULL);
-        if (ret != LZMA_OK) {
-          goto error;
+        guard LZMA_OK == lzma_index_cat( this_index, combined_index, nil) else {
+          return true
         }
       }
 
       combined_index = this_index;
-      this_index = NULL;
+      this_index = nil
 
-      xfi->stream_padding += stream_padding;
+      xfi.stream_padding += UInt(stream_padding)
 
     } while (pos > 0);
 
@@ -462,13 +478,14 @@ extension gzip {
     // All OK. Make combined_index available to the caller.
     xfi.idx = combined_index
     return false;
-
+/*
   error:
     // Something went wrong, free the allocated memory.
     lzma_end(&strm);
     lzma_index_end(combined_index, NULL);
-    lzma_index_end(this_index, NULL);
+    lzma_index_end(this_index, nil);
     return true;
+ */
   }
 
   /***************** end of copy form list.c *************************/
@@ -477,11 +494,11 @@ extension gzip {
    * Small wrapper to extract total length of a file
    */
   func unxz_len(_ fd : FileDescriptor) -> UInt {
-    let xfi = xz_file_info()
-    if (!parse_indexes(xfi, fd)) {
+    var xfi = xz_file_info()
+    if (!parse_indexes(&xfi, fd)) {
       let res = lzma_index_uncompressed_size(xfi.idx)
       lzma_index_end(xfi.idx, nil)
-      return res
+      return UInt(res)
     }
     return 0
   }
