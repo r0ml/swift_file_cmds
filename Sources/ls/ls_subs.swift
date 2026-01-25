@@ -180,7 +180,6 @@ extension ls {
 /*    struct stat *sp;
     DISPLAY d;
     FTSENT *cur;
-    NAMES *np;
     off_t maxsize;
     u_int64_t maxblock;
     ino_t maxinode;
@@ -188,13 +187,9 @@ extension ls {
 
     u_int64_t maxlabelstr;
     u_int sizelen;
-    int maxflags;
-    gid_t maxgroup;
-    uid_t maxuser;
     size_t flen, ulen, glen;
     char *initmax;
     int entries, needstats;
-    const char *user, *group;
     char *flags, *labelstr = NULL;
 
     char ngroup[STRBUF_SIZEOF(uid_t) + 1];
@@ -213,10 +208,14 @@ extension ls {
     var flen = 0
     var btotal = UInt(0)
 
+    var np = NAMES()
+
     let LS_COLWIDTHS_FIELDS = 9
     var initmax = Environment["LS_COLWIDTHS"]
     var width = Array(repeating: UInt(0), count: LS_COLWIDTHS_FIELDS)
     var d = DISPLAY()
+    var user : String
+    var group : String
 
     if var initmax {
       var exl = false
@@ -257,8 +256,6 @@ extension ls {
     maxsize = MAKENINES(maxsize)
 
     d.s_size = 0;
-    sizelen = 0;
-    flags = NULL;
     var entries = UInt(0)
     var rval : Int32 = 0
 
@@ -297,7 +294,7 @@ extension ls {
         }
       }
       if (needstats) {
-        let sp = cur.statp!
+        let sp = cur.statp
         if sp.blocks > maxblock {
           maxblock = sp.blocks
         }
@@ -314,14 +311,15 @@ extension ls {
         btotal += sp.blocks
         if options.f_longform {
           if options.f_numericonly {
-            (void)snprintf(nuser, sizeof(nuser),
-                           "%u", sp->st_uid);
-            (void)snprintf(ngroup, sizeof(ngroup),
-                           "%u", sp->st_gid);
+            let nuser = String(sp.userId)
+            let ngroup = String(sp.groupId)
             user = nuser;
             group = ngroup;
           } else {
-            user = user_from_uid(sp->st_uid, 0);
+            guard let u = Darwin.user_from_uid(uid_t(sp.userId), 0) else {
+              err(1, "user_from_uid")
+            }
+            user = String(cString: u)
             /*
              * user_from_uid(..., 0) only returns
              * NULL in OOM conditions.  We could
@@ -331,62 +329,50 @@ extension ls {
              * path directly below, which will
              * likely exit anyway.
              */
-            if (user == NULL) {
-              err(1, "user_from_uid");
-            }
-            group = group_from_gid(sp->st_gid, 0);
+
+            guard let g = Darwin.group_from_gid(gid_t(sp.groupId), 0) else {
             /* Ditto. */
-            if (group == NULL) {
-              err(1, "group_from_gid");
+              err(1, "group_from_gid")
             }
+            group = String(cString: g)
           }
-          if ((ulen = strlen(user)) > maxuser) {
-            maxuser = ulen;
-          }
-          if ((glen = strlen(group)) > maxgroup) {
-            maxgroup = glen;
-          }
-          if (options.f_flags) {
-            if let flags = fflagstostr(sp.flags), !flags.isEmpty {
-              flags = strdup("-");
+
+          maxuser = max(maxuser, UInt(user.count))
+          maxgroup = max(maxgroup, UInt(group.count))
+          var flags : String?
+
+          if options.f_flags {
+            guard let f = fflagstostr(sp.flags) else {
+              err(1, "fflagstostr")
+            }
+            if f.isEmpty {
+              flags = "-"
             } else {
-              err(1, "fflagstostr");
+              flags = f
             }
-            flen = strlen(flags)
-            if (flen > (size_t)maxflags) {
-              maxflags = flen;
-            }
+            maxflags = max(maxflags, UInt(flags!.count))
           } else {
-            flen = 0;
+            flags = ""
           }
-          labelstr = NULL;
+          let labelstr = ""
 
-          labelstrlen = 0;
+          np.user = user
+          np.group = group
 
-          if ((np = calloc(1, sizeof(NAMES) + labelstrlen +
-                           ulen + glen + flen + 4)) == NULL) {
-            err(1, "malloc");
-          }
-
-          np->user = &np->data[0];
-          (void)strcpy(np->user, user);
-          np->group = &np->data[ulen + 1];
-          (void)strcpy(np->group, group);
-
+          var filename : String
           if cur.level == CMigration.FTS_ROOTLEVEL {
             filename = cur.name
           } else {
-            snprintf(path, sizeof(path), "%s/%s", cur.parent!.pointee.fts_accpath, cur.name)
-            filename = path;
+            filename = cur.parent!.accpath + "/" + cur.name
           }
-          xattr_size = listxattr(filename, NULL, 0, XATTR_NOFOLLOW);
-          if (xattr_size < 0) {
-            xattr_size = 0;
+          var xattr_size = listxattr(filename, nil, 0, XATTR_NOFOLLOW)
+          if xattr_size < 0 {
+            xattr_size = 0
           }
-          if ((xattr_size > 0) && options.f_xattr) {
+          if xattr_size > 0) && options.f_xattr {
             /* collect sizes */
             np->xattr_names = malloc(xattr_size);
-            listxattr(filename, np->xattr_names, xattr_size, XATTR_NOFOLLOW);
+            listxattr(filename, np.xattr_names, xattr_size, XATTR_NOFOLLOW)
             for (char *name = np->xattr_names; name < np->xattr_names + xattr_size;
                  name += strlen(name)+1) {
               np->xattr_sizes = reallocf(np->xattr_sizes, (np->xattr_count+1) * sizeof(np->xattr_sizes[0]));
@@ -395,44 +381,40 @@ extension ls {
             }
           }
           /* symlinks can not have ACLs */
-          np->acl = acl_get_link_np(filename, ACL_TYPE_EXTENDED);
-          if (np->acl) {
-            if (acl_get_entry(np->acl, ACL_FIRST_ENTRY, &dummy) == -1) {
-              acl_free(np->acl);
-              np->acl = NULL;
+          np.acl = acl_get_link_np(filename, ACL_TYPE_EXTENDED)
+          if let npa = np.acl {
+            if (acl_get_entry(npa, ACL_FIRST_ENTRY.rawValue, &dummy) == -1) {
+              acl_free(UnsafeMutableRawPointer(npa))
+              np.acl = nil
             }
           }
           if (xattr_size > 0) {
-            np->mode_suffix = '@';
-          } else if (np->acl) {
-            np->mode_suffix = '+';
+            np.mode_suffix = .at
+          } else if let _ = np.acl {
+            np.mode_suffix = .plus
           } else {
-            np->mode_suffix = ' ';
+            np.mode_suffix = .space
           }
           if (IS_DATALESS(sp)) {
-            np->mode_suffix = '%';
+            np.mode_suffix = .percent;
           }
-          if (!options.f_acl) {
-            acl_free(np->acl);
-            np->acl = NULL;
+          if !options.f_acl {
+            acl_free(UnsafeMutableRawPointer(np.acl));
+            np.acl = nil
           }
 
-          if (S_ISCHR(sp->st_mode) ||
-              S_ISBLK(sp->st_mode)) {
-            sizelen = snprintf(NULL, 0,
-                               "%#jx", (uintmax_t)sp->st_rdev);
+          if sp.filetype == .characterDevice || sp.filetype == .blockDevice {
+            let sizelen = snprintf(NULL, 0, "%#jx", sp.rawDevice);
             if (d.s_size < sizelen) {
               d.s_size = sizelen;
             }
           }
 
-          if (options.f_flags) {
-            np->flags = &np->data[ulen + glen + 2];
-            (void)strcpy(np->flags, flags);
-            free(flags);
+          if options.f_flags {
+            np.flags = flags
           }
 
-          cur->fts_pointer = np;
+          cur.setPointer(np)
         }
       }
       entries += 1
@@ -477,12 +459,12 @@ extension ls {
         np = cur.pointer;
         if (np) {
           if (np->acl) {
-            acl_free(np->acl);
+            acl_free(UnsafeMutableRawPointer(np.acl))
           }
           free(np->xattr_names);
           free(np->xattr_sizes);
           free(np);
-          cur->fts_pointer = NULL;
+          cur.setPointer(nil)
         }
       }
     }

@@ -276,6 +276,29 @@ func do_color() -> Bool {
     var s_user : UInt = 0
   }
 
+  enum ModeSuffix : Character {
+    case at = "@"
+    case plus = "+"
+    case percent = "%"
+    case space = " "
+  }
+
+  // Has to be a class, not a struct, to be able to store the pointer in FTSEntry
+  class NAMES {
+    var user : String?
+    var group : String?
+    var flags : String?
+
+    var attr_names : String?  /* f_xattr */
+    var xattr_sizes : [Int] = []
+
+    var acl : acl_t?     /* f_acl */
+    //    var int  xattr_count;
+    var mode_suffix : ModeSuffix?  /* @ | + | % | <space> */
+    
+    //    char data[1];
+  }
+
 
   func parseOptions() throws(CmdErr) -> CommandOptions {
     var options = CommandOptions()
@@ -663,7 +686,6 @@ func do_color() -> Bool {
   var usage = """
 usage: ls [-@ABCFGHILOPRSTUWXabcdefghiklmnopqrstuvwxy1%%,] [--color=when] [-D format] [file ...]
 """
-
 }
 
 

@@ -452,6 +452,7 @@ let BACKUP_SUFFIX = ".old"
     }
   }
 
+  /// Make the DIGEST_CTX a protocol
   func digest_init(_ c : DIGEST_CTX) {
 
     switch (digesttype) {
@@ -501,5 +502,24 @@ let BACKUP_SUFFIX = ".old"
         return nil
     }
   }
+
+  /*
+   * usage --
+   *  print a usage message and die
+   */
+  var usage = """
+  usage: install [-bCcpSsUv] [-f flags] [-g group] [-m mode] [-o owner]
+               [-M log] [-D dest] [-h hash] [-T tags]
+               [-B suffix] [-l linkflags] [-N dbdir]
+               file1 file2
+       install [-bCcpSsUv] [-f flags] [-g group] [-m mode] [-o owner]
+               [-M log] [-D dest] [-h hash] [-T tags]
+               [-B suffix] [-l linkflags] [-N dbdir]
+               file1 ... fileN directory
+       install -dU [-vU] [-g group] [-m mode] [-N dbdir] [-o owner]
+               [-M log] [-D dest] [-h hash] [-T tags]
+               directory ...
+  """
+
 }
 

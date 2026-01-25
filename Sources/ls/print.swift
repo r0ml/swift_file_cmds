@@ -37,9 +37,13 @@
 
 import CMigration
 import Darwin
+import Membership
 
 let HUMANVALSTR_LEN = 5
 let NO_PRINT = 1
+
+var padding_for_month = Array(repeating: 0, count: 12)
+var month_max_size = 0;
 
 extension ls {
 
@@ -60,15 +64,15 @@ extension ls {
     case SUID			/* setuid executable */
     case SGID			/* setgid executable */
     case WSDIR		/* directory writeble to others, with sticky
-                 * bit */
+                   * bit */
     case WDIR			/* directory writeble to others, without
-                 * sticky bit */
+                   * sticky bit */
     case DATALESS		/* dataless file */
 
     case NUMCOLORS		/* just a place-holder */
   }
 
-  static let defcolors = "exfxcxdxbxegedabagacadah"
+  static let defcolors = Array("exfxcxdxbxegedabagacadah")
 
   /* colors for file types */
   struct Color {
@@ -78,13 +82,11 @@ extension ls {
   // FIXME: NUMCOLORS relies on an enum hack -- not happy about that.
   static var colors = Array(repeating: Color(), count: Colors.NUMCOLORS.rawValue)
 
-  static size_t padding_for_month[12];
-  static size_t month_max_size = 0;
 
   func printscol(_ dp : DISPLAY) {
     if unix2003_compat, let dpl = dp.list?.first {
       if dpl.level != CMigration.FTS_ROOTLEVEL && (options.f_longform || options.f_size) {
-        let n = howmany(dp.btotal, options.blocksize)
+        let n = howmany(Int(dp.btotal), Int(options.blocksize))
         print("total \(n)")
       }
     }
@@ -132,25 +134,32 @@ extension ls {
   }
 
   func mbswidth(_ month : String) -> Int {
-    wchar_t wc;
-    size_t width, donelen, clen, w;
+//    wchar_t wc;
+//    size_t width, donelen, clen, w;
 
-    width = donelen = 0;
-    while ((clen = mbrtowc(&wc, month + donelen, MB_LEN_MAX, NULL)) != 0) {
-      if (clen == (size_t)-1 || clen == (size_t)-2) {
-        return (-1);
+    var width = 0
+    var donelen = 0
+    while true {
+      var wc = wchar_t(0)
+      let clen = month.withCString { mm in
+        mbrtowc(&wc, mm + donelen, Int(MB_LEN_MAX), nil)
       }
-      donelen += clen;
-      if ((w = wcwidth(wc)) == (size_t)-1) {
-        return (-1);
+      if clen == 0 { break }
+      if clen == -1 || clen == -2 {
+        return -1
       }
-      width += w;
+      donelen += clen
+      let w = wcwidth(wc)
+      if w == -1 {
+        return -1
+      }
+      width += Int(w)
     }
 
-    return (width);
+    return width
   }
 
-    func compute_abbreviated_month_size() {
+  func compute_abbreviated_month_size() {
     int i;
     size_t width;
     size_t months_width[12];
@@ -167,9 +176,9 @@ extension ls {
       }
     }
 
-      for (i = 0; i < 12; i++) {
-        padding_for_month[i] = month_max_size - months_width[i];
-      }
+    for (i = 0; i < 12; i++) {
+      padding_for_month[i] = month_max_size - months_width[i];
+    }
   }
 
   struct ACLPermFlags : OptionSet {
@@ -233,33 +242,22 @@ extension ls {
   ]
 
   func uuid_to_name(_ uu : uuid_t) -> String {
-    int type;
-    char *name = NULL;
-    char *recname = NULL;
+    let MAXNAMETAG = MAXLOGNAME + 6 /* + strlen("group:") */
 
-    #define MAXNAMETAG (MAXLOGNAME + 6) /* + strlen("group:") */
-    name = (char *) malloc(MAXNAMETAG);
-
-    if (NULL == name) {
-      err(1, "malloc");
+    if !options.f_numericonly {
+      let (e, k) = mbr_identifier_translate(.UUID(uu), .NAME)
+      if let k, case let .NAME(type, recname) = k {
+        return "\(type == .USER ? "user" : "group")):\(recname)"
+      }
     }
 
-    if (options.f_numericonly) {
-      goto errout;
+    var uux = uu
+    let name : String = withUnsafeTemporaryAllocation(of: CChar.self, capacity: Int(MAXNAMETAG)) { p in
+      uuid_unparse_upper(&uux, p.baseAddress!)
+      let h : String = String(cString: p.baseAddress!)
+      return h
     }
-
-    if (mbr_identifier_translate(ID_TYPE_UUID, *uu, sizeof(*uu), ID_TYPE_NAME, (void **) &recname, &type)) {
-      goto errout;
-    }
-
-    snprintf(name, MAXNAMETAG, "%s:%s", (type == MBR_REC_TYPE_USER ? "user" : "group"), recname);
-    free(recname);
-
-    return name;
-  errout:
-    uuid_unparse_upper(*uu, name);
-
-    return name;
+    return name
   }
 
   func printxattr(_ dp : DISPLAY, _ buf : [(String, Int)]) {
@@ -267,78 +265,82 @@ extension ls {
       print("", terminator: "\t")
       printname(ns.0)
       print("", terminator: "\t")
-      printsize(Int(dp.s_size), Int64(ns.1))
+      printsize(Int(dp.s_size), UInt(ns.1))
       print("")
     }
   }
 
   func printacl(_ acl : acl_t, _ isdir : Bool) {
-/*    acl_entry_t	entry = NULL;
-    int		index;
-    uuid_t		*applicable;
-    char		*name = NULL;
-    acl_tag_t	tag;
-    acl_flagset_t	flags;
-    acl_permset_t	perms;
-    char		*type;
-    int		i, first;
-*/
+    var entry : acl_entry_t? = nil
+    var tag = acl_tag_t(0)
+    var flags = acl_flagset_t(bitPattern: 0)
+    var perms = acl_permset_t(bitPattern: 0)
 
-    for (index = 0;
-         acl_get_entry(acl, entry == NULL ? ACL_FIRST_ENTRY : ACL_NEXT_ENTRY, &entry) == 0;
-         index++) {
-      if (acl_get_tag_type(entry, &tag) != 0) {
+    /*
+     int		index;
+     uuid_t		*applicable;
+     char		*name = NULL;
+     acl_tag_t	tag;
+     acl_flagset_t	flags;
+     acl_permset_t	perms;
+     char		*type;
+     int		i, first;
+     */
+
+    var index = -1
+    while acl_get_entry(acl, (entry == nil ? ACL_FIRST_ENTRY : ACL_NEXT_ENTRY).rawValue, &entry) == 0 {
+      index += 1
+      if acl_get_tag_type(entry, &tag) != 0 {
         continue;
       }
-      if (acl_get_flagset_np(entry, &flags) != 0) {
+      if acl_get_flagset_np(UnsafeMutableRawPointer(entry), &flags) != 0 {
+        continue
+      }
+      if acl_get_permset(entry, &perms) != 0 {
         continue;
       }
-      if (acl_get_permset(entry, &perms) != 0) {
-        continue;
+
+      guard let applicable = acl_get_qualifier(entry) else {
+        continue
       }
-      if ((applicable = (uuid_t *) acl_get_qualifier(entry)) == NULL) {
-        continue;
-      }
-      name = uuid_to_name(applicable);
-      acl_free(applicable);
-      switch(tag) {
+
+      let name = uuid_to_name(applicable.assumingMemoryBound(to: uuid_t.self).pointee)
+      acl_free(applicable)
+
+      var type : String
+      switch tag {
         case ACL_EXTENDED_ALLOW:
-          type = "allow";
-          break;
+          type = "allow"
         case ACL_EXTENDED_DENY:
-          type = "deny";
-          break;
+          type = "deny"
         default:
           type = "unknown";
       }
 
-      (void)printf(" %d: %s%s %s ",
-                   index,
-                   name,
-                   acl_get_flag_np(flags, ACL_ENTRY_INHERITED) ? " inherited" : "",
-                   type);
+      let ih = acl_get_flag_np(flags, ACL_ENTRY_INHERITED) != 0 ? " inherited" : ""
+      print(" \(index): \(name)\(ih) \(type) ", terminator: "")
 
-      if (name) {
-        free(name);
+      var first = ""
+      for api in Self.acl_perms  {
+        if acl_get_perm_np(perms, api.perm) == 0 {
+          continue
+        }
+        if !api.flags.contains(isdir ? .DIR : .FILE) {
+          continue
+        }
+        print("\(first)\(api.name)", terminator: "")
+        first = ","
       }
 
-      for (i = 0, first = 0; acl_perms[i].name != NULL; i++) {
-        if (acl_get_perm_np(perms, acl_perms[i].perm) == 0) {
-          continue;
+      for afi in Self.acl_flags {
+        if acl_get_flag_np(flags, afi.flag) == 0 {
+          continue
         }
-        if (!(acl_perms[i].flags & (isdir ? ACL_PERM_DIR : ACL_PERM_FILE))) {
-          continue;
+        if !afi.flags.contains(isdir ? .DIR : .FILE) {
+          continue
         }
-        (void)printf("%s%s", first++ ? "," : "", acl_perms[i].name);
-      }
-      for (i = 0; acl_flags[i].name != NULL; i++) {
-        if (acl_get_flag_np(flags, acl_flags[i].flag) == 0) {
-          continue;
-        }
-        if (!(acl_flags[i].flags & (isdir ? ACL_PERM_DIR : ACL_PERM_FILE))) {
-          continue;
-        }
-        (void)printf("%s%s", first++ ? "," : "", acl_flags[i].name);
+        print("\(first)\(afi.name)", terminator: "")
+        first = ","
       }
 
       print("")
@@ -347,25 +349,25 @@ extension ls {
   }
 
   func printlong(_ dp : DISPLAY) {
-/*
- struct stat *sp;
-    FTSENT *p;
-    NAMES *np;
-    char buf[20];
-*/
+    /*
+     struct stat *sp;
+     FTSENT *p;
+     NAMES *np;
+     char buf[20];
+     */
 
     var color_printed = false
 
     if ((dp.list == nil || dp.list![0].level != CMigration.FTS_ROOTLEVEL) &&
         (options.f_longform || options.f_size)) {
-      print("total \(howmany(dp.btotal, blocksize))")
+      print("total \(howmany(Int(dp.btotal), Int(blocksize)))")
     }
 
     for p in dp.list! {
       if IS_NOPRINT(p) {
         continue
       }
-      let sp = p.statp!
+      let sp = p.statp
       if options.f_inode {
         let k = String(sp.inode).leftPad(toLength: Int(dp.s_inode))
         print("%*ju ", dp.s_inode, sp.inode)
@@ -373,37 +375,35 @@ extension ls {
       if (options.f_size) {
         print("%*lld ", dp.s_block, howmany(Int(sp.blocks), Int(blocksize)), terminator: "")
       }
-      strmode(sp.mode, buf);
 
-      np = p->fts_pointer;
+      var buf = strmode(sp.filetype, sp.permissions).prefix(10) /* make +/@ about the mode */
 
-      buf[10] = '\0';	/* make +/@ about the mode */
-      char str[2] = { np->mode_suffix, '\0' };
-
-      if (options.f_group && options.f_owner) {	/* means print neither */
-        (void)printf("%s%s %*ju   ", buf, str, dp->s_nlink,
-                     (uintmax_t)sp->st_nlink);
-      } else if (options.f_group) {
-        (void)printf("%s%s %*ju %-*s  ", buf, str, dp->s_nlink,
-                     (uintmax_t)sp->st_nlink, dp->s_group, np->group);
-      } else if (options.f_owner) {
-        (void)printf("%s%s %*ju %-*s  ", buf, str, dp->s_nlink,
-                     (uintmax_t)sp->st_nlink, dp->s_user, np->user);
-      } else {
-        (void)printf("%s%s %*ju %-*s  %-*s  ", buf, str, dp->s_nlink,
-                     (uintmax_t)sp->st_nlink, dp->s_user, np->user, dp->s_group,
-                     np->group);
+      guard let np = p.getPointer(NAMES.self) else {
+        fatalError()
       }
 
-      if (options.f_flags) {
-        (void)printf("%-*s ", dp->s_flags, np->flags);
+      let str = np.mode_suffix == nil ? "" : String(np.mode_suffix!.rawValue)
+
+      if options.f_group && options.f_owner {	/* means print neither */
+        print("\(buf)\(str) %*ju   ", dp.s_nlink, sp.links, terminator: "")
+      } else if options.f_group {
+        print("\(buf)\(str) %*ju %-*s  ", dp.s_nlink, sp.links, dp.s_group, np.group!, terminator: "")
+      } else if options.f_owner {
+        print("\(buf)\(str) %*ju %-*s  ", dp.s_nlink, sp.links, dp.s_user, np.user!, terminator: "")
+      } else {
+        print("\(buf)\(str) %*ju %-*s  %-*s  ", dp.s_nlink, sp.links, dp.s_user, np.user!, dp.s_group,
+              np.group!, terminator: "")
+      }
+
+      if options.f_flags {
+        print(np.flags!.rightPad(toLength: Int(dp.s_flags)), terminator: " ")
       }
 
       if sp.filetype == .characterDevice || sp.filetype == .blockDevice { //  S_ISCHR(sp->st_mode) || S_ISBLK(sp->st_mode)) {
         printdev(Int(dp.s_size), Int32(sp.rawDevice))
       }
       else {
-        printsize(Int(dp.s_size), Int64(sp.size))
+        printsize(Int(dp.s_size), sp.size)
       }
       if (options.f_accesstime) {
         printtime(sp.lastAccess.secs)
@@ -419,7 +419,7 @@ extension ls {
       }
 
       if (options.f_color) {
-        color_printed = colortype(sp.filetype, sp.permissions, UInt(sp.flags.rawValue))
+        color_printed = colortype(sp.filetype, sp.permissions, sp.flags)
       }
 
       printname(p.name)
@@ -439,503 +439,36 @@ extension ls {
       if (np.xattr_count && options.f_xattr) {
         printxattr(dp, np.xattr_count, np.xattr_names, np.xattr_sizes)
       }
-      if (np->acl != NULL && options.f_acl) {
-        printacl(np->acl, S_ISDIR(sp->st_mode));
+      if (np.acl != nil && options.f_acl) {
+        printacl(np.acl!, sp.filetype == .directory)
       }
 
     }
   }
 
   func printstream(_ dp : DISPLAY) {
-    int chcnt;
-
-    for (p = dp->list, chcnt = 0; p; p = p->fts_link) {
-      if (p->fts_number == NO_PRINT) {
-        continue;
+    var chcnt = 0
+    var cns = dp.list?.count ?? 0
+    for p in dp.list ?? [] {
+      cns -= 1
+      if p.number == NO_PRINT {
+        continue
       }
       /* XXX strlen does not take octal escapes into account. */
-      if (strlen(p->fts_name) + chcnt +
-          (p->fts_link ? 2 : 0) >= (unsigned)termwidth) {
-        putchar('\n');
-        chcnt = 0;
+      var islast = cns == 0 // (p == dp.list!.last)
+      if (p.name.count + chcnt + (islast ? 2 : 0))  >= termwidth {
+        print("")
+        chcnt = 0
       }
-      chcnt += printaname(p, dp->s_inode, dp->s_block);
-      if (p->fts_link) {
-        printf(", ");
-        chcnt += 2;
-      }
-    }
-    if (chcnt) {
-      putchar('\n');
-    }
-  }
-
-  func printcol(_ dp : DISPLAY) {
-    static FTSENT **array;
-    static int lastentries = -1;
-    FTSENT *p;
-    FTSENT **narray;
-    int base;
-    int chcnt;
-    int cnt;
-    int col;
-    int colwidth;
-    int endcol;
-    int num;
-    int numcols;
-    int numrows;
-    int row;
-    int tabwidth;
-
-    if (options.f_notabs) {
-      tabwidth = 1;
-    }
-    else {
-      tabwidth = 8;
-    }
-
-    /*
-     * Have to do random access in the linked list -- build a table
-     * of pointers.
-     */
-    if ((lastentries == -1) || (dp->entries > lastentries)) {
-      if ((narray =
-           realloc(array, dp->entries * sizeof(FTSENT *))) == NULL) {
-        warn(NULL);
-        printscol(dp);
-        return;
-      }
-      lastentries = dp->entries;
-      array = narray;
-    }
-    memset(array, 0, dp->entries * sizeof(FTSENT *));
-    for (p = dp->list, num = 0; p; p = p->fts_link) {
-      if (p->fts_number != NO_PRINT) {
-        array[num++] = p;
+      chcnt += printaname(p, dp.s_inode, dp.s_block)
+      if !islast {
+        print(", ", terminator: "")
+        chcnt += 2
       }
     }
-
-    colwidth = dp->maxlen;
-    if (options.f_inode) {
-      colwidth += dp->s_inode + 1;
+    if chcnt != 0 {
+      print("")
     }
-    if (options.f_size) {
-      colwidth += dp->s_block + 1;
-    }
-    if (options.f_type) {
-      colwidth += 1;
-    }
-
-    colwidth = (colwidth + tabwidth) & ~(tabwidth - 1);
-    if (termwidth < 2 * colwidth) {
-      printscol(dp);
-      return;
-    }
-    numcols = termwidth / colwidth;
-    numrows = num / numcols;
-    if (num % numcols) {
-      ++numrows;
-    }
-
-    if ((dp->list == NULL || dp->list->fts_level != FTS_ROOTLEVEL) &&
-        (options.f_longform || options.f_size)) {
-      (void)printf("total %qu\n", (u_int64_t)howmany(dp->btotal, blocksize));
-    }
-
-    base = 0;
-    for (row = 0; row < numrows; ++row) {
-      endcol = colwidth;
-      if (!options.f_sortacross) {
-        base = row;
-      }
-      for (col = 0, chcnt = 0; col < numcols; ++col) {
-        assert(base < dp->entries);
-        chcnt += printaname(array[base], dp->s_inode,
-                            dp->s_block);
-        if (options.f_sortacross) {
-          base++;
-        }
-        else {
-          base += numrows;
-        }
-        if (base >= num) {
-          break;
-        }
-        while ((cnt = ((chcnt + tabwidth) & ~(tabwidth - 1)))
-               <= endcol) {
-          if (options.f_sortacross && col + 1 >= numcols) {
-            break;
-          }
-          (void)putchar(options.f_notabs ? ' ' : '\t');
-          chcnt = cnt;
-        }
-        endcol += colwidth;
-      }
-      (void)putchar('\n');
-    }
-  }
-
-  /*
-   * print [inode] [size] name
-   * return # of characters printed, no trailing characters.
-   */
-  func printaname(_ p : FTSEntry, u_long inodefield, u_long sizefield) -> Int {
-    struct stat *sp;
-    int chcnt;
-
-    int color_printed = 0;
-
-
-    let sp = p.statp!
-    chcnt = 0;
-    if (options.f_inode) {
-      chcnt += printf("%*ju ",
-                      (int)inodefield, (uintmax_t)sp->st_ino);
-    }
-    if (options.f_size) {
-      chcnt += printf("%*lld ", sizefield, howmany(sp.blocks, options.blocksize))
-    }
-
-    if (options.f_color) {
-      color_printed = colortype(sp->st_mode, sp->st_flags);
-    }
-
-    chcnt += printname(p->fts_name);
-
-    if (options.f_color && color_printed) {
-      endcolor(0);
-    }
-
-    if (options.f_type) {
-      chcnt += printtype(sp->st_mode);
-    }
-    return (chcnt);
-  }
-
-  /*
-   * Print device special file major and minor numbers.
-   */
-  func printdev(_ width: size_t, _ dev : dev_t) {
-    printf("%#*jx ", width, dev)
-  }
-
-  func ls_strftime(_ str : String, _ len : size_t, _ fmt : String, _ tm : tm) -> Int {
-    char *posb, nfmt[BUFSIZ];
-    const char *format = fmt;
-    size_t ret;
-
-    if (tm == NULL) {
-      size_t qlen = 0;
-
-      /*
-       * rdar://problem/9977017 - Fill str with ? if localtime() had
-       * returned NULL.  This is better than crashing as we try to
-       * dereference it, though it doesn't always look the nicest.
-       */
-      for (qlen = 0; fmt[qlen] != '\0' && qlen < len; qlen++) {
-        if (fmt[qlen] != ' ') {
-          str[qlen] = '?';
-        }
-        else {
-          str[qlen] = ' ';
-        }
-      }
-
-      return (qlen);
-    }
-
-    if ((posb = strstr(fmt, "%b")) != NULL) {
-      if (month_max_size == 0) {
-        compute_abbreviated_month_size();
-      }
-      if (month_max_size > 0) {
-        snprintf(nfmt, sizeof(nfmt),  "%.*s%s%*s%s",
-                 (int)(posb - fmt), fmt,
-                 get_abmon(tm->tm_mon),
-                 (int)padding_for_month[tm->tm_mon],
-                 "",
-                 posb + 2);
-        format = nfmt;
-      }
-    }
-    ret = strftime(str, len, format, tm);
-    return (ret);
-  }
-
-  func printtime(_ time : time_t) {
-    char longstring[80];
-    static time_t now = 0;
-    const char *format;
-    static int d_first = -1;
-
-    if (d_first < 0) {
-      d_first = (*nl_langinfo(D_MD_ORDER) == 'd');
-    }
-    if (now == 0) {
-      now = time(NULL);
-    }
-
-    #define	SIXMONTHS	((365 / 2) * 86400)
-    if (options.f_timeformat) {  /* user specified format */
-      format = options.f_timeformat;
-    }
-    else if (options.f_sectime) {
-      /* mmm dd hh:mm:ss yyyy || dd mmm hh:mm:ss yyyy */
-      format = d_first ? "%e %b %T %Y" : "%b %e %T %Y";
-    }
-    else if (ftime + SIXMONTHS > now &&
-             ftime < now + (unix2003_compat ? 1 : SIXMONTHS)) {
-      /* mmm dd hh:mm || dd mmm hh:mm */
-      format = d_first ? "%e %b %R" : "%b %e %R";
-    }
-    else {
-      /* mmm dd  yyyy || dd mmm  yyyy */
-      format = d_first ? "%e %b  %Y" : "%b %e  %Y";
-    }
-    ls_strftime(longstring, sizeof(longstring), format, localtime(&ftime));
-    fputs(longstring, stdout);
-    fputc(' ', stdout);
-  }
-
-  func printtype(_ mode : FileType) -> Bool {
-
-    if (options.f_slash) {
-      if mode == .directory {
-        print("/", terminator: "")
-        return true
-      }
-      return false
-    }
-
-    switch mode {
-      case .directory:
-        print("/", terminator: "")
-        return true
-      case .fifo:
-        print("|", terminator: "")
-        return true
-      case .symbolicLink:
-        print("@", terminator: "")
-        return true
-      case .socket:
-        print("=", terminator: "")
-        return true
-      case .whiteOut:
-        print("%", terminator: "")
-        return true
-      default:
-        break
-    }
-
-    if (mode & (S_IXUSR | S_IXGRP | S_IXOTH)) {
-      (void)putchar('*');
-      return (1);
-    }
-    return (0);
-  }
-
-  /*
-  func putch(int c) -> Int {
-    (void)putchar(c);
-    return 0;
-  }
-
-  func writech(int c) -> Int {
-    char tmp = (char)c;
-
-    (void)write(STDOUT_FILENO, &tmp, 1);
-    return 0;
-  }
-*/
-
-  func printcolor_termcap(_ c : Colors) {
-//    char *ansiseq;
-
-    if (colors[c.rawValue].bold) {
-      tputs(enter_bold, 1, putch);
-    }
-
-    if (colors[c].num[0] != -1) {
-      ansiseq = tgoto(ansi_fgcol, 0, colors[c].num[0]);
-      if (ansiseq) {
-        tputs(ansiseq, 1, putch);
-      }
-    }
-    if (colors[c].num[1] != -1) {
-      ansiseq = tgoto(ansi_bgcol, 0, colors[c].num[1]);
-      if (ansiseq) {
-        tputs(ansiseq, 1, putch);
-      }
-    }
-  }
-
-  func printcolor_ansi(_ c : Colors) {
-
-    printf("\033[");
-
-    if (colors[c].bold) {
-      printf("1");
-    }
-    if (colors[c].num[0] != -1) {
-      printf(";3%d", colors[c].num[0]);
-    }
-    if (colors[c].num[1] != -1) {
-      printf(";4%d", colors[c].num[1]);
-    }
-    print("m", terminator: "")
-  }
-
-  func printcolor(_ c : Colors) {
-
-    if options.explicitansi {
-      printcolor_ansi(c);
-    }
-    else {
-      printcolor_termcap(c);
-    }
-  }
-
-  func colortype(_ ft : FileType, _ mode : FilePermissions, _ flags : UInt) -> Bool {
-    switch ft {
-      case .directory:
-        if mode.contains(.otherWrite) {
-          if mode.contains( .saveText) {
-            printcolor(.WSDIR)
-          }
-          else {
-            printcolor(.WDIR)
-          }
-        }
-        else {
-          printcolor(.DIR)
-        }
-        return true
-      case .symbolicLink:
-        printcolor(.LNK)
-        return true
-      case .socket:
-        printcolor(.SOCK)
-        return true
-      case .fifo:
-        printcolor(.FIFO)
-        return true
-      case .blockDevice:
-        printcolor(.BLK)
-        return true
-      case .characterDevice:
-        printcolor(.CHR)
-        return true
-      default:
-        break
-    }
-    if (mode & (S_IXUSR | S_IXGRP | S_IXOTH)) {
-      if mode.contains(.setUserID) {
-        printcolor(.SUID)
-      }
-      else if mode.contains(.setGroupID) {
-        printcolor(.SGID)
-      }
-      else {
-        printcolor(.EXEC)
-      }
-      return true
-    }
-
-    if flags.contains(.SF_DATALESS) {
-      printcolor(.DATALESS)
-      return true
-    }
-
-    return false
-  }
-
-  func parsecolors(_ csx : String?) {
-/*    int i;
-    int j;
-    size_t len;
-    char c[2];
-    short legacy_warn = 0;
-*/
-    let cs = csx ?? "" // LSCOLORS not set
-    let len = cs.count
-    for i in 0 ..< Colors.NUMCOLORS {
-
-      colors[i].bold = 0;
-      var c = [0, 0]
-      if (len <= 2 * (size_t)i) {
-        c[0] = defcolors[2 * i]
-        c[1] = defcolors[2 * i + 1]
-      } else {
-        c[0] = cs[2 * i];
-        c[1] = cs[2 * i + 1];
-      }
-
-      for j in [0, 1] {
-        /* Legacy colours used 0-7 */
-        if let x = "01234567".firstIndex(of: c[j]) {
-          colors[i].num[j] = x
-          if (!legacy_warn) {
-            warnx("LSCOLORS should use characters a-h instead of 0-9 (see the manual page)")
-          }
-          legacy_warn = 1
-        } else if (c[j] >= "a" && c[j] <= "h") {
-          colors[i].num[j] = c[j] - "a";
-        }
-        else if (c[j] >= "A" && c[j] <= "H") {
-          colors[i].num[j] = c[j] - "A"
-          colors[i].bold = 1
-        } else if (tolower((unsigned char)c[j]) == 'x') {
-          colors[i].num[j] = -1
-        }
-        else {
-          warnx("invalid character '\(c[j])' in LSCOLORS env var")
-          colors[i].num[j] = -1
-        }
-      }
-    }
-  }
-
-
-  func printlink(_ p : FTSEntry) {
-    var name : String
-
-    if p.level == CMigration.FTS_ROOTLEVEL {
-      name = p.name
-    }
-    else {
-      name = "\(p.parent!.pointee.fts_accpath!)/\(p.name!)"
-    }
-
-    var path : String
-    do {
-      path = try readlink(name)
-    } catch(let e) {
-      errno = e.code
-      warn("\nls: \(name)")
-      return;
-    }
-    print(" -> ", terminator: "")
-    printname(path)
-  }
-
-  func printsize(_ width : size_t, _ bytes : off_t) {
-
-    var buf : String
-
-      if (options.f_humanval) {
-      /*
-       * Reserve one space before the size and allocate room for
-       * the trailing '\0'.
-       */
-
-        buf = humanize_number(HUMANVALSTR_LEN, Int(bytes), "",nil, [.b, .nospace, .decimal] ) ?? ""
-    } else if (options.f_thousands) {		/* with commas */
-      buf = cFormat("%'lld", bytes)
-    } else {
-      buf = String(bytes)
-    }
-    let b2 = String(repeating: " ", count: max(0, width - buf.count)) + buf
-    print(b2, terminator: " ")
   }
 }
 

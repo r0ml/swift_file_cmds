@@ -321,7 +321,9 @@ struct ignentry {
             howmany(Int(p.statp.size), options.cblocksize) :
             howmany(Int(p.statp.blocks), options.cblocksize)
             p.number += curblocks
-            p.parent?.pointee.fts_number += p.number
+            if var j = p.parent {
+              j.number += p.number
+            }
 
             if (p.level <= options.depth && options.threshold <=
                 options.threshold_sign * howmany(p.number *
@@ -379,9 +381,11 @@ struct ignentry {
               }
             }
 
-            p.parent?.pointee.fts_number += curblocks
+            if var j = p.parent {
+              j.number += curblocks
+            }
         }
-        savednumber = p.parent!.pointee.fts_number
+        savednumber = p.parent!.number
       }
     } catch(let e) {
     throw CmdErr(1, "fts_read: \(e.localizedDescription)")

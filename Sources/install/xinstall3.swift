@@ -461,21 +461,4 @@ func metadata_log(_ path : String, _ type : String, _ ts : timespec?,
   free(buf);
 }
 
-/*
- * usage --
- *  print a usage message and die
- */
-var usage = """
-usage: install [-bCcpSsUv] [-f flags] [-g group] [-m mode] [-o owner]
-             [-M log] [-D dest] [-h hash] [-T tags]
-             [-B suffix] [-l linkflags] [-N dbdir]
-             file1 file2
-     install [-bCcpSsUv] [-f flags] [-g group] [-m mode] [-o owner]
-             [-M log] [-D dest] [-h hash] [-T tags]
-             [-B suffix] [-l linkflags] [-N dbdir]
-             file1 ... fileN directory
-     install -dU [-vU] [-g group] [-m mode] [-N dbdir] [-o owner]
-             [-M log] [-D dest] [-h hash] [-T tags]
-             directory ...
-"""
 }

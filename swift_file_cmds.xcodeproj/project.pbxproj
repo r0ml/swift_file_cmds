@@ -50,6 +50,7 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
+		E71B3C272F254E7F00A02D2C /* libxpc.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = E71B3C262F254E7F00A02D2C /* libxpc.tbd */; };
 		E72553272F1C53F000149B5D /* xo in Frameworks */ = {isa = PBXBuildFile; productRef = E72553262F1C53F000149B5D /* xo */; };
 		E77400E52F02D27E00498517 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E77400E42F02D27E00498517 /* ShellTesting */; };
 		E77403C12F038F4900498517 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E77403C02F038F4900498517 /* ShellTesting */; };
@@ -583,6 +584,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		E71B3C262F254E7F00A02D2C /* libxpc.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libxpc.tbd; path = usr/lib/system/libxpc.tbd; sourceTree = SDKROOT; };
 		E7370ACB2E4274A500246ED4 /* Package.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Package.swift; sourceTree = "<group>"; };
 		E7370ACC2E4274A500246ED4 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		E7370B982E42769800246ED4 /* file_cmds.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = file_cmds.xcodeproj; sourceTree = "<group>"; };
@@ -913,7 +915,9 @@
 				ls/cmp.swift,
 				ls/ls_subs.swift,
 				ls/ls.swift,
+				ls/membership.swift,
 				ls/print.swift,
+				ls/print2.swift,
 				ls/util.swift,
 			);
 			target = E774016F2F02D8F900498517 /* ls */;
@@ -1172,6 +1176,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E71B3C272F254E7F00A02D2C /* libxpc.tbd in Frameworks */,
 				E77404F62F06CF6200498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1579,6 +1584,7 @@
 		E78DE7142E43A989001E00CA /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				E71B3C262F254E7F00A02D2C /* libxpc.tbd */,
 				E79E5E002F20071F00F3CB3F /* libbz2.tbd */,
 				E79E5DFE2F2005AD00F3CB3F /* libz.tbd */,
 				E79E5DFC2F20059C00F3CB3F /* liblzma.tbd */,
@@ -4156,6 +4162,10 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = MHEBPE6SV2;
 				ENABLE_HARDENED_RUNTIME = YES;
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SDKROOT)/usr/lib/system",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 26.2;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -4170,6 +4180,10 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = MHEBPE6SV2;
 				ENABLE_HARDENED_RUNTIME = YES;
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SDKROOT)/usr/lib/system",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 26.2;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -4306,7 +4320,6 @@
 				PUBLIC_HEADERS_FOLDER_PATH = Vendors;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
 		};
@@ -4326,7 +4339,6 @@
 				PUBLIC_HEADERS_FOLDER_PATH = Vendors;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
 		};
