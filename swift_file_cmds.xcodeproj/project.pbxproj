@@ -25,16 +25,13 @@
 				E774035F2F0334AB00498517 /* PBXTargetDependency */,
 				E77403612F0334AB00498517 /* PBXTargetDependency */,
 				E77403632F0334AB00498517 /* PBXTargetDependency */,
-				E77403652F0334AB00498517 /* PBXTargetDependency */,
 				E774036B2F0334AB00498517 /* PBXTargetDependency */,
 				E774036D2F0334AB00498517 /* PBXTargetDependency */,
 				E774036F2F0334AB00498517 /* PBXTargetDependency */,
 				E77403712F0334AB00498517 /* PBXTargetDependency */,
 				E77403732F0334AB00498517 /* PBXTargetDependency */,
-				E77403752F0334AB00498517 /* PBXTargetDependency */,
 				E77403772F0334AB00498517 /* PBXTargetDependency */,
 				E77403792F0334AB00498517 /* PBXTargetDependency */,
-				E774037B2F0334AB00498517 /* PBXTargetDependency */,
 				E774037D2F0334AB00498517 /* PBXTargetDependency */,
 				E774037F2F0334AB00498517 /* PBXTargetDependency */,
 				E77403812F0334AB00498517 /* PBXTargetDependency */,
@@ -183,13 +180,6 @@
 			remoteGlobalIDString = E77401A62F02D92700498517;
 			remoteInfo = gzip;
 		};
-		E77403642F0334AB00498517 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = E73707002E4273AC00246ED4 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = E774019B2F02D91D00498517;
-			remoteInfo = install;
-		};
 		E774036A2F0334AB00498517 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = E73707002E4273AC00246ED4 /* Project object */;
@@ -225,13 +215,6 @@
 			remoteGlobalIDString = E77401592F02D8BE00498517;
 			remoteInfo = mknod;
 		};
-		E77403742F0334AB00498517 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = E73707002E4273AC00246ED4 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = E774014E2F02D8B200498517;
-			remoteInfo = mtree;
-		};
 		E77403762F0334AB00498517 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = E73707002E4273AC00246ED4 /* Project object */;
@@ -245,13 +228,6 @@
 			proxyType = 1;
 			remoteGlobalIDString = E77401382F02D89900498517;
 			remoteInfo = pathchk;
-		};
-		E774037A2F0334AB00498517 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = E73707002E4273AC00246ED4 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = E774012D2F02D87D00498517;
-			remoteInfo = pax;
 		};
 		E774037C2F0334AB00498517 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -595,6 +571,7 @@
 		E71B3C262F254E7F00A02D2C /* libxpc.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libxpc.tbd; path = usr/lib/system/libxpc.tbd; sourceTree = SDKROOT; };
 		E71B3C2A2F26163B00A02D2C /* libtermcap.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libtermcap.tbd; path = usr/lib/libtermcap.tbd; sourceTree = SDKROOT; };
 		E71B3C2C2F2616F000A02D2C /* libncurses.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libncurses.tbd; path = usr/lib/libncurses.tbd; sourceTree = SDKROOT; };
+		E71B49B02F26E2DD00A02D2C /* NOTES.md */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NOTES.md; sourceTree = "<group>"; };
 		E7370ACB2E4274A500246ED4 /* Package.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Package.swift; sourceTree = "<group>"; };
 		E7370ACC2E4274A500246ED4 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		E7370B982E42769800246ED4 /* file_cmds.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = file_cmds.xcodeproj; sourceTree = "<group>"; };
@@ -1525,6 +1502,7 @@
 				E774FF2B2F02333E00498517 /* all.xctestplan */,
 				E7370ACB2E4274A500246ED4 /* Package.swift */,
 				E7370ACC2E4274A500246ED4 /* README.md */,
+				E71B49B02F26E2DD00A02D2C /* NOTES.md */,
 				E7370ACA2E42749000246ED4 /* Manuals */,
 				E7370AC62E42742A00246ED4 /* Sources */,
 				E7370AC92E42746700246ED4 /* Tests */,
@@ -3557,11 +3535,6 @@
 			target = E77401A62F02D92700498517 /* gzip */;
 			targetProxy = E77403622F0334AB00498517 /* PBXContainerItemProxy */;
 		};
-		E77403652F0334AB00498517 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = E774019B2F02D91D00498517 /* install */;
-			targetProxy = E77403642F0334AB00498517 /* PBXContainerItemProxy */;
-		};
 		E774036B2F0334AB00498517 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = E774017A2F02D90000498517 /* ln */;
@@ -3587,11 +3560,6 @@
 			target = E77401592F02D8BE00498517 /* mknod */;
 			targetProxy = E77403722F0334AB00498517 /* PBXContainerItemProxy */;
 		};
-		E77403752F0334AB00498517 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = E774014E2F02D8B200498517 /* mtree */;
-			targetProxy = E77403742F0334AB00498517 /* PBXContainerItemProxy */;
-		};
 		E77403772F0334AB00498517 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = E77401432F02D8A800498517 /* mv */;
@@ -3601,11 +3569,6 @@
 			isa = PBXTargetDependency;
 			target = E77401382F02D89900498517 /* pathchk */;
 			targetProxy = E77403782F0334AB00498517 /* PBXContainerItemProxy */;
-		};
-		E774037B2F0334AB00498517 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = E774012D2F02D87D00498517 /* pax */;
-			targetProxy = E774037A2F0334AB00498517 /* PBXContainerItemProxy */;
 		};
 		E774037D2F0334AB00498517 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
