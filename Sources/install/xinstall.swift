@@ -342,7 +342,7 @@ let BACKUP_SUFFIX = ".old"
     if let o = options.owner,
        !options.dounpriv {
       if (uid_from_user(owner, &uid) == -1) {
-        id_t id;
+        id_t, id;
         if (!parseid(owner, &id)) {
           errx(1, "unknown user %s", owner);
         }
