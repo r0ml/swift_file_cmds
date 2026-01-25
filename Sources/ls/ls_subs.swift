@@ -117,14 +117,14 @@ extension ls {
            * a separator.  If multiple arguments, precede each
            * directory with its name.
            */
-          if (output) {
+          if output {
             print("")
             printname(p.path)
             print(":")
-          } else if (argc > 1) {
+          } else if options.args.count > 1 {
             printname(p.path)
             print(":")
-            output = 1;
+            output = true
           }
 //          if ch_options.contains(.NAMEONLY) {
 //            chp = ftsp.childNames
@@ -225,7 +225,7 @@ extension ls {
           width[i] = 0
         } else {
           let k = initmax.prefix { $0.isWholeNumber }
-          width[i] = Int(k) ?? 0
+          width[i] = UInt(k) ?? 0
           initmax.removeFirst(k.count)
           initmax = String(initmax.drop { $0.isWhitespace })
           if !initmax.hasPrefix(":") { exl = true; break }
@@ -234,7 +234,7 @@ extension ls {
       }
       if exl {
         if (!options.f_color) {
-          options.f_notabs = 0;
+          r.f_notabs = false
         }
       }
     }
@@ -369,20 +369,22 @@ extension ls {
           if xattr_size < 0 {
             xattr_size = 0
           }
-          if xattr_size > 0) && options.f_xattr {
+          if xattr_size > 0 && options.f_xattr {
             /* collect sizes */
-            np->xattr_names = malloc(xattr_size);
-            listxattr(filename, np.xattr_names, xattr_size, XATTR_NOFOLLOW)
-            for (char *name = np->xattr_names; name < np->xattr_names + xattr_size;
-                 name += strlen(name)+1) {
-              np->xattr_sizes = reallocf(np->xattr_sizes, (np->xattr_count+1) * sizeof(np->xattr_sizes[0]));
-              np->xattr_sizes[np->xattr_count] = getxattr(filename, name, 0, 0, 0, XATTR_NOFOLLOW);
-              np->xattr_count++;
+            var xattr_names = Array(repeating: UInt8(0), count: xattr_size)
+            listxattr(filename, &xattr_names, xattr_size, XATTR_NOFOLLOW)
+            let names = xattr_names.split(separator: 0).dropLast()
+            let nams = names.map { p in String(decoding: p, as: UTF8.self) }
+            var sizes = nams.map { p in
+              p.withCString { getxattr(filename, $0, nil, 0, 0, XATTR_NOFOLLOW); }
             }
+            np.xattr_sizes = sizes
+            np.attr_names = nams
           }
           /* symlinks can not have ACLs */
           np.acl = acl_get_link_np(filename, ACL_TYPE_EXTENDED)
           if let npa = np.acl {
+            var dummy : OpaquePointer?
             if (acl_get_entry(npa, ACL_FIRST_ENTRY.rawValue, &dummy) == -1) {
               acl_free(UnsafeMutableRawPointer(npa))
               np.acl = nil
@@ -404,9 +406,9 @@ extension ls {
           }
 
           if sp.filetype == .characterDevice || sp.filetype == .blockDevice {
-            let sizelen = snprintf(NULL, 0, "%#jx", sp.rawDevice);
-            if (d.s_size < sizelen) {
-              d.s_size = sizelen;
+            let sizelen = cFormat("%#jx", sp.rawDevice).count
+            if d.s_size < sizelen {
+              d.s_size = UInt(sizelen)
             }
           }
 
@@ -435,35 +437,30 @@ extension ls {
     d.maxlen = maxlen;
     if (needstats) {
       d.btotal = btotal;
-      d.s_block = snprintf(NULL, 0, "%llu", howmany(maxblock, blocksize));
+      d.s_block = UInt(cFormat("%llu", howmany(Int(maxblock), Int(options.blocksize))).count)
       d.s_flags = maxflags;
 
       d.s_group = maxgroup;
-      d.s_inode = snprintf(NULL, 0, "%llu", maxinode);
-      d.s_nlink = snprintf(NULL, 0, "%llu", maxnlink);
-      sizelen = options.f_humanval ? HUMANVALSTR_LEN :
-      snprintf(NULL, 0, "%lld", maxsize);
-      if (d.s_size < sizelen) {
-        d.s_size = sizelen;
+      d.s_inode = UInt(cFormat("%llu", maxinode).count)
+      d.s_nlink = UInt(cFormat("%llu", maxnlink).count)
+      let sizelen = options.f_humanval ? HUMANVALSTR_LEN : cFormat("%lld", maxsize).count
+      if d.s_size < sizelen {
+        d.s_size = UInt(sizelen)
       }
       d.s_user = maxuser;
     }
     if (options.f_thousands) {      /* make space for commas */
       d.s_size += (d.s_size - 1) / 3;
     }
-    printfcn(&d);
-    output = 1;
+    options.printfcn?(d)
+    output = true
 
-    if (options.f_longform) {
+    if options.f_longform {
       for var cur in list {
-        np = cur.pointer;
-        if (np) {
-          if (np->acl) {
-            acl_free(UnsafeMutableRawPointer(np.acl))
+        if let np = cur.getPointer(NAMES.self) {
+          if let na = np.acl {
+            acl_free(UnsafeMutableRawPointer(na))
           }
-          free(np->xattr_names);
-          free(np->xattr_sizes);
-          free(np);
           cur.setPointer(nil)
         }
       }

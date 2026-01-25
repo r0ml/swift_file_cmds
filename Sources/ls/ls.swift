@@ -40,6 +40,9 @@ import Darwin
 import Darwin.C
 import Curses
 
+
+var output = false
+
 // Things that need to be at global level because of signals
 
 var explicitansi = false  /* Explicit ANSI sequences, no termcap(5) */
@@ -161,6 +164,7 @@ func do_color() -> Bool {
 
   class Runtime {
     var rval = 0
+    var f_notabs = false    /* don't use tab-separated multi-col output */
   }
   let r = Runtime()
 
@@ -180,7 +184,6 @@ func do_color() -> Bool {
     var f_nofollow = false    /* don't follow symbolic link arguments */
     var f_nonprint = false    /* show unprintables as ? */
     var f_nosort = false    /* don't sort output */
-    var f_notabs = false    /* don't use tab-separated multi-col output */
     var f_numericonly = false  /* don't convert uid/gid to name */
     var f_octal = false    /* show unprintables as \xxx */
     var f_octal_escape = false  /* like f_octal but use C escapes if possible */
@@ -258,7 +261,7 @@ func do_color() -> Bool {
     var group : String?
     var flags : String?
 
-    var attr_names : String?  /* f_xattr */
+    var attr_names : [String] = []  /* f_xattr */
     var xattr_sizes : [Int] = []
 
     var acl : acl_t?     /* f_acl */
@@ -548,7 +551,7 @@ func do_color() -> Bool {
        * column number will be incremented incorrectly
        * for "stty oxtabs" mode.
        */
-      options.f_notabs = true
+      r.f_notabs = true
       signal(SIGINT, colorquit);
       signal(SIGQUIT, colorquit);
       parsecolors(Environment["LSCOLORS"])

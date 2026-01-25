@@ -257,7 +257,7 @@ extension ls {
     return name
   }
 
-  func printxattr(_ dp : DISPLAY, _ buf : [(String, Int)]) {
+  func printxattr(_ dp : DISPLAY, _ buf : any Sequence<(String, Int)>) {
     for ns in buf {
       print("", terminator: "\t")
       printname(ns.0)
@@ -433,8 +433,8 @@ extension ls {
       }
       print("")
 
-      if (np.xattr_count && options.f_xattr) {
-        printxattr(dp, np.xattr_count, np.xattr_names, np.xattr_sizes)
+      if (np.attr_names.count != 0 && options.f_xattr) {
+        printxattr(dp, zip(np.attr_names, np.xattr_sizes))
       }
       if (np.acl != nil && options.f_acl) {
         printacl(np.acl!, sp.filetype == .directory)

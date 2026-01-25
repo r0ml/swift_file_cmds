@@ -54,7 +54,7 @@ extension ls {
     //    int numrows;
     //    int row;
 
-    var tabwidth = options.f_notabs ? 1 : 8
+    var tabwidth = r.f_notabs ? 1 : 8
 
     /*
      * Have to do random access in the linked list -- build a table
@@ -128,7 +128,7 @@ extension ls {
           if options.f_sortacross && col + 1 >= numcols {
             break
           }
-          (void)putchar(options.f_notabs ? ' ' : '\t');
+          (void)putchar(r.f_notabs ? ' ' : '\t');
           chcnt = cnt;
         }
         endcol += colwidth
