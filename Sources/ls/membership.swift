@@ -184,6 +184,7 @@ func mbr_identifier_translate(_ idt : MemberID, _ target_type : IDType) -> (Int3
         case .UID(let t):
 //          if ((tempID == 0) || (_mbr_od_available() == false)) {
           var tempUU = UnsafeMutableRawBufferPointer.allocate(byteCount: MemoryLayout<uuid_t>.size, alignment: 8)
+          defer { tempUU.deallocate() }
           uuid_copy(&tempUU, _user_compat_prefix)
           let h = t.bigEndian
           withUnsafeBytes(of: h) { p in
@@ -195,6 +196,7 @@ func mbr_identifier_translate(_ idt : MemberID, _ target_type : IDType) -> (Int3
         case .GID(let t):
          // if (t == 0 || (_mbr_od_available() == false)) {
           var tempUU = UnsafeMutableRawBufferPointer.allocate(byteCount: MemoryLayout<uuid_t>.size, alignment: 8)
+          defer { tempUU.deallocate() }
           uuid_copy(&tempUU, _group_compat_prefix)
           let h = t.bigEndian
           withUnsafeBytes(of: h) { p in

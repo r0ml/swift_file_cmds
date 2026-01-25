@@ -408,7 +408,9 @@ let unix2003 = true
       } else {
         var mntbufpx : UnsafeMutablePointer<statfs>? = .allocate(capacity: 1)
         let _ = Int(getmntinfo_r_np(&mntbufpx, MNT_WAIT))
-        return [FileSystemMetadata(from: mntbufpx![0])]
+        let r = [FileSystemMetadata(from: mntbufpx![0])]
+        defer { mntbufpx!.deallocate() }
+        return r
       }
     }
 
