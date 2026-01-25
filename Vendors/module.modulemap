@@ -12,3 +12,9 @@ module LZMA [system] {
   link "lzma"
   export *
 }
+
+module Curses [system] {
+  header "curses_shim.h"
+  export *
+  link "ncurses"
+}

@@ -38,6 +38,13 @@
 import CMigration
 import Darwin
 import Darwin.C
+import Curses
+
+// Things that need to be at global level because of signals
+
+var explicitansi = false  /* Explicit ANSI sequences, no termcap(5) */
+var ansi_coloff : String? = nil    /* ANSI sequence to reset colours */
+var attrs_off = ""    /* ANSI sequence to turn off attributes */
 
 enum WhenColor : Int {
   case NEVER = 0
@@ -152,46 +159,10 @@ func do_color() -> Bool {
 
   let unix2003 = true // COMPAT_MODE("bin/ls", "Unix2003");
 
-  /*
-   /* Terminal defaults to -Cq, non-terminal defaults to -1. */
-   if (isatty(STDOUT_FILENO)) {
-   termwidth = 80;
-   if ((p = getenv("COLUMNS")) != NULL && *p != '\0') {
-   termwidth = strtonum(p, 0, INT_MAX, &errstr);
-   }
-   else if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &win) != -1 &&
-   win.ws_col > 0) {
-   termwidth = win.ws_col;
-   }
-   f_nonprint = 1;
-   } else {
-   f_singlecol = 1;
-   /* retrieve environment variable, in case of explicit -C */
-   p = getenv("COLUMNS");
-   if (p) {
-   termwidth = strtonum(p, 0, INT_MAX, &errstr);
-   }
-   }
-
-   if (errstr) {
-   termwidth = 80;
-   }
-
-   fts_options = FTS_PHYSICAL;
-   if (getenv("LS_SAMESORT")) {
-   f_samesort = 1;
-   }
-
-   /*
-    * For historical compatibility, we'll use our autodetection if CLICOLOR
-    * is set.
-    */
-   #ifdef COLORLS
-   if (getenv("CLICOLOR")) {
-   colorflag = COLORFLAG_AUTO;
-   }
-   #endif
-   */
+  class Runtime {
+    var rval = 0
+  }
+  let r = Runtime()
 
   struct CommandOptions {
     /* flags */
@@ -239,14 +210,12 @@ func do_color() -> Bool {
 
     var colorflag = WhenColor.NEVER    /* passed in colorflag */
     var f_color = false    /* add type in color for non-regular files */
-    var explicitansi = false  /* Explicit ANSI sequences, no termcap(5) */
     var ansi_bgcol : String? = nil    /* ANSI sequence to set background colour */
     var ansi_fgcol : String? = nil    /* ANSI sequence to set foreground colour */
-    var ansi_coloff : String? = nil    /* ANSI sequence to reset colours */
-    var attrs_off = ""    /* ANSI sequence to turn off attributes */
     var enter_bold = ""    /* ANSI sequence to set color to bold mode */
 
     var blocksize : UInt = 0
+    var termwidth = 80
 
     var fts_options = FTSFlags()
 
@@ -301,7 +270,42 @@ func do_color() -> Bool {
 
 
   func parseOptions() throws(CmdErr) -> CommandOptions {
+
     var options = CommandOptions()
+
+    var win = winsize()
+
+     /* Terminal defaults to -Cq, non-terminal defaults to -1. */
+    if 0 != isatty(STDOUT_FILENO) {
+       options.termwidth = 80;
+      if let p = Environment["COLUMNS"], !p.isEmpty {
+        options.termwidth = Int(p) ?? 80
+     }
+     else if ioctl(STDOUT_FILENO, TIOCGWINSZ, &win) != -1 && win.ws_col > 0 {
+       options.termwidth = Int(win.ws_col)
+     }
+      options.f_nonprint = true
+    } else {
+      options.f_singlecol = true
+      /* retrieve environment variable, in case of explicit -C */
+      if let p = Environment["COLUMNS"] {
+        options.termwidth = Int(p) ?? 80
+      }
+    }
+
+    options.fts_options = .PHYSICAL
+    if let k = Environment["LS_SAMESORT"] {
+      options.f_samesort = true
+    }
+
+     /*
+      * For historical compatibility, we'll use our autodetection if CLICOLOR
+      * is set.
+      */
+    if let _ = Environment["CLICOLOR"] {
+      options.colorflag = .AUTO
+    }
+
     let go = BSDGetopt_long("+@1ABCD:FGHILOPRSTUWXabcdefghiklmnopqrstuvwxy%,", longOptions)
     while let (k, v) = try go.getopt_long() {
       switch k {
@@ -514,17 +518,17 @@ func do_color() -> Bool {
       if let term = Environment["TERM"], tgetent(&termcapbuf, term) == 1 {
         options.ansi_fgcol = String(cString: tgetstr("AF", &bp)!)
         options.ansi_bgcol = String(cString: tgetstr("AB", &bp)!)
-        options.attrs_off = String(cString: tgetstr("me", &bp)!)
+        attrs_off = String(cString: tgetstr("me", &bp)!)
         options.enter_bold = String(cString: tgetstr("md", &bp)!)
 
         /* To switch colours off use 'op' if
          * available, otherwise use 'oc', or
          * don't do colours at all. */
-        options.ansi_coloff = String(cString: tgetstr("op", &bp)!)
-        if (options.ansi_coloff == nil) {
-          options.ansi_coloff = String(cString: tgetstr("oc", &bp)!)
+        ansi_coloff = String(cString: tgetstr("op", &bp)!)
+        if ansi_coloff == nil {
+          ansi_coloff = String(cString: tgetstr("oc", &bp)!)
         }
-        if (options.ansi_fgcol != nil && options.ansi_bgcol != nil && options.ansi_coloff != nil) {
+        if (options.ansi_fgcol != nil && options.ansi_bgcol != nil && ansi_coloff != nil) {
           options.f_color = true
         }
       } else if (options.colorflag == .ALWAYS) {
@@ -534,7 +538,7 @@ func do_color() -> Bool {
          * outputting raw ANSI sequences.
          */
         options.f_color = true
-        options.explicitansi = true
+        explicitansi = true
       }
     }
 
@@ -676,11 +680,12 @@ func do_color() -> Bool {
       traverse(["."], options.fts_options);
     }
 
-    if (rval == 0 && (ferror(stdout) != 0 || fflush(stdout) != 0)) {
+    // FIXME: how to detect error
+    if r.rval == 0 && (ferror(stdout) != 0 || fflush(stdout) != 0) {
       err(1, "stdout");
     }
 
-    exit(rval);
+    exit(Int32(r.rval))
   }
 
   var usage = """
@@ -714,7 +719,7 @@ func colorquit(_ sig : Int32) {
 }
 
 func endcolor(_ sig : Int32) {
-  if (explicitansi) {
+  if explicitansi {
     endcolor_ansi();
   }
   else {
@@ -726,9 +731,24 @@ func endcolor_ansi() {
   print("\u{1b}[m", terminator: "")
 }
 
-func endcolor_termcap(_ sig : Int32) {
-  tputs(ansi_coloff, 1, sig ? writech : putch);
-  tputs(attrs_off, 1, sig ? writech : putch);
-}
+func putch(_ c : Int32) -> Int32 {
+ putchar(Int32(c))
+ return 0
+ }
 
+func writech(_ c : Int32) -> Int32 {
+  try? FileDescriptor.standardOutput.write([UInt8(c)])
+  return 0;
+ }
+
+func endcolor_termcap(_ sig : Int32) {
+  if sig != 0 {
+    tputs(ansi_coloff, 1, writech )
+    tputs(attrs_off, 1, writech )
+  } else {
+    tputs(ansi_coloff, 1, putch)
+    tputs(attrs_off, 1, putch)
+
+  }
+}
 

@@ -37,7 +37,6 @@
 
 import CMigration
 import Darwin
-import Membership
 
 let HUMANVALSTR_LEN = 5
 let NO_PRINT = 1
@@ -160,15 +159,13 @@ extension ls {
   }
 
   func compute_abbreviated_month_size() {
-    int i;
-    size_t width;
-    size_t months_width[12];
+    var months_width = Array(repeating: size_t(0), count: 12)
 
-    for (i = 0; i < 12; i++) {
-      width = mbswidth(get_abmon(i));
-      if (width == (size_t)-1) {
-        month_max_size = -1;
-        return;
+    for i in 0 ..< 12 {
+      let width = mbswidth(get_abmon(i))
+      if width == -1 {
+        month_max_size = -1
+        return
       }
       months_width[i] = width;
       if (width > month_max_size) {
@@ -176,7 +173,7 @@ extension ls {
       }
     }
 
-    for (i = 0; i < 12; i++) {
+    for i in 0 ..< 12 {
       padding_for_month[i] = month_max_size - months_width[i];
     }
   }
@@ -360,7 +357,7 @@ extension ls {
 
     if ((dp.list == nil || dp.list![0].level != CMigration.FTS_ROOTLEVEL) &&
         (options.f_longform || options.f_size)) {
-      print("total \(howmany(Int(dp.btotal), Int(blocksize)))")
+      print("total \(howmany(Int(dp.btotal), Int(options.blocksize)))")
     }
 
     for p in dp.list! {
@@ -373,7 +370,7 @@ extension ls {
         print("%*ju ", dp.s_inode, sp.inode)
       }
       if (options.f_size) {
-        print("%*lld ", dp.s_block, howmany(Int(sp.blocks), Int(blocksize)), terminator: "")
+        print("%*lld ", dp.s_block, howmany(Int(sp.blocks), Int(options.blocksize)), terminator: "")
       }
 
       var buf = strmode(sp.filetype, sp.permissions).prefix(10) /* make +/@ about the mode */
@@ -456,7 +453,7 @@ extension ls {
       }
       /* XXX strlen does not take octal escapes into account. */
       var islast = cns == 0 // (p == dp.list!.last)
-      if (p.name.count + chcnt + (islast ? 2 : 0))  >= termwidth {
+      if (p.name.count + chcnt + (islast ? 2 : 0))  >= options.termwidth {
         print("")
         chcnt = 0
       }

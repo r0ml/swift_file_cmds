@@ -296,19 +296,7 @@ extension ls {
     return 0
   }
   
-  /*
-   func putch(int c) -> Int {
-   (void)putchar(c);
-   return 0;
-   }
-   
-   func writech(int c) -> Int {
-   char tmp = (char)c;
-   
-   (void)write(STDOUT_FILENO, &tmp, 1);
-   return 0;
-   }
-   */
+
   
   func printcolor_termcap(_ c : Colors) {
     //    char *ansiseq;

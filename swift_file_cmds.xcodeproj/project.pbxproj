@@ -50,7 +50,7 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
-		E71B3C272F254E7F00A02D2C /* libxpc.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = E71B3C262F254E7F00A02D2C /* libxpc.tbd */; };
+		E71B3C2D2F2616F000A02D2C /* libncurses.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = E71B3C2C2F2616F000A02D2C /* libncurses.tbd */; };
 		E72553272F1C53F000149B5D /* xo in Frameworks */ = {isa = PBXBuildFile; productRef = E72553262F1C53F000149B5D /* xo */; };
 		E77400E52F02D27E00498517 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E77400E42F02D27E00498517 /* ShellTesting */; };
 		E77403C12F038F4900498517 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E77403C02F038F4900498517 /* ShellTesting */; };
@@ -585,6 +585,8 @@
 
 /* Begin PBXFileReference section */
 		E71B3C262F254E7F00A02D2C /* libxpc.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libxpc.tbd; path = usr/lib/system/libxpc.tbd; sourceTree = SDKROOT; };
+		E71B3C2A2F26163B00A02D2C /* libtermcap.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libtermcap.tbd; path = usr/lib/libtermcap.tbd; sourceTree = SDKROOT; };
+		E71B3C2C2F2616F000A02D2C /* libncurses.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libncurses.tbd; path = usr/lib/libncurses.tbd; sourceTree = SDKROOT; };
 		E7370ACB2E4274A500246ED4 /* Package.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Package.swift; sourceTree = "<group>"; };
 		E7370ACC2E4274A500246ED4 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		E7370B982E42769800246ED4 /* file_cmds.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = file_cmds.xcodeproj; sourceTree = "<group>"; };
@@ -1176,7 +1178,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E71B3C272F254E7F00A02D2C /* libxpc.tbd in Frameworks */,
+				E71B3C2D2F2616F000A02D2C /* libncurses.tbd in Frameworks */,
 				E77404F62F06CF6200498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1584,6 +1586,8 @@
 		E78DE7142E43A989001E00CA /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				E71B3C2C2F2616F000A02D2C /* libncurses.tbd */,
+				E71B3C2A2F26163B00A02D2C /* libtermcap.tbd */,
 				E71B3C262F254E7F00A02D2C /* libxpc.tbd */,
 				E79E5E002F20071F00F3CB3F /* libbz2.tbd */,
 				E79E5DFE2F2005AD00F3CB3F /* libz.tbd */,
@@ -4162,6 +4166,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = MHEBPE6SV2;
 				ENABLE_HARDENED_RUNTIME = YES;
+				HEADER_SEARCH_PATHS = Vendors;
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SDKROOT)/usr/lib/system",
@@ -4180,6 +4185,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = MHEBPE6SV2;
 				ENABLE_HARDENED_RUNTIME = YES;
+				HEADER_SEARCH_PATHS = Vendors;
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SDKROOT)/usr/lib/system",
