@@ -48,6 +48,10 @@ var output = false
 var explicitansi = false  /* Explicit ANSI sequences, no termcap(5) */
 var ansi_coloff : String? = nil    /* ANSI sequence to reset colours */
 var attrs_off = ""    /* ANSI sequence to turn off attributes */
+var enter_bold = ""    /* ANSI sequence to set color to bold mode */
+var ansi_bgcol : String? = nil    /* ANSI sequence to set background colour */
+var ansi_fgcol : String? = nil    /* ANSI sequence to set foreground colour */
+
 
 enum WhenColor : Int {
   case NEVER = 0
@@ -56,6 +60,8 @@ enum WhenColor : Int {
 }
 
 @main struct ls : ShellCommand {
+
+  // for print2
 
 /*
 /*
@@ -213,12 +219,11 @@ func do_color() -> Bool {
 
     var colorflag = WhenColor.NEVER    /* passed in colorflag */
     var f_color = false    /* add type in color for non-regular files */
-    var ansi_bgcol : String? = nil    /* ANSI sequence to set background colour */
-    var ansi_fgcol : String? = nil    /* ANSI sequence to set foreground colour */
-    var enter_bold = ""    /* ANSI sequence to set color to bold mode */
 
     var blocksize : UInt = 0
     var termwidth = 80
+    var d_first = nl_langinfo(D_MD_ORDER).pointee == "d".first!.asciiValue!
+    var my_now = Darwin.time(nil)
 
     var fts_options = FTSFlags()
 
@@ -519,10 +524,10 @@ func do_color() -> Bool {
       var bp: UnsafeMutablePointer<Int8>?
 
       if let term = Environment["TERM"], tgetent(&termcapbuf, term) == 1 {
-        options.ansi_fgcol = String(cString: tgetstr("AF", &bp)!)
-        options.ansi_bgcol = String(cString: tgetstr("AB", &bp)!)
+        ansi_fgcol = String(cString: tgetstr("AF", &bp)!)
+        ansi_bgcol = String(cString: tgetstr("AB", &bp)!)
         attrs_off = String(cString: tgetstr("me", &bp)!)
-        options.enter_bold = String(cString: tgetstr("md", &bp)!)
+        enter_bold = String(cString: tgetstr("md", &bp)!)
 
         /* To switch colours off use 'op' if
          * available, otherwise use 'oc', or
@@ -531,7 +536,7 @@ func do_color() -> Bool {
         if ansi_coloff == nil {
           ansi_coloff = String(cString: tgetstr("oc", &bp)!)
         }
-        if (options.ansi_fgcol != nil && options.ansi_bgcol != nil && ansi_coloff != nil) {
+        if (ansi_fgcol != nil && ansi_bgcol != nil && ansi_coloff != nil) {
           options.f_color = true
         }
       } else if (options.colorflag == .ALWAYS) {

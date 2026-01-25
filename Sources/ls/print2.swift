@@ -36,6 +36,8 @@
  */
 
 import CMigration
+import Darwin
+import Curses
 
 extension ls {
   func printcol(_ dp : DISPLAY) {
@@ -88,8 +90,8 @@ extension ls {
       colwidth += 1;
     }
 
-    colwidth = (colwidth + tabwidth) & ~(tabwidth - 1)
-    if termwidth < 2 * colwidth {
+    colwidth = UInt((Int(colwidth) + tabwidth) & ~(tabwidth - 1))
+    if options.termwidth < 2 * colwidth {
       printscol(dp)
       return
     }
@@ -128,7 +130,7 @@ extension ls {
           if options.f_sortacross && col + 1 >= numcols {
             break
           }
-          (void)putchar(r.f_notabs ? ' ' : '\t');
+          putchar(r.f_notabs ? CChar(0x20) : CChar(0x0a) )
           chcnt = cnt;
         }
         endcol += colwidth
@@ -141,28 +143,24 @@ extension ls {
    * print [inode] [size] name
    * return # of characters printed, no trailing characters.
    */
-  func printaname(_ p : FTSEntry, u_long inodefield, u_long sizefield) -> Int {
-    struct stat *sp;
-    int chcnt;
-
-    int color_printed = 0;
-
-
-    let sp = p.statp!
-    chcnt = 0;
-    if (options.f_inode) {
-      chcnt += printf("%*ju ",
-                      (int)inodefield, (uintmax_t)sp->st_ino);
+  func printaname(_ p : FTSEntry, _ inodefield : Int, _ sizefield : Int) -> Int {
+    var color_printed = false
+    let sp = p.statp
+    var chcnt = 0
+    if options.f_inode {
+      print(String(sp.inode).leftPad(toLength: Int(inodefield)), terminator: " ")
+      chcnt += 1 + inodefield
     }
-    if (options.f_size) {
-      chcnt += printf("%*lld ", sizefield, howmany(sp.blocks, options.blocksize))
+    if options.f_size {
+      print(String(howmany(Int(sp.blocks), Int(options.blocksize))).leftPad(toLength: Int(sizefield)), terminator: " ")
+      chcnt += 1 + sizefield
     }
 
     if options.f_color {
       color_printed = colortype(sp.filetype, sp.permissions, sp.flags)
     }
 
-    chcnt += printname(p->fts_name);
+    chcnt += printname(p.name)
 
     if options.f_color && color_printed {
       endcolor(0)
@@ -178,85 +176,73 @@ extension ls {
    * Print device special file major and minor numbers.
    */
   func printdev(_ width: size_t, _ dev : dev_t) {
-    printf("%#*jx ", width, dev)
+    let x = cFormat("%#*jx ", width, dev)
+    print(x, terminator: "")
   }
 
-  func ls_strftime(_ str : String, _ len : size_t, _ fmt : String, _ tm : tm) -> Int {
-    char *posb, nfmt[BUFSIZ];
-    const char *format = fmt;
-    size_t ret;
+  func ls_strftime(_ fmtx : String, _ tm : tm?) -> String {
+//    char *posb, nfmt[BUFSIZ];
+//    const char *format = fmt;
+//    size_t ret;
 
-    if (tm == NULL) {
-      size_t qlen = 0;
+    var fmt : String = fmtx
+    guard let tm else {
 
       /*
        * rdar://problem/9977017 - Fill str with ? if localtime() had
        * returned NULL.  This is better than crashing as we try to
        * dereference it, though it doesn't always look the nicest.
        */
-      for (qlen = 0; fmt[qlen] != '\0' && qlen < len; qlen++) {
-        if (fmt[qlen] != ' ') {
-          str[qlen] = '?';
-        }
-        else {
-          str[qlen] = ' ';
-        }
-      }
-
-      return (qlen);
+      return fmt.replacing(/[^ ]/, with: "?")
     }
 
-    if ((posb = strstr(fmt, "%b")) != NULL) {
-      if (month_max_size == 0) {
-        compute_abbreviated_month_size();
+    if let posb = fmt.ranges(of: "%b").first {
+      if month_max_size == 0 {
+        compute_abbreviated_month_size()
       }
-      if (month_max_size > 0) {
-        snprintf(nfmt, sizeof(nfmt),  "%.*s%s%*s%s",
-                 (int)(posb - fmt), fmt,
-                 get_abmon(tm->tm_mon),
-                 (int)padding_for_month[tm->tm_mon],
-                 "",
-                 posb + 2);
-        format = nfmt;
+      if month_max_size > 0 {
+        fmt = String(fmt[fmt.startIndex..<posb.lowerBound] + get_abmon(Int(tm.tm_mon)) +
+                     String(repeating: " ", count: padding_for_month[Int(tm.tm_mon)]) + fmt[posb.upperBound...])
       }
     }
-    ret = strftime(str, len, format, tm);
-    return (ret);
+
+      let x : String = withUnsafeTemporaryAllocation(of: CChar.self, capacity: 80) { str in
+        var tmx = tm
+        let n = strftime(str.baseAddress!, 80, fmt, &tmx)
+        let m = str[0..<n].map { UInt8($0) }
+        return String(decoding: m, as: UTF8.self)
+      }
+      return x
+
   }
 
-  func printtime(_ time : time_t) {
-    char longstring[80];
-    static time_t now = 0;
-    const char *format;
-    static int d_first = -1;
+  func printtime(_ ftime : time_t) {
+ //   char longstring[80];
+//    static time_t now = 0;
+//    const char *format;
+//    static int d_first = -1;
 
-    if (d_first < 0) {
-      d_first = (*nl_langinfo(D_MD_ORDER) == 'd');
+    var format : String
+    let SIXMONTHS = ((365 / 2) * 86400)
+    if let fmt = options.f_timeformat {  /* user specified format */
+      format = fmt
     }
-    if (now == 0) {
-      now = time(NULL);
-    }
-
-    #define  SIXMONTHS  ((365 / 2) * 86400)
-    if (options.f_timeformat) {  /* user specified format */
-      format = options.f_timeformat;
-    }
-    else if (options.f_sectime) {
+    else if options.f_sectime {
       /* mmm dd hh:mm:ss yyyy || dd mmm hh:mm:ss yyyy */
-      format = d_first ? "%e %b %T %Y" : "%b %e %T %Y";
+      format = options.d_first ? "%e %b %T %Y" : "%b %e %T %Y";
     }
-    else if (ftime + SIXMONTHS > now &&
-             ftime < now + (unix2003_compat ? 1 : SIXMONTHS)) {
+    else if (ftime + SIXMONTHS > options.my_now && ftime < options.my_now + (unix2003_compat ? 1 : SIXMONTHS)) {
       /* mmm dd hh:mm || dd mmm hh:mm */
-      format = d_first ? "%e %b %R" : "%b %e %R";
+      format = options.d_first ? "%e %b %R" : "%b %e %R";
     }
     else {
       /* mmm dd  yyyy || dd mmm  yyyy */
-      format = d_first ? "%e %b  %Y" : "%b %e  %Y";
+      format = options.d_first ? "%e %b  %Y" : "%b %e  %Y";
     }
-    ls_strftime(longstring, sizeof(longstring), format, localtime(&ftime));
-    fputs(longstring, stdout);
-    fputc(' ', stdout);
+    var ftimex = ftime
+    let lt = localtime(&ftimex)
+    let longstring = ls_strftime(format, lt?.pointee)
+    print(longstring, terminator: " ")
   }
 
   @discardableResult func printtype(_ mode : FileType, _ perm : FilePermissions) -> Int {
@@ -301,43 +287,42 @@ extension ls {
   func printcolor_termcap(_ c : Colors) {
     //    char *ansiseq;
     
-    if (colors[c.rawValue].bold) {
-      tputs(enter_bold, 1, putch);
+    if Self.colors[c.rawValue].bold {
+      tputs(enter_bold, 1, putch)
     }
     
-    if (colors[c].num[0] != -1) {
-      ansiseq = tgoto(ansi_fgcol, 0, colors[c].num[0]);
-      if (ansiseq) {
+    if Self.colors[c.rawValue].num[0] != -1 {
+      if let ansiseq = tgoto(ansi_fgcol, 0, Int32(Self.colors[c.rawValue].num[0])) {
         tputs(ansiseq, 1, putch);
       }
     }
-    if (colors[c].num[1] != -1) {
-      ansiseq = tgoto(ansi_bgcol, 0, colors[c].num[1]);
-      if (ansiseq) {
+    // FIXME: this business with Self.colors and c.rawValue are ugly
+    if Self.colors[c.rawValue].num[1] != -1 {
+      if let ansiseq = tgoto(ansi_bgcol, 0, Int32(Self.colors[c.rawValue].num[1])) {
         tputs(ansiseq, 1, putch);
       }
     }
   }
   
   func printcolor_ansi(_ c : Colors) {
-    
-    printf("\033[");
-    
-    if (colors[c].bold) {
-      printf("1");
+
+    var op = "\u{1b}["
+    if Self.colors[c.rawValue].bold {
+      op.append("1")
     }
-    if (colors[c].num[0] != -1) {
-      printf(";3%d", colors[c].num[0]);
+    if Self.colors[c.rawValue].num[0] != -1 {
+      op.append(";3")
+      op.append(String(Self.colors[c.rawValue].num[0]))
     }
-    if (colors[c].num[1] != -1) {
-      printf(";4%d", colors[c].num[1]);
+    if Self.colors[c.rawValue].num[1] != -1 {
+      op.append(";4")
+      op.append(String(Self.colors[c.rawValue].num[1]))
     }
     print("m", terminator: "")
   }
   
   func printcolor(_ c : Colors) {
-    
-    if options.explicitansi {
+    if explicitansi {
       printcolor_ansi(c);
     }
     else {
@@ -404,15 +389,15 @@ extension ls {
      int j;
      size_t len;
      char c[2];
-     short legacy_warn = 0;
      */
+    var legacy_warn = false
     let cs = Array(csx ?? "") // LSCOLORS not set
     let len = cs.count
     // FIXME: this is the wrong way to get the number of colors
     for i in 0 ..< Colors.NUMCOLORS.rawValue {
 
       // FIXME: not happy about colors being a static variable
-      Self.colors[i].bold = 0
+      Self.colors[i].bold = false
       var c : [Character] = ["\0", "\0"]
       if len <= 2 * i {
         c[0] = Self.defcolors[2 * i]
@@ -424,24 +409,24 @@ extension ls {
       
       for j in [0, 1] {
         /* Legacy colours used 0-7 */
-        if let x = "01234567".firstIndex(of: c[j]) {
-          colors[i].num[j] = x
+        if let x = Array("01234567").firstIndex(of: c[j]) {
+          Self.colors[i].num[j] = x
           if (!legacy_warn) {
             warnx("LSCOLORS should use characters a-h instead of 0-9 (see the manual page)")
           }
-          legacy_warn = 1
-        } else if (c[j] >= "a" && c[j] <= "h") {
-          colors[i].num[j] = c[j] - "a";
+          legacy_warn = true
+        } else if let n = Array("abcdefg").firstIndex(of: c[j]) {
+          Self.colors[i].num[j] = n
         }
-        else if (c[j] >= "A" && c[j] <= "H") {
-          colors[i].num[j] = c[j] - "A"
-          colors[i].bold = 1
-        } else if (tolower((unsigned char)c[j]) == 'x') {
-          colors[i].num[j] = -1
+        else if let n = Array("ABCDEFG").firstIndex(of: c[j]) {
+          Self.colors[i].num[j] = n
+          Self.colors[i].bold = true
+        } else if (c[j].lowercased() == "x") {
+          Self.colors[i].num[j] = -1
         }
         else {
           warnx("invalid character '\(c[j])' in LSCOLORS env var")
-          colors[i].num[j] = -1
+          Self.colors[i].num[j] = -1
         }
       }
     }
@@ -489,4 +474,12 @@ extension ls {
     let b2 = String(repeating: " ", count: max(0, width - buf.count)) + buf
     print(b2, terminator: " ")
   }
+}
+
+
+func monthDayOrder() -> String {
+    guard let s = nl_langinfo(D_MD_ORDER) else {
+        return "md" // safe fallback
+    }
+    return String(cString: s)
 }

@@ -75,8 +75,8 @@ extension ls {
 
   /* colors for file types */
   struct Color {
-    var num : (Int, Int) = (0, 0)
-    var bold : Int = 0
+    var num : [Int] = [0, 0]
+    var bold = false
   }
   // FIXME: NUMCOLORS relies on an enum hack -- not happy about that.
   static var colors = Array(repeating: Color(), count: Colors.NUMCOLORS.rawValue)
