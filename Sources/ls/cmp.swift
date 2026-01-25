@@ -48,16 +48,16 @@ extension ls {
   }
 
   func modcmp(_ a : FTSEntry, _ b : FTSEntry) -> ComparisonResult {
-    if b.statp!.lastWrite.timespec.tv_sec > a.statp!.lastWrite.timespec.tv_sec {
+    if b.statp.lastWrite.timespec.tv_sec > a.statp.lastWrite.timespec.tv_sec {
       return .orderedAscending
     }
-    if b.statp!.lastWrite.timespec.tv_sec < a.statp!.lastWrite.timespec.tv_sec  {
+    if b.statp.lastWrite.timespec.tv_sec < a.statp.lastWrite.timespec.tv_sec  {
       return .orderedDescending
     }
-    if b.statp!.lastWrite.timespec.tv_nsec > a.statp!.lastWrite.timespec.tv_nsec {
+    if b.statp.lastWrite.timespec.tv_nsec > a.statp.lastWrite.timespec.tv_nsec {
       return .orderedAscending
     }
-    if b.statp!.lastWrite.timespec.tv_nsec < a.statp!.lastWrite.timespec.tv_nsec {
+    if b.statp.lastWrite.timespec.tv_nsec < a.statp.lastWrite.timespec.tv_nsec {
       return .orderedDescending
     }
     if (options.f_samesort) {
@@ -73,16 +73,16 @@ extension ls {
   }
 
   func acccmp(_ a : FTSEntry, _ b : FTSEntry) -> ComparisonResult {
-    if b.statp!.lastAccess.timespec.tv_sec > a.statp!.lastAccess.timespec.tv_sec {
+    if b.statp.lastAccess.timespec.tv_sec > a.statp.lastAccess.timespec.tv_sec {
       return .orderedAscending
     }
-    if b.statp!.lastAccess.timespec.tv_sec < a.statp!.lastAccess.timespec.tv_sec {
+    if b.statp.lastAccess.timespec.tv_sec < a.statp.lastAccess.timespec.tv_sec {
       return .orderedDescending
     }
-    if b.statp!.lastAccess.timespec.tv_nsec > a.statp!.lastAccess.timespec.tv_nsec {
+    if b.statp.lastAccess.timespec.tv_nsec > a.statp.lastAccess.timespec.tv_nsec {
       return .orderedAscending
     }
-    if b.statp!.lastAccess.timespec.tv_nsec < a.statp!.lastAccess.timespec.tv_nsec {
+    if b.statp.lastAccess.timespec.tv_nsec < a.statp.lastAccess.timespec.tv_nsec {
       return .orderedDescending
     }
     if (options.f_samesort) {
@@ -98,16 +98,16 @@ extension ls {
   }
 
   func birthcmp(_ a : FTSEntry, _ b : FTSEntry) -> ComparisonResult {
-    if b.statp!.created.timespec.tv_sec > a.statp!.created.timespec.tv_sec {
+    if b.statp.created.timespec.tv_sec > a.statp.created.timespec.tv_sec {
       return .orderedAscending
     }
-    if b.statp!.created.timespec.tv_sec < a.statp!.created.timespec.tv_sec {
+    if b.statp.created.timespec.tv_sec < a.statp.created.timespec.tv_sec {
       return .orderedDescending
     }
-    if b.statp!.created.timespec.tv_nsec > a.statp!.created.timespec.tv_nsec {
+    if b.statp.created.timespec.tv_nsec > a.statp.created.timespec.tv_nsec {
       return .orderedAscending
     }
-    if b.statp!.created.timespec.tv_nsec < a.statp!.created.timespec.tv_nsec {
+    if b.statp.created.timespec.tv_nsec < a.statp.created.timespec.tv_nsec {
       return .orderedAscending
     }
     if (options.f_samesort) {
@@ -123,16 +123,16 @@ extension ls {
   }
 
   func statcmp(_ a : FTSEntry, _ b : FTSEntry) -> ComparisonResult {
-    if b.statp!.lastModification.timespec.tv_sec > a.statp!.lastModification.timespec.tv_sec {
+    if b.statp.lastModification.timespec.tv_sec > a.statp.lastModification.timespec.tv_sec {
       return .orderedAscending
     }
-    if b.statp!.lastModification.timespec.tv_sec < a.statp!.lastModification.timespec.tv_sec {
+    if b.statp.lastModification.timespec.tv_sec < a.statp.lastModification.timespec.tv_sec {
       return .orderedDescending
     }
-    if b.statp!.lastModification.timespec.tv_nsec > a.statp!.lastModification.timespec.tv_nsec {
+    if b.statp.lastModification.timespec.tv_nsec > a.statp.lastModification.timespec.tv_nsec {
       return .orderedAscending
     }
-    if b.statp!.lastModification.timespec.tv_nsec < a.statp!.lastModification.timespec.tv_nsec {
+    if b.statp.lastModification.timespec.tv_nsec < a.statp.lastModification.timespec.tv_nsec {
       return .orderedDescending
     }
     if (options.f_samesort) {
@@ -148,10 +148,10 @@ extension ls {
   }
 
   func sizecmp(_ a : FTSEntry, _ b : FTSEntry) -> ComparisonResult {
-    if b.statp!.size > a.statp!.size {
+    if b.statp.size > a.statp.size {
       return .orderedAscending
     }
-    if b.statp!.size < a.statp!.size {
+    if b.statp.size < a.statp.size {
       return .orderedDescending
     }
     return ComparisonResult(rawValue: strcoll(a.name, b.name))!

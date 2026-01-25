@@ -62,22 +62,11 @@ extension ls {
      * Have to do random access in the linked list -- build a table
      * of pointers.
      */
-    if ((lastentries == -1) || (dp->entries > lastentries)) {
-      if ((narray =
-           realloc(array, dp->entries * sizeof(FTSENT *))) == NULL) {
-        warn(NULL);
-        printscol(dp);
-        return;
-      }
-      lastentries = dp->entries;
-      array = narray;
-    }
-    memset(array, 0, dp->entries * sizeof(FTSENT *));
-    for (p = dp->list, num = 0; p; p = p->fts_link) {
-      if (p->fts_number != NO_PRINT) {
-        array[num++] = p;
-      }
-    }
+//    if r.lastentries == -1 || dp.entries > r.lastentries {
+//      lastentries = dp.entries
+//    }
+
+    r.array = dp.list ?? []
 
     var colwidth = dp.maxlen
     if options.f_inode {
@@ -95,15 +84,15 @@ extension ls {
       printscol(dp)
       return
     }
-    var numcols = termwidth / colwidth
-    var numrows = num / numcols
-    if num % numcols {
+    var numcols = options.termwidth / Int(colwidth)
+    var numrows = r.array.count / numcols
+    if 0 != (r.array.count % numcols) {
       numrows += 1
     }
 
-    if ((dp->list == NULL || dp->list->fts_level != FTS_ROOTLEVEL) &&
-        (options.f_longform || options.f_size)) {
-      (void)printf("total %qu\n", (u_int64_t)howmany(dp->btotal, blocksize));
+    if (dp.list == nil || dp.list!.isEmpty || dp.list![0].level != CMigration.FTS_ROOTLEVEL) &&
+        (options.f_longform || options.f_size) {
+      print("total %qu", howmany(Int(dp.btotal), Int(options.blocksize)))
     }
 
     var base = 0;
@@ -114,23 +103,24 @@ extension ls {
       }
       var chcnt = 0
       for col in 0 ..< numcols {
-        assert(base < dp.entries)
-        chcnt += printaname(array[base], dp.s_inode, dp.s_block)
+        assert(base < r.array.count)
+        chcnt += printaname(r.array[base], Int(dp.s_inode), Int(dp.s_block))
         if options.f_sortacross {
           base += 1
         }
         else {
           base += numrows
         }
-        if base >= num {
+        if base >= r.array.count {
           break
         }
-        while ((cnt = ((chcnt + tabwidth) & ~(tabwidth - 1)))
-               <= endcol) {
+        while true {
+          let cnt = ((chcnt + tabwidth) & ~(tabwidth - 1))
+          if cnt > endcol { break }
           if options.f_sortacross && col + 1 >= numcols {
             break
           }
-          putchar(r.f_notabs ? CChar(0x20) : CChar(0x0a) )
+          putchar(r.f_notabs ? Int32(0x20) : Int32(0x0a) )
           chcnt = cnt;
         }
         endcol += colwidth

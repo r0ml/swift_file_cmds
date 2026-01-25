@@ -347,6 +347,7 @@ func compatibility_name_for_uuid(_ u : uuid_t) -> MemberID? {
   } else {
     return nil
   }
+  return nil
 }
 // #endif
 

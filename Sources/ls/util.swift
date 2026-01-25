@@ -36,72 +36,83 @@
  */
 
 import CMigration
+import Darwin
 
 extension ls {
 
-  func prn_normal(_ s : String) -> Int {
-    mbstate_t mbs;
-    wchar_t wc;
-    int i, n;
-    size_t clen;
+  func prn_normal(_ sx : String) -> Int {
+//    mbstate_t mbs;
+//    wchar_t wc;
+//    int i, n;
+//    size_t clen;
 
-    memset(&mbs, 0, sizeof(mbs));
-    n = 0;
-    while ((clen = mbrtowc(&wc, s, MB_LEN_MAX, &mbs)) != 0) {
+    var mbs = mbstate_t()
+    var n = 0
+    var wc = wchar_t()
+    var s = sx
+
+    while true {
+      let clen = mbrtowc(&wc, s, Int(MB_LEN_MAX), &mbs)
+      if clen == 0 { break }
       if (clen == -2) {
-        n += printf("%s", s);
+        print(s, terminator: "")
+        n += s.count
         break;
       }
-      if (clen == -1) {
-        memset(&mbs, 0, sizeof(mbs));
-        putchar((unsigned char)*s);
-        s++;
-        n++;
-        continue;
+      if clen == -1 {
+        let _ = withUnsafeMutablePointer(to: &mbs) {
+          memset($0, 0, MemoryLayout<mbstate_t>.size)
+        }
+        putchar(Int32(s.removeFirst().unicodeScalars.first!.value))
+        n+=1
       }
-      for (i = 0; i < clen; i++) {
-        putchar((unsigned char)s[i]);
-      }
-      s += clen;
-      if (iswprint(wc)) {
-        n += wcwidth(wc);
+      print(s.prefix(clen), terminator: "")
+      s.removeFirst(clen)
+      if 0 != iswprint(wc) {
+        n += Int(wcwidth(wc));
       }
     }
     return (n);
   }
 
-  func prn_printable(_ s : String) -> Int {
-    mbstate_t mbs;
-    wchar_t wc;
-    int i, n;
-    size_t clen;
+  func prn_printable(_ sx : String) -> Int {
+//    mbstate_t mbs;
+//    wchar_t wc;
+//   int i, n;
+//    size_t clen;
 
-    memset(&mbs, 0, sizeof(mbs));
-    n = 0;
-    while ((clen = mbrtowc(&wc, s, MB_LEN_MAX, &mbs)) != 0) {
-      if (clen == -1) {
-        putchar('?');
-        s++;
-        n++;
-        memset(&mbs, 0, sizeof(mbs));
-        continue;
+    var mbs = mbstate_t()
+    var n = 0
+    var wc = wchar_t()
+    var s = sx
+
+    while true {
+      let clen = mbrtowc(&wc, s, Int(MB_LEN_MAX), &mbs)
+      if clen == 0 { break }
+      if clen == -1 {
+        putchar(Int32("?".first!.asciiValue!))
+        s.removeFirst()
+        n += 1
+        let _ = withUnsafeMutableBytes(of: &mbs) {
+          memset($0.baseAddress!, 0, MemoryLayout<mbstate_t>.size)
+        }
+        continue
       }
-      if (clen == -2) {
-        putchar('?');
-        n++;
+      if clen == -2 {
+        putchar(Int32("?".first!.asciiValue!))
+        n += 1
         break;
       }
-      if (!iswprint(wc)) {
-        putchar('?');
-        s += clen;
-        n++;
-        continue;
+      if 0 == iswprint(wc) {
+        putchar(Int32("?".first!.asciiValue!))
+        s.removeFirst(clen)
+        n += 1
+        continue
       }
-      for (i = 0; i < clen; i++) {
-        putchar((unsigned char)s[i]);
-      }
-      s += clen;
-      n += wcwidth(wc);
+
+      print(s.prefix(clen), terminator: "")
+      s.removeFirst(clen)
+      n += Int(wcwidth(wc))
     }
     return (n);
   }
@@ -119,97 +130,111 @@ extension ls {
    *						DES 1998/04/23
    */
 
-  func len_octal(_ s : String, _ len : Int) -> Int {
-    mbstate_t mbs;
-    wchar_t wc;
-    size_t clen, r;
+  func len_octal(_ sx : String, _ lenx : Int) -> Int {
+//    mbstate_t mbs;
+//    wchar_t wc;
+//    size_t clen, r;
 
-    memset(&mbs, 0, sizeof(mbs));
-    var r = 0;
-    while (len != 0 && (clen = mbrtowc(&wc, s, len, &mbs)) != 0) {
-      if (clen == -1) {
+//    memset(&mbs, 0, sizeof(mbs));
+    var len = lenx
+    var r = 0
+    var wc = wchar_t()
+    var mbs = mbstate_t()
+    var s = sx
+
+    while true {
+      if len == 0 {break }
+      let clen = mbrtowc(&wc, s, len, &mbs)
+      if clen == 0 { break }
+      if clen == -1 {
         r += 4;
-        s++;
-        len--;
-        memset(&mbs, 0, sizeof(mbs));
+        s.removeFirst()
+        len-=1
+        let _ = withUnsafeMutablePointer(to: &mbs) {
+          memset($0, 0, MemoryLayout<mbstate_t>.size)
+        }
         continue;
       }
       if (clen == -2) {
         r += 4 * len;
         break;
       }
-      if (iswprint(wc)) {
+      if 0 != iswprint(wc) {
         r += 1
       }
       else {
         r += 4 * clen
       }
-      s += clen;
+      s.removeFirst(clen)
     }
-    return (r);
+    return r
   }
 
-  func prn_octal(_ s : String) -> Int {
+  func prn_octal(_ sx : String) -> Int {
     let esc : [String : String] = ["\\" : "\\", "\"" : "\"", "\u{07}" : "a", "\u{08}" : "b",
                                    "\u{0c}" : "f", "\n" : "n", "\r" : "r", "\t" : "t",
                                    "\u{0b}" : "v"
     ]
-    const char *p;
-    mbstate_t mbs;
-    wchar_t wc;
-    size_t clen;
-    unsigned char ch;
-    int goodchar, i, prtlen;
+//    const char *p;
+//    mbstate_t mbs;
+//    wchar_t wc;
+//    size_t clen;
+//    unsigned char ch;
+//    int goodchar, i, prtlen;
 
-    memset(&mbs, 0, sizeof(mbs));
+    var mbs = mbstate_t()
     var len = 0;
-    while ((clen = mbrtowc(&wc, s, MB_LEN_MAX, &mbs)) != 0) {
-      goodchar = clen != -1 && clen != -2;
-      if (goodchar && iswprint(wc) && wc != "\"" && wc != "\\") {
-        for (i = 0; i < clen; i++) {
-          putchar((unsigned char)s[i]);
+    var wc = wchar_t()
+    var s = Substring(sx)
+
+    while true {
+      let _ = withUnsafeMutablePointer(to: &mbs) { p in
+        memset(p, 0, MemoryLayout<mbstate_t>.size)
+      }
+      let clen = Darwin.mbrtowc(&wc, String(s), Int(MB_LEN_MAX), &mbs)
+      if clen == 0 { break }
+      let goodchar = clen != -1 && clen != -2;
+      if goodchar && 0 != iswprint(wc) && wc != "\"".first!.asciiValue! && wc != "\\".first!.asciiValue!  {
+        for i in 0 ..< clen {
+          Darwin.putchar( Int32(Array(s)[i].unicodeScalars.first!.value ) )
         }
-        len += wcwidth(wc);
+        len += Int(wcwidth(wc))
       } else if goodchar,
                 options.f_octal_escape,
-
-                  // #if WCHAR_MIN < 0
-                wc >= 0,
-                // #endif
-                wc <= UCHAR_MAX ,
-                let p = esc[wc] {
+                let wcc = UnicodeScalar(UInt32(wc)),
+                let p = esc[ String(Character(wcc )) ] {
         print("\\\(p)", terminator: "")
         len += 2
       } else {
-        if (goodchar) {
+        var prtlen : Int
+        if goodchar {
           prtlen = clen;
         }
-        else if (clen == (size_t)-1) {
-          prtlen = 1;
+        else if clen == -1 {
+          prtlen = 1
         }
         else {
-          prtlen = strlen(s);
+          prtlen = s.count
         }
-        for (i = 0; i < prtlen; i++) {
-          ch = (unsigned char)s[i];
-          putchar('\\');
-          putchar('0' + (ch >> 6));
-          putchar('0' + ((ch >> 3) & 7));
-          putchar('0' + (ch & 7));
+        for i in 0 ..< prtlen {
+          let ch = (Array(s))[i].unicodeScalars.first!.value
+          putchar(Int32("\\".first!.asciiValue!))
+          putchar(Int32(0x30 + (ch >> 6)))
+          putchar(Int32(0x30 + ((ch >> 3) & 7)))
+          putchar(Int32(0x30 + (ch & 7)))
           len += 4;
         }
       }
-      if (clen == -2) {
+      if clen == -2 {
         break;
       }
-      if (clen == -1) {
-        memset(&mbs, 0, sizeof(mbs));
-        s++;
+      if clen == -1 {
+        s.removeFirst()
       } else {
-        s += clen;
+        s.removeFirst(clen)
       }
     }
-    return (len);
+    return len
   }
 
 }

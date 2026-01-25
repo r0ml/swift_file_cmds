@@ -94,7 +94,7 @@ extension ls {
       if (IS_NOPRINT(p)) {
         continue;
       }
-      printaname(p, dp.s_inode, dp.s_block)
+      let _ = printaname(p, Int(dp.s_inode), Int(dp.s_block))
       print("")
     }
   }
@@ -457,7 +457,7 @@ extension ls {
         print("")
         chcnt = 0
       }
-      chcnt += printaname(p, dp.s_inode, dp.s_block)
+      chcnt += printaname(p, Int(dp.s_inode), Int(dp.s_block))
       if !islast {
         print(", ", terminator: "")
         chcnt += 2

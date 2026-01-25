@@ -171,6 +171,8 @@ func do_color() -> Bool {
   class Runtime {
     var rval = 0
     var f_notabs = false    /* don't use tab-separated multi-col output */
+    var lastentries = -1
+    var array : [FTSEntry] = []
   }
   let r = Runtime()
 
@@ -241,7 +243,7 @@ func do_color() -> Bool {
   struct DISPLAY {
     var list : [FTSEntry]?
     var btotal : UInt = 0
-    var entries : UInt = 0
+//    var entries : UInt = 0
     var maxlen : UInt = 0
     var s_block : UInt = 0
     var s_flags : UInt = 0
