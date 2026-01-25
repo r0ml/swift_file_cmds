@@ -45,10 +45,22 @@ import BZip2
 // fileprivate var inbuf = Array(repeating: UInt8(0), count: gzip.BUFLEN)
 // fileprivate var outbuf = Array(repeating: UInt8(0), count: gzip.BUFLEN)
 
-fileprivate var inbuf  = UnsafeMutablePointer<CChar>.allocate(capacity: gzip.BUFLEN)
-fileprivate var outbuf = UnsafeMutablePointer<CChar>.allocate(capacity: gzip.BUFLEN)
 
-extension gzip {
+class Bzip2 {
+  var gzi : gzip
+  var inbuf : UnsafeMutablePointer<CChar>
+  var outbuf : UnsafeMutablePointer<CChar>
+
+  init(_ g : gzip) {
+    self.gzi = g
+    inbuf = UnsafeMutablePointer<CChar>.allocate(capacity: gzip.BUFLEN)
+    outbuf = UnsafeMutablePointer<CChar>.allocate(capacity: gzip.BUFLEN)
+  }
+
+  deinit {
+    inbuf.deallocate()
+    outbuf.deallocate()
+  }
 
   func unbzip2(_ inx : FileDescriptor, _ out : FileDescriptor, _ pre : [UInt8]) -> (UInt, UInt)? {
     //	int		ret, end_of_file;
@@ -67,7 +79,7 @@ extension gzip {
 
     var ret = BZ2_bzDecompressInit(&bzs, 0, 0)
     if ret != BZ_OK {
-      maybe_errx("bzip2 init")
+      gzi.maybe_errx("bzip2 init")
     }
 
     /* Prepend. */
@@ -78,16 +90,16 @@ extension gzip {
     var bytes_in = UInt(pre.count)
 
     while ret == BZ_OK {
-      check_siginfo()
+      gzi.check_siginfo()
       if bzs.avail_in == 0 && !end_of_file {
-        guard let n = try? inx.read(into: UnsafeMutableRawBufferPointer(start: inbuf, count: Self.BUFLEN)) else {
-          maybe_err("read")
+        guard let n = try? inx.read(into: UnsafeMutableRawBufferPointer(start: inbuf, count: gzip.BUFLEN)) else {
+          gzi.maybe_err("read")
           return nil
         }
         if n == 0 {
           end_of_file = true
         }
-        r.infile_current += UInt(n)
+        gzi.r.infile_current += UInt(n)
         bzs.next_in = inbuf
         bzs.avail_in = UInt32(n)
         if bytes_in != 0 {
@@ -96,7 +108,7 @@ extension gzip {
       }
 
       bzs.next_out = outbuf
-      bzs.avail_out = UInt32(Self.BUFLEN)
+      bzs.avail_out = UInt32(gzip.BUFLEN)
       ret = BZ2_bzDecompress(&bzs)
 
       switch ret {
@@ -111,13 +123,13 @@ extension gzip {
               ret = BZ_STREAM_END
             }
             else {
-              maybe_errx("truncated file")
+              gzi.maybe_errx("truncated file")
             }
           }
           cold = false
-          if (!options.tflag && bzs.avail_out != Self.BUFLEN) {
-            guard let n = try? out.write( UnsafeRawBufferPointer(start: outbuf, count: Self.BUFLEN - Int(bzs.avail_out))) else {
-              maybe_err("write")
+          if (!gzi.options.tflag && bzs.avail_out != gzip.BUFLEN) {
+            guard let n = try? out.write( UnsafeRawBufferPointer(start: outbuf, count: gzip.BUFLEN - Int(bzs.avail_out))) else {
+              gzi.maybe_err("write")
               return nil
             }
             bytes_out += UInt(n)
@@ -125,23 +137,23 @@ extension gzip {
           if (ret == BZ_STREAM_END && !end_of_file) {
             if (BZ2_bzDecompressEnd(&bzs) != BZ_OK ||
                 BZ2_bzDecompressInit(&bzs, 0, 0) != BZ_OK) {
-              maybe_errx("bzip2 re-init")
+              gzi.maybe_errx("bzip2 re-init")
             }
             cold = true
             ret = BZ_OK
           }
 
         case BZ_DATA_ERROR:
-          maybe_warnx("bzip2 data integrity error")
+          gzi.maybe_warnx("bzip2 data integrity error")
 
         case BZ_DATA_ERROR_MAGIC:
-          maybe_warnx("bzip2 magic number error")
+          gzi.maybe_warnx("bzip2 magic number error")
 
         case BZ_MEM_ERROR:
-          maybe_warnx("bzip2 out of memory")
+          gzi.maybe_warnx("bzip2 out of memory")
 
         default:
-          maybe_warnx("unknown bzip2 error: %d", ret)
+          gzi.maybe_warnx("unknown bzip2 error: %d", ret)
       }
     }
 

@@ -41,16 +41,13 @@ import Darwin.C
 import Curses
 
 
-var output = false
+// FIXME: cheating for now to get to a working compile
+nonisolated(unsafe) var explicitansi = false  /* Explicit ANSI sequences, no termcap(5) */
+nonisolated(unsafe) var ansi_coloff : String? = nil    /* ANSI sequence to reset colours */
+nonisolated(unsafe) var attrs_off = ""    /* ANSI sequence to turn off attributes */
+
 
 // Things that need to be at global level because of signals
-
-var explicitansi = false  /* Explicit ANSI sequences, no termcap(5) */
-var ansi_coloff : String? = nil    /* ANSI sequence to reset colours */
-var attrs_off = ""    /* ANSI sequence to turn off attributes */
-var enter_bold = ""    /* ANSI sequence to set color to bold mode */
-var ansi_bgcol : String? = nil    /* ANSI sequence to set background colour */
-var ansi_fgcol : String? = nil    /* ANSI sequence to set foreground colour */
 
 
 enum WhenColor : Int {
@@ -88,7 +85,7 @@ enum WhenColor : Int {
 #define	COLOR_OPT	(CHAR_MAX + 1)
 */
 
-var longOptions : [CMigration.option] = [
+let longOptions : [CMigration.option] = [
   .init("color",  .optional_argument),
   ]
 
@@ -173,7 +170,20 @@ func do_color() -> Bool {
     var f_notabs = false    /* don't use tab-separated multi-col output */
     var lastentries = -1
     var array : [FTSEntry] = []
+
+    var enter_bold = ""    /* ANSI sequence to set color to bold mode */
+    var ansi_bgcol : String? = nil    /* ANSI sequence to set background colour */
+    var ansi_fgcol : String? = nil    /* ANSI sequence to set foreground colour */
+
+    var padding_for_month = Array(repeating: 0, count: 12)
+    var month_max_size = 0;
+
+    // FIXME: NUMCOLORS relies on an enum hack -- not happy about that.
+    var colors = Array(repeating: Color(), count: Colors.NUMCOLORS.rawValue)
+    var output = false
+
   }
+
   let r = Runtime()
 
   struct CommandOptions {
@@ -229,7 +239,7 @@ func do_color() -> Bool {
 
     var fts_options = FTSFlags()
 
-    var sortfcn : ((FTSEntry, FTSEntry) -> ComparisonResult)?
+    var sortfcn : Comparer.Sorter = .name
     var printfcn : ((DISPLAY) -> ())?
     var args : [String] = []
 
@@ -526,10 +536,10 @@ func do_color() -> Bool {
       var bp: UnsafeMutablePointer<Int8>?
 
       if let term = Environment["TERM"], tgetent(&termcapbuf, term) == 1 {
-        ansi_fgcol = String(cString: tgetstr("AF", &bp)!)
-        ansi_bgcol = String(cString: tgetstr("AB", &bp)!)
+        r.ansi_fgcol = String(cString: tgetstr("AF", &bp)!)
+        r.ansi_bgcol = String(cString: tgetstr("AB", &bp)!)
         attrs_off = String(cString: tgetstr("me", &bp)!)
-        enter_bold = String(cString: tgetstr("md", &bp)!)
+        r.enter_bold = String(cString: tgetstr("md", &bp)!)
 
         /* To switch colours off use 'op' if
          * available, otherwise use 'oc', or
@@ -538,7 +548,7 @@ func do_color() -> Bool {
         if ansi_coloff == nil {
           ansi_coloff = String(cString: tgetstr("oc", &bp)!)
         }
-        if (ansi_fgcol != nil && ansi_bgcol != nil && ansi_coloff != nil) {
+        if (r.ansi_fgcol != nil && r.ansi_bgcol != nil && ansi_coloff != nil) {
           options.f_color = true
         }
       } else if (options.colorflag == .ALWAYS) {
@@ -615,41 +625,41 @@ func do_color() -> Bool {
     /* Select a sort function. */
     if (options.f_reversesort) {
       if (!options.f_timesort && !options.f_sizesort) {
-        options.sortfcn = revnamecmp;
+        options.sortfcn = .revname
       }
       else if (options.f_sizesort) {
-        options.sortfcn = revsizecmp;
+        options.sortfcn = .revsize
       }
       else if (options.f_accesstime) {
-        options.sortfcn = revacccmp;
+        options.sortfcn = .revacc
       }
       else if (options.f_birthtime) {
-        options.sortfcn = revbirthcmp;
+        options.sortfcn = .revbirth
       }
       else if (options.f_statustime) {
-        options.sortfcn = revstatcmp;
+        options.sortfcn = .revstat
       }
       else {    /* Use modification time. */
-        options.sortfcn = revmodcmp;
+        options.sortfcn = .revmod
       }
     } else {
       if (!options.f_timesort && !options.f_sizesort) {
-        options.sortfcn = namecmp;
+        options.sortfcn = .name
       }
       else if (options.f_sizesort) {
-        options.sortfcn = sizecmp;
+        options.sortfcn = .size
       }
       else if (options.f_accesstime) {
-        options.sortfcn = acccmp;
+        options.sortfcn = .acc
       }
       else if (options.f_birthtime) {
-        options.sortfcn = birthcmp;
+        options.sortfcn = .birth
       }
       else if (options.f_statustime) {
-        options.sortfcn = statcmp;
+        options.sortfcn = .stat
       }
       else {    /* Use modification time. */
-        options.sortfcn = modcmp;
+        options.sortfcn = .mod
       }
     }
 
@@ -703,6 +713,8 @@ usage: ls [-@ABCFGHILOPRSTUWXabcdefghiklmnopqrstuvwxy1%%,] [--color=when] [-D fo
 """
 }
 
+// =====================================================================
+// FIXME: this is very much not allowed
 
 @_silgen_name("tgetent")
 func tgetent(
@@ -721,6 +733,9 @@ func tgetnum(_ id: UnsafePointer<CChar>?) -> Int32
 
 @_silgen_name("tgetflag")
 func tgetflag(_ id: UnsafePointer<CChar>?) -> Int32
+
+// =====================================================================
+// these thins are outside the class because they are invoked by signals
 
 func colorquit(_ sig : Int32) {
   endcolor(sig)

@@ -33,6 +33,7 @@
  */
 
 import CMigration
+import Atomics
 import Darwin
 
 func cp_pct(_ x : Int, _ y : Int) -> Int {
@@ -338,8 +339,8 @@ extension cp {
       repeat {
         wcount = Int(copy_fallback(from_fd, to_fd!))
         wtotal += wcount
-        if info != 0 {
-          info = 0
+        if info.load(ordering: .relaxed) {
+          info.store(false, ordering: .relaxed)
           let k = cFormat("%3d", cp_pct(wtotal, Int(fs.size)))
           print("\(entp.path) -> \(topp) \(k)%", to: &stderr)
         }
@@ -583,8 +584,8 @@ func copyfile_callback(_ what : Int32, _ stage : Int32, _ state : copyfile_state
   if (stage != COPYFILE_PROGRESS) {
     errx(1, "unexpected copyfile callback")
   }
-  if (info != 0) {
-    info = 0
+  if info.load(ordering: .relaxed) {
+    info.store(false, ordering: .relaxed)
     copyfile_state_get(state, UInt32(COPYFILE_STATE_COPIED), &wtotal);
     var stderr = FileDescriptor.standardError
     print("\(cpctx.src) -> \(cpctx.dst) \(cFormat("%3d", cp_pct(wtotal, cpctx.size)))%")

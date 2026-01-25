@@ -38,7 +38,48 @@
 import CMigration
 import Darwin
 
-extension ls {
+struct Comparer : Sendable {
+  var of_samesort : Bool
+  var of_listdir : Bool
+  var sorter : Sorter
+  var sortfcn : (@Sendable (FTSEntry, FTSEntry) -> ComparisonResult)!
+
+  enum Sorter {
+    case name
+    case revname
+    case mod
+    case revmod
+    case acc
+    case revacc
+    case birth
+    case revbirth
+    case stat
+    case revstat
+    case size
+    case revsize
+  }
+
+  init(_ s : Bool, _ d : Bool, _ ss : Sorter) {
+    of_samesort = s
+    of_listdir = d
+    sorter = ss
+    sortfcn = switch sorter {
+      case .name: namecmp
+      case .revname: revnamecmp
+      case .mod: modcmp
+      case .revmod: revmodcmp
+      case .acc: acccmp
+      case .revacc: revacccmp
+      case .birth: birthcmp
+      case .revbirth: revbirthcmp
+      case .stat: statcmp
+      case .revstat: revstatcmp
+      case .size: sizecmp
+      case .revsize: revsizecmp
+//      default: namecmp
+    }
+  }
+
   func namecmp(_ a : FTSEntry, _ b : FTSEntry) -> ComparisonResult {
     return ComparisonResult(rawValue: strcoll(a.name, b.name))!
   }
@@ -60,7 +101,7 @@ extension ls {
     if b.statp.lastWrite.timespec.tv_nsec < a.statp.lastWrite.timespec.tv_nsec {
       return .orderedDescending
     }
-    if (options.f_samesort) {
+    if of_samesort {
       return ComparisonResult(rawValue: strcoll(b.name, a.name))!
     }
     else {
@@ -85,7 +126,7 @@ extension ls {
     if b.statp.lastAccess.timespec.tv_nsec < a.statp.lastAccess.timespec.tv_nsec {
       return .orderedDescending
     }
-    if (options.f_samesort) {
+    if of_samesort {
       return ComparisonResult(rawValue: strcoll(b.name, a.name))!
     }
     else {
@@ -110,7 +151,7 @@ extension ls {
     if b.statp.created.timespec.tv_nsec < a.statp.created.timespec.tv_nsec {
       return .orderedAscending
     }
-    if (options.f_samesort) {
+    if of_samesort {
       return ComparisonResult(rawValue: strcoll(b.name, a.name))!
     }
     else {
@@ -135,7 +176,7 @@ extension ls {
     if b.statp.lastModification.timespec.tv_nsec < a.statp.lastModification.timespec.tv_nsec {
       return .orderedDescending
     }
-    if (options.f_samesort) {
+    if of_samesort {
       return ComparisonResult(rawValue: strcoll(b.name, a.name))!
     }
     else {
@@ -159,5 +200,23 @@ extension ls {
 
   func revsizecmp(_ a : FTSEntry, _ b : FTSEntry) -> ComparisonResult {
     return (sizecmp(b, a))
+  }
+
+  /*
+   * Ordering for mastercmp:
+   * If ordering the argv (fts_level = FTS_ROOTLEVEL) return non-directories
+   * as larger than directories.  Within either group, use the sort function.
+   * All other levels use the sort function.  Error entries remain unsorted.
+   */
+  @Sendable func mastercmp(_ a : FTSEntry, _ b : FTSEntry) -> ComparisonResult {
+    if a.info == .ERR { return .orderedSame }
+    if b.info == .ERR { return .orderedSame }
+    if a.info == .NS || b.info == .NS { return namecmp(a, b) }
+
+    if a.info != b.info && a.level == CMigration.FTS_ROOTLEVEL && !of_listdir {
+      if a.info == .D { return .orderedDescending }
+      if b.info == .D { return .orderedAscending }
+    }
+    return sortfcn(a, b)
   }
 }

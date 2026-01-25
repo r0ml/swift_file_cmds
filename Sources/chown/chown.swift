@@ -33,6 +33,7 @@
  */
 
 import CMigration
+import Atomics
 import Darwin
 
 /*static uid_t uid;
@@ -44,10 +45,10 @@ static int isnumeric = 0;
 static const char *gname;
  */
 
-var siginfo : sig_atomic_t = 0
+let siginfo = ManagedAtomic(false)
 
 func siginfo_handler(_ sig : Int32) {
-	siginfo = 1;
+  siginfo.store(true, ordering: .relaxed)
 }
 
 
@@ -219,9 +220,9 @@ let unix2003_compat = true  // COMPAT_MODE("bin/chown", "Unix2003");
         default:
           break;
       }
-      if (siginfo != 0) {
+      if siginfo.load(ordering: .relaxed) {
         print_info(p, 2);
-        siginfo = 0
+        siginfo.store(false, ordering: .relaxed)
       }
       if (unix2003_compat) {
         /* Can only avoid updating times if both uid and gid are -1 */

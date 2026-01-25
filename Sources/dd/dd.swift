@@ -37,12 +37,14 @@
  */
 
 import CMigration
+import Atomics
+
 import Darwin
 
-var need_summary : Bool = false
-var need_progress : Bool = false
+let need_summary = ManagedAtomic<Bool>(false)
+let need_progress = ManagedAtomic<Bool>(false)
 
-var kill_signal : Int32 = 0
+let kill_signal = ManagedAtomic<Int32>(0)
 
 @main class dd {
 
@@ -602,10 +604,10 @@ var kill_signal : Int32 = 0
           case .def(let f): f(&ddc)
         }
       }
-      if need_summary {
+      if need_summary.load(ordering: .relaxed) {
         summary(ddc.ddflags, ddc.st)
       }
-      if need_progress {
+      if need_progress.load(ordering: .relaxed) {
         progress(ddc.st)
       }
     }

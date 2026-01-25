@@ -36,6 +36,7 @@
  */
 
 import CMigration
+import Synchronization
 import Darwin
 
 let SI_OPT = CHAR_MAX + 1
@@ -336,8 +337,8 @@ struct ignentry {
                 print("\(jd)\t\(p.path)")
               }
             }
-            if info != 0 {
-              info = 0;
+            if (info.withLock { $0 }) {
+              info.withLock { $0 = false }
               print("\t\(p.path)")
             }
           case .DC:			/* Ignore. */
@@ -795,9 +796,9 @@ usage: du [-Aclnx] [-H | -L | -P] [-g | -h | -k | -m] [-a | -s | -d depth] [-B b
 
 }
 
-var info : sig_atomic_t = 0
+let info = Mutex(false)
 
 func siginfo(_ sig : Int32 /* __unused */) {
-  info = 1;
+  info.withLock { $0 = true }
 }
 

@@ -37,6 +37,7 @@
  */
 
 import CMigration
+import Atomics
 import Darwin
 
 let NEWLINE = "\n".first!.asciiValue!
@@ -86,7 +87,7 @@ extension dd {
     if !ddflags.contains(.C_NOXFER) {
       print("\(st.bytes) bytes transferred in \(cFormat("%.6f", secs)) secs (\(cFormat("%.0f", Double(st.bytes) / secs)) bytes/sec)", to: &stderr)
     }
-    need_summary = false
+    need_summary.store(false, ordering: .relaxed)
   }
 
   func progress(_ st : STAT) {
@@ -99,32 +100,33 @@ extension dd {
 
     var stderr = FileDescriptor.standardError
     print(buf, terminator: "\r", to: &stderr)
-    need_progress = false
+    need_progress.store(false, ordering: .relaxed)
   }
 
   func check_terminate(_ dd : DDFlags, _ st : STAT) {
-    if 0 != kill_signal {
+    let ks = kill_signal.load(ordering: .relaxed)
+    if 0 != ks {
       summary(dd, st)
       //		(void)fflush(stderr);
-      signal(kill_signal, SIG_DFL)
-      raise(kill_signal)
+      signal(ks, SIG_DFL)
+      raise(ks)
       /* NOT REACHED */
-      _exit(128 + kill_signal);
+      _exit(128 + ks);
     }
   }
 }
 
 /* ARGSUSED */
 func siginfo_handler(_ signo : Int32) {
-  need_summary = true
+  need_summary.store(true, ordering: .relaxed)
 }
 
 /* ARGSUSED */
 func sigalarm_handler(_ signo : Int32) {
-  need_progress = true
+  need_progress.store(true, ordering: .relaxed)
 }
 
 func terminate(_ signo : Int32) {
-  kill_signal = signo
+  kill_signal.store(signo, ordering: .relaxed)
 }
 

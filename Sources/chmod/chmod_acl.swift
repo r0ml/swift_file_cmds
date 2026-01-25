@@ -43,8 +43,8 @@ extension chmod {
   struct ACLPermType : OptionSet {
     var rawValue : Int32
 
-    static var DIR = Self(rawValue: 1)
-    static var FILE = Self(rawValue: 2)
+    static let DIR = Self(rawValue: 1)
+    static let FILE = Self(rawValue: 2)
   }
 
   struct ACLPerm {
@@ -57,7 +57,7 @@ extension chmod {
     }
   }
 
-  static var acl_perms : [String:ACLPerm] = [
+  static let acl_perms : [String:ACLPerm] = [
     "read" : .init(ACL_READ_DATA, .FILE),
     "llist": .init(ACL_LIST_DIRECTORY, .DIR),
     "write": .init(ACL_WRITE_DATA, .FILE),
@@ -87,7 +87,7 @@ extension chmod {
     }
   }
 
-  static var acl_flags : [String:ACLFlag] = [
+  static let acl_flags : [String:ACLFlag] = [
     "inherited" : .init(ACL_ENTRY_INHERITED, [.FILE, .DIR] ),
     "file_inherit" : .init(ACL_ENTRY_FILE_INHERIT, .DIR),
     "directory_inherit" : .init(ACL_ENTRY_DIRECTORY_INHERIT,	.DIR),

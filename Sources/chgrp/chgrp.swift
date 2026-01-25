@@ -33,11 +33,12 @@
  */
 
 import CMigration
+import Atomics
 import Darwin
 
-var siginfo : Int32 = 0
+let siginfo = ManagedAtomic(false)
 func siginfo_handler(_ sig : Int32) {
-  siginfo = 1;
+  siginfo.store(true, ordering: .relaxed)
 }
 
 let unix2003 = true
@@ -189,9 +190,9 @@ let unix2003 = true
     default:
       break
     }
-    if 0 != siginfo {
+      if siginfo.load(ordering: .relaxed) {
       print_info(p, 2)
-      siginfo = 0
+        siginfo.store(false, ordering: .relaxed)
     }
 
       if unix2003 {

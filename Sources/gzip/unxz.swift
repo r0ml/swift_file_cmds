@@ -41,13 +41,17 @@ import zlib
 
 let IO_BUFFER_SIZE = 8192
 
-fileprivate var bufferSize = max(Int(BUFSIZ), Int(IO_BUFFER_SIZE))
-fileprivate var ibuf = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
-fileprivate var obuf = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
 
-extension gzip {
+class Unxz {
+  var gzi : gzip
 
+  static let bufferSize = max(Int(BUFSIZ), Int(IO_BUFFER_SIZE))
+  var ibuf = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
+  var obuf = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
 
+  init(_ g : gzip) {
+    gzi = g
+  }
 
   func unxz(_ i : FileDescriptor, _ o : FileDescriptor, _ pre : [UInt8]) -> (UInt, UInt)? {
 
@@ -73,43 +77,43 @@ extension gzip {
     strm.next_in = UnsafePointer<UInt8>(ibuf) + pre.count
     strm.avail_in = pre.count
 
-    guard let j = try? i.read(into: UnsafeMutableRawBufferPointer(start: ibuf + strm.avail_in, count: bufferSize)) else {
-      maybe_err("read failed")
+    guard let j = try? i.read(into: UnsafeMutableRawBufferPointer(start: ibuf + strm.avail_in, count: Self.bufferSize)) else {
+      gzi.maybe_err("read failed")
       return nil
     }
 
-    r.infile_current += UInt(j)
+    gzi.r.infile_current += UInt(j)
     strm.avail_in += j
     var bytes_in = UInt(strm.avail_in)
 
     let ret2 = lzma_stream_decoder(&strm, UINT64_MAX, flags)
     if ret2 != LZMA_OK {
-      maybe_errx("Can't initialize decoder (\(ret2))")
+      gzi.maybe_errx("Can't initialize decoder (\(ret2))")
     }
 
     strm.next_out = nil
     strm.avail_out = 0
     let ret = lzma_code(&strm, LZMA_RUN)
     if ret != LZMA_OK {
-      maybe_errx("Can't read headers (\(ret)")
+      gzi.maybe_errx("Can't read headers (\(ret)")
     }
 
     var bytes_out = UInt(0)
     strm.next_out = obuf;
-    strm.avail_out = bufferSize
+    strm.avail_out = Self.bufferSize
 
     while true {
-      check_siginfo()
+      gzi.check_siginfo()
       if strm.avail_in == 0 {
         strm.next_in = UnsafePointer<UInt8>(ibuf)
-        guard let j = try? i.read(into: UnsafeMutableRawBufferPointer(start: ibuf, count: bufferSize)) else {
-          maybe_err("read failed")
+        guard let j = try? i.read(into: UnsafeMutableRawBufferPointer(start: ibuf, count: Self.bufferSize)) else {
+          gzi.maybe_err("read failed")
           return nil
         }
         if j == 0 {
           action = LZMA_FINISH
         } else {
-            r.infile_current += UInt(strm.avail_in)
+          gzi.r.infile_current += UInt(strm.avail_in)
             bytes_in += UInt(strm.avail_in)
         }
       }
@@ -120,15 +124,15 @@ extension gzip {
       // This way as much data as possible gets written to output
       // even if decoder detected an error.
       if (strm.avail_out == 0 || ret != LZMA_OK) {
-        let  write_size = bufferSize - strm.avail_out
+        let  write_size = Self.bufferSize - strm.avail_out
 
         guard let j = try? o.write(UnsafeRawBufferPointer(start: obuf, count: write_size)) else {
-          maybe_err("write failed");
+          gzi.maybe_err("write failed");
           return nil
         }
 
         strm.next_out = obuf;
-        strm.avail_out = bufferSize
+        strm.avail_out = Self.bufferSize
         bytes_out += UInt(write_size);
       }
 
@@ -171,7 +175,7 @@ extension gzip {
           default:
             msg = "Unknown error (\(ret))"
         }
-        maybe_errx(msg)
+        gzi.maybe_errx(msg)
       }
     }
   }

@@ -34,12 +34,16 @@
  */
 
 import CMigration
+import Atomics
+import Synchronization
 import Darwin
 import zlib
 
 // for Signals
-var print_info = false
-var remove_file : String? = nil
+let print_info = ManagedAtomic(false)
+
+// FIXME: just trying to get to a compile -- fix this later
+nonisolated(unsafe)var remove_file : String? = nil
 
 @main struct gzip : ShellCommand {
 
@@ -51,9 +55,6 @@ var remove_file : String? = nil
 
     var outfile : String? = nil
     var firstPrint = true
-
-
-    var remove_file : String? = nil
   }
 
   let r = Runtime()

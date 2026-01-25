@@ -37,6 +37,7 @@
  */
 
 import CMigration
+import Atomics
 import Darwin
 
 extension dd {
@@ -109,10 +110,10 @@ extension dd {
         } else {
           cnt -= 1
         }
-        if need_summary {
+        if need_summary.load(ordering: .relaxed) {
           summary(ddc.ddflags, ddc.st)
         }
-        if need_progress {
+        if need_progress.load(ordering: .relaxed) {
           progress(ddc.st)
         }
         continue;

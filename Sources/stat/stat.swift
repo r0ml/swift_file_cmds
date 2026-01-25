@@ -86,11 +86,11 @@ import Darwin
   struct FlagFlags : OptionSet {
     var rawValue : Int
 
-    static var POUND = Self(rawValue: 0x01)
-    static var SPACE = Self(rawValue: 0x02)
-    static var PLUS = Self(rawValue: 0x04)
-    static var ZERO = Self(rawValue: 0x08)
-    static var MINUS = Self(rawValue: 0x10)
+    static let POUND = Self(rawValue: 0x01)
+    static let SPACE = Self(rawValue: 0x02)
+    static let PLUS = Self(rawValue: 0x04)
+    static let ZERO = Self(rawValue: 0x08)
+    static let MINUS = Self(rawValue: 0x10)
   }
 
    /*
@@ -132,12 +132,12 @@ import Darwin
   struct FormatFlags : OptionSet {
     var rawValue : Int
 
-    static var DECIMAL = Self(rawValue: 0x01)
-    static var OCTAL = Self(rawValue: 0x02)
-    static var UNSIGNED = Self(rawValue: 0x04)
-    static var HEX = Self(rawValue: 0x08)
-    static var FLOAT = Self(rawValue: 0x10)
-    static var STRING = Self(rawValue: 0x20)
+    static let DECIMAL = Self(rawValue: 0x01)
+    static let OCTAL = Self(rawValue: 0x02)
+    static let UNSIGNED = Self(rawValue: 0x04)
+    static let HEX = Self(rawValue: 0x08)
+    static let FLOAT = Self(rawValue: 0x10)
+    static let STRING = Self(rawValue: 0x20)
   }
 
   enum WhatToShow : Character {

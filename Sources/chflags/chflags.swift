@@ -33,7 +33,7 @@
  */
 
 import CMigration
-import Synchronization
+import Atomics
 
 import Darwin
 
@@ -246,15 +246,13 @@ struct ATFlags : OptionSet {
       if (chflagsat(Int(AT_FDCWD), p.accpath, UInt32(newflags), atflag) == -1 && !options.fflag) {
         warn(p.path);
         rval = 1;
-      } else if (options.vflag > 0 || (siginfo.withLock { $0 } ) ) {
+      } else if (options.vflag > 0 || (siginfo.load(ordering: .relaxed) ) ) {
         print(p.path, terminator: "")
-        if (options.vflag > 1 || (siginfo.withLock { $0 }) ) {
+        if (options.vflag > 1 || (siginfo.load(ordering: .relaxed) ) ) {
           print(": 0\(String(oflags, radix: 8)) -> 0\(String(newflags,  radix: 8))", terminator: "")
         }
         print("");
-        siginfo.withLock {
-          $0 = false
-        }
+        siginfo.store(false, ordering: .relaxed)
       }
     }
     throw CmdErr(rval, "");
@@ -264,8 +262,8 @@ struct ATFlags : OptionSet {
   var usage : String = "usage: chflags [-fhvx] [-R [-H | -L | -P]] flags file ..."
 }
 
-let siginfo = Mutex(false)
+let siginfo = ManagedAtomic<Bool>(false)
 
 func siginfo_handler(_  sig  : Int32) {
-  siginfo.withLock { $0 = true }
+  siginfo.store(true, ordering: .relaxed)
 }

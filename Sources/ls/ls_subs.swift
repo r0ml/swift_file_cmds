@@ -58,7 +58,8 @@ extension ls {
     //    FTSENT *p, *chp;
     //    int ch_options, error;
 
-    let k = options.f_nosort ? nil : mastercmp
+    let j = Comparer(options.f_samesort, options.f_listdir, options.sortfcn)
+    let k = options.f_nosort ? nil : j.mastercmp
     guard let ftsp = try? FTSWalker(path: options.args, options: options.fts_options, sort: k) else {
       //    if ((ftsp = fts_open(argv, options, options.f_nosort ? NULL : mastercmp)) == NULL) {
       err(1, "fts_open")
@@ -117,14 +118,14 @@ extension ls {
            * a separator.  If multiple arguments, precede each
            * directory with its name.
            */
-          if output {
+          if r.output {
             print("")
             printname(p.path)
             print(":")
           } else if options.args.count > 1 {
             printname(p.path)
             print(":")
-            output = true
+            r.output = true
           }
 //          if ch_options.contains(.NAMEONLY) {
 //            chp = ftsp.childNames
@@ -457,7 +458,7 @@ extension ls {
       d.s_size += (d.s_size - 1) / 3;
     }
     options.printfcn?(d)
-    output = true
+    r.output = true
 
     if options.f_longform {
       for var cur in list {
@@ -471,21 +472,5 @@ extension ls {
     }
   }
 
-  /*
-   * Ordering for mastercmp:
-   * If ordering the argv (fts_level = FTS_ROOTLEVEL) return non-directories
-   * as larger than directories.  Within either group, use the sort function.
-   * All other levels use the sort function.  Error entries remain unsorted.
-   */
-  @Sendable func mastercmp(_ a : FTSEntry, _ b : FTSEntry) -> ComparisonResult {
-    if a.info == .ERR { return .orderedSame }
-    if b.info == .ERR { return .orderedSame }
-    if a.info == .NS || b.info == .NS { return namecmp(a, b) }
 
-    if a.info != b.info && a.level == CMigration.FTS_ROOTLEVEL && !options.f_listdir {
-      if a.info == .D { return .orderedDescending }
-      if b.info == .D { return .orderedAscending }
-    }
-    return options.sortfcn!(a, b)
-  }
 }

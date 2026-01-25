@@ -38,7 +38,7 @@
 import CMigration
 import Darwin
 
-fileprivate var crctab : Array<UInt32> = [
+fileprivate let crctab : Array<UInt32> = [
 	0x0,
 	0x04c11db7, 0x09823b6e, 0x0d4326d9, 0x130476dc, 0x17c56b6b,
 	0x1a864db2, 0x1e475005, 0x2608edb8, 0x22c9f00f, 0x2f8ad6d6,
@@ -99,9 +99,9 @@ fileprivate var crctab : Array<UInt32> = [
  * locations to store the crc and the number of bytes read.  It returns 0 on
  * success and 1 on failure.  Errno is set on failure.
  */
-var crc_total : UInt32 = ~0;		/* The crc over a number of files. */
+// var crc_total : UInt32 = ~0;		/* The crc over a number of files. */
 
-func crc(_ fd : Int32) -> (UInt32, Int)?  {
+func crc(_ fd : Int32, _ crc_totalin : UInt32) -> (UInt32, Int, UInt32)?  {
 //	uint32_t lcrc;
 //	int nr;
 //	off_t len;
@@ -116,7 +116,7 @@ func crc(_ fd : Int32) -> (UInt32, Int)?  {
 
   var lcrc : UInt32 = 0
   var len = 0
-	crc_total = ~crc_total
+	var crc_total = ~crc_totalin
   while true {
     let nr = read(fd, &buf, bufsiz)
     if nr < 0 { return nil }
@@ -137,5 +137,5 @@ func crc(_ fd : Int32) -> (UInt32, Int)?  {
   }
 
 	crc_total = ~crc_total;
-  return (~lcrc, len)
+  return (~lcrc, len, crc_total)
 }

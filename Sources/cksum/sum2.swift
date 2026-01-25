@@ -35,7 +35,7 @@
 import CMigration
 import Darwin
 
-func csum2(_ fd : Int32) -> (UInt32, Int)? {
+func csum2(_ fd : Int32, _ ignore : UInt32) -> (UInt32, Int, UInt32)? {
 /*	uint32_t lcrc;
 	int nr;
 	off_t total;
@@ -68,5 +68,5 @@ func csum2(_ fd : Int32) -> (UInt32, Int)? {
   lcrc = (lcrc & 0xffff) + (lcrc >> 16)
 	lcrc = (lcrc & 0xffff) + (lcrc >> 16)
 
-	return (lcrc, total)
+	return (lcrc, total, 0)
 }

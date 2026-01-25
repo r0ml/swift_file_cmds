@@ -51,6 +51,7 @@
  */
 
 import CMigration
+import Atomics
 import Darwin
 
 /*#ifdef __APPLE__
@@ -75,7 +76,7 @@ PATH_T to = { to.p_path, emptystring, "" };
 
 let unix2003 = true // COMPAT_MODE("bin/cp", "unix2003");
 
-var info : sig_atomic_t = 0
+let info = ManagedAtomic(false)
 
 @main struct cp : ShellCommand {
 
@@ -719,5 +720,5 @@ usage: cp [-R [-H | -L | -P]] [-f | -i | -n] [-aclpSsvXx] source_file target_fil
 }
 
 func siginfo(_ sig : Int32) {
-	info = 1
+  info.store(true, ordering: .relaxed)
 }

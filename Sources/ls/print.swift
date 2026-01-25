@@ -41,9 +41,6 @@ import Darwin
 let HUMANVALSTR_LEN = 5
 let NO_PRINT = 1
 
-var padding_for_month = Array(repeating: 0, count: 12)
-var month_max_size = 0;
-
 extension ls {
 
 
@@ -78,8 +75,6 @@ extension ls {
     var num : [Int] = [0, 0]
     var bold = false
   }
-  // FIXME: NUMCOLORS relies on an enum hack -- not happy about that.
-  static var colors = Array(repeating: Color(), count: Colors.NUMCOLORS.rawValue)
 
 
   func printscol(_ dp : DISPLAY) {
@@ -164,25 +159,25 @@ extension ls {
     for i in 0 ..< 12 {
       let width = mbswidth(get_abmon(i))
       if width == -1 {
-        month_max_size = -1
+        r.month_max_size = -1
         return
       }
       months_width[i] = width;
-      if (width > month_max_size) {
-        month_max_size = width;
+      if (width > r.month_max_size) {
+        r.month_max_size = width;
       }
     }
 
     for i in 0 ..< 12 {
-      padding_for_month[i] = month_max_size - months_width[i];
+      r.padding_for_month[i] = r.month_max_size - months_width[i];
     }
   }
 
   struct ACLPermFlags : OptionSet {
     var rawValue : Int32
 
-    static var DIR = Self(rawValue: 1)
-    static var FILE = Self(rawValue: 2)
+    static let DIR = Self(rawValue: 1)
+    static let FILE = Self(rawValue: 2)
   }
   /*
    * print access control list
@@ -199,7 +194,7 @@ extension ls {
     }
   }
 
-  static var acl_perms : [ACLPerm] = [
+  static let acl_perms : [ACLPerm] = [
     .init(ACL_READ_DATA,		"read",		.FILE),
     .init(ACL_LIST_DIRECTORY,	"list",		.DIR),
     .init(ACL_WRITE_DATA,	"write",	.FILE),
@@ -231,7 +226,7 @@ extension ls {
     }
   }
 
-  static var acl_flags : [ACLFlag] = [
+  static let acl_flags : [ACLFlag] = [
     .init(ACL_ENTRY_FILE_INHERIT, 	"file_inherit",		.DIR),
     .init(ACL_ENTRY_DIRECTORY_INHERIT,	"directory_inherit",	.DIR),
     .init(ACL_ENTRY_LIMIT_INHERIT,	"limit_inherit",	[.FILE, .DIR]),

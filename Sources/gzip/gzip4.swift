@@ -94,7 +94,7 @@ extension gzip {
         (usize, gsize) = (u,g)
 
       case .BZIP2:
-        guard let (u, g) = unbzip2(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes) else {
+        guard let (u, g) = Bzip2(self).unbzip2(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes) else {
           return
         }
         (usize, gsize) = (u,g)
@@ -120,7 +120,7 @@ extension gzip {
         (usize, gsize) = (u,g)
 
       case .XZ:
-        guard let (u, g) = unxz(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes) else {
+        guard let (u, g) = Unxz(self).unxz(FileDescriptor.standardInput, FileDescriptor.standardOutput, fourbytes) else {
           return
         }
         (usize, gsize) = (u,g)

@@ -93,16 +93,14 @@ fileprivate let crctab : Array<UInt32> = [
 	0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d,
 ]
 
-var crc32_total : UInt32 = 0
-
-func crc32(_ fd : Int32) -> (UInt32, Int)? {
+func crc32(_ fd : Int32, _ crc32_totalin : UInt32) -> (UInt32, Int, UInt32)? {
   var lcrc : UInt32 = ~0
 //    int nr ;
 //    off_t len ;
 //    char buf[BUFSIZ], *p ;
 
     var len = 0
-  crc32_total = ~crc32_total
+  var crc32_total = ~crc32_totalin
 
   let bufsiz = Int(BUFSIZ)
   var buf = Array<UInt8>(repeating: 0, count: bufsiz)
@@ -117,5 +115,5 @@ func crc32(_ fd : Int32) -> (UInt32, Int)? {
     }
   }
     crc32_total = ~crc32_total
-  return (~lcrc, len)
+  return (~lcrc, len, crc32_total)
 }

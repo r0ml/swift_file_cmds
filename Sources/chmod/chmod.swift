@@ -33,12 +33,13 @@
  */
 
 import CMigration
+import Atomics
 import Darwin
 
-var siginfo : Int32 = 0
+let siginfo = ManagedAtomic(false)
 
 func siginfo_handler(_ sig : Int32) {
-	siginfo = 1
+  siginfo.store(true, ordering: .relaxed)
 }
 
 @main struct chmod : ShellCommand {
@@ -66,21 +67,21 @@ func siginfo_handler(_ sig : Int32) {
   struct ACLOptions : OptionSet {
     var rawValue : Int32
 
-    static var FLAG = Self(rawValue: 1 << 0)
-    static var SET_FLAG = Self(rawValue: 1 << 1)
-    static var DELETE_FLAG = Self(rawValue: 1 << 2)
-    static var REWRITE_FLAG = Self(rawValue: 1 << 3)
-    static var ORDER_FLAG = Self(rawValue: 1 << 4)
-    static var INHERIT_FLAG = Self(rawValue: 1 << 5)
-    static var FOLLOW_LINK = Self(rawValue: 1 << 6)
-    static var FROM_STDIN = Self(rawValue: 1 << 7)
-    static var CHECK_CANONICITY = Self(rawValue: 1 << 8)
-    static var REMOVE_INHERIT_FLAG = Self(rawValue: 1 << 9)
-    static var REMOVE_INHERITED_ENTRIES = Self(rawValue: 1 << 10)
-    static var NO_TRANSLATE = Self(rawValue: 1 << 11)
-    static var INVOKE_EDITOR = Self(rawValue: 1 << 12)
-    static var TO_STDOUT = Self(rawValue: 1 << 13)
-    static var CLEAR_FLAG = Self(rawValue: 1 << 14)
+    static let FLAG = Self(rawValue: 1 << 0)
+    static let SET_FLAG = Self(rawValue: 1 << 1)
+    static let DELETE_FLAG = Self(rawValue: 1 << 2)
+    static let REWRITE_FLAG = Self(rawValue: 1 << 3)
+    static let ORDER_FLAG = Self(rawValue: 1 << 4)
+    static let INHERIT_FLAG = Self(rawValue: 1 << 5)
+    static let FOLLOW_LINK = Self(rawValue: 1 << 6)
+    static let FROM_STDIN = Self(rawValue: 1 << 7)
+    static let CHECK_CANONICITY = Self(rawValue: 1 << 8)
+    static let REMOVE_INHERIT_FLAG = Self(rawValue: 1 << 9)
+    static let REMOVE_INHERITED_ENTRIES = Self(rawValue: 1 << 10)
+    static let NO_TRANSLATE = Self(rawValue: 1 << 11)
+    static let INVOKE_EDITOR = Self(rawValue: 1 << 12)
+    static let TO_STDOUT = Self(rawValue: 1 << 13)
+    static let CLEAR_FLAG = Self(rawValue: 1 << 14)
   }
 
   /*
@@ -435,10 +436,10 @@ func siginfo_handler(_ sig : Int32) {
         if (fchmodat(AT_FDCWD, p.accpath, newmode, atflag) == -1 && !options.fflag) {
           warn("Unable to change file mode on \(p.path)")
           rval = 1
-        } else if 0 != options.vflag || 0 != siginfo {
+        } else if 0 != options.vflag || siginfo.load(ordering: .relaxed) {
           print(p.path, terminator: "")
 
-          if options.vflag > 1 || 0 != siginfo {
+          if options.vflag > 1 || siginfo.load(ordering: .relaxed) {
             let m1 = strmode(p.statp.filetype, p.statp.permissions)
             let m2 = strmode(p.statp.filetype, FilePermissions(rawValue: newmode))
 
@@ -448,7 +449,7 @@ func siginfo_handler(_ sig : Int32) {
             print(": 0\(a) [\(m1)] -> 0\(b) [\(m2)]", terminator: "")
           }
           print("")
-          siginfo = 0
+          siginfo.store(false, ordering: .relaxed)
         }
 
       }

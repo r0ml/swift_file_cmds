@@ -33,6 +33,7 @@
  */
 
 import CMigration
+import Atomics
 import Darwin
 
 // #ifndef AT_REMOVEDIR_DATALESS
@@ -51,11 +52,11 @@ static int dflag, eval, fflag, iflag, Pflag, vflag, Wflag, stdin_ok;
 static int rflag, Iflag, xflag;
 static uid_t uid;
  */
-var info : sig_atomic_t = 0
+let info = ManagedAtomic<Bool>(false)
 let unix2003 = true
 
 // from /usr/include/removefile.h
-var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
+let REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
 
 /*
  * rm --
@@ -128,8 +129,8 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
     var options = CommandOptions()
     options.uid = geteuid();
 
-    var go = BSDGetopt("dfiIPRrvWx")
-    while let (k, v) = try go.getopt() {
+    let go = BSDGetopt("dfiIPRrvWx")
+    while let (k, _) = try go.getopt() {
       switch k {
         case "d":
           options.dflag = true
@@ -349,8 +350,8 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
               if (rval == 0 && options.vflag) {
                 print(p.path)
               }
-              if (rval == 0 && info != 0) {
-                info = 0;
+              if (rval == 0 && info.load(ordering: .relaxed)) {
+                info.store(false, ordering: .relaxed)
                 print(p.path)
               }
               continue
@@ -372,8 +373,8 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
               if options.vflag {
                 print(p.path)
               }
-              if info != 0 {
-                info = 0;
+              if info.load(ordering: .relaxed) {
+                info.store(false, ordering: .relaxed)
                 print(p.path)
               }
               continue
@@ -407,8 +408,8 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
               if (rval == 0 && options.vflag) {
                 print(p.path)
               }
-              if rval == 0 && info != 0 {
-                info = 0
+              if rval == 0 && info.load(ordering: .relaxed) {
+                info.store(false, ordering: .relaxed)
                 print(p.path)
               }
               continue
@@ -434,7 +435,7 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
      */
     for f in args {
       /* Assume if can't stat the file, can't unlink it. */
-      var sb = try? FileMetadata(for: f, followSymlinks: false)
+      let sb = try? FileMetadata(for: f, followSymlinks: false)
       var wtyp : FileType = .unknown
       var wperm = FilePermissions()
       if sb == nil {
@@ -506,8 +507,8 @@ var REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
       if (options.vflag && rval == 0) {
         print(f)
       }
-      if (info != 0 && rval == 0) {
-        info = 0
+      if (info.load(ordering: .relaxed) && rval == 0) {
+        info.store(false, ordering: .relaxed)
         print(f)
       }
     }
@@ -656,7 +657,7 @@ usage: rm [-f | -i] [-dIPRrvWx] file ...
 }
 
 func siginfo(_ sig : Int32) {
-	info = 1
+  info.store(true, ordering: .relaxed)
 }
 
 // FIXME: this is rated as "liable to fail in the future"

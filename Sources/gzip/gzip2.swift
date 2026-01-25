@@ -34,11 +34,12 @@
  */
 
 import CMigration
+import Atomics
 import Darwin
 import zlib
 
 func got_siginfo(_ signo : Int32) {
-  print_info = true
+  print_info.store(true, ordering: .relaxed)
 }
 
 func got_sigint(_ signo : Int32)  {

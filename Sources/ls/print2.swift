@@ -187,12 +187,12 @@ extension ls {
     }
 
     if let posb = fmt.ranges(of: "%b").first {
-      if month_max_size == 0 {
+      if r.month_max_size == 0 {
         compute_abbreviated_month_size()
       }
-      if month_max_size > 0 {
+      if r.month_max_size > 0 {
         fmt = String(fmt[fmt.startIndex..<posb.lowerBound] + get_abmon(Int(tm.tm_mon)) +
-                     String(repeating: " ", count: padding_for_month[Int(tm.tm_mon)]) + fmt[posb.upperBound...])
+                     String(repeating: " ", count: r.padding_for_month[Int(tm.tm_mon)]) + fmt[posb.upperBound...])
       }
     }
 
@@ -277,18 +277,18 @@ extension ls {
   func printcolor_termcap(_ c : Colors) {
     //    char *ansiseq;
     
-    if Self.colors[c.rawValue].bold {
-      tputs(enter_bold, 1, putch)
+    if r.colors[c.rawValue].bold {
+      tputs(r.enter_bold, 1, putch)
     }
     
-    if Self.colors[c.rawValue].num[0] != -1 {
-      if let ansiseq = tgoto(ansi_fgcol, 0, Int32(Self.colors[c.rawValue].num[0])) {
+    if r.colors[c.rawValue].num[0] != -1 {
+      if let ansiseq = tgoto(r.ansi_fgcol, 0, Int32(r.colors[c.rawValue].num[0])) {
         tputs(ansiseq, 1, putch);
       }
     }
     // FIXME: this business with Self.colors and c.rawValue are ugly
-    if Self.colors[c.rawValue].num[1] != -1 {
-      if let ansiseq = tgoto(ansi_bgcol, 0, Int32(Self.colors[c.rawValue].num[1])) {
+    if r.colors[c.rawValue].num[1] != -1 {
+      if let ansiseq = tgoto(r.ansi_bgcol, 0, Int32(r.colors[c.rawValue].num[1])) {
         tputs(ansiseq, 1, putch);
       }
     }
@@ -297,16 +297,16 @@ extension ls {
   func printcolor_ansi(_ c : Colors) {
 
     var op = "\u{1b}["
-    if Self.colors[c.rawValue].bold {
+    if r.colors[c.rawValue].bold {
       op.append("1")
     }
-    if Self.colors[c.rawValue].num[0] != -1 {
+    if r.colors[c.rawValue].num[0] != -1 {
       op.append(";3")
-      op.append(String(Self.colors[c.rawValue].num[0]))
+      op.append(String(r.colors[c.rawValue].num[0]))
     }
-    if Self.colors[c.rawValue].num[1] != -1 {
+    if r.colors[c.rawValue].num[1] != -1 {
       op.append(";4")
-      op.append(String(Self.colors[c.rawValue].num[1]))
+      op.append(String(r.colors[c.rawValue].num[1]))
     }
     print("m", terminator: "")
   }
@@ -387,7 +387,7 @@ extension ls {
     for i in 0 ..< Colors.NUMCOLORS.rawValue {
 
       // FIXME: not happy about colors being a static variable
-      Self.colors[i].bold = false
+      r.colors[i].bold = false
       var c : [Character] = ["\0", "\0"]
       if len <= 2 * i {
         c[0] = Self.defcolors[2 * i]
@@ -400,23 +400,23 @@ extension ls {
       for j in [0, 1] {
         /* Legacy colours used 0-7 */
         if let x = Array("01234567").firstIndex(of: c[j]) {
-          Self.colors[i].num[j] = x
+          r.colors[i].num[j] = x
           if (!legacy_warn) {
             warnx("LSCOLORS should use characters a-h instead of 0-9 (see the manual page)")
           }
           legacy_warn = true
         } else if let n = Array("abcdefg").firstIndex(of: c[j]) {
-          Self.colors[i].num[j] = n
+          r.colors[i].num[j] = n
         }
         else if let n = Array("ABCDEFG").firstIndex(of: c[j]) {
-          Self.colors[i].num[j] = n
-          Self.colors[i].bold = true
+          r.colors[i].num[j] = n
+          r.colors[i].bold = true
         } else if (c[j].lowercased() == "x") {
-          Self.colors[i].num[j] = -1
+          r.colors[i].num[j] = -1
         }
         else {
           warnx("invalid character '\(c[j])' in LSCOLORS env var")
-          Self.colors[i].num[j] = -1
+          r.colors[i].num[j] = -1
         }
       }
     }

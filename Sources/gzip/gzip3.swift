@@ -34,6 +34,7 @@
  */
 
 import CMigration
+import Atomics
 import Darwin
 import zlib
 
@@ -87,8 +88,8 @@ extension gzip {
     }
 
     var out : FileDescriptor
-    var outfile = r.outfile!
-    var size = UInt(0)
+    let outfile = r.outfile!
+    let size = UInt(0)
 
 
     defer {
@@ -103,7 +104,7 @@ extension gzip {
         return nil
       }
       out = o
-      r.remove_file = outfile;
+      remove_file = outfile;
     } else {
       out = FileDescriptor.standardOutput
     }
@@ -148,7 +149,7 @@ extension gzip {
     clear_type_and_creator(out);
 
     copymodes(out, isb, outfile);
-    r.remove_file = nil
+    remove_file = nil
 
     try? inx.close()
     guard let _ = try? out.close() else {
@@ -310,14 +311,14 @@ extension gzip {
         zfd = try? zz.duplicate()
         try? FileDescriptor.standardOutput.close()
       }
-      r.remove_file = outfile
+      remove_file = outfile
     }
 
     defer {
-      if let rf = r.remove_file, !options.cflag {
+      if let rf = remove_file, !options.cflag {
         unlink(rf)
       }
-      r.remove_file = nil
+      remove_file = nil
     }
 
     defer {
@@ -335,7 +336,7 @@ extension gzip {
           return nil
         }
 
-        if let k = unbzip2(fd, zfd!, []) {
+        if let k = Bzip2(self).unbzip2(fd, zfd!, []) {
           size = k.0
         } else {
           return nil
@@ -395,14 +396,15 @@ extension gzip {
         }
 
       case .XZ:
+        let uuu = Unxz(self)
         if options.lflag {
-          size = unxz_len(fd);
+          size = uuu.unxz_len(fd);
           if (!options.tflag) {
             print_list_out(in_size, size!, file);
             return nil
           }
         } else {
-          guard let k = unxz(fd, zfd!, []) else {
+          guard let k = uuu.unxz(fd, zfd!, []) else {
             return nil
           }
           (size, _) = k
@@ -486,7 +488,7 @@ extension gzip {
 
   func check_siginfo() {
     var stderr = FileDescriptor.standardError
-    if !print_info {
+    if !print_info.load(ordering: .relaxed) {
       return
     }
     if let inf = r.infile {
@@ -497,7 +499,7 @@ extension gzip {
         print("\(inf): done \(r.infile_current) bytes", to: &stderr)
       }
     }
-    print_info = false
+    print_info.store(false, ordering: .relaxed)
   }
 
   func cat_fd(_ prepend : [UInt8], _ fd : FileDescriptor) -> UInt? {

@@ -51,6 +51,14 @@
 
 /* Begin PBXBuildFile section */
 		E71B3C2D2F2616F000A02D2C /* libncurses.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = E71B3C2C2F2616F000A02D2C /* libncurses.tbd */; };
+		E71B45E92F26CA3900A02D2C /* Atomics in Frameworks */ = {isa = PBXBuildFile; productRef = E71B45E82F26CA3900A02D2C /* Atomics */; };
+		E71B499F2F26CAE800A02D2C /* Atomics in Frameworks */ = {isa = PBXBuildFile; productRef = E71B499E2F26CAE800A02D2C /* Atomics */; };
+		E71B49A12F26CAF100A02D2C /* Atomics in Frameworks */ = {isa = PBXBuildFile; productRef = E71B49A02F26CAF100A02D2C /* Atomics */; };
+		E71B49A32F26CAFE00A02D2C /* Atomics in Frameworks */ = {isa = PBXBuildFile; productRef = E71B49A22F26CAFE00A02D2C /* Atomics */; };
+		E71B49A52F26CB0E00A02D2C /* Atomics in Frameworks */ = {isa = PBXBuildFile; productRef = E71B49A42F26CB0E00A02D2C /* Atomics */; };
+		E71B49A72F26CB2D00A02D2C /* Atomics in Frameworks */ = {isa = PBXBuildFile; productRef = E71B49A62F26CB2D00A02D2C /* Atomics */; };
+		E71B49A92F26CD4300A02D2C /* Atomics in Frameworks */ = {isa = PBXBuildFile; productRef = E71B49A82F26CD4300A02D2C /* Atomics */; };
+		E71B49AB2F26D26800A02D2C /* Atomics in Frameworks */ = {isa = PBXBuildFile; productRef = E71B49AA2F26D26800A02D2C /* Atomics */; };
 		E72553272F1C53F000149B5D /* xo in Frameworks */ = {isa = PBXBuildFile; productRef = E72553262F1C53F000149B5D /* xo */; };
 		E77400E52F02D27E00498517 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E77400E42F02D27E00498517 /* ShellTesting */; };
 		E77403C12F038F4900498517 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E77403C02F038F4900498517 /* ShellTesting */; };
@@ -1123,6 +1131,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				E77405062F06CF8700498517 /* CMigration in Frameworks */,
+				E71B49A72F26CB2D00A02D2C /* Atomics in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1221,6 +1230,7 @@
 			files = (
 				E79E5E012F20071F00F3CB3F /* libbz2.tbd in Frameworks */,
 				E79E5DFF2F2005AD00F3CB3F /* libz.tbd in Frameworks */,
+				E71B49AB2F26D26800A02D2C /* Atomics in Frameworks */,
 				E79E5DFD2F20059C00F3CB3F /* liblzma.tbd in Frameworks */,
 				E77404EC2F06CF4D00498517 /* CMigration in Frameworks */,
 			);
@@ -1248,6 +1258,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				E77404E62F06CF3E00498517 /* CMigration in Frameworks */,
+				E71B49A92F26CD4300A02D2C /* Atomics in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1256,6 +1267,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				E77404E42F06CF3A00498517 /* CMigration in Frameworks */,
+				E71B49A52F26CB0E00A02D2C /* Atomics in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1280,6 +1292,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				E77404DE2F06CF2C00498517 /* CMigration in Frameworks */,
+				E71B49A32F26CAFE00A02D2C /* Atomics in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1288,6 +1301,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				E77404DC2F06CF2600498517 /* CMigration in Frameworks */,
+				E71B49A12F26CAF100A02D2C /* Atomics in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1455,6 +1469,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				E77404DA2F06CF1F00498517 /* CMigration in Frameworks */,
+				E71B499F2F26CAE800A02D2C /* Atomics in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1496,6 +1511,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				E77404D82F06CF1900498517 /* CMigration in Frameworks */,
+				E71B45E92F26CA3900A02D2C /* Atomics in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1735,6 +1751,7 @@
 			name = rm;
 			packageProductDependencies = (
 				E77405052F06CF8700498517 /* CMigration */,
+				E71B49A62F26CB2D00A02D2C /* Atomics */,
 			);
 			productName = rm;
 			productReference = E77401232F02D87600498517 /* rm */;
@@ -1975,6 +1992,7 @@
 			name = gzip;
 			packageProductDependencies = (
 				E77404EB2F06CF4D00498517 /* CMigration */,
+				E71B49AA2F26D26800A02D2C /* Atomics */,
 			);
 			productName = gzip;
 			productReference = E77401A72F02D92700498517 /* gzip */;
@@ -2036,6 +2054,7 @@
 			name = dd;
 			packageProductDependencies = (
 				E77404E52F06CF3E00498517 /* CMigration */,
+				E71B49A82F26CD4300A02D2C /* Atomics */,
 			);
 			productName = dd;
 			productReference = E77401C82F02D9F200498517 /* dd */;
@@ -2056,6 +2075,7 @@
 			name = cp;
 			packageProductDependencies = (
 				E77404E32F06CF3A00498517 /* CMigration */,
+				E71B49A42F26CB0E00A02D2C /* Atomics */,
 			);
 			productName = cp;
 			productReference = E77401D32F02D9F900498517 /* cp */;
@@ -2116,6 +2136,7 @@
 			name = chown;
 			packageProductDependencies = (
 				E77404DD2F06CF2C00498517 /* CMigration */,
+				E71B49A22F26CAFE00A02D2C /* Atomics */,
 			);
 			productName = chown;
 			productReference = E77401F42F02DA4300498517 /* chown */;
@@ -2136,6 +2157,7 @@
 			name = chmod;
 			packageProductDependencies = (
 				E77404DB2F06CF2600498517 /* CMigration */,
+				E71B49A02F26CAF100A02D2C /* Atomics */,
 			);
 			productName = chmod;
 			productReference = E77401FF2F02DA5300498517 /* chmod */;
@@ -2567,6 +2589,7 @@
 			name = chgrp;
 			packageProductDependencies = (
 				E77404D92F06CF1F00498517 /* CMigration */,
+				E71B499E2F26CAE800A02D2C /* Atomics */,
 			);
 			productName = chgrp;
 			productReference = E77403472F03346800498517 /* chgrp */;
@@ -2669,6 +2692,7 @@
 			name = chflags;
 			packageProductDependencies = (
 				E77404D72F06CF1900498517 /* CMigration */,
+				E71B45E82F26CA3900A02D2C /* Atomics */,
 			);
 			productName = chflags;
 			productReference = E7A6AA562E428C1A001C9A44 /* chflags */;
@@ -2858,6 +2882,7 @@
 				E7A6AA602E428C8C001C9A44 /* XCRemoteSwiftPackageReference "ShellTesting" */,
 				E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */,
 				E72553252F1C53DB00149B5D /* XCRemoteSwiftPackageReference "libxo" */,
+				E71B45E72F26CA0000A02D2C /* XCRemoteSwiftPackageReference "swift-atomics" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E73707092E4273AC00246ED4 /* Products */;
@@ -5150,6 +5175,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		E71B45E72F26CA0000A02D2C /* XCRemoteSwiftPackageReference "swift-atomics" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-atomics.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.3.0;
+			};
+		};
 		E72553252F1C53DB00149B5D /* XCRemoteSwiftPackageReference "libxo" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/r0ml/libxo";
@@ -5201,6 +5234,46 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		E71B45E82F26CA3900A02D2C /* Atomics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E71B45E72F26CA0000A02D2C /* XCRemoteSwiftPackageReference "swift-atomics" */;
+			productName = Atomics;
+		};
+		E71B499E2F26CAE800A02D2C /* Atomics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E71B45E72F26CA0000A02D2C /* XCRemoteSwiftPackageReference "swift-atomics" */;
+			productName = Atomics;
+		};
+		E71B49A02F26CAF100A02D2C /* Atomics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E71B45E72F26CA0000A02D2C /* XCRemoteSwiftPackageReference "swift-atomics" */;
+			productName = Atomics;
+		};
+		E71B49A22F26CAFE00A02D2C /* Atomics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E71B45E72F26CA0000A02D2C /* XCRemoteSwiftPackageReference "swift-atomics" */;
+			productName = Atomics;
+		};
+		E71B49A42F26CB0E00A02D2C /* Atomics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E71B45E72F26CA0000A02D2C /* XCRemoteSwiftPackageReference "swift-atomics" */;
+			productName = Atomics;
+		};
+		E71B49A62F26CB2D00A02D2C /* Atomics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E71B45E72F26CA0000A02D2C /* XCRemoteSwiftPackageReference "swift-atomics" */;
+			productName = Atomics;
+		};
+		E71B49A82F26CD4300A02D2C /* Atomics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E71B45E72F26CA0000A02D2C /* XCRemoteSwiftPackageReference "swift-atomics" */;
+			productName = Atomics;
+		};
+		E71B49AA2F26D26800A02D2C /* Atomics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E71B45E72F26CA0000A02D2C /* XCRemoteSwiftPackageReference "swift-atomics" */;
+			productName = Atomics;
+		};
 		E72553262F1C53F000149B5D /* xo */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E72553252F1C53DB00149B5D /* XCRemoteSwiftPackageReference "libxo" */;

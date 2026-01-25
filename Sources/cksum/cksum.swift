@@ -46,9 +46,8 @@ import Darwin
   //	int (*cfncn)(int, uint32_t *, off_t *);
   //	void (*pfncn)(char *, uint32_t, off_t);
 
-
   struct CommandOptions {
-    var cfncn : (Int32) -> (UInt32, Int)? = crc
+    var cfncn : (Int32, UInt32) -> (UInt32, Int, UInt32)? = crc
     var pfncn : (String?, UInt32, Int) -> () = pcrc
     var args : [String] = []
   }
@@ -56,20 +55,20 @@ import Darwin
   var options : CommandOptions!
 
   /*
-  if ((p = strrchr(argv[0], '/')) == NULL)
-    p = argv[0];
-  else
-    ++p;
-*/
+   if ((p = strrchr(argv[0], '/')) == NULL)
+   p = argv[0];
+   else
+   ++p;
+   */
 
   func parseOptions() throws(CmdErr) -> CommandOptions {
     // FIXME: split the command
-/*    if (!strcmp(p, "sum")) {
-      cfncn = csum1;
-      pfncn = psum1;
-      ++argv;
-    } else {
- */
+    /*    if (!strcmp(p, "sum")) {
+     cfncn = csum1;
+     pfncn = psum1;
+     ++argv;
+     } else {
+     */
     var options = CommandOptions()
     let go = BSDGetopt("o:")
     while let (k,v) = try go.getopt() {
@@ -101,10 +100,13 @@ import Darwin
 
   func runCommand() throws(CmdErr) {
     var rval : Int32 = 0
+    var crc_total = UInt32(0)
+
     if options.args.isEmpty {
       let fd = STDIN_FILENO
       let fn : String? = nil
-      if let vl = options.cfncn(fd) {
+      if let vl = options.cfncn(fd, crc_total) {
+        crc_total = vl.2
         options.pfncn(fn, vl.0, vl.1)
       } else {
         warn(fn ?? "stdin")
@@ -114,25 +116,26 @@ import Darwin
 
     for fn in options.args {
       let fd = open(fn, O_RDONLY, 0)
-        if fd < 0 {
-          warn(fn)
-          rval = 1
-          continue
-        }
+      if fd < 0 {
+        warn(fn)
+        rval = 1
+        continue
+      }
 
-    if let vl = options.cfncn(fd) {
-      options.pfncn(fn, vl.0, vl.1)
-    } else {
+      if let vl = options.cfncn(fd, crc_total) {
+        crc_total = vl.2
+        options.pfncn(fn, vl.0, vl.1)
+      } else {
         warn(fn)
         rval = 1
       }
       close(fd)
     }
-//    #ifdef __APPLE__
-//    if (rval == 0 && (ferror(stdout) != 0 || fflush(stdout) != 0)) {
-//      err(1, "stdout")
-//    }
-//#endif
+    //    #ifdef __APPLE__
+    //    if (rval == 0 && (ferror(stdout) != 0 || fflush(stdout) != 0)) {
+    //      err(1, "stdout")
+    //    }
+    //#endif
     exit(rval)
   }
 
