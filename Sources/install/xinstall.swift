@@ -68,15 +68,21 @@ let BACKUP_SUFFIX = ".old"
   struct LinkTypes : OptionSet {
     var rawValue : UInt32
 
-    static var ABSOLUTE = Self(rawValue: 0x01)
-    static var RELATIVE = Self(rawValue: 0x02)
-    static var HARD = Self(rawValue: 0x04)
-    static var SYMBOLIC = Self(rawValue: 0x08)
-    static var MIXED = Self(rawValue: 0x10)
+    static let ABSOLUTE = Self(rawValue: 0x01)
+    static let RELATIVE = Self(rawValue: 0x02)
+    static let HARD = Self(rawValue: 0x04)
+    static let SYMBOLIC = Self(rawValue: 0x08)
+    static let MIXED = Self(rawValue: 0x10)
   }
 
-  let DIRECTORY : UInt32 = 0x01		/* Tell install it's a directory. */
-  let SETFLAGS	: UInt32 = 0x02		/* Tell install to set flags. */
+  struct IFlags : OptionSet {
+    var rawValue : UInt32
+
+
+    static let DIRECTORY = Self(rawValue: 0x01)		/* Tell install it's a directory. */
+    static let SETFLAGS	= Self(rawValue: 0x02)		/* Tell install to set flags. */
+  }
+
   let NOCHANGEBITS : FileFlags = [.UF_IMMUTABLE, .UF_APPEND, .SF_IMMUTABLE, .SF_APPEND]
 
   /*
@@ -94,6 +100,8 @@ let BACKUP_SUFFIX = ".old"
    #endif /* WITH_DIGESTS */
    }	DIGEST_CTX;
    */
+  protocol DIGEST_CTX {
+  }
 
   enum Digest : Int32 {
     case NONE = 0
@@ -143,8 +151,10 @@ let BACKUP_SUFFIX = ".old"
     var suffix = BACKUP_SUFFIX
 
     var metafp : FileDescriptor?
-
-
+    var iflags : IFlags = []
+    var fset : FileFlags = []
+    var mode : mode_t = 0
+    
     var args : [String] = []
   }
   /*
@@ -195,7 +205,6 @@ let BACKUP_SUFFIX = ".old"
      mode_t *set;
      u_long fset;
      int ch, no_target;
-     u_int iflags;
      char *p;
      const char *to_name;
 
@@ -299,7 +308,7 @@ let BACKUP_SUFFIX = ".old"
      * an +X may mean that we need to set the execute bit.
      */
     if let setx {
-      mode = getmode(setx, options.dodir ? FileType.directory.rawValue : 0) // & ~S_IFDIR;
+      options.mode = getmode(setx, options.dodir ? FileType.directory.rawValue : 0) // & ~S_IFDIR;
     }
     free(setx)
 
@@ -339,25 +348,26 @@ let BACKUP_SUFFIX = ".old"
       options.gid = nil
     }
 
-    if let o = options.owner,
-       !options.dounpriv {
-      if (uid_from_user(owner, &uid) == -1) {
-        id_t, id;
-        if (!parseid(owner, &id)) {
-          errx(1, "unknown user %s", owner);
+    if let o = options.owner, !options.dounpriv {
+      if let uid = uid_from_user(o) {
+        options.uid = uid
+      } else {
+        if let id = parseid(o) {
+          options.uid = id
+        } else {
+          errx(1, "unknown user \(o)")
         }
-        options.uid = id
       }
     } else {
       options.uid = nil
     }
 
-    if let ff = options.fflags,
-       !options.dounpriv {
-      if (strtofflags(ff, &fset, NULL)) {
-        errx(EX_USAGE, "\(fflags): invalid flag")
+    if let ff = options.fflags, !options.dounpriv {
+      guard let f = strtofflags(ff) else {
+        errx(Int(EX_USAGE), "\(ff): invalid flag")
       }
-      options.iflags |= SETFLAGS;
+      options.fset = f.0
+      options.iflags.insert(.SETFLAGS)
     }
 
     if let m = options.metafile {
@@ -398,14 +408,15 @@ let BACKUP_SUFFIX = ".old"
         }
         if to_sb.filetype == .symbolicLink {
           if options.args.count != 2 {
-            errc(Int(EX_CANTCREAT), ENOTDIR, to_name)
+            errno = ENOTDIR
+            err(Int(EX_CANTCREAT), to_name)
           }
-          install(options.args[0], to_name, fset, iflags);
+          install(options.args[0], to_name, options.fset, options.iflags);
           exit(EX_OK);
         }
       }
       for argv in options.args.dropLast() {
-        install(argv, to_name, fset, iflags | DIRECTORY)
+        install(argv, to_name, options.fset, options.iflags.union(.DIRECTORY))
       }
       exit(EX_OK);
     }
@@ -434,74 +445,11 @@ let BACKUP_SUFFIX = ".old"
         errx(Int(EX_USAGE), "\(argv) and \(to_name) are the same file")
       }
     }
-    install(argv, to_name, fset, iflags)
+    install(options.args.first!, to_name, options.fset, options.iflags)
     exit(EX_OK)
     /* NOTREACHED */
   }
 
-  func digest_file(_ name : String) -> [UInt8]? {
-    switch options.digesttype {
-      case .SHA1:
-        return (SHA1_File(name, NULL));
-      case .SHA256:
-        return (SHA256_File(name, NULL));
-      case .SHA512:
-        return (SHA512_File(name, NULL));
-      default:
-        return nil
-    }
-  }
-
-  /// Make the DIGEST_CTX a protocol
-  func digest_init(_ c : DIGEST_CTX) {
-
-    switch (digesttype) {
-      case DIGEST_NONE:
-        break;
-
-
-      case DIGEST_SHA1:
-        SHA1_Init(&(c->SHA1));
-        break;
-      case DIGEST_SHA256:
-        SHA256_Init(&(c->SHA256));
-        break;
-      case DIGEST_SHA512:
-        SHA512_Init(&(c->SHA512));
-        break;
-    }
-  }
-
-  func digest_update(_ c : DIGEST_CTX, _ data : [UInt8], _ len : size_t) {
-    switch options.digesttype {
-      case .NONE:
-        break;
-
-
-      case .SHA1:
-        SHA1_Update(&(c->SHA1), data, len);
-        break;
-      case .SHA256:
-        SHA256_Update(&(c->SHA256), data, len);
-        break;
-      case .SHA512:
-        SHA512_Update(&(c->SHA512), data, len);
-        break;
-    }
-  }
-
-  func digest_end(_ c : DIGEST_CTX, _ buf : [UInt8]) -> [UInt8]? {
-    switch options.digesttype {
-      case .SHA1:
-        return (SHA1_End(&(c->SHA1), buf));
-      case .SHA256:
-        return (SHA256_End(&(c->SHA256), buf));
-      case .SHA512:
-        return (SHA512_End(&(c->SHA512), buf));
-      default:
-        return nil
-    }
-  }
 
   /*
    * usage --

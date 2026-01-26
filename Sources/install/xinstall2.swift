@@ -74,47 +74,41 @@ extension xinstall {
    *  return -1 on failure
    */
   func do_link(_ from_name : String, _ to_name : String, _ target_sb : FileMetadata?) -> Int {
-    char tmpl[MAXPATHLEN];
-    int ret;
-
-    if (target_sb != NULL) {
-      (void)snprintf(tmpl, sizeof(tmpl), "%s.inst.XXXXXX", to_name);
+    var ret = 0
+    if let target_sb {
+      let tmpl = "\(to_name).inst.XXXXXX"
       /* This usage is safe. */
-      if (quiet_mktemp(tmpl) == NULL) {
-        err(EX_OSERR, "%s: mktemp", tmpl);
+      guard let _ = quiet_mktemp(tmpl) else {
+        err( Int(EX_OSERR), "\(tmpl): mktemp")
       }
-      ret = link(from_name, tmpl);
-      if (ret == 0) {
-        if (target_sb->st_mode & S_IFDIR && rmdir(to_name) ==
-            -1) {
-          unlink(tmpl);
-          err(EX_OSERR, "%s", to_name);
+      ret = Int(link(from_name, tmpl))
+      if ret == 0 {
+        if target_sb.filetype == .directory && rmdir(to_name) == -1 {
+          unlink(tmpl)
+          err(Int(EX_OSERR), to_name)
         }
 
-        if (target_sb->st_flags & NOCHANGEBITS) {
-          (void)chflags(to_name, target_sb->st_flags &
-                        ~NOCHANGEBITS);
+        if target_sb.flags.containsAny(of: NOCHANGEBITS) {
+          chflags(to_name, target_sb.flags.subtracting(NOCHANGEBITS).rawValue)
         }
 
-        if (verbose) {
-          printf("install: link %s -> %s\n",
-                 from_name, to_name);
+        if 0 != options.verbose {
+          print("install: link \(from_name) -> \(to_name)")
         }
-        ret = rename(tmpl, to_name);
+        ret = Int(rename(tmpl, to_name))
         /*
          * If rename has posix semantics, then the temporary
          * file may still exist when from_name and to_name point
          * to the same file, so unlink it unconditionally.
          */
-        (void)unlink(tmpl);
+        unlink(tmpl)
       }
-      return (ret);
+      return ret
     } else {
-      if (verbose) {
-        printf("install: link %s -> %s\n",
-               from_name, to_name);
+      if 0 != options.verbose {
+        print("install: link \(from_name) -> \(to_name)")
       }
-      return (link(from_name, to_name));
+      return Int(link(from_name, to_name))
     }
   }
 
@@ -123,45 +117,40 @@ extension xinstall {
    *  Make a symbolic link, obeying dorename if set. Exit on failure.
    */
   func do_symlink(_ from_name : String, _ to_name : String, _ target_sb : FileMetadata?) {
-    char tmpl[MAXPATHLEN];
-
-    if (target_sb != NULL) {
-      (void)snprintf(tmpl, sizeof(tmpl), "%s.inst.XXXXXX", to_name);
+    if let target_sb {
+      let tmpl = "\(to_name).inst.XXXXXX"
       /* This usage is safe. */
-      if (quiet_mktemp(tmpl) == NULL) {
-        err(EX_OSERR, "%s: mktemp", tmpl);
+      guard let _ = quiet_mktemp(tmpl) else  {
+        err(Int(EX_OSERR), "\(tmpl): mktemp")
       }
 
-      if (symlink(from_name, tmpl) == -1) {
-        err(EX_OSERR, "symlink %s -> %s", from_name, tmpl);
+      if symlink(from_name, tmpl) == -1 {
+        err(Int(EX_OSERR), "symlink \(from_name) -> \(tmpl)")
       }
 
-      if (target_sb->st_mode & S_IFDIR && rmdir(to_name) == -1) {
-        (void)unlink(tmpl);
-        err(EX_OSERR, "%s", to_name);
+      if target_sb.filetype == .directory && rmdir(to_name) == -1 {
+        unlink(tmpl)
+        err(Int(EX_OSERR), to_name)
       }
 
-      if (target_sb->st_flags & NOCHANGEBITS) {
-        (void)chflags(to_name, target_sb->st_flags &
-                      ~NOCHANGEBITS);
+      if target_sb.flags.containsAny(of: NOCHANGEBITS) {
+        chflags(to_name, target_sb.flags.subtracting(NOCHANGEBITS).rawValue)
       }
 
-      if (verbose) {
-        printf("install: symlink %s -> %s\n",
-               from_name, to_name);
+      if 0 != options.verbose {
+        print("install: symlink \(from_name) -> \(to_name)")
       }
-      if (rename(tmpl, to_name) == -1) {
+      if rename(tmpl, to_name) == -1 {
         /* Remove temporary link before exiting. */
-        (void)unlink(tmpl);
-        err(EX_OSERR, "%s: rename", to_name);
+        unlink(tmpl)
+        err(Int(EX_OSERR), "\(to_name): rename")
       }
     } else {
-      if (verbose) {
-        printf("install: symlink %s -> %s\n",
-               from_name, to_name);
+      if options.verbose != 0 {
+        print("install: symlink \(from_name) -> \(to_name)")
       }
-      if (symlink(from_name, to_name) == -1) {
-        err(EX_OSERR, "symlink %s -> %s", from_name, to_name);
+      if symlink(from_name, to_name) == -1 {
+        err(Int(EX_OSERR), "symlink \(from_name) -> \(to_name)")
       }
     }
   }
@@ -171,88 +160,89 @@ extension xinstall {
    *  make a link from source to destination
    */
   func makelink(_ from_name : String, _ to_name : String, _ target_sb : FileMetadata?) {
-    char src[MAXPATHLEN], dst[MAXPATHLEN], lnk[MAXPATHLEN];
-    char *to_name_copy, *d, *ld, *ls, *s;
-    const char *base, *dir;
-    struct stat to_sb;
+//    char src[MAXPATHLEN], dst[MAXPATHLEN], lnk[MAXPATHLEN];
+//    char *to_name_copy, *d, *ld, *ls, *s;
+//    const char *base, *dir;
 
     /* Try hard links first. */
-    if (dolink & (LN_HARD|LN_MIXED)) {
+    if options.dolink.containsAny(of: [.HARD, .MIXED ] ) {
       if (do_link(from_name, to_name, target_sb) == -1) {
-        if ((dolink & LN_HARD) || errno != EXDEV) {
-          err(EX_OSERR, "link %s -> %s", from_name, to_name);
+        if options.dolink.contains(.HARD) || errno != EXDEV {
+          err(Int(EX_OSERR), "link \(from_name) -> \(to_name)")
         }
       } else {
-        if (stat(to_name, &to_sb)) {
-          err(EX_OSERR, "%s: stat", to_name);
+        guard let to_sb = try? FileMetadata(for: to_name) else {
+          err(Int(EX_OSERR), "\(to_name): stat")
         }
-        if (S_ISREG(to_sb.st_mode)) {
+
+        if to_sb.filetype == .regular {
           /*
            * XXX: hard links to anything other than
            * plain files are not metalogged
            */
-          int omode;
-          const char *oowner, *ogroup;
-          char *offlags;
-          char *dres;
+//          int omode;
+//          const char *oowner, *ogroup;
+//          char *offlags;
+//          char *dres;
 
           /*
            * XXX: use underlying perms, unless
            * overridden on command line.
            */
-          omode = mode;
-          if (!haveopt_m) {
-            mode = (to_sb.st_mode & 0777);
+          let omode = options.mode
+          if !options.haveopt_m {
+            options.mode = to_sb.permissions.rawValue & 0o0777
           }
-          oowner = owner;
-          if (!haveopt_o) {
-            owner = NULL;
+          let oowner = options.owner
+          if !options.haveopt_o {
+            options.owner = nil
           }
-          ogroup = group;
-          if (!haveopt_g) {
-            group = NULL;
+          let ogroup = group
+          if !options.haveopt_g {
+            options.group = nil
           }
-          offlags = fflags;
-          if (!haveopt_f) {
-            fflags = NULL;
+          let offlags = options.fflags
+          if !options.haveopt_f {
+            options.fflags = nil
           }
-          dres = digest_file(from_name);
-          metadata_log(to_name, "file", NULL, NULL,
-                       dres, to_sb.st_size);
+          let dres = digest_file(from_name)
+
+          metadata_log(to_name, "file", NULL, NULL, dres, to_sb.st_size);
+
           free(dres);
           mode = omode;
           owner = oowner;
           group = ogroup;
           fflags = offlags;
         }
-        return;
+        return
       }
     }
 
     /* Symbolic links. */
-    if (dolink & LN_ABSOLUTE) {
+    if options.dolink.contains(.ABSOLUTE) {
       /* Convert source path to absolute. */
-      if (realpath(from_name, src) == NULL) {
-        err(EX_OSERR, "%s: realpath", from_name);
+      guard let _ = realpath(from_name, src) else {
+        err(Int(EX_OSERR), "\(from_name): realpath")
       }
       do_symlink(src, to_name, target_sb);
       /* XXX: src may point outside of destdir */
       metadata_log(to_name, "link", NULL, src, NULL, 0);
-      return;
+      return
     }
 
-    if (dolink & LN_RELATIVE) {
-      if (*from_name != '/') {
+    if options.dolink.contains(.RELATIVE) {
+      if from_name.first != "/" {
         /* this is already a relative link */
         do_symlink(from_name, to_name, target_sb);
         /* XXX: from_name may point outside of destdir. */
         metadata_log(to_name, "link", NULL, from_name, NULL, 0);
-        return;
+        return
       }
 
       /* Resolve pathnames. */
-      if (realpath(from_name, src) == NULL) {
-        err(EX_OSERR, "%s: realpath", from_name);
+      guard let _ = realpath(from_name, src) else {
+        err(Int(EX_OSERR), "\(from_name): realpath")
       }
 
       /*
@@ -336,7 +326,7 @@ extension xinstall {
    * install --
    *  build a path name and install the file
    */
-  func install(_ from_name : String, _ to_name : String, _ fset : UInt, _ flags : UInt32) {
+  func install(_ from_name : String, _ to_name : String, _ fset : FileFlags, _ flags : IFlags) {
     //    struct stat from_sb, temp_sb, to_sb;
     //    struct timespec tsb[2];
     //    int devnull, files_match, from_fd, serrno, stripped, target;
@@ -345,15 +335,15 @@ extension xinstall {
     //    char *digestresult;
 
     //    digestresult = NULL;
-    files_match = stripped = 0;
+//    files_match = stripped = 0;
     //    from_fd = -1;
     //    to_fd = -1;
 
     var devnull = false
 
     /* If try to install NULL file to a directory, fails. */
-    if 0 != (flags & DIRECTORY) || from_name != _PATH_DEVNULL {
-      if !options.dolink {
+    if flags.contains(.DIRECTORY) || from_name != CMigration._PATH_DEVNULL {
+      if options.dolink.isEmpty {
         guard let from_sb = try? FileMetadata(for: from_name) else {
           err(Int(EX_OSERR), from_name)
           fatalError()
@@ -364,7 +354,7 @@ extension xinstall {
         }
       }
       /* Build the target path. */
-      if 0 != (flags & DIRECTORY) {
+      if flags.contains(.DIRECTORY) {
         let p1 = to_name.hasSuffix("/") ? "" : "/"
         let p2 = from_name.split(separator: "/").last!
         to_name = "\(to_name)\(p1)\(p2)"
@@ -384,7 +374,11 @@ extension xinstall {
       return;
     }
 
-    if let to_sb, to_sb.filetype == .regular, to_sb.filetype == .symbolicLink {
+    guard let to_sb else {
+      err(Int(EX_CANTCREAT), to_name)
+    }
+
+    if to_sb.filetype == .regular, to_sb.filetype == .symbolicLink {
       errno = EFTYPE
       err(Int(EX_CANTCREAT), to_name)
     }
@@ -397,11 +391,11 @@ extension xinstall {
 
     var files_match = false
     /* If we don't strip, we can compare first. */
-    if (docompare && !dostrip && target && S_ISREG(to_sb.st_mode)) {
-      if ((to_fd = open(to_name, O_RDONLY, 0)) < 0) {
+    if (options.docompare && !options.dostrip && target && to_sb.filetype == .regular) {
+      guard let to_fd = try? FileDescriptor.open(to_name,.readOnly) else {
         err(Int(EX_OSERR), to_name)
       }
-      if (devnull) {
+      if devnull {
         files_match = to_sb.size == 0
       }
       else {
@@ -524,8 +518,8 @@ extension xinstall {
     if !files_match {
 
       /* Try to turn off the immutable bits. */
-      if (to_sb.st_flags & NOCHANGEBITS) {
-        (void)chflags(to_name, to_sb.st_flags & ~NOCHANGEBITS);
+      if to_sb.flags.containsAny(of: NOCHANGEBITS) {
+        chflags(to_name, to_sb.flags.subtracting(NOCHANGEBITS).rawValue)
       }
 
       if (target && dobackup) {
@@ -562,15 +556,14 @@ extension xinstall {
               backup);
         }
       }
-      if (verbose) {
+      if 0 != options.verbose {
         print("install: \(from_name) -> \(to_name)")
       }
-      if (rename(tempfile, to_name) < 0) {
-        serrno = errno;
-        unlink(tempfile);
-        errno = serrno;
-        err(EX_OSERR, "rename: %s to %s",
-            tempfile, to_name);
+      if rename(tempfile, to_name) < 0 {
+        serrno = errno
+        unlink(tempfile)
+        errno = serrno
+        err(Int(EX_OSERR), "rename: \(tempfile) to \(to_name)")
       }
 
       /* Re-open to_fd so we aren't hosed by the rename(2). */

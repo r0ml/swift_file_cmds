@@ -845,6 +845,7 @@
 		E774069D2F0B96B600498517 /* Exceptions for "Sources" folder in "install" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				install/digests.swift,
 				install/xinstall.swift,
 				install/xinstall2.swift,
 				install/xinstall3.swift,

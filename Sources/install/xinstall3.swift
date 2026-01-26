@@ -131,7 +131,7 @@ func compare(_ from_fd : FileDescriptor, _ from_name : String, _ from_len : size
  * create_tempfile --
  *  create a temporary file based on path and open it
  */
-func create_tempfile(_ path : String, _ temp : String, _ tsize : size_t) {
+func create_tempfile(_ path : String, _ temp : String, _ tsize : size_t) -> FileDescriptor {
   char *p;
 
   (void)strncpy(temp, path, tsize);
@@ -251,11 +251,11 @@ done:
  *  to *dresp.
  */
 func strip(_ to_name : String, _ to_fd : FileDescriptor, _ from_name : String?, _ dresp : inout String) -> Bool {
-  const char *stripbin;
-  const char *args[5];
-  char *prefixed_from_name;
-  pid_t pid;
-  int error, serrno, status;
+//  const char *stripbin;
+//  const char *args[5];
+//  char *prefixed_from_name;
+//  pid_t pid;
+//  int error, serrno, status;
 
   prefixed_from_name = NULL;
   stripbin = Environment["STRIPBIN"] ?? "strip"
@@ -357,8 +357,9 @@ func install_dir(_ pathx : String) {
       warn("chown \(u):\(g) \(path)")
     }
     /* XXXBED: should we do the chmod in the dounpriv case? */
-    if (chmod(path, mode)) {
-      warn("chmod %o \(path)", mode)
+    if chmod(path, options.mode) != 0 {
+      let k = String(options.mode, radix: 8)
+      warn("chmod \(k) \(path)")
     }
   }
   metadata_log(path, "dir", nil, nil, nil, 0);
