@@ -205,7 +205,7 @@ struct lnTest : ShellTest {
     let bb2 = try? FileMetadata(for: b.path, followSymlinks: true)
     //    #expect(aa?.device == bb?.device && aa?.inode == bb?.inode)
 
-    #expect(bb2 == nil && bb?.fileType == .symbolicLink)
+    #expect(bb2 == nil && bb?.filetype == .symbolicLink)
     rm(a, b)
   }
 
