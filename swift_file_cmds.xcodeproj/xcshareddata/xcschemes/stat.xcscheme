@@ -58,7 +58,7 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
          <CommandLineArgument
-            argument = "-Fn"
+            argument = "-n"
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument

@@ -55,6 +55,16 @@ struct statTest : ShellTest {
     rm(a,b,c,d,f)
   }
 
+  @Test("Verify that -n suppresses newline output for lines") func n_flag() async throws {
+    let a = try tmpfile("a3", "")
+    let b = try tmpfile("b3", "")
+
+    let (ec, o, _) = try await ShellProcess("/usr/bin/stat", [a,b]).run()
+    #expect (ec == 0 && o != nil)
+    let oo = o!.replacing("\n", with: "")
+    try await run(output: oo, args: "-n", a, b)
+  }
+
   @Test("Verify the output format for -l") func l_flag() async throws {
     let a = try tmpfile("a2", "")
     let b = try tmpfile("b2")
@@ -63,49 +73,19 @@ struct statTest : ShellTest {
     let d = try tmpdir("d2")
 
     for x in [a,b,c,d] {
-      let (ec, o, e) = try await ShellProcess("/bin/ls", ["-ldT", x]).run()
-      let (ec2, o2, e2) = try await ShellProcess(cmd, ["-l", x]).run()
+      let (ec, o, _) = try await ShellProcess("/bin/ls", ["-ldT", x]).run()
+      let (ec2, o2, _) = try await ShellProcess(cmd, ["-l", x]).run()
 
       #expect (o?.replacing( /[:space:]+/, with: " ") ==
                o2?.replacing( /[:space:]+/, with: " ") )
+      #expect (ec == ec2)
     }
 
   }
+
+
 }
 /*
- atf_test_case l_flag
- l_flag_head()
- {
-   atf_set  "descr" "Verify the output format for -l"
- }
- l_flag_body()
- {
-   atf_check touch a
-   atf_check ln a b
-   atf_check ln -s a c
-   atf_check mkdir d
-
-   paths="a b c d"
-
-   ls_out=ls.output
-   stat_out=stat.output
-
-   # NOTE:
-   # - Even though stat -l claims to be equivalent to `ls -lT`, the
-   #   whitespace is a bit more liberal in the `ls -lT` output.
-   # - `ls -ldT` is used to not recursively list the contents of
-   #   directories.
-   for path in $paths; do
-     atf_check -o save:$ls_out ls -ldT $path
-     cat $ls_out
-     atf_check -o save:$stat_out stat -l $path
-     cat $stat_out
-     echo "Comparing normalized whitespace"
-     atf_check sed -i '' -E -e 's/[[:space:]]+/ /g' $ls_out
-     atf_check sed -i '' -E -e 's/[[:space:]]+/ /g' $stat_out
-     atf_check cmp $ls_out $stat_out
-   done
- }
 
  atf_test_case n_flag
  n_flag_head()

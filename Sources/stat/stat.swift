@@ -655,7 +655,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
         }
       case .st_ino:
 //        small = (sizeof(st->st_ino) == 4);
-        let data = st.inode
+        data = st.inode
         sdata = nil
         formats = [.DECIMAL, .OCTAL, .UNSIGNED, .HEX]
         if (ofmt == []) {
