@@ -47,18 +47,19 @@ struct statTest : ShellTest {
 
     mkfifo(f.path, 0777)
 
+    defer { rm(a,b,c,d,f) }
+
     try await run(output: /a$/, args: ["-Fn", a] )
     try await run(output: /b\/$/, args: ["-Fn", b] )
     try await run(output: /c$/, args: ["-Fn", c] )
     try await run(output: /d@ ->\ /, args: ["-Fn", d] )
     try await run(output: /f\|$/, args: ["-Fn", f] )
-    rm(a,b,c,d,f)
   }
 
   @Test("Verify that -n suppresses newline output for lines") func n_flag() async throws {
     let a = try tmpfile("a3", "")
     let b = try tmpfile("b3", "")
-
+    defer { rm(a,b) }
     let (ec, o, _) = try await ShellProcess("/usr/bin/stat", [a,b]).run()
     #expect (ec == 0 && o != nil)
     let oo = o!.replacing("\n", with: "")
@@ -72,6 +73,8 @@ struct statTest : ShellTest {
     let c = try tmpfile("c2")
     let d = try tmpdir("d2")
 
+    defer { rm(a,b,c,d) }
+
     for x in [a,b,c,d] {
       let (ec, o, _) = try await ShellProcess("/bin/ls", ["-ldT", x]).run()
       let (ec2, o2, _) = try await ShellProcess(cmd, ["-l", x]).run()
@@ -80,176 +83,87 @@ struct statTest : ShellTest {
                o2?.replacing( /[:space:]+/, with: " ") )
       #expect (ec == ec2)
     }
-
   }
 
+  @Test("Verify that -q suppresses error message from l?stat(2)") func q_flag() async throws {
+    let nonexistent = try tmpfile("nonexistent")
+    let broken = try tmpfile("broken-link")
+    defer { rm(nonexistent, broken) }
+    try FileManager.default.createSymbolicLink(at: broken, withDestinationURL: nonexistent)
+    try await run(status: 1, args: "-q", nonexistent)
+    try await run(output: /.+/, args: "-q", broken)
+    try await run(output: /.+/, args: "-qL", broken)
+  }
 
+  @Test("Verify that -r display output in 'raw mode'") func r_flag() async throws {
+    let a = try tmpfile("a5", "")
+    defer { rm(a) }
+    try await run(output: /((\d)+ ){15}/, args: "-r", a)
+  }
+
+  @Test("Verify the output format for -s") func s_flag() async throws {
+    let a = try tmpfile("a4", "")
+    let b = try tmpfile("b4")
+    try FileManager.default.linkItem(at: a, to: b)
+    let c = try tmpfile("c4")
+    try FileManager.default.createSymbolicLink(at: c, withDestinationURL: a)
+    let d = try tmpdir("d4")
+    defer { rm(a, b, c, d) }
+    let otp = /(st_dev=\d+ st_ino=\d+ st_mode=\d+ st_nlink=\d+ st_uid=\d+ st_gid=\d+ st_rdev=\d+ st_size=\d+ st_atime=\d+ st_mtime=\d+ st_ctime=\d+ st_birthtime=\d+ st_blksize=\d+ st_blocks=\d+ st_flags=\d+\n){4}/
+    try await run(output: otp, args: "-s", a, b, c, d)
+  }
+
+  @Test("Verify the output format for -t") func t_flag() async throws {
+
+    let foo = try tmpfile("foo", "")
+    defer { rm(foo) }
+    // FIXME: the defaultl timezone is not handled properly?
+    let (ec, o, _) = try await ShellProcess("/usr/bin/touch", "-d", "1970-01-01T00:00:42", foo, env: ["TZ": "America/NewYork"]).run()
+
+    try await run(output: "1970-01-01 00:00:42\n", args: "-t", "%F %H:%M:%S", "-f", "%Sa", foo, env: ["TZ": "America/NewYork"])
+    // FIXME: this test fails because the ShellProcess (touch) and the stat executable are not using the same timezone for times
+    // however, the above command works properly -- so the time formatting is handling the discrepancy?
+
+    try await run(output: "42\n", args: "-t", "%s", "-f", "%a", foo, env: ["TZ": "America/NewYork"  ] )
+  }
+
+  @Test("Verify the output format for -x") func x_flag() async throws {
+    let a = try tmpfile("a6", "")
+    let b = try tmpfile("b6")
+    try FileManager.default.linkItem(at: a, to: b)
+    let c = try tmpfile("c6")
+    try FileManager.default.createSymbolicLink(at: c, withDestinationURL: a)
+    let d = try tmpdir("d6")
+    defer { rm(a, b, c, d) }
+
+    // FIXME: the cheat here is to compare the command built by the project ot the installed command
+    // the original command basically formatted the resault using the stat command for each element.
+    // as long as you're assuming the stat command is installed, just compare to its output?
+    for i in [a,b,c,d] {
+      // FIXME: I need to do the relativePath thingy because `run` resolves URLs that way -- but ShellProcess doesn't resolve URLs in arguments
+      // Need to make them the same
+      let (_, o, _) = try await ShellProcess("/usr/bin/stat", "-x", i.relativePath, cd: a.absoluteURL.deletingLastPathComponent() ).run()
+      try await run(output: o, args: "-x", i)
+    }
+
+
+  }
 }
-/*
 
- atf_test_case n_flag
- n_flag_head()
- {
-   atf_set  "descr" "Verify that -n suppresses newline output for lines"
- }
- n_flag_body()
- {
-   atf_check touch a b
-   atf_check -o inline:"$(stat a | tr -d '\n')" stat -n a
-   atf_check -o inline:"$(stat a b | tr -d '\n')" stat -n a b
- }
+// =============================================================================================
 
- atf_test_case q_flag
- q_flag_head()
- {
-   atf_set  "descr" "Verify that -q suppresses error messages from l?stat(2)"
- }
- q_flag_body()
- {
-   ln -s nonexistent broken-link
+// FIXME: use this instead of the 'touch' command above?
+func touchDate(
+    _ path: String,
+    seconds: Int,
+    nanoseconds: Int = 0
+) throws {
+    var times = [
+        timespec(tv_sec: seconds, tv_nsec: nanoseconds), // atime
+        timespec(tv_sec: seconds, tv_nsec: nanoseconds)  // mtime
+    ]
 
-   atf_check -s exit:1 stat -q nonexistent
-   atf_check -s exit:1 stat -q nonexistent
-   atf_check -o not-empty stat -q broken-link
-   atf_check -o not-empty stat -qL broken-link
- }
-
- atf_test_case r_flag
- r_flag_head()
- {
-   atf_set  "descr" "Verify that -r displays output in 'raw mode'"
- }
- r_flag_body()
- {
-   atf_check touch a
-   # TODO: add more thorough checks.
-   atf_check -o not-empty stat -r a
- }
-
- atf_test_case s_flag
- s_flag_head()
- {
-   atf_set  "descr" "Verify the output format for -s"
- }
- s_flag_body()
- {
-   atf_check touch a
-   atf_check ln a b
-   atf_check ln -s a c
-   atf_check mkdir d
-
-   paths="a b c d"
-
-   # The order/name of each of the fields is specified by stat(1) manpage.
-   fields="st_dev st_ino st_mode st_nlink"
-   fields="$fields st_uid st_gid st_rdev st_size"
-   fields="$fields st_uid st_gid st_mode"
-   fields="$fields st_atime st_mtime st_ctime st_birthtime"
-   fields="$fields st_blksize st_blocks st_flags"
-
-   # NOTE: the following...
-   # - ... relies on set -eu to ensure that the fields are set, as
-   #       documented, in stat(1).
-   # - ... uses a subshell to ensure that the eval'ed variables don't
-   #  pollute the next iteration's behavior.
-   for path in $paths; do
-     (
-     set -eu
-     eval $(stat -s $path)
-     for field in $fields; do
-       eval "$field=\$$field"
-     done
-     ) || atf_fail 'One or more fields not set by stat(1)'
-   done
- }
-
- atf_test_case t_flag
- t_flag_head()
- {
-   atf_set  "descr" "Verify the output format for -t"
- }
-
- t_flag_body()
- {
-   atf_check touch foo
-   atf_check touch -d 1970-01-01T00:00:42 foo
-   atf_check -o inline:'42\n' \
-       stat -t '%s' -f '%a' foo
-   atf_check -o inline:'1970-01-01 00:00:42\n' \
-       stat -t '%F %H:%M:%S' -f '%Sa' foo
- }
-
- x_output_date()
- {
-   local date_format='%a %b %e %H:%M:%S %Y'
-
-   stat -t "$date_format" "$@"
- }
-
- x_output()
- {
-   local path=$1; shift
-
-   local atime_s=$(x_output_date -f '%Sa' $path)
-   local btime_s=$(x_output_date -f '%SB' $path)
-   local ctime_s=$(x_output_date -f '%Sc' $path)
-   local devid=$(stat -f '%Hd,%Ld' $path)
-   local file_type_s=$(stat -f '%HT' $path)
-   local gid=$(stat -f '%5g' $path)
-   local groupname=$(stat -f '%8Sg' $path)
-   local inode=$(stat -f '%i' $path)
-   local mode=$(stat -f '%Mp%Lp' $path)
-   local mode_s=$(stat -f '%Sp' $path)
-   local mtime_s=$(x_output_date -f '%Sm' $path)
-   local nlink=$(stat -f '%l' $path)
-   local size_a=$(stat -f '%-11z' $path)
-   local uid=$(stat -f '%5u' $path)
-   local username=$(stat -f '%8Su' $path)
-
-   cat <<EOF
-   File: "$path"
-   Size: $size_a  FileType: $file_type_s
-   Mode: ($mode/$mode_s)         Uid: ($uid/$username)  Gid: ($gid/$groupname)
- Device: $devid   Inode: $inode    Links: $nlink
- Access: $atime_s
- Modify: $mtime_s
- Change: $ctime_s
-  Birth: $btime_s
- EOF
- }
-
- atf_test_case x_flag
- x_flag_head()
- {
-   atf_set  "descr" "Verify the output format for -x"
- }
- x_flag_body()
- {
-   atf_check touch a
-   atf_check ln a b
-   atf_check ln -s a c
-   atf_check mkdir d
-
-   paths="a b c d"
-
-   for path in $paths; do
-     atf_check -o "inline:$(x_output $path)\n" stat -x $path
-   done
- }
-
- atf_init_test_cases()
- {
-   atf_add_test_case F_flag
-   #atf_add_test_case H_flag
-   #atf_add_test_case L_flag
-   #atf_add_test_case f_flag
-   atf_add_test_case l_flag
-   atf_add_test_case n_flag
-   atf_add_test_case q_flag
-   atf_add_test_case r_flag
-   atf_add_test_case s_flag
-   atf_add_test_case t_flag
-   atf_add_test_case x_flag
- }
-
- */
+    if utimensat(AT_FDCWD, path, &times, 0) != 0 {
+        throw POSIXErrno(errno)
+    }
+}

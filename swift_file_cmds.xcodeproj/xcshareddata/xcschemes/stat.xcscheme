@@ -58,11 +58,11 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
          <CommandLineArgument
-            argument = "-n"
+            argument = "-x"
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
-            argument = "/Users/r0ml/Desktop/test/b"
+            argument = "/Users/r0ml/Desktop/test/a"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>

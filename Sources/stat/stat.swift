@@ -520,7 +520,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
       var size = -1
       if true == subfmt.isWholeNumber {
         let p = statfmt.prefix { $0.isWholeNumber }
-        let size = Int(String(subfmt)+p)!
+        size = Int(String(subfmt)+p)!
         statfmt.removeFirst(p.count)
         subfmt = statfmt.isEmpty ? "\0" : statfmt.removeFirst()
       }
@@ -528,7 +528,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
       var prec = -1
       if FormatChars(rawValue: subfmt) == .DOT {
         let p = statfmt.prefix { $0.isWholeNumber }
-        let prec = Int(p) ?? -1
+        prec = Int(p) ?? -1
         statfmt.removeFirst(p.count)
         subfmt = statfmt.isEmpty ? "\0" : statfmt.removeFirst()
       }
@@ -670,7 +670,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
 
         // #ifdef __APPLE__
         if (what == .st_mode2) {
-          data &= 07777
+          data &= 0o07777
         }
         // #endif
         if hilo == .high {
@@ -679,12 +679,12 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
           hilo = .unspecified
         }
         else if hilo == .middle {
-          data = (data >> 9) & 07;
+          data = (data >> 9) & 0o07;
           stmp = String(stmp.dropFirst(4).prefix(3))
           hilo = .unspecified
         }
         else if (hilo == .low) {
-          data &= 0777
+          data &= 0o0777
           stmp = String(stmp.dropFirst(7).prefix(3))
           hilo = .unspecified
         }
@@ -705,7 +705,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
       case .st_uid:
 //        small = (sizeof(st->st_uid) == 4);
         data = st.userId
-        if let k = user_from_uid(UInt32(st.userId), 1) {
+        if let k = Darwin.user_from_uid(UInt32(st.userId), 1) {
           sdata = String(cString: k)
         } else {
           sdata = "(\(st.userId))"
