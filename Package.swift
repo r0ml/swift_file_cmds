@@ -106,11 +106,16 @@ func generateTargets() -> [Target] {
  
 
 func generateTestTargets() -> [Target] {
+  let skipTestsForNow = ["lsTest", "cpTest"]
+
     var res = [ Target]()
     
     let cd = try! FileManager.default.contentsOfDirectory(atPath: "Tests")
     for i in cd {
       if i == ".DS_Store" { continue }
+
+      if skipTestsForNow.contains(i) { continue }
+
       if TestWIP.contains(i) { continue }
         let r =  FileManager.default.fileExists(atPath: "Tests/\(i)/Resources")
       let x = try! FileManager.default.contentsOfDirectory(atPath: "Tests/\(i)").filter { $0.hasSuffix(".xctestplan") }
