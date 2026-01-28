@@ -22,27 +22,70 @@
 import PackageDescription
 import Foundation
 
+let WIP = ["install", "pax", "ipcrm", "ipcs", "mtree"]
+let TestWIP = ["installTest", "paxTest"]
+
 let package = Package(
   name: "file_cmds",
   platforms: [.macOS(.v15), .iOS(.v15)],
   dependencies: [
      .package(url: "https://github.com/r0ml/ShellTesting.git" , branch: "main"),
-      .package(url: "https://github.com/r0ml/CMigration.git", branch: "main"),
+     .package(url: "https://github.com/swiftlang/swift-subprocess.git", branch: "main"),
+     .package(url: "https://github.com/r0ml/CMigration.git", branch: "main"),
+     .package(url: "https://github.com/apple/swift-atomics.git", from: "1.2.0"),
+//     .package(url: "https://github.com/r0ml/libxo", branch: "main"),
   ],
 
   targets:
     // Targets are the basic building blocks of a package, defining a module or a test suite.
     // Targets can depend on other targets in this package and products from dependencies.
-    generateTargets()
-    + generateTestTargets()
+//  generateLibs() +
+  generateTargets() + generateTestTargets()
+/*  + [
+  .plugin(
+        name: "InstallPlugin",
+        capability: .command(
+            intent: .custom(verb: "install-mytool", description: "Install mytool and create symlink"),
+            permissions: [
+                .writeToPackageDirectory(reason: "Needs to invoke shell install commands")
+            ]
+        ),
+        path: "Plugins/InstallPlugin"
+    )]
+ */
 )
+
+func generateLibs() -> [Target] {
+  var res = [Target]()
+  for i in ["BZip2", "Curses", "LZMA"] {
+    let t = Target.systemLibrary(
+      name: i,
+      path: "Vendors/\(i)",
+     )
+    res.append(t)
+  }
+  return res
+}
+
+let additionalDeps : [String:[Target.Dependency]] = [
+//  "ls" : [.target(name: "Curses")],
+//  "gzip" : [.target(name: "BZip2")],
+//  "df" : [.product(name: "libxo", package: "xo")],
+  :
+]
 
 func generateTargets() -> [Target] {
     var res = [Target]()
     let cd = try! FileManager.default.contentsOfDirectory(atPath: "Sources")
-    print(cd)
     for i in cd {
-      let t = Target.executableTarget(name: i, dependencies: [.product(name: "CMigration", package: "CMigration")] )
+      if i == ".DS_Store" { continue }
+      if WIP.contains(i) { continue}
+      var deps : [Target.Dependency] = [.product(name: "CMigration", package: "CMigration"), .product(name: "Atomics", package: "swift-atomics")]
+//      if let k = additionalDeps[i] {
+//        deps += k
+//      }
+      let t = Target.executableTarget(name: i, dependencies: deps  // , plugins: [.plugin(name: "InstallPlugin")])
+                                      )
         res.append(t)
     }
     return res
@@ -50,13 +93,13 @@ func generateTargets() -> [Target] {
  
 
 func generateTestTargets() -> [Target] {
-    var res = [Target]()
+    var res = [ Target]()
     
     let cd = try! FileManager.default.contentsOfDirectory(atPath: "Tests")
-    print(cd)
     for i in cd {
       if i == ".DS_Store" { continue }
-        let r = try! FileManager.default.fileExists(atPath: "Tests/\(i)/Resources")
+      if TestWIP.contains(i) { continue }
+        let r =  FileManager.default.fileExists(atPath: "Tests/\(i)/Resources")
       let x = try! FileManager.default.contentsOfDirectory(atPath: "Tests/\(i)").filter { $0.hasSuffix(".xctestplan") }
         let rr = r ? [Resource.copy("Resources")] : []
         let t = Target.testTarget(name: i,

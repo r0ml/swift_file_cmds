@@ -646,7 +646,7 @@
 		E77400E72F02D29900498517 /* Exceptions for "Tests" folder in "mkdirTest" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				mkdir/mkdirTest.swift,
+				mkdirTest/mkdirTest.swift,
 			);
 			target = E77400DC2F02D27800498517 /* mkdirTest */;
 		};
@@ -743,28 +743,28 @@
 		E77403BF2F038F0800498517 /* Exceptions for "Tests" folder in "truncateTest" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				truncate/truncateTest.swift,
+				truncateTest/truncateTest.swift,
 			);
 			target = E77403112F02E8F400498517 /* truncateTest */;
 		};
 		E77404D12F05F30300498517 /* Exceptions for "Tests" folder in "xattrTest" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				xattr/xattrTest.swift,
+				xattrTest/xattrTest.swift,
 			);
 			target = E774031C2F02E90400498517 /* xattrTest */;
 		};
 		E77405122F070FED00498517 /* Exceptions for "Tests" folder in "touchTest" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				touch/touchTest.swift,
+				touchTest/touchTest.swift,
 			);
 			target = E77403062F02E8E300498517 /* touchTest */;
 		};
 		E77405422F0788D700498517 /* Exceptions for "Tests" folder in "lnTest" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				ln/lnTest.swift,
+				lnTest/lnTest.swift,
 			);
 			target = E77402B92F02E7E100498517 /* lnTest */;
 		};
@@ -778,7 +778,7 @@
 		E774056F2F09BF9600498517 /* Exceptions for "Tests" folder in "linkTest" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				link/linkTest.swift,
+				linkTest/linkTest.swift,
 			);
 			target = E77405522F09BB3800498517 /* linkTest */;
 		};
@@ -942,21 +942,21 @@
 		E77408242F10017C00498517 /* Exceptions for "Tests" folder in "statTest" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				stat/statTest.swift,
+				statTest/statTest.swift,
 			);
 			target = E77402FB2F02E8D300498517 /* statTest */;
 		};
 		E774082B2F10CD3700498517 /* Exceptions for "Tests" folder in "cpTest" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				cp/cpTest.swift,
+				cpTest/cpTest.swift,
 			);
 			target = E77402612F02E76500498517 /* cpTest */;
 		};
 		E78DE71C2E43ABBD001E00CA /* Exceptions for "Tests" folder in "chflagsTest" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				chflags/chflagsTest.swift,
+				chflagsTest/chflagsTest.swift,
 			);
 			target = E78DE70C2E43A97E001E00CA /* chflagsTest */;
 		};
@@ -970,14 +970,14 @@
 		E7F4F75D2F157178000CC7E1 /* Exceptions for "Tests" folder in "ddTest" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				dd/ddTest.swift,
+				ddTest/ddTest.swift,
 			);
 			target = E774026C2F02E77E00498517 /* ddTest */;
 		};
 		E7F4F8AB2F184974000CC7E1 /* Exceptions for "Tests" folder in "compressTest" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				compress/compressTest.swift,
+				compressTest/compressTest.swift,
 			);
 			target = E77402562F02E75200498517 /* compressTest */;
 		};
@@ -1045,6 +1045,11 @@
 		E7370ACA2E42749000246ED4 /* Manuals */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Manuals;
+			sourceTree = "<group>";
+		};
+		E73E7ACE2F29DF5800E62103 /* Plugins */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Plugins;
 			sourceTree = "<group>";
 		};
 		E79A41BA2F208C5C00060EAE /* Vendors */ = {
@@ -1505,6 +1510,7 @@
 				E7370ACC2E4274A500246ED4 /* README.md */,
 				E71B49B02F26E2DD00A02D2C /* NOTES.md */,
 				E7370ACA2E42749000246ED4 /* Manuals */,
+				E73E7ACE2F29DF5800E62103 /* Plugins */,
 				E7370AC62E42742A00246ED4 /* Sources */,
 				E7370AC92E42746700246ED4 /* Tests */,
 				E78DE7142E43A989001E00CA /* Frameworks */,

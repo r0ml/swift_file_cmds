@@ -1,0 +1,6 @@
+
+module Curses [system] {
+  header "include/curses_shim.h"
+  link "ncurses"
+  export *
+}

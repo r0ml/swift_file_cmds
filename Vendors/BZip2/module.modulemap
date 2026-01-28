@@ -1,0 +1,7 @@
+
+module BZip2 [system] {
+  header "include/bzlib_shim.h"
+  link "bz2"
+  export *
+}
+
