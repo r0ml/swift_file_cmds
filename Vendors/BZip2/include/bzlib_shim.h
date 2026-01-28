@@ -2,4 +2,4 @@
 // Modernized by Robert "r0ml" Lefkowitz <code@liberally.net> in 2026
 
 #pragma once
-#include "include/bzlib.h"
+#include <bzlib.h>

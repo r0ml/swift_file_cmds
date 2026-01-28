@@ -33,13 +33,13 @@ let package = Package(
      .package(url: "https://github.com/swiftlang/swift-subprocess.git", branch: "main"),
      .package(url: "https://github.com/r0ml/CMigration.git", branch: "main"),
      .package(url: "https://github.com/apple/swift-atomics.git", from: "1.2.0"),
-//     .package(url: "https://github.com/r0ml/libxo", branch: "main"),
+     .package(url: "https://github.com/r0ml/libxo", branch: "main"),
   ],
 
   targets:
     // Targets are the basic building blocks of a package, defining a module or a test suite.
     // Targets can depend on other targets in this package and products from dependencies.
-//  generateLibs() +
+  generateLibs() +
   generateTargets() + generateTestTargets()
 /*  + [
   .plugin(
@@ -57,19 +57,21 @@ let package = Package(
 
 func generateLibs() -> [Target] {
   var res = [Target]()
-  for i in ["BZip2", "Curses", "LZMA"] {
+  for i in ["BZip2", "Curses"] {
     let t = Target.systemLibrary(
-      name: i,
+      name: "C\(i)",
       path: "Vendors/\(i)",
      )
     res.append(t)
   }
+  let k = Target.systemLibrary(name: "CLZMA", path: "Vendors/LZMA", pkgConfig: "liblzma", providers: [.brew(["lzma"])] )
+  res.append(k)
   return res
 }
 
-let additionalDeps : [String:[Target.Dependency]] = [
-//  "ls" : [.target(name: "Curses")],
-//  "gzip" : [.target(name: "BZip2")],
+let additionalDeps : [String:[String]] = [
+//  "ls" : [.target(name: "CCurses")],
+ // "gzip" : [.target(name: "CBZip2")],
 //  "df" : [.product(name: "libxo", package: "xo")],
   :
 ]
@@ -77,13 +79,24 @@ let additionalDeps : [String:[Target.Dependency]] = [
 func generateTargets() -> [Target] {
     var res = [Target]()
     let cd = try! FileManager.default.contentsOfDirectory(atPath: "Sources")
-    for i in cd {
-      if i == ".DS_Store" { continue }
-      if WIP.contains(i) { continue}
-      var deps : [Target.Dependency] = [.product(name: "CMigration", package: "CMigration"), .product(name: "Atomics", package: "swift-atomics")]
-//      if let k = additionalDeps[i] {
-//        deps += k
-//      }
+  for i in cd {
+    if i == ".DS_Store" { continue }
+    if WIP.contains(i) { continue}
+    let baseDeps : [Target.Dependency] = [.product(name: "CMigration", package: "CMigration"), .product(name: "Atomics", package: "swift-atomics")]
+    var deps : [Target.Dependency] = baseDeps
+    if i == "df" {
+      deps += [.product(name: "xo", package: "libxo")]
+    }
+    if i == "ls" {
+      deps += [.target(name: "CCurses")]
+    }
+    if i == "gzip" {
+      deps += [.target(name: "CBZip2"), .target(name: "CLZMA")]
+
+    }
+
+//      let deps = baseDeps + [.target(name: "CCurses")] // + (additionalDeps[i] ?? []).map { .target(name: $0) }
+
       let t = Target.executableTarget(name: i, dependencies: deps  // , plugins: [.plugin(name: "InstallPlugin")])
                                       )
         res.append(t)
