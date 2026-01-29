@@ -12,7 +12,13 @@
     "testTimeoutsEnabled" : true
   },
   "testTargets" : [
-
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E77402F02F02E8C500498517",
+        "name" : "rmdirTest"
+      }
+    }
   ],
   "version" : 1
 }
