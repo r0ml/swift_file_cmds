@@ -44,14 +44,14 @@ struct compressTest : ShellTest {
                          0x18, 0x33, 0x20, 0x20, 0x6a, 0xdc, 0xc8, 0xb1, 0xa3, 0xc7, 0x8f, 0x20, 0x43, 0x8a, 0x1c, 0x49,
                          0xb2, 0xa4, 0xc9, 0x93, 0x20, 0x20, 0x28, 0x53, 0xaa, 0x5c, 0x89, 0xf0, 0x86, 0x02,
                          ]
-    let f = try tmpfile("file1.Z", Data(dat))
+    let f = try tmpfile("file1.Z", dat)
     let g = try tmpfile("file1")
 
 //    atf_check test ! -e file1.Z
 
     try await run(args: ["-d", f])
 
-    let h = try fileContents(g.path)
+    let h = try g.readAsString()
     #expect(h == ex)
     rm(f, g)
   }

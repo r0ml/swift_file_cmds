@@ -41,7 +41,7 @@ struct cpTest : ShellTest {
     let bar = try tmpfile("bar", "foo")
     let baz = try tmpfile("baz")
     try await run(args: [bar, baz])
-    let k = try FileMetadata(for: baz.path)
+    let k = try FileMetadata(for: baz)
     #expect(k.size == 3)
   }
 }
