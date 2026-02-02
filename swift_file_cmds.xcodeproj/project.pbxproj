@@ -649,6 +649,69 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		E77185962F30FE16006EC9D4 /* Exceptions for "Tests" folder in "chmodTest" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				chmodTest/chmodTest.swift,
+			);
+			target = E77402402F02E6F600498517 /* chmodTest */;
+		};
+		E77185982F30FE58006EC9D4 /* Exceptions for "Tests" folder in "chownTest" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				chownTest/chownTest.swift,
+			);
+			target = E774024B2F02E71B00498517 /* chownTest */;
+		};
+		E771859A2F30FEAD006EC9D4 /* Exceptions for "Tests" folder in "dfTest" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				dfTest/dfTest.swift,
+			);
+			target = E77402772F02E79800498517 /* dfTest */;
+		};
+		E771859C2F30FEE6006EC9D4 /* Exceptions for "Tests" folder in "duTest" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				duTest/duTest.swift,
+			);
+			target = E77402822F02E7A300498517 /* duTest */;
+		};
+		E771859E2F30FF4C006EC9D4 /* Exceptions for "Tests" folder in "gzipTest" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				gzipTest/gzipTest.swift,
+			);
+			target = E774028D2F02E7AE00498517 /* gzipTest */;
+		};
+		E77185A02F30FF7C006EC9D4 /* Exceptions for "Tests" folder in "installTest" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				installTest/installTest.swift,
+			);
+			target = E77402982F02E7BA00498517 /* installTest */;
+		};
+		E77185A22F3101B0006EC9D4 /* Exceptions for "Tests" folder in "paxTest" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				paxTest/paxTest.swift,
+			);
+			target = E77402DA2F02E88900498517 /* paxTest */;
+		};
+		E77185A42F3101BD006EC9D4 /* Exceptions for "Tests" folder in "mvTest" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				mvTest/mvTest.swift,
+			);
+			target = E77402CF2F02E87400498517 /* mvTest */;
+		};
+		E77185A62F3101CE006EC9D4 /* Exceptions for "Tests" folder in "lsTest" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				lsTest/lsTest.swift,
+			);
+			target = E77402C42F02E85A00498517 /* lsTest */;
+		};
 		E77400042F0239F900498517 /* Exceptions for "Sources" folder in "mkdir" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -1055,12 +1118,21 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				E78DE71C2E43ABBD001E00CA /* Exceptions for "Tests" folder in "chflagsTest" target */,
+				E77185962F30FE16006EC9D4 /* Exceptions for "Tests" folder in "chmodTest" target */,
+				E77185982F30FE58006EC9D4 /* Exceptions for "Tests" folder in "chownTest" target */,
 				E7F4F8AB2F184974000CC7E1 /* Exceptions for "Tests" folder in "compressTest" target */,
 				E774082B2F10CD3700498517 /* Exceptions for "Tests" folder in "cpTest" target */,
 				E7F4F75D2F157178000CC7E1 /* Exceptions for "Tests" folder in "ddTest" target */,
+				E771859A2F30FEAD006EC9D4 /* Exceptions for "Tests" folder in "dfTest" target */,
+				E771859C2F30FEE6006EC9D4 /* Exceptions for "Tests" folder in "duTest" target */,
+				E771859E2F30FF4C006EC9D4 /* Exceptions for "Tests" folder in "gzipTest" target */,
+				E77185A02F30FF7C006EC9D4 /* Exceptions for "Tests" folder in "installTest" target */,
 				E774056F2F09BF9600498517 /* Exceptions for "Tests" folder in "linkTest" target */,
 				E77405422F0788D700498517 /* Exceptions for "Tests" folder in "lnTest" target */,
+				E77185A62F3101CE006EC9D4 /* Exceptions for "Tests" folder in "lsTest" target */,
 				E77400E72F02D29900498517 /* Exceptions for "Tests" folder in "mkdirTest" target */,
+				E77185A42F3101BD006EC9D4 /* Exceptions for "Tests" folder in "mvTest" target */,
+				E77185A22F3101B0006EC9D4 /* Exceptions for "Tests" folder in "paxTest" target */,
 				E7FF28112F2BB2EB00DF22C9 /* Exceptions for "Tests" folder in "rmTest" target */,
 				E7FF280D2F2B9F0D00DF22C9 /* Exceptions for "Tests" folder in "rmdirTest" target */,
 				E77408242F10017C00498517 /* Exceptions for "Tests" folder in "statTest" target */,

@@ -12,7 +12,13 @@
     "testTimeoutsEnabled" : true
   },
   "testTargets" : [
-
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E77402CF2F02E87400498517",
+        "name" : "mvTest"
+      }
+    }
   ],
   "version" : 1
 }

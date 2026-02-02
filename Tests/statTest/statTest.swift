@@ -69,7 +69,7 @@ struct statTest : ShellTest {
   @Test("Verify the output format for -l") func l_flag() async throws {
     let a = try tmpfile("a2", "")
     let b = try tmpfile("b2")
-    try FileManager.default.linkItem(at: a, to: b)
+    try a.createHardLink(to: b)
     let c = try tmpfile("c2")
     let d = try tmpdir("d2")
 
@@ -104,7 +104,7 @@ struct statTest : ShellTest {
   @Test("Verify the output format for -s") func s_flag() async throws {
     let a = try tmpfile("a4", "")
     let b = try tmpfile("b4")
-    try FileManager.default.linkItem(at: a, to: b)
+    try a.createHardLink(to: b)
     let c = try tmpfile("c4")
     try c.createSymbolicLink(to: a)
     let d = try tmpdir("d4")
@@ -130,7 +130,7 @@ struct statTest : ShellTest {
   @Test("Verify the output format for -x") func x_flag() async throws {
     let a = try tmpfile("a6", "")
     let b = try tmpfile("b6")
-    try FileManager.default.linkItem(at: a, to: b)
+    try a.createHardLink(to: b)
     let c = try tmpfile("c6")
     try c.createSymbolicLink(to: a)
     let d = try tmpdir("d6")

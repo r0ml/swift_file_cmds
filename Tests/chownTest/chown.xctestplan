@@ -12,7 +12,13 @@
     "testTimeoutsEnabled" : true
   },
   "testTargets" : [
-
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E774024B2F02E71B00498517",
+        "name" : "chownTest"
+      }
+    }
   ],
   "version" : 1
 }

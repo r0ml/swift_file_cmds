@@ -12,7 +12,13 @@
     "testTimeoutsEnabled" : true
   },
   "testTargets" : [
-
+    {
+      "target" : {
+        "containerPath" : "container:swift_file_cmds.xcodeproj",
+        "identifier" : "E77402822F02E7A300498517",
+        "name" : "duTest"
+      }
+    }
   ],
   "version" : 1
 }

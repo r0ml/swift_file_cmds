@@ -366,7 +366,7 @@ from a file containing the following notice:
       }
     } else {
       for argv in options.args {
-        handle_pathname(argv)
+        handle_pathname(FilePath(argv))
       }
     }
 
