@@ -44,8 +44,8 @@ func got_siginfo(_ signo : Int32) {
 
 func got_sigint(_ signo : Int32)  {
 
-  if remove_file != nil {
-    unlink(remove_file)
+  if let remove_file {
+    unlink(remove_file.string)
   }
 
   /*
@@ -63,7 +63,7 @@ extension gzip {
    * uncompressed size written, and put the compressed sized read
    * into `*gsizep'.
    */
-  func gz_uncompress(_ inx : FileDescriptor, _ out : FileDescriptor, _ pre : [UInt8], _ filename : String) -> (UInt, UInt)? {
+  func gz_uncompress(_ inx : FileDescriptor, _ out : FileDescriptor, _ pre : [UInt8], _ filename : FilePath) -> (UInt, UInt)? {
     //    z_stream z;
     //    char *outbufp, *inbufp;
     //    uint32_t out_sub_tot = 0;
@@ -385,7 +385,7 @@ extension gzip {
    * set the owner, mode, flags & utimes using the given file descriptor.
    * file is only used in possible warning messages.
    */
-  func copymodes(_ fd : FileDescriptor, _ sbp : FileMetadata?, _ file : String)  {
+  func copymodes(_ fd : FileDescriptor, _ sbp : FileMetadata?, _ file : FilePath)  {
 //    struct timespec times[2];
 //    struct stat sb;
 
@@ -456,7 +456,7 @@ extension gzip {
   }
 
   /* check the outfile is OK. */
-  func check_outfile(_ outfile : String) -> Bool {
+  func check_outfile(_ outfile : FilePath) -> Bool {
     //    struct stat sb;
     var ok = true
     var stderr = FileDescriptor.standardError
@@ -464,7 +464,7 @@ extension gzip {
     if !options.lflag,
        let sb = try? FileMetadata(for: outfile) {
       if options.fflag {
-        unlink(outfile)
+        unlink(outfile.string)
       }
       else if 0 != isatty(STDIN_FILENO) {
         print("\(outfile) already exists -- do you wish to overwrite (y or n)? ", terminator: "", to: &stderr)
@@ -473,7 +473,7 @@ extension gzip {
           print("\tnot overwriting", to: &stderr)
           ok = false
         } else {
-          unlink(outfile)
+          unlink(outfile.string)
         }
       } else {
         maybe_warnx("\(outfile) already exists -- skipping")
@@ -483,7 +483,7 @@ extension gzip {
     return ok
   }
 
-  func unlink_input(_ file : String, _ sb : FileMetadata) {
+  func unlink_input(_ file : FilePath, _ sb : FileMetadata) {
     if options.kflag {
       return
     }
@@ -495,7 +495,7 @@ extension gzip {
       /* Definitely a different file */
       return
     }
-    unlink(file)
+    unlink(file.string)
   }
 
 
@@ -513,12 +513,12 @@ extension gzip {
     r.infile_current += UInt(newdata)
   }
 
-  func check_suffix(_ file : String) -> String?  {
-    if !options.suffix.isEmpty && file.hasSuffix(options.suffix) {
+  func check_suffix(_ file : FilePath) -> String?  {
+    if !options.suffix.isEmpty && file.string.hasSuffix(options.suffix) {
       return options.suffix
     }
     for s in suffixes {
-      if !s.zipped.isEmpty && file.hasSuffix(s.zipped) {
+      if !s.zipped.isEmpty && file.string.hasSuffix(s.zipped) {
         return s.zipped
       }
     }

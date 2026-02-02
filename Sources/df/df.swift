@@ -213,7 +213,7 @@ let unix2003 = true
      This makes the Lexmark printer installer happy (PR-3918471) */
     if options.vfslist_t == nil && options.kludge_tflag && !options.args.isEmpty {
       do {
-        let _ = try FileMetadata(for: options.args.first!)
+        let _ = try FileMetadata(for: FilePath(options.args.first!))
       } catch(let e) {
         if e.code == ENOENT {
           (options.skipvfs_t, options.vfslist_t) = makevfslist(options.args.removeFirst())
@@ -241,7 +241,7 @@ let unix2003 = true
 
     /* iterate through specified filesystems */
     for argv in options.args {
-      let stbuf = try? FileMetadata(for: argv)
+      let stbuf = try? FileMetadata(for: FilePath(argv))
       if stbuf == nil {
         let mntpt = getmntpt(argv)
         guard let mntpt else {
@@ -499,10 +499,7 @@ let unix2003 = true
    * Attempts to avoid overflow for large filesystems.
    */
   func fsbtoblk(_ num : UInt, _ fsbs : UInt, _ bs : UInt, _ fs : String) -> UInt {
-    if (num < 0) {
-      xo_warnx("negative filesystem block count/size from fs \(fs)")
-      return 0
-    } else if ((fsbs != 0) && (fsbs < bs)) {
+    if ((fsbs != 0) && (fsbs < bs)) {
       return (num / (bs / fsbs))
     } else {
       return (num * (fsbs / bs))
@@ -685,7 +682,7 @@ let unix2003 = true
    * the file system specified by `sfsp'.
    */
   func update_maxwidths(_ mwp : inout maxwidths, _ sfs : FileSystemMetadata) {
-    var sfsp = sfs
+//    var sfsp = sfs
 
     mwp.mntfrom = max(mwp.mntfrom, sfs.mntfromname.count)
     mwp.fstype = max(mwp.fstype, sfs.fstypename.count)

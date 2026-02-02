@@ -43,7 +43,7 @@ extension gzip {
    * compress the given file: create a corresponding .gz file and remove the
    * original.
    */
-  func file_compress(_ file : String) -> UInt? {
+  func file_compress(_ file : FilePath) -> UInt? {
     //   int in;
     //    int out;
     //    off_t size, in_size;
@@ -79,7 +79,7 @@ extension gzip {
       }
 
       /* Add (usually) .gz to filename */
-      let outfile = "\(file)\(options.suffix)"
+      let outfile = FilePath("\(file)\(options.suffix)")
       r.outfile = outfile
 
       if !check_outfile(outfile) {
@@ -94,7 +94,7 @@ extension gzip {
 
     defer {
       maybe_warnx("leaving original \(file)")
-      unlink(outfile)
+      unlink(outfile.string)
     }
 
     if (!options.cflag) {
@@ -116,7 +116,7 @@ extension gzip {
       }
     }
 
-    guard let (size, in_size) = gz_compress(inx, out, basename(file), isb.lastWrite) else {
+    guard let (size, in_size) = gz_compress(inx, out, basename(file.string), isb.lastWrite) else {
       return nil
     }
 
@@ -164,7 +164,7 @@ extension gzip {
   }
 
   /* uncompress the given file and remove the original */
-  func file_uncompress(_ file : String) -> UInt? {
+  func file_uncompress(_ file : FilePath) -> UInt? {
     /*    struct stat isb, osb;
      off_t size;
      ssize_t rbytes;
@@ -226,7 +226,7 @@ extension gzip {
     let method = file_gettype(fourbytes);
 
     if !options.fflag && method == .UNKNOWN {
-      maybe_warnx("%s: not in gzip format", file)
+      maybe_warnx("\(file): not in gzip format")
       return nil
     }
 
@@ -240,7 +240,7 @@ extension gzip {
                                       withUnsafeMutablePointer(to: &ts) {p in UnsafeMutableRawBufferPointer(start: p, count: 4)
       }) else {
         if !options.fflag {
-          maybe_warn("can't read %s", file);
+          maybe_warn("can't read \(file.string)")
           return nil
         }
         // FIXME: is this right?
@@ -271,8 +271,8 @@ extension gzip {
           let nf = nn.split(separator: "/").last! // strip saved directory name
 
           /* preserve original directory name */
-          let dp = file.replacing(/\/[^\/]*$/, with: "/")
-          r.outfile =  dp + nf
+          let dp = file.string.replacing(/\/[^\/]*$/, with: "/")
+          r.outfile =  FilePath(dp + nf)
         }
       }
     }
@@ -316,7 +316,7 @@ extension gzip {
 
     defer {
       if let rf = remove_file, !options.cflag {
-        unlink(rf)
+        unlink(rf.string)
       }
       remove_file = nil
     }
@@ -443,7 +443,7 @@ extension gzip {
     }
 
     guard let size else {
-      maybe_warnx("%s: uncompress failed", file);
+      maybe_warnx("\(file.string): uncompress failed")
       return nil
     }
 

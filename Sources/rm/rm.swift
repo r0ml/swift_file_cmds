@@ -435,7 +435,7 @@ let REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
      */
     for f in args {
       /* Assume if can't stat the file, can't unlink it. */
-      let sb = try? FileMetadata(for: f, followSymlinks: false)
+      let sb = try? FileMetadata(for: FilePath(f), followSymlinks: false)
       var wtyp : FileType = .unknown
       var wperm = FilePermissions()
       if sb == nil {
@@ -588,7 +588,7 @@ let REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
     var dname : String? = nil
 
     for arg in args {
-      if let st = try? FileMetadata(for: arg, followSymlinks: false) {
+      if let st = try? FileMetadata(for: FilePath(arg), followSymlinks: false) {
         if st.filetype == .directory { // (S_ISDIR(st.st_mode)) {
           dcount += 1
           dname = arg    /* only used if 1 dir */

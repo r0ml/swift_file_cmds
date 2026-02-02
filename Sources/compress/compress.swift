@@ -139,7 +139,7 @@ import Darwin
             compress("/dev/stdin", "/dev/stdout", cat)
             break
           } else if cat {
-            compress(argv, "/dev/stdout", cat)
+            compress(FilePath(argv), FilePath("/dev/stdout"), cat)
             break
           }
           if argv.hasSuffix(".Z") {
@@ -148,22 +148,22 @@ import Darwin
             break
           }
           let newname = argv+".Z"
-          compress(argv, newname, cat)
+          compress(FilePath(argv), FilePath(newname), cat)
           break;
         case .DECOMPRESS:
           if argv == "-" {
             cat = true
-            decompress("/dev/stdin", "/dev/stdout", cat)
+            decompress(FilePath("/dev/stdin"), FilePath("/dev/stdout"), cat)
             break;
           }
           if !argv.hasSuffix(".Z") {
-            let newname = argv+".Z"
+            let newname = FilePath(argv+".Z")
             decompress(newname,
-                       cat ? "/dev/stdout" : argv, cat);
+                       cat ? FilePath("/dev/stdout") : FilePath(argv), cat);
           } else {
             let newname = String(argv.dropLast(2))
-            decompress(argv,
-                       cat ? "/dev/stdout" : newname, cat)
+            decompress(FilePath(argv),
+                       cat ? FilePath("/dev/stdout") : FilePath(newname), cat)
           }
           break;
       }
@@ -172,7 +172,7 @@ import Darwin
 //    exit (eval);
   }
 
-  func compress(_ inx : String, _ out : String, _ cat : Bool) {
+  func compress(_ inx : FilePath, _ out : FilePath, _ cat : Bool) {
     /*      size_t nr;
      struct stat isb, sb;
      FILE *ifp, *ofp;
@@ -190,24 +190,24 @@ import Darwin
 
 
     guard let ifp = try? FileDescriptor.open(inx, .readOnly) else {
-      warn(inx)
+      warn(inx.string)
       return
     }
     defer { try? ifp.close() }
 
     guard let isb = try? FileMetadata(for: inx) else {
-      warn(inx)
+      warn(inx.string)
       return
     }
 
     let isreg = isb.filetype == .regular
 
     guard var ofp = ZStream(out, "w", options.bits) else {
-      warn(out)
+      warn(out.string)
       return
     }
 
-    defer { if ofp != nil && !cat && oreg  { unlink(out) } }
+    defer { if !cat && oreg  { unlink(out.string) } }
 
     let BUFSIZ = 10240
       while true {
@@ -220,14 +220,14 @@ import Darwin
         }
         if buf.count == 0 { break }
         if -1 == ofp.zwrite(buf) {
-          warn(out)
+          warn(out.string)
           return
         }
       }
 
     if (!cat && isreg) {
       guard let sb = try? FileMetadata(for: out) else {
-        warn(out)
+        warn(out.string)
         return
       }
 
@@ -238,16 +238,16 @@ import Darwin
         }
         // FIXME: set error code
 //        eval = 2;
-        if 0 != unlink(out) {
-          warn(out)
+        if 0 != unlink(out.string) {
+          warn(out.string)
         }
         return
       }
 
       setfile(out, isb);
 
-      if 0 != unlink(inx) {
-        warn(inx)
+      if 0 != unlink(inx.string) {
+        warn(inx.string)
       }
 
       if 0 != options.verbose {
@@ -263,7 +263,7 @@ import Darwin
     }
   }
 
-  func decompress(_ inx : String, _ out : String, _ cat : Bool) {
+  func decompress(_ inx : FilePath, _ out : FilePath, _ cat : Bool) {
     /*      size_t nr;
      struct stat sb;
      FILE *ifp, *ofp;
@@ -278,13 +278,13 @@ import Darwin
     let oreg = sb == nil || sb!.filetype == .regular
 
     guard let ifp = ZStream(inx, "r", options.bits) else {
-      warn(inx)
+      warn(inx.string)
       return
     }
 
-    defer { ifp.zclose() }
+    defer { let _ = ifp.zclose() }
     guard let sb = try? FileMetadata(for: inx) else {
-      warn(inx);
+      warn(inx.string);
       return
     }
     let isreg = sb.filetype == .regular
@@ -295,31 +295,31 @@ import Darwin
      */
 
     guard let nr = try? ifp.zread(Int(BUFSIZ)) else {
-      warn(inx)
+      warn(inx.string)
       return
     }
 
     guard let ofp = try? FileDescriptor.open(out, .writeOnly) else {
-      warn(out)
+      warn(out.string)
       return
     }
     defer { try? ofp.close() }
 
     if !nr.isEmpty {
       guard let _ = try? ofp.write(nr) else {
-        warn(out)
+        warn(out.string)
         return;
       }
     }
 
     while true {
       guard let nr = try? ifp.zread(Int(BUFSIZ)) else {
-        warn(inx)
+        warn(inx.string)
         return
       }
       if nr.isEmpty { break }
       guard let _ = try? ofp.write(nr) else {
-        warn(out)
+        warn(out.string)
         return
       }
     }
@@ -329,8 +329,8 @@ import Darwin
     if (!cat && isreg) {
       setfile(out, sb)
 
-      if 0 != unlink(inx) {
-        warn(inx)
+      if 0 != unlink(inx.string) {
+        warn(inx.string)
       }
       if 0 != options.verbose {
         let isb = sb
@@ -357,12 +357,12 @@ import Darwin
  */
   }
 
-  func setfile(_ name : String, _ fsx : FileMetadata) {
+  func setfile(_ name : FilePath, _ fsx : FileMetadata) {
 
     var fs = fsx
     var tspec : (timespec, timespec) = (fs.lastAccess.timespec, fs.lastWrite.timespec)
 
-    if 0 != utimensat(AT_FDCWD, name, &tspec.0, 0) {
+    if 0 != utimensat(AT_FDCWD, name.string, &tspec.0, 0) {
       warn("utimensat: \(name)")
     }
 
@@ -372,22 +372,22 @@ import Darwin
      * the mode; current BSD behavior is to remove all setuid bits on
      * chown.  If chown fails, lose setuid/setgid bits.
      */
-    if 0 != chown(name, UInt32(fs.userId), UInt32(fs.groupId)) {
+    if 0 != chown(name.string, UInt32(fs.userId), UInt32(fs.groupId)) {
       if errno != EPERM {
         warn("chown: \(name)")
       }
       fs.permissions.remove([.setUserID, .setGroupID])
     }
-    if 0 != chmod(name, fs.permissions.rawValue) && errno != EOPNOTSUPP {
+    if 0 != chmod(name.string, fs.permissions.rawValue) && errno != EOPNOTSUPP {
       warn("chmod: \(name)")
     }
 
-    if 0 != chflags(name, fs.flags.rawValue) && errno != EOPNOTSUPP {
+    if 0 != chflags(name.string, fs.flags.rawValue) && errno != EOPNOTSUPP {
       warn("chflags: \(name)")
     }
   }
 
-  func permission(_ fname : String) -> Bool {
+  func permission(_ fname : FilePath) -> Bool {
 
     if 0 == Darwin.isatty( Darwin.fileno(stderr) ) {
       return false
@@ -398,7 +398,7 @@ import Darwin
     /* Load user specified locale */
     //      setlocale(LC_MESSAGES, "");
 
-    var lin = readLine() ?? " "
+    let lin = readLine() ?? " "
 
     /* only care about first character */
     return rpmatch(lin) == .yes

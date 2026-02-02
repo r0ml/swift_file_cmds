@@ -34,7 +34,7 @@ import Darwin
 
 struct statTest : ShellTest {
   var cmd = "stat"
-  var suiteBundle = "statTest"
+  var suiteBundle = "file_cmds_statTest"
 
   @Test("Verify the output format for -F") func F_flag() async throws {
     let a = try tmpfile("a", "")
@@ -43,9 +43,9 @@ struct statTest : ShellTest {
     let d = try tmpfile("d")
     let f = try tmpfile("f")
 
-    try FileManager.default.createSymbolicLink(at: d, withDestinationURL: a)
+    try d.createSymbolicLink(to: a)
 
-    mkfifo(f.path, 0777)
+    mkfifo(f.string, 0777)
 
     defer { rm(a,b,c,d,f) }
 
@@ -60,9 +60,9 @@ struct statTest : ShellTest {
     let a = try tmpfile("a3", "")
     let b = try tmpfile("b3", "")
     defer { rm(a,b) }
-    let (ec, o, _) = try await ShellProcess("/usr/bin/stat", [a,b]).run()
-    #expect (ec == 0 && o != nil)
-    let oo = o!.replacing("\n", with: "")
+    let po = try await DarwinProcess().run("/usr/bin/stat", args: a,b)
+    #expect (po.code == 0)
+    let oo = po.string.replacing("\n", with: "")
     try await run(output: oo, args: "-n", a, b)
   }
 
@@ -76,12 +76,12 @@ struct statTest : ShellTest {
     defer { rm(a,b,c,d) }
 
     for x in [a,b,c,d] {
-      let (ec, o, _) = try await ShellProcess("/bin/ls", ["-ldT", x]).run()
-      let (ec2, o2, _) = try await ShellProcess(cmd, ["-l", x]).run()
-
-      #expect (o?.replacing( /[:space:]+/, with: " ") ==
-               o2?.replacing( /[:space:]+/, with: " ") )
-      #expect (ec == ec2)
+      let po1 = try await DarwinProcess().run("/bin/ls", args: "-ldT", x)
+      try await run(args: "-l", x) { po2 in
+        #expect (po1.string.replacing( /[:space:]+/, with: " ") ==
+                 po2.string.replacing( /[:space:]+/, with: " ") )
+        #expect (po1.code == po2.code)
+      }
     }
   }
 
@@ -89,7 +89,7 @@ struct statTest : ShellTest {
     let nonexistent = try tmpfile("nonexistent")
     let broken = try tmpfile("broken-link")
     defer { rm(nonexistent, broken) }
-    try FileManager.default.createSymbolicLink(at: broken, withDestinationURL: nonexistent)
+    try broken.createSymbolicLink(to: nonexistent)
     try await run(status: 1, args: "-q", nonexistent)
     try await run(output: /.+/, args: "-q", broken)
     try await run(output: /.+/, args: "-qL", broken)
@@ -106,7 +106,7 @@ struct statTest : ShellTest {
     let b = try tmpfile("b4")
     try FileManager.default.linkItem(at: a, to: b)
     let c = try tmpfile("c4")
-    try FileManager.default.createSymbolicLink(at: c, withDestinationURL: a)
+    try c.createSymbolicLink(to: a)
     let d = try tmpdir("d4")
     defer { rm(a, b, c, d) }
     let otp = /(st_dev=\d+ st_ino=\d+ st_mode=\d+ st_nlink=\d+ st_uid=\d+ st_gid=\d+ st_rdev=\d+ st_size=\d+ st_atime=\d+ st_mtime=\d+ st_ctime=\d+ st_birthtime=\d+ st_blksize=\d+ st_blocks=\d+ st_flags=\d+\n){4}/
@@ -118,7 +118,7 @@ struct statTest : ShellTest {
     let foo = try tmpfile("foo", "")
     defer { rm(foo) }
     // FIXME: the defaultl timezone is not handled properly?
-    let (ec, o, _) = try await ShellProcess("/usr/bin/touch", "-d", "1970-01-01T00:00:42", foo, env: ["TZ": "America/NewYork"]).run()
+    let po = try await DarwinProcess().run("/usr/bin/touch", args: "-d", "1970-01-01T00:00:42", foo, env: ["TZ": "America/NewYork"])
 
     try await run(output: "1970-01-01 00:00:42\n", args: "-t", "%F %H:%M:%S", "-f", "%Sa", foo, env: ["TZ": "America/NewYork"])
     // FIXME: this test fails because the ShellProcess (touch) and the stat executable are not using the same timezone for times
@@ -132,7 +132,7 @@ struct statTest : ShellTest {
     let b = try tmpfile("b6")
     try FileManager.default.linkItem(at: a, to: b)
     let c = try tmpfile("c6")
-    try FileManager.default.createSymbolicLink(at: c, withDestinationURL: a)
+    try c.createSymbolicLink(to: a)
     let d = try tmpdir("d6")
     defer { rm(a, b, c, d) }
 
@@ -142,8 +142,9 @@ struct statTest : ShellTest {
     for i in [a,b,c,d] {
       // FIXME: I need to do the relativePath thingy because `run` resolves URLs that way -- but ShellProcess doesn't resolve URLs in arguments
       // Need to make them the same
-      let (_, o, _) = try await ShellProcess("/usr/bin/stat", "-x", i.relativePath, cd: a.absoluteURL.deletingLastPathComponent() ).run()
-      try await run(output: o, args: "-x", i)
+      // FIXME: i.relativePath
+      let po = try await DarwinProcess().run("/usr/bin/stat", args: "-x", i, cd: a.removingLastComponent() )
+      try await run(output: po.string, args: "-x", i)
     }
 
 

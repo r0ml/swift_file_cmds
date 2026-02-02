@@ -98,7 +98,7 @@ let info = ManagedAtomic(false)
     var Rflag = false
     var rflag = false
     var target = ""
-    var to_path = ""
+    var to_path = FilePath("")
     var fts_options : FTSFlags = []
     var have_trailing_slash = false
     var args = [String]()
@@ -122,7 +122,7 @@ let info = ManagedAtomic(false)
 
     var options = CommandOptions()
     let go = BSDGetopt("HLPRacfilNnprSsvXx")
-    while let (k,v) = try go.getopt() {
+    while let (k,_) = try go.getopt() {
       switch k {
         case "c":
           options.cflag = true
@@ -230,7 +230,7 @@ let info = ManagedAtomic(false)
     options.have_trailing_slash = t.last == "/"
     while t.last == "/" { t.removeLast() }
     options.target = t
-    options.to_path = t
+    options.to_path = FilePath(t)
     options.fts_options = fts_options
     return options
   }
@@ -261,7 +261,7 @@ let info = ManagedAtomic(false)
       to_stat = try FileMetadata(for: options.to_path)
     } catch(let e) {
       if e.code == ENOENT {
-        err(1, options.to_path)
+        err(1, options.to_path.string)
       }
     }
     if to_stat == nil || to_stat?.filetype != .directory {
@@ -269,7 +269,7 @@ let info = ManagedAtomic(false)
        * Case (1).  Target is not a directory.
        */
       if options.args.count > 1 {
-        errx(1, "\(options.to_path) is not a directory")
+        errx(1, "\(options.to_path.string) is not a directory")
       }
 
       /*
@@ -282,10 +282,10 @@ let info = ManagedAtomic(false)
       if to_stat == nil {
         var tmp_stat : FileMetadata?
         if (options.Rflag && (options.Lflag || options.Hflag)) {
-          tmp_stat = try? FileMetadata(for: options.args[0])
+          tmp_stat = try? FileMetadata(for: FilePath(options.args[0]))
         }
         else {
-          tmp_stat = try? FileMetadata(for: options.args[0], followSymlinks: false)
+          tmp_stat = try? FileMetadata(for: FilePath(options.args[0]), followSymlinks: false)
         }
         if (tmp_stat?.filetype == .directory && options.Rflag) {
           type = .DIR_TO_DNE
@@ -344,7 +344,7 @@ let info = ManagedAtomic(false)
     let mask = ~umask(0777)
     umask(~mask)
 
-    var recurse_path : String? = nil
+    var recurse_path : FilePath? = nil
 
     var ftsp : FTSWalker! = nil
 
@@ -389,7 +389,7 @@ let info = ManagedAtomic(false)
          */
 //        struct stat statbuf;
 //        char path[PATH_MAX];
-        var path : String
+        var path : FilePath
 
 //        char *p = strrchr(curr->fts_path, '/');
         if (curr.path.contains("/")) {
@@ -398,9 +398,9 @@ let info = ManagedAtomic(false)
             s = sizeof(path);
           }
    */
-          path = curr.path + curr.name.dropFirst(2)
+          path = FilePath(curr.path + curr.name.dropFirst(2))
         } else {
-          path = String(curr.name.dropFirst(2))
+          path = FilePath(String(curr.name.dropFirst(2)))
         }
 
         if let statbuf = try? FileMetadata(for: path, followSymlinks: false) {
@@ -462,12 +462,9 @@ let info = ManagedAtomic(false)
         }
 
         let p = curr.path.split(separator: "/").last!
+        target.append(String(p))
 
-        if (target.last != "/") {
-          target.append("/")
-        }
-        target.append(contentsOf: p)
-        if target.count >= PATH_MAX {
+        if target.string.count >= PATH_MAX {
           warnx("\(target): name too long (not copied)")
           badcp = true
           rval = true
@@ -500,7 +497,7 @@ let info = ManagedAtomic(false)
           }
 
           // FIXME: target?
-          recurse_path = "\(options.to_path)/\(rootname!)"
+          recurse_path = FilePath("\(options.to_path)/\(rootname!)")
         }
 
         // FIXME: target?
@@ -534,7 +531,7 @@ let info = ManagedAtomic(false)
           }
           // #ifdef __APPLE__
           /* setfile will fail if writeattr is denied */
-          if (copyfile(curr.path, target, nil, UInt32(COPYFILE_ACL) ) < 0) {
+          if (copyfile(curr.path, target.string, nil, UInt32(COPYFILE_ACL) ) < 0) {
             warn("\(curr.path): unable to copy ACL to \(target)")
             rval = true
           }
@@ -548,8 +545,8 @@ let info = ManagedAtomic(false)
           let mode = curr.statp.permissions
           if mode.containsAny(of: [.setUserID, .setGroupID, .saveText]) ||
               mode != [.ownerReadWriteExecute] {
-            if (chmod(target, mode.subtracting([.setUserID, .setGroupID, .saveText]).rawValue) != 0) {
-              warn("chmod: \(target)")
+            if (chmod(target.string, mode.subtracting([.setUserID, .setGroupID, .saveText]).rawValue) != 0) {
+              warn("chmod: \(target.string)")
               rval = true
             }
           }
@@ -614,8 +611,8 @@ let info = ManagedAtomic(false)
            */
           if (dne) {
             let mode = curr.statp.permissions.union([.ownerRead, .ownerWrite, .ownerExecute])
-            if (mkdir(target, mode.rawValue) != 0) {
-              warn(target)
+            if (mkdir(target.string, mode.rawValue) != 0) {
+              warn(target.string)
               curr.setAction(.SKIP)
               badcp = true
               rval = true
@@ -631,7 +628,7 @@ let info = ManagedAtomic(false)
             if root_stat == nil {
               guard let created_root_stat = try? FileMetadata(for: target) else {
 //              stat(to.p_path, &created_root_stat) != 0) {
-                warn(target)
+                warn(target.string)
                 curr.setAction(.SKIP)
                 badcp = true
                 rval = true
@@ -643,7 +640,7 @@ let info = ManagedAtomic(false)
             }
 
           } else if to_stat?.filetype != .directory {
-            warnc(ENOTDIR, target)
+            warnc(ENOTDIR, target.string)
             curr.setAction(.SKIP)
             badcp = true
             rval = true
@@ -657,7 +654,7 @@ let info = ManagedAtomic(false)
           curr.number = (options.pflag || dne) ? 1 : 0
           // #ifdef __APPLE__
           if (!options.Xflag) {
-            if (copyfile(curr.path, target, nil, UInt32(COPYFILE_XATTR)) < 0) {
+            if (copyfile(curr.path, target.string, nil, UInt32(COPYFILE_XATTR)) < 0) {
               warn("\(curr.path): unable to copy extended attributes to \(target)")
               badcp = true
               rval = true

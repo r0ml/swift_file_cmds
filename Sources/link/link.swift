@@ -89,7 +89,7 @@ import Darwin
 
 
   func runCommand() async throws(CmdErr) {
-    if let fm = try? FileMetadata(for: options.args[1], followSymlinks: false) {
+    if let fm = try? FileMetadata(for: FilePath(options.args[1]), followSymlinks: false) {
       errno = EEXIST
       err(1, options.args[1]);
     }
@@ -98,14 +98,14 @@ import Darwin
      * performs additional checks and gives better
      * diagnostics.
      */
-    exit(linkit(options.args[0], options.args[1], false))
+    exit(linkit(FilePath(options.args[0]), FilePath(options.args[1]), false))
   }
   
     /*
    * Two pathnames refer to the same directory entry if the directories match
    * and the final components' names match.
    */
-  func samedirent(_ path1 : String, _ path2 : String) -> Bool {
+  func samedirent(_ path1 : FilePath, _ path2 : FilePath) -> Bool {
 //    const char *file1, *file2;
 //    char pathbuf[PATH_MAX];
 //    struct stat sb1, sb2;
@@ -113,44 +113,44 @@ import Darwin
     if path1 == path2 { return true }
 
     // stuff after the last /
-    let file1 = FilePath(path1).lastComponent!.string
-    let file2 = FilePath(path2).lastComponent!.string
+    let file1 = path1.lastComponent!
+    let file2 = path2.lastComponent!
 
     if file1 != file2 { return false }
 
-    if path1.count >= PATH_MAX || path2.count >= PATH_MAX  { return false}
+    if path1.string.count >= PATH_MAX || path2.string.count >= PATH_MAX  { return false}
 
     var pathbuf : String = ""
-    if file1 == path1 { pathbuf = "."}
+    if file1.string == path1.string { pathbuf = "."}
     else {
-      var p = FilePath(path1)
+      var p = path1
       p.removeLastComponent()
       pathbuf = p.string
     }
-    guard let sb1 = try? FileMetadata(for: pathbuf) else {
+    guard let sb1 = try? FileMetadata(for: FilePath(pathbuf) ) else {
       return false
     }
-    if file2 == path2 { pathbuf = "." }
+    if file2.string == path2.string { pathbuf = "." }
     else {
-      var p = FilePath(path2)
+      var p = path2
       p.removeLastComponent()
       pathbuf = p.string
     }
 
-    guard let sb2 = try? FileMetadata(for: pathbuf) else {
+    guard let sb2 = try? FileMetadata(for: FilePath(pathbuf) ) else {
       return false
     }
     return sb1.device == sb2.device && sb1.inode == sb2.inode
   }
 
-  func isDirectory(_ path : String, followSymlinks: Bool = true) -> Bool {
+  func isDirectory(_ path : FilePath, followSymlinks: Bool = true) -> Bool {
     if let fm = try? FileMetadata(for: path, followSymlinks: followSymlinks) {
       if fm.filetype == .directory { return true }
     }
     return false
   }
 
-  func linkit(_ source : String, _ targetx : String, _ isdir : Bool) -> Int32 {
+  func linkit(_ source : FilePath, _ targetx : FilePath, _ isdir : Bool) -> Int32 {
 //    char path[PATH_MAX];
 //    char wbuf[PATH_MAX];
 //    char bbuf[PATH_MAX];
@@ -163,13 +163,13 @@ import Darwin
     if !options.sflag {
       /* If source doesn't exist, quit now. */
       guard let fm = try? FileMetadata(for: source, followSymlinks: !options.Pflag) else {
-        warn(source);
+        warn(source.string)
         return 1
       }
       /* Only symbolic links to directories. */
       if fm.filetype == .directory {
         errno = EISDIR
-        warn(source);
+        warn(source.string)
         return 1
       }
     }
@@ -180,14 +180,9 @@ import Darwin
      */
     if !options.Fflag && (isdir || isDirectory(target, followSymlinks: false) ||
                           (!options.hflag && isDirectory(target, followSymlinks: true))) {
-      let p = FilePath(source).lastComponent!.string
-      let path = "\(target)/\(p)"
-/*      if path > MAXPATHLEN {
-        errno = ENAMETOOLONG
-        warn(source)
-        return 1
-      }*/
-       target = path;
+      let p = source.lastComponent!
+      let path = target.appending(p)
+       target = path
       }
 
     /*
@@ -195,7 +190,7 @@ import Darwin
      * requested, and -w was specified, give a warning.
      */
     if options.sflag && options.wflag {
-      if source.first == "/" {
+      if source.string.first == "/" {
         /* Absolute link source. */
         let fm = try? FileMetadata(for: source)
         if let fm {
@@ -209,8 +204,8 @@ import Darwin
          * to the parent directory of the target.
          */
 
-        let wbuf = FilePath(target).removingLastComponent().appending(source)
-        let fm = try? FileMetadata(for: wbuf.string)
+        let wbuf = target.removingLastComponent().appending(source.string)
+        let fm = try? FileMetadata(for: wbuf)
         if let fm {
         } else {
             warn("warning: \(source)")
@@ -235,12 +230,12 @@ import Darwin
      */
     if options.fflag && exists {
       if options.Fflag && fm!.filetype == .directory {
-        if rmdir(target) != 0 {
-          warn(target)
+        if rmdir(target.string) != 0 {
+          warn(target.string)
           return 1
         }
-      } else if unlink(target) != 0 {
-        warn(target)
+      } else if unlink(target.string) != 0 {
+        warn(target.string)
         return 1
       }
     } else if options.iflag && exists {
@@ -256,21 +251,21 @@ import Darwin
       }
 
       if options.Fflag && fm!.filetype == .directory {
-        if rmdir(target) != 0 {
-          warn(target)
+        if rmdir(target.string) != 0 {
+          warn(target.string)
           return 1
         }
-      } else if unlink(target) != 0 {
-        warn(target);
+      } else if unlink(target.string) != 0 {
+        warn(target.string);
         return 1
       }
     }
 
     /* Attempt the link. */
-    if options.sflag ? (Darwin.symlink(source, target) != 0) :
-          (linkat(AT_FDCWD, source, AT_FDCWD, target,
+    if options.sflag ? (Darwin.symlink(source.string, target.string) != 0) :
+          (linkat(AT_FDCWD, source.string, AT_FDCWD, target.string,
                  options.Pflag ? 0 : AT_SYMLINK_FOLLOW) != 0 ) {
-      warn(target)
+      warn(target.string)
       return 1
     }
     if options.vflag {

@@ -380,17 +380,17 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
              * broken symlink.
              */
             do {
-              let stx = try FileMetadata(for: file)
+              let stx = try FileMetadata(for: FilePath(file))
               st = stx
             } catch(let e) {
               if e.code == ENOENT {
-                let stx = try FileMetadata(for: file, followSymlinks: false)
+                let stx = try FileMetadata(for: FilePath(file), followSymlinks: false)
                 st = stx
               }
             }
           }
           else {
-            try st = FileMetadata(for: file, followSymlinks: false)
+            try st = FileMetadata(for: FilePath(file), followSymlinks: false)
           }
           if let st {
             output(st, file, options.statfmt ?? "", fn, options.nonl)

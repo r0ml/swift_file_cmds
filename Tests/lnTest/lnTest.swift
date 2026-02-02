@@ -36,7 +36,7 @@ import CMigration
 
 struct lnTest : ShellTest {
   var cmd = "ln"
-  var suiteBundle = "lnTest"
+  var suiteBundle = "file_cmds_lnTest"
 
   @Test("Verify that when creating a hard link to a symbolic link, '-L' option creates a hard link to the target of the symbolic link") func L_flag() async throws {
     let a = try tmpfile("A", "")
@@ -46,10 +46,10 @@ struct lnTest : ShellTest {
     try await run(args: ["-s", a, b] )
     try await run(args: ["-L", b, c] )
 
-    let aa = try? FileMetadata(for: a.path, followSymlinks: false)
-    let bb = try? FileMetadata(for: b.path, followSymlinks: true)
-    let bb2 = try? FileMetadata(for: b.path, followSymlinks: false)
-    let cc = try? FileMetadata(for: c.path, followSymlinks: false)
+    let aa = try? FileMetadata(for: a, followSymlinks: false)
+    let bb = try? FileMetadata(for: b, followSymlinks: true)
+    let bb2 = try? FileMetadata(for: b, followSymlinks: false)
+    let cc = try? FileMetadata(for: c, followSymlinks: false)
 
     #expect(aa?.device == cc?.device && aa?.inode == cc?.inode)
     #expect(aa?.device == bb?.device && aa?.inode == bb?.inode && bb?.inode != bb2?.inode )
@@ -65,8 +65,8 @@ struct lnTest : ShellTest {
     try await run(args: ["-s", a, b])
     try await run(args: ["-P", b, c])
 
-    let bb = try? FileMetadata(for: b.path, followSymlinks: false)
-    let cc = try? FileMetadata(for: c.path, followSymlinks: false)
+    let bb = try? FileMetadata(for: b, followSymlinks: false)
+    let cc = try? FileMetadata(for: c, followSymlinks: false)
 
     #expect(bb?.device == cc?.device && bb?.inode == cc?.inode)
     rm(a, b, c)
@@ -78,8 +78,8 @@ struct lnTest : ShellTest {
 
     try await run(args: ["-f", a, b])
 
-    let aa = try? FileMetadata(for: a.path, followSymlinks: false)
-    let bb = try? FileMetadata(for: b.path, followSymlinks: false)
+    let aa = try? FileMetadata(for: a, followSymlinks: false)
+    let bb = try? FileMetadata(for: b, followSymlinks: false)
 
     #expect(aa?.device == bb?.device && aa?.inode == bb?.inode)
 
@@ -110,8 +110,8 @@ struct lnTest : ShellTest {
     try await run(args: ["-s", a, c])
     try await run(args: ["-shf", b, c])
 
-    let bb = try? FileMetadata(for: b.path, followSymlinks: false)
-    let cc = try? FileMetadata(for: c.path, followSymlinks: true)
+    let bb = try? FileMetadata(for: b, followSymlinks: false)
+    let cc = try? FileMetadata(for: c, followSymlinks: true)
 
     #expect(cc?.device == bb?.device && cc?.inode == bb?.inode)
 
@@ -126,8 +126,8 @@ struct lnTest : ShellTest {
     try await run(args: ["-s", a, c])
     try await run(args: ["-snf", b, c])
 
-    let bb = try? FileMetadata(for: b.path, followSymlinks: false)
-    let cc = try? FileMetadata(for: c.path, followSymlinks: true)
+    let bb = try? FileMetadata(for: b, followSymlinks: false)
+    let cc = try? FileMetadata(for: c, followSymlinks: true)
 
     #expect(cc?.device == bb?.device && cc?.inode == bb?.inode)
 
@@ -141,8 +141,8 @@ struct lnTest : ShellTest {
 
     try await run(args: ["-sF", a, b])
 
-    let aa = try? FileMetadata(for: a.path, followSymlinks: false)
-    let bb = try? FileMetadata(for: b.path, followSymlinks: true)
+    let aa = try? FileMetadata(for: a, followSymlinks: false)
+    let bb = try? FileMetadata(for: b, followSymlinks: true)
 
     #expect(aa?.device == bb?.device && aa?.inode == bb?.inode)
 
@@ -155,8 +155,8 @@ struct lnTest : ShellTest {
 
     try await run(args: ["-sf", a, b])
 
-    let aa = try? FileMetadata(for: a.path, followSymlinks: false)
-    let bb = try? FileMetadata(for: b.path, followSymlinks: true)
+    let aa = try? FileMetadata(for: a, followSymlinks: false)
+    let bb = try? FileMetadata(for: b, followSymlinks: true)
 
     #expect(aa?.device == bb?.device && aa?.inode == bb?.inode)
 
@@ -170,13 +170,13 @@ struct lnTest : ShellTest {
 
     try await run(args: ["-sF", a, c])
 
-    let aa = try? FileMetadata(for: a.path, followSymlinks: false)
-    let cc = try? FileMetadata(for: c.path, followSymlinks: true)
+    let aa = try? FileMetadata(for: a, followSymlinks: false)
+    let cc = try? FileMetadata(for: c, followSymlinks: true)
     #expect(aa?.device == cc?.device && aa?.inode == cc?.inode)
 
     try await run(args: ["-sfF", b, c])
-    let bb = try? FileMetadata(for: b.path, followSymlinks: false)
-    let cc2 = try? FileMetadata(for: c.path, followSymlinks: true)
+    let bb = try? FileMetadata(for: b, followSymlinks: false)
+    let cc2 = try? FileMetadata(for: c, followSymlinks: true)
     #expect(bb?.device == cc2?.device && bb?.inode == cc2?.inode)
 
     rm(a, b, c)
@@ -187,8 +187,8 @@ struct lnTest : ShellTest {
     let b = try tmpfile("B11")
     try await run(args: ["-s", a, b])
 
-    let aa = try? FileMetadata(for: a.path, followSymlinks: false)
-    let bb = try? FileMetadata(for: b.path, followSymlinks: true)
+    let aa = try? FileMetadata(for: a, followSymlinks: false)
+    let bb = try? FileMetadata(for: b, followSymlinks: true)
     #expect(aa?.device == bb?.device && aa?.inode == bb?.inode)
 
     rm(a, b)
@@ -201,8 +201,8 @@ struct lnTest : ShellTest {
     try await run(args: ["-s", a, b])
 
     //    let aa = try? FileMetadata(for: a.path, followSymlinks: false)
-    let bb = try? FileMetadata(for: b.path, followSymlinks: false)
-    let bb2 = try? FileMetadata(for: b.path, followSymlinks: true)
+    let bb = try? FileMetadata(for: b, followSymlinks: false)
+    let bb2 = try? FileMetadata(for: b, followSymlinks: true)
     //    #expect(aa?.device == bb?.device && aa?.inode == bb?.inode)
 
     #expect(bb2 == nil && bb?.filetype == .symbolicLink)
@@ -215,8 +215,8 @@ struct lnTest : ShellTest {
     rm(a, b)
     try await run(error: /ln: warning: A13: No such file or directory/, args: ["-sw", a, b])
 
-    let aa = try? FileMetadata(for: a.path, followSymlinks: false)
-    let bb = try? FileMetadata(for: b.path, followSymlinks: true)
+    let aa = try? FileMetadata(for: a, followSymlinks: false)
+    let bb = try? FileMetadata(for: b, followSymlinks: true)
     #expect(aa?.device == bb?.device && aa?.inode == bb?.inode)
     rm(a, b)
   }

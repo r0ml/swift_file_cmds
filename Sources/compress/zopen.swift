@@ -708,7 +708,7 @@ class ZStream {
     for i in 0..<htab.count { htab[i] = -1 }
   }
 
-  init?(_ fname : String, _ xmode : String, _ bits : UInt? = nil) {
+  init?(_ fname : FilePath, _ xmode : String, _ bits : UInt? = nil) {
 
     switch xmode {
       case "r": mode = .readOnly

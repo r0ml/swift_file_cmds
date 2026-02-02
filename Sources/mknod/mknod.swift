@@ -218,7 +218,7 @@ import Darwin
 
     rval = options.fifo ? mkfifo(options.name, mode) : Darwin.mknod(options.name, mode, Int32(dev) )
     if rval < 0 && errno == EEXIST && options.r_flag != 0 {
-      if let sb = try? FileMetadata(for: options.name, followSymlinks: false),
+      if let sb = try? FileMetadata(for: FilePath(options.name), followSymlinks: false),
          options.fifo || sb.rawDevice == dev {
         stt = sb.filetype
         sm = sb.permissions

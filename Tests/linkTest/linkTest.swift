@@ -36,7 +36,7 @@ import CMigration
 
 struct linkTest : ShellTest {
   var cmd = "link"
-  var suiteBundle = "linkTest"
+  var suiteBundle = "file_cmds_linkTest"
 
   @Test("Verify that link(1) requires exactly two arguments") func link_argc() async throws {
     try await run(status: 1, error: /usage: link/, args: ["foo"])
@@ -51,18 +51,18 @@ struct linkTest : ShellTest {
 
     try await run(args: [foo, bar])
 
-    let aa = try FileMetadata(for: foo.path, followSymlinks: false)
-    let bb = try FileMetadata(for: bar.path, followSymlinks: false)
+    let aa = try FileMetadata(for: foo, followSymlinks: false)
+    let bb = try FileMetadata(for: bar, followSymlinks: false)
     #expect(aa.inode == bb.inode)
     rm(bar)
 
-    try FileManager.default.createSymbolicLink(at: bar, withDestinationURL: foo)
+    try bar.createSymbolicLink(to: foo)
 
     let baz = try tmpfile("C14")
     try await run(args: [bar, baz])
 
-    let cc = try FileMetadata(for: foo.path, followSymlinks: false)
-    let dd = try FileMetadata(for: baz.path, followSymlinks: false)
+    let cc = try FileMetadata(for: foo, followSymlinks: false)
+    let dd = try FileMetadata(for: baz, followSymlinks: false)
     #expect(cc.inode == dd.inode)
   }
 
@@ -74,7 +74,7 @@ struct linkTest : ShellTest {
     let ne = try tmpfile("non-existent")
 
     try await run(status: 1, error: /link: B15: File exists/, args: [foo, bar])
-    try FileManager.default.createSymbolicLink(at: baz, withDestinationURL: ne)
+    try baz.createSymbolicLink(to: ne)
 
     try await run(status: 1, error: /link: C15: File exists/, args: [foo, baz])
     rm(foo, bar)
@@ -85,7 +85,7 @@ struct linkTest : ShellTest {
     let bar = try tmpfile("B16")
     let baz = try tmpfile("C16")
     try await run(status: 1, error: /link: A16: Is a directory/, args: [foo, bar] )
-    try FileManager.default.createSymbolicLink(at: bar, withDestinationURL: foo)
+    try bar.createSymbolicLink(to: foo)
     try await run(status: 1, error: /link: B16: Is a directory/, args: [bar, baz] )
     rm(foo, bar, baz)
   }

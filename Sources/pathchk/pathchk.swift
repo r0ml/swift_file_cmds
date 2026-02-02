@@ -129,7 +129,7 @@ import Darwin
       j.append(p.string)
       if !options.pflag {
         do {
-          let _ = try FileMetadata(for: String(j.joined(separator: "/")))
+          let _ = try FileMetadata(for: FilePath(String(j.joined(separator: "/"))))
         } catch(let e) {
           if e.code != ENOENT {
             warn("\(path): \(j)")

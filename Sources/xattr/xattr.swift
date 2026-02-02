@@ -49,7 +49,7 @@ import Darwin
     var req_args = 0
   }
 
-  typealias attribute_iterator = (Int32, String, String) -> Bool
+  typealias attribute_iterator = (Int32, FilePath, String) -> Bool
 
   //  __attribute__((__format__ (__printf__, 2, 3)))
   /*  static void
@@ -109,27 +109,27 @@ options:
     print(error_format, to: &stderr)
   }
 
-  func print_errno(_ filename : String, _ attr_name : String?, _ err : Int32) {
+  func print_errno(_ filename : FilePath, _ attr_name : String?, _ err : Int32) {
     if let attr_name,
        err == ENOATTR {
-      print_error(filename, "\(filename): No such xattr: \(attr_name)")
+      print_error(filename.string, "\(filename.string): No such xattr: \(attr_name)")
     } else {
       if let se = strerror(err) {
-        print_error(filename, "[Errno \(err)] \(se): '\(filename)'")
+        print_error(filename.string, "[Errno \(err)] \(se): '\(filename.string)'")
       } else {
-        print_error(filename, "[Errno \(err)]: '\(filename)'")
+        print_error(filename.string, "[Errno \(err)]: '\(filename.string)'")
       }
     }
   }
 
- func get_filename_prefix(_ filename : String) -> String {
+ func get_filename_prefix(_ filename : FilePath) -> String {
    if options.vflag || options.rflag || options.nfiles > 1 {
-      return "\(filename): "
+     return "\(filename.string): "
     }
     return ""
   }
 
-  func iterate_all_attributes(_ fd : Int32, _ filename : String, _ iterator_func : attribute_iterator ) -> Bool {
+  func iterate_all_attributes(_ fd : Int32, _ filename : FilePath, _ iterator_func : attribute_iterator ) -> Bool {
     var status = 0
     let res2 = flistxattr(fd, nil, 0, 0)
     if (res2 == -1) {
@@ -195,7 +195,7 @@ options:
     }
   }
 
-  func print_one_xattr(_ filename : String, _ attr_name : String, _ attr_value : [UInt8]) {
+  func print_one_xattr(_ filename : FilePath, _ attr_name : String, _ attr_value : [UInt8]) {
 
     let filename_with_prefix = get_filename_prefix(filename)
     if options.lflag {
@@ -222,7 +222,7 @@ options:
     }
   }
 
-  func read_attribute(_ fd : Int32, _ filename : String, _ name : String) -> Bool {
+  func read_attribute(_ fd : Int32, _ filename : FilePath, _ name : String) -> Bool {
     let res2 = fgetxattr(fd, name, nil, 0, 0, 0) // res is the lengtth of the attr in bytes
     if (res2 == -1) {
       print_errno(filename, name, errno)
@@ -239,11 +239,11 @@ options:
     return false
   }
 
-  func list_all_attributes(_ fd : Int32, _ filename : String) -> Bool {
+  func list_all_attributes(_ fd : Int32, _ filename : FilePath) -> Bool {
     return iterate_all_attributes(fd, filename, read_attribute);
   }
 
-  func delete_attribute(_ fd : Int32, _ filename : String, _ name : String) -> Bool {
+  func delete_attribute(_ fd : Int32, _ filename : FilePath, _ name : String) -> Bool {
     if (fremovexattr(fd, name, 0) == -1) {
       let saved_errno = errno;
       // Don't print ENOATTR errors when deleting recursively
@@ -255,7 +255,7 @@ options:
     return false
   }
 
-  func clear_all_attributes(_ fd : Int32, _ filename : String) -> Bool {
+  func clear_all_attributes(_ fd : Int32, _ filename : FilePath) -> Bool {
     return iterate_all_attributes(fd, filename, delete_attribute);
   }
 
@@ -275,7 +275,7 @@ options:
     return res
   }
 
-  func write_attribute(_ fd : Int32, _ filename : String, _ name : String, _ value : String) -> Bool {
+  func write_attribute(_ fd : Int32, _ filename : FilePath, _ name : String, _ value : String) -> Bool {
  //   const char *actual_value = NULL;
 //    char *buf = NULL;
 //    size_t len = 0;
@@ -289,7 +289,7 @@ options:
     return false
   }
 
-  func process_one_path(_ filename : String, _ name : String, _ value : String) -> Bool {
+  func process_one_path(_ filename : FilePath, _ name : String, _ value : String) -> Bool {
     var sb = stat()
     var is_link = false
 
@@ -311,7 +311,7 @@ options:
     }
 
     // Note: this follows symlinks unless sflag = 1
-    let fd = open(filename, oflags);
+    let fd = open(filename.string, oflags);
     if fd == -1 {
       print_errno(filename, nil, errno)
       return true
@@ -348,7 +348,7 @@ options:
           continue;
         }
 
-        let dir_path = "\(filename)/\(dnam)"
+        let dir_path = filename.appending(dnam)
         if process_one_path(dir_path, name, value) {
           status = 1
         }
@@ -471,7 +471,7 @@ options:
     var status = 0
 
     for filename in options.args {
-      if process_one_path(filename, options.attr_name, options.attr_value) {
+      if process_one_path(FilePath(filename), options.attr_name, options.attr_value) {
         status = 1
       }
     }

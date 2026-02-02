@@ -202,7 +202,7 @@ extension gzip {
   }
 
   /* do what is asked for, for the path name */
-  func handle_pathname(_ path : String) {
+  func handle_pathname(_ path : FilePath) {
     /*    char *opath = path, *s = NULL;
      ssize_t len;
      int slen;
@@ -221,7 +221,7 @@ extension gzip {
 
     var ps = path
     if options.zcat && !options.fflag && unix2003 {
-      let p = path.matches(of: /\.[^.\/]$/)
+      let p = path.string.matches(of: /\.[^.\/]$/)
       if !p.isEmpty, p[0].0 == Self.Z_SUFFIX {
       } else {
         ps.append(Self.Z_SUFFIX)
@@ -271,7 +271,7 @@ extension gzip {
   }
 
   /* compress/decompress a file */
-  func handle_file(_ file : String, _ sbp : FileMetadata) {
+  func handle_file(_ file : FilePath, _ sbp : FileMetadata) {
     var usize : UInt = 0
     var gsize : UInt = 0
 
@@ -302,14 +302,14 @@ extension gzip {
     r.infile_current = 0
 
     if (options.vflag && !options.tflag) {
-      print_verbage(file, (options.cflag) ? nil : r.outfile, usize, gsize)
+      print_verbage(file, options.cflag ? nil : r.outfile?.string, usize, gsize)
     }
 
   }
 
   /* this is used with -r to recursively descend directories */
-  func handle_dir(_ dir : String) {
-    guard let fts = try? FTSWalker(path: [dir], options: [.PHYSICAL,  .NOCHDIR], sort: nil) else {
+  func handle_dir(_ dir : FilePath) {
+    guard let fts = try? FTSWalker(path: [dir.string], options: [.PHYSICAL,  .NOCHDIR], sort: nil) else {
       warn("couldn't fts_open \(dir)")
       return
     }
@@ -323,7 +323,7 @@ extension gzip {
           maybe_warn(entry.path)
           continue
         case .F:
-          handle_file(entry.path, entry.statp)
+          handle_file(FilePath(entry.path), entry.statp)
         default:
           // FIXME: what should I do here?
           continue
@@ -379,10 +379,10 @@ extension gzip {
   }
 
   /* print compression statistics, and the new name (if there is one!) */
-  func print_verbage(_ file : String?, _ nfile : String?, _ usize : UInt, _ gsize : UInt) {
+  func print_verbage(_ file : FilePath?, _ nfile : String?, _ usize : UInt, _ gsize : UInt) {
     var stderr = FileDescriptor.standardError
     if let file {
-      print("\(file):\(file.count < 7 ? "\t\t" : "\t")  ", terminator: "", to: &stderr)
+      print("\(file.string):\(file.string.count < 7 ? "\t\t" : "\t")  ", terminator: "", to: &stderr)
     }
     print_ratio(usize, gsize, stderr);
     if let nfile {
@@ -392,12 +392,12 @@ extension gzip {
   }
 
   /* print test results */
-  func print_test(_ file : String, _ ok : Bool) {
-    var stderr = FileDescriptor.standardError
+  func print_test(_ file : FilePath, _ ok : Bool) {
+//    var stderr = FileDescriptor.standardError
     if r.exit_value == 0 && !ok {
       r.exit_value = 1
     }
-    print("\(file):\(file.count < 7 ? "\t\t" : "\t")  \(ok ? "OK" : "NOT OK")")
+    print("\(file.string):\(file.string.count < 7 ? "\t\t" : "\t")  \(ok ? "OK" : "NOT OK")")
   }
 
   /* print a file's info ala --list */
@@ -405,7 +405,7 @@ extension gzip {
    compressed uncompressed  ratio uncompressed_name
    354841      1679360  78.8% /usr/pkgsrc/distfiles/libglade-2.0.1.tar
    */
-  func print_list(_ fd : FileDescriptor?, _ outx : UInt, _ outfile : String, _ ts : DateTime) {
+  func print_list(_ fd : FileDescriptor?, _ outx : UInt, _ outfile : FilePath, _ ts : DateTime) {
 
     // FIXME: These vars were static
     var in_tot : UInt = 0
@@ -467,7 +467,7 @@ extension gzip {
     print_list_out(out, inx, outfile)
   }
 
-  func print_list_out(_ out : UInt, _ inx : UInt, _ outfile : String) {
+  func print_list_out(_ out : UInt, _ inx : UInt, _ outfile : FilePath) {
     let a = cFormat("%12llu", out)
     let b = cFormat("%12llu", inx)
     print("\(a) \(b) ", terminator: "")

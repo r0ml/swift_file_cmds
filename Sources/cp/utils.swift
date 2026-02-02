@@ -85,7 +85,7 @@ extension cp {
   }
 
 
-  func copy_file(_ entp : FTSEntry, _ dnex : Bool, _ target : String) -> Bool {
+  func copy_file(_ entp : FTSEntry, _ dnex : Bool, _ target : FilePath) -> Bool {
 //    struct stat to_stat;
 //    struct copyfile_context cpctx;
 //    copyfile_state_t cpfs;
@@ -187,13 +187,13 @@ extension cp {
        */
       if (!unix2003 || options.cflag || (options.fflag && (options.lflag || options.sflag))) {
         /* remove existing destination file */
-        Darwin.unlink(topp)
+        Darwin.unlink(topp.string)
         dne = true
       }
     }
 
     if options.cflag {
-      let ret = clonefile(entp.path, topp, 0)
+      let ret = clonefile(entp.path, topp.string, 0)
       if ret == 0 {
         return false
       }
@@ -204,16 +204,16 @@ extension cp {
     }
 
     if options.lflag {
-      if (Darwin.link(entp.path, topp) != 0) {
-        warn(topp)
+      if (Darwin.link(entp.path, topp.string) != 0) {
+        warn(topp.string)
         return true
       }
       return false
     }
 
     if options.sflag {
-      if (symlink(entp.path, topp) != 0) {
-        warn(topp)
+      if (Darwin.symlink(entp.path, topp.string) != 0) {
+        warn(topp.string)
         return true
       }
       return false
@@ -235,7 +235,7 @@ extension cp {
        */
       if to_fd == nil && options.fflag {
         let saved_errno = errno
-        if (Darwin.unlink(topp) == 0) {
+        if (Darwin.unlink(topp.string) == 0) {
           dne = true
         }
         errno = saved_errno
@@ -247,7 +247,7 @@ extension cp {
                                   permissions: fs.permissions.subtracting([.setUserID, .setGroupID]))
     }
     if (to_fd == nil) {
-      warn(topp)
+      warn(topp.string)
       return true
     }
 
@@ -275,7 +275,7 @@ extension cp {
 
     var mode : FilePermissions
     guard let to_stat = try? FileMetadata(for: to_fd!) else {
-      warn(topp)
+      warn(topp.string)
       return true
     }
 //    if (fstat(to_fd, &to_stat) == 0) {
@@ -308,7 +308,7 @@ extension cp {
        * and will close the file descriptors!
        */
       if let cpfs = copyfile_state_alloc() {
-        var cpctx = copyfile_context(src: entp.path, dst: topp, size: Int(fs.size), error: 0)
+        var cpctx = copyfile_context(src: entp.path, dst: topp.string, size: Int(fs.size), error: 0)
 
         copyfile_state_set(cpfs, UInt32(COPYFILE_STATE_STATUS_CTX), &cpctx)
 
@@ -383,7 +383,7 @@ extension cp {
     }
 
     guard let _ = try? to_fd?.close() else {
-      warn(topp)
+      warn(topp.string)
       rval = true
       return rval
     }
@@ -391,7 +391,7 @@ extension cp {
     return rval
   }
 
-  func copy_link(_ p : FTSEntry, _ exists : Bool, _ target : String) -> Bool {
+  func copy_link(_ p : FTSEntry, _ exists : Bool, _ target : FilePath) -> Bool {
 //    ssize_t len;
 //    char llink[PATH_MAX];
 
@@ -410,17 +410,17 @@ extension cp {
       return true
     }
 //    llink[len] = '\0';
-    if exists && unlink(target) != 0 {
+    if exists && unlink(target.string) != 0 {
       warn("unlink: \(target)")
       return true
     }
-    if symlink(llink, target) != 0 {
+    if symlink(llink, target.string) != 0 {
       warn("symlink: \(llink)")
       return true
     }
 
     if !options.Xflag {
-      if (copyfile(p.path, target, nil, UInt32(COPYFILE_XATTR | COPYFILE_NOFOLLOW) ) < 0) {
+      if (copyfile(p.path, target.string, nil, UInt32(COPYFILE_XATTR | COPYFILE_NOFOLLOW) ) < 0) {
         warn("\(p.path): could not copy extended attributes to \(target)")
         return true
       }
@@ -429,7 +429,7 @@ extension cp {
     return options.pflag ? setfile(p.statp, nil, target) : false
   }
 
-  func copy_fifo(_ from_stat : FileMetadata, _ exists : Bool, _ target : String) -> Bool {
+  func copy_fifo(_ from_stat : FileMetadata, _ exists : Bool, _ target : FilePath) -> Bool {
 
     if exists && options.nflag {
       if options.vflag {
@@ -437,36 +437,36 @@ extension cp {
       }
       return true
     }
-    if exists && Darwin.unlink(target) != 0 {
+    if exists && Darwin.unlink(target.string) != 0 {
       warn("unlink: \(target)")
       return true
     }
-    if mkfifo(target, from_stat.permissions.rawValue) != 0 {
-      warn("mkfifo: \(target)")
+    if mkfifo(target.string, from_stat.permissions.rawValue) != 0 {
+      warn("mkfifo: \(target.string)")
       return true
     }
     return options.pflag ? setfile(from_stat, nil, target) : false
   }
 
-  func copy_special(_ from_stat : FileMetadata, _ exists : Bool, _ target : String) -> Bool {
+  func copy_special(_ from_stat : FileMetadata, _ exists : Bool, _ target : FilePath) -> Bool {
     if exists && options.nflag {
       if options.vflag {
         print("\(target) not overwritten")
       }
       return true
     }
-    if exists && Darwin.unlink(target) != 0 {
+    if exists && Darwin.unlink(target.string) != 0 {
       warn("unlink: \(target)")
       return true
     }
-    if mknod(target, from_stat.permissions.rawValue, Int32(from_stat.rawDevice)) != 0 {
+    if mknod(target.string, from_stat.permissions.rawValue, Int32(from_stat.rawDevice)) != 0 {
       warn("mknod: \(target)")
       return true
     }
     return options.pflag ? setfile(from_stat, nil, target) : false
   }
 
-  func setfile(_ fs : FileMetadata, _ fd : FileDescriptor?, _ target : String) -> Bool {
+  func setfile(_ fs : FileMetadata, _ fd : FileDescriptor?, _ target : FilePath) -> Bool {
 //    static struct timespec tspec[2];
 //    struct stat ts;
 //    int gotstat, islink, fdval;
@@ -479,7 +479,7 @@ extension cp {
 
     var tspec : [timespec] = [fs.lastAccess.timespec, fs.lastWrite.timespec]
     if 0 != (fdval ? Darwin.futimens(fd!.rawValue, &tspec) :
-              utimensat(AT_FDCWD, target, &tspec, islink ? AT_SYMLINK_NOFOLLOW : 0)) {
+              utimensat(AT_FDCWD, target.string, &tspec, islink ? AT_SYMLINK_NOFOLLOW : 0)) {
       warn("utimensat: \(target)")
       rval = true
     }
@@ -503,8 +503,8 @@ extension cp {
      */
     if (!gotstat || fs.userId != ts!.userId || fs.groupId != ts!.groupId) {
       if 0 != (fdval ? Darwin.fchown(fd!.rawValue, UInt32(fs.userId), UInt32(fs.groupId)) :
-                (islink ? Darwin.lchown(target, UInt32(fs.userId), UInt32(fs.groupId)) :
-                  Darwin.chown(target, UInt32(fs.userId), UInt32(fs.groupId)))) {
+                (islink ? Darwin.lchown(target.string, UInt32(fs.userId), UInt32(fs.groupId)) :
+                  Darwin.chown(target.string, UInt32(fs.userId), UInt32(fs.groupId)))) {
         if (errno != EPERM) {
           let c = fdval ? "f" : (islink ? "l" : "")
           warn("\(c)chown: \(target)")
@@ -516,8 +516,8 @@ extension cp {
 
     if (!gotstat || fsmode != ts!.permissions) {
       if 0 != (fdval ? Darwin.fchmod(fd!.rawValue, fsmode.rawValue) :
-                (islink ? Darwin.lchmod(target, fsmode.rawValue) :
-                  Darwin.chmod(target, fsmode.rawValue))) {
+                (islink ? Darwin.lchmod(target.string, fsmode.rawValue) :
+                  Darwin.chmod(target.string, fsmode.rawValue))) {
         let c = fdval ? "f" : (islink ? "l" : "")
         warn("\(c)chmod: \(target)")
         rval = true
@@ -527,8 +527,8 @@ extension cp {
     if !options.Nflag && (!gotstat || fs.flags != ts!.flags) {
       if 0 != (fdval ?
                Darwin.fchflags(fd!.rawValue, fs.flags.rawValue) :
-                (islink ? Darwin.lchflags(target, fs.flags.rawValue) :
-                  Darwin.chflags(target, fs.flags.rawValue))) {
+                (islink ? Darwin.lchflags(target.string, fs.flags.rawValue) :
+                  Darwin.chflags(target.string, fs.flags.rawValue))) {
         /*
          * NFS doesn't support chflags; ignore errors unless
          * there's reason to believe we're losing bits.  (Note,

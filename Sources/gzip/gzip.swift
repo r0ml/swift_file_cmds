@@ -43,17 +43,17 @@ import zlib
 let print_info = ManagedAtomic(false)
 
 // FIXME: just trying to get to a compile -- fix this later
-nonisolated(unsafe)var remove_file : String? = nil
+nonisolated(unsafe)var remove_file : FilePath? = nil
 
 @main struct gzip : ShellCommand {
 
   class Runtime {
     var exit_value : Int32 = 0    /* exit value */
-    var infile : String? = nil
+    var infile : FilePath? = nil
     var infile_total : UInt = 0
     var infile_current : UInt = 0
 
-    var outfile : String? = nil
+    var outfile : FilePath? = nil
     var firstPrint = true
   }
 

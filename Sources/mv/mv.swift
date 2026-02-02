@@ -106,18 +106,18 @@ let EXEC_FAILED : Int32 = 127
      * If the stat on the target fails or the target isn't a directory,
      * try the move.  More than 2 arguments is an error in this case.
      */
-    let sb = try? FileMetadata(for: options.args.last!)
+    let sb = try? FileMetadata(for: FilePath(options.args.last!))
     if sb == nil || sb!.filetype != .directory {
 //    if (stat(argv[argc - 1], &sb) || !S_ISDIR(sb.st_mode)) {
       if options.args.count > 2 {
         errx(1, "\(options.args.last!) is not a directory")
       }
-      exit( do_move(options.args[0], options.args[1]) ? 1 : 0)
+      exit( do_move( FilePath(options.args[0]), FilePath(options.args[1]) ) ? 1 : 0)
     }
 
     // #ifdef __APPLE__
-    let fsb = try? FileMetadata(for: options.args[0], followSymlinks: false)
-    let tsb = try? FileMetadata(for: options.args[1], followSymlinks: false)
+    let fsb = try? FileMetadata(for: FilePath(options.args[0]), followSymlinks: false)
+    let tsb = try? FileMetadata(for: FilePath(options.args[1]), followSymlinks: false)
 
     if options.args.count == 2,
        let fsb,
@@ -138,7 +138,7 @@ let EXEC_FAILED : Int32 = 127
       let p = options.args[0].split(separator: "/", omittingEmptySubsequences: true).last!
       let q = options.args[1].split(separator: "/", omittingEmptySubsequences: true).last!
       if p != q {
-        exit( do_move(options.args[0], options.args[1]) ? 1 : 0)
+        exit( do_move( FilePath(options.args[0]), FilePath(options.args[1]) ) ? 1 : 0)
       }
     }
     // #endif /* __APPLE__ */
@@ -153,7 +153,7 @@ let EXEC_FAILED : Int32 = 127
       }
 
       if let tsb, tsb.filetype == .symbolicLink {
-        exit( do_move(options.args[0], options.args[1]) ? 1 : 0)
+        exit( do_move( FilePath(options.args[0]) , FilePath(options.args[1]) ) ? 1 : 0)
       }
     }
 
@@ -184,19 +184,19 @@ let EXEC_FAILED : Int32 = 127
            * same file, and produce an error * (like on Sun) that
            * conformance test 66 in mv.ex expects.
            */
-          if let fsb = try? FileMetadata(for: argv),
-             let tsb = try? FileMetadata(for: newp),
+          if let fsb = try? FileMetadata(for: FilePath(argv)),
+             let tsb = try? FileMetadata(for: FilePath(newp)),
              fsb.inode == tsb.inode && fsb.device == tsb.device && fsb.generation == tsb.generation {
             var stderr = FileDescriptor.standardError
             print("mv: \(argv) and \(newp) are identical", to: &stderr)
             rval = 2 /* Like the Sun */
           } else {
-            if (do_move(argv, newp)) {
+            if (do_move(FilePath(argv), FilePath(newp) )) {
               rval = 1
             }
           }
         } else {
-          if (do_move(argv, path)) {
+          if (do_move(FilePath(argv), FilePath(path) )) {
             rval = 1;
           }
         }
@@ -205,7 +205,7 @@ let EXEC_FAILED : Int32 = 127
     exit(rval)
   }
 
-  func do_move(_ from : String, _ to : String) -> Bool {
+  func do_move(_ from : FilePath, _ to : FilePath) -> Bool {
  //   struct stat sb;
  //   int ask, ch, first;
  //   char modep[15];
@@ -218,11 +218,11 @@ let EXEC_FAILED : Int32 = 127
      */
     var ask = 0
 
-    if !options.fflg && 0 == Darwin.access(to, F_OK) {
+    if !options.fflg && 0 == Darwin.access(to.string, F_OK) {
 
       /* prompt only if source exist */
       guard let sb = try? FileMetadata(for: from, followSymlinks: false) else {
-        warn(from)
+        warn(from.string)
         return true
       }
 
@@ -237,7 +237,7 @@ let EXEC_FAILED : Int32 = 127
       } else if options.iflg {
         print("overwrite \(to)? \(YESNO)", terminator: "", to: &stderr)
         ask = 1
-      } else if 0 != Darwin.access(to, W_OK),
+      } else if 0 != Darwin.access(to.string, W_OK),
                 let sb = try? FileMetadata(for: to),
                 0 != Darwin.isatty(STDIN_FILENO) {
         let modep = strmode(sb.filetype, sb.permissions)
@@ -266,9 +266,9 @@ let EXEC_FAILED : Int32 = 127
      * with EXDEV.  Therefore, copy() doesn't have to perform the checks
      * specified in the Step 3 of the POSIX mv specification.
      */
-    if 0 == rename(from, to) {
+    if 0 == rename(from.string, to.string) {
       if options.vflg {
-        print("\(from) -> \(to)")
+        print("\(from.string) -> \(to.string)")
       }
       return false
     }
@@ -279,12 +279,12 @@ let EXEC_FAILED : Int32 = 127
        * filesystem, it can be recreated at the destination.
        */
       guard let sb = try? FileMetadata(for: from, followSymlinks: false) else {
-        warn(from)
+        warn(from.string)
         return true
       }
       if sb.filetype != .symbolicLink {
         /* Can't mv(1) a mount point. */
-        guard let pathx = Darwin.realpath(from, nil) else {
+        guard let pathx = Darwin.realpath(from.string, nil) else {
           warn("cannot resolve \(from)")
           return true
         }
@@ -307,13 +307,13 @@ let EXEC_FAILED : Int32 = 127
      * cp and rm.
      */
     guard let sb = try? FileMetadata(for: from, followSymlinks: false) else {
-      warn(from);
+      warn(from.string);
       return true
     }
     return sb.filetype == .regular ? fastcopy(from, to, sb) : copy(from, to)
   }
 
-  func fastcopy(_ from : String, _ to : String, _ sbp : FileMetadata) -> Bool {
+  func fastcopy(_ from : FilePath, _ to : FilePath, _ sbp : FileMetadata) -> Bool {
     //    struct timespec ts[2];
     //    static u_int blen = MAXPHYS;
     //    static char *bp = NULL;
@@ -348,7 +348,7 @@ let EXEC_FAILED : Int32 = 127
         // FIXME: how to I get the error code from FileDescriptor.open?
         // otherwise I have to revert to using Darwin.open directly
 
-        if e.rawValue == EEXIST && unlink(to) == 0 {
+        if e.rawValue == EEXIST && unlink(to.string) == 0 {
           continue
         }
       } catch (let e) {
@@ -457,11 +457,11 @@ let EXEC_FAILED : Int32 = 127
     }
 
     if Darwin.close(to_fd.rawValue) != 0 {
-      warn(to);
+      warn(to.string);
       return true
     }
 
-    if Darwin.unlink(from) != 0 {
+    if Darwin.unlink(from.string) != 0 {
       warn("\(from): remove")
       return true
     }
@@ -471,25 +471,25 @@ let EXEC_FAILED : Int32 = 127
     return false
   }
 
-  func copy(_ from : String, _ to : String) -> Bool {
+  func copy(_ from : FilePath, _ to : FilePath) -> Bool {
 
     do {
     let sb = try FileMetadata(for: to, followSymlinks: false)
       /* Destination path exists. */
       if sb.filetype == .directory {
-        if Darwin.rmdir(to) != 0 {
-          warn("rmdir \(to)")
+        if Darwin.rmdir(to.string) != 0 {
+          warn("rmdir \(to.string)")
           return true
         }
       } else {
-        if Darwin.unlink(to) != 0 {
-          warn("unlink \(to)")
+        if Darwin.unlink(to.string) != 0 {
+          warn("unlink \(to.string)")
           return true
         }
       }
     } catch(let e) {
       if (e.code != ENOENT) {
-        warn(to)
+        warn(to.string)
         return true
       }
     }

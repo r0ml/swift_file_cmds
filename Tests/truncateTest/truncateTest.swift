@@ -34,25 +34,24 @@ import ShellTesting
 
 struct truncateTest : ShellTest {
   var cmd = "truncate"
-  var suiteBundle = "truncateTest"
+  var suiteBundle = "file_cmds_truncateTest"
 
-  func assertFileNotExists(_ path: String, file: StaticString = #file, line: UInt = #line) {
-      let exists = FileManager.default.fileExists(atPath: path)
-      #expect(!exists, "File \(path) should not exist")
+  func assertFileNotExists(_ path: FilePath, file: StaticString = #file, line: UInt = #line) {
+    #expect(!path.exists, "File \(path.string) should not exist")
   }
 
   @Test("Verify that truncate exits >0 when passed an invalid command line option") func illegal_option() async throws {
     let k = try tmpfile("output3.txt")
     rm(k)
     try await run(status: 1, error: /truncate: illegal option -- 7/, args: ["-7", "-s0", k] )
-    assertFileNotExists(k.path)
+    assertFileNotExists(k)
   }
 
 
   @Test("Verifies that truncate exits >0 when passed an invalid power of two convention") func illegal_size() async throws {
     let k = try tmpfile("output4.txt")
     try await run(status: 1, error: /truncate: invalid size argument `\+1L'/, args: ["-s+1L", k] )
-    assertFileNotExists(k.path)
+    assertFileNotExists(k)
     rm(k)
   }
 
@@ -60,7 +59,7 @@ struct truncateTest : ShellTest {
   @Test("Verifies that truncate exits >0 when passed a size that is INT64_MAX < size <= UINT64_MAX") func too_large_size() async throws {
     let k = try tmpfile("output5.txt")
     try await run(status: 1, error: /truncate: invalid size argument \`8388608t'/, args: ["-s8388608t", k] )
-    assertFileNotExists(k.path)
+    assertFileNotExists(k)
     rm(k)
   }
 
@@ -72,7 +71,7 @@ struct truncateTest : ShellTest {
     assertFileNotExists("doesnotexist.txt")
     let k2 = try tmpfile("exists.txt", "")
     try await run(args: ["-c", "-s1", k2] )
-    let j = try fileContents(k2.path)
+    let j = try k2.readAllBytes()
     #expect(j.count == 1)
   }
 
@@ -94,19 +93,18 @@ struct truncateTest : ShellTest {
 
   @Test("Verifies that truncate reports an error during truncation") func bad_truncate() async throws {
     let k = try tmpfile("exists.txt", "")
-    let fa = [FileAttributeKey.posixPermissions: NSNumber(value: 0o444)]
-    try FileManager.default.setAttributes(fa, ofItemAtPath: k.path  )
+    try k.setPermissions(FilePermissions(rawValue: 0o444))
     try await run(status: 1, error: /truncate: *exists.txt: Permission denied/, args: ["-s1", k])
   }
 
   @Test("Verifies truncate can make and grow a new 1m file") func new_absolute_grow() async throws {
     let k = try tmpfile("output.txt")
     try await run(args: ["-s1k", k])
-    let j = try fileContents(k.path)
+    let j = try k.readAsString()
     #expect(j.count == 1024, "expected file size of 1k")
     try await run(args: ["-s1M", k])
-    // let jj = try fileContents(k.path)
-    let jc = try FileManager.default.attributesOfItem(atPath: k.path)[FileAttributeKey.size] as? Int
+    // let jj = try k.readAsString()
+    let jc = try FileMetadata(for: k).size
     #expect(jc == 1048576, "expected file size of 1M")
     rm(k)
   }
@@ -114,10 +112,10 @@ struct truncateTest : ShellTest {
   @Test("Verifies that truncate can make and shrink a new 1m file") func new_absolute_shrin() async throws {
     let k = try tmpfile("output2.txt")
     try await run(args: ["-s1M", k])
-    let jc = try FileManager.default.attributesOfItem(atPath: k.path)[FileAttributeKey.size] as? Int
+    let jc = try FileMetadata(for: k).size
     #expect(jc == 1048576, "expected file size of 1M")
     try await run(args: ["-s1k", k])
-    let jk = try FileManager.default.attributesOfItem(atPath: k.path)[FileAttributeKey.size] as? Int
+    let jk = try FileMetadata(for: k).size
     #expect(jk == 1024, "expected file size of 1k")
     rm(k)
   }
@@ -125,10 +123,10 @@ struct truncateTest : ShellTest {
   @Test("Verifies truncate can make and grow a new 1m file using relative sizes") func new_relative_grow() async throws {
     let k = try tmpfile("output7.txt")
     try await run(args: ["-s+1k", k])
-    let jk = try FileManager.default.attributesOfItem(atPath: k.path)[FileAttributeKey.size] as? Int
+    let jk = try FileMetadata(for: k).size
     #expect(jk == 1024, "expected file size of 1k")
     try await run(args: ["-s+1047552", k])
-    let jc = try FileManager.default.attributesOfItem(atPath: k.path)[FileAttributeKey.size] as? Int
+    let jc = try FileMetadata(for: k).size
     #expect(jc == 1048576, "expected file size of 1m")
     rm(k)
   }
@@ -136,10 +134,10 @@ struct truncateTest : ShellTest {
   @Test("Verifies truncate can make and shrink a new 1m file using relative sizes") func new_relative_shrink() async throws {
     let k = try tmpfile("output8.txt")
     try await run(args: ["-s+1049600", k])
-    let jk = try FileManager.default.attributesOfItem(atPath: k.path)[FileAttributeKey.size] as? Int
+    let jk = try FileMetadata(for: k).size
     #expect(jk == 1049600, "expected file size of 1m")
     try await run(args: ["-s-1M", k])
-    let jc = try FileManager.default.attributesOfItem(atPath: k.path)[FileAttributeKey.size] as? Int
+    let jc = try FileMetadata(for: k).size
     #expect(jc == 1024, "expected file size of 1k")
     rm(k)
   }
@@ -148,15 +146,14 @@ struct truncateTest : ShellTest {
     let before = try tmpfile("before", "")
     let z = try tmpfile("0000", "")
     let after = try tmpfile("after", "")
-    let fa = [FileAttributeKey.posixPermissions: NSNumber(value: 0o0000)]
-    try FileManager.default.setAttributes(fa, ofItemAtPath: z.path  )
+    try z.setPermissions(FilePermissions(rawValue: 0))
 
     try await run(status: 1, args: ["-c", "-s1k", before, z, after])
-    let jc = try FileManager.default.attributesOfItem(atPath: before.path)[FileAttributeKey.size] as? Int
+    let jc = try FileMetadata(for: before).size
     #expect(jc == 1024, "expected file size of 1k")
-    let jd = try FileManager.default.attributesOfItem(atPath: after.path)[FileAttributeKey.size] as? Int
+    let jd = try FileMetadata(for: after).size
     #expect(jd == 1024, "expected file size of 1k")
-    let je = try FileManager.default.attributesOfItem(atPath: z.path)[FileAttributeKey.size] as? Int
+    let je = try FileMetadata(for: z).size
     #expect(je == 0, "expected file size of zero")
     rm(before, z, after)
   }
@@ -165,7 +162,7 @@ struct truncateTest : ShellTest {
     let k = try tmpfile("reference2", "123\n")
     let j = try tmpfile("afile2")
     try await run(args: ["-r", k, j])
-    let jc = try FileManager.default.attributesOfItem(atPath: j.path)[FileAttributeKey.size] as? Int
+    let jc = try FileMetadata(for: j).size
     #expect(jc == 4, "new file should also be 4 bytes")
     rm(j, k)
   }
@@ -173,10 +170,10 @@ struct truncateTest : ShellTest {
   @Test("Verifies truncate can make and grow zero byte file") func new_zero() async throws {
     let k = try tmpfile("output9.txt")
     try await run(args: ["-s0", k])
-    let jc = try FileManager.default.attributesOfItem(atPath: k.path)[FileAttributeKey.size] as? Int
+    let jc = try FileMetadata(for: k).size
     #expect(jc == 0, "expected file size of zero")
     try await run(args: ["-s+0", k])
-    let jd = try FileManager.default.attributesOfItem(atPath: k.path)[FileAttributeKey.size] as? Int
+    let jd = try FileMetadata(for: k).size
     #expect(jd == 0, "expected file size of zero")
     rm(k)
   }
@@ -184,7 +181,7 @@ struct truncateTest : ShellTest {
   @Test("Verifies truncate treats negative sizes as zero") func negative() async throws {
     let k = try tmpfile("afile3.txt", "abcd\n")
     try await run(args: ["-s-100", k])
-    let jc = try FileManager.default.attributesOfItem(atPath: k.path)[FileAttributeKey.size] as? Int
+    let jc = try FileMetadata(for: k).size
     #expect(jc == 0, "new file should now be zero bytes")
     rm(k)
   }
@@ -192,7 +189,7 @@ struct truncateTest : ShellTest {
   @Test("Verifies truncate round up") func roundup() async throws {
     let k = try tmpfile("afile4.txt", "abcd\n")
     try await run(args: ["-s%100", k])
-    let jc = try FileManager.default.attributesOfItem(atPath: k.path)[FileAttributeKey.size] as? Int
+    let jc = try FileMetadata(for: k).size
     #expect(jc == 100, "new file should now be 100 bytes")
     rm(k)
   }
@@ -200,7 +197,7 @@ struct truncateTest : ShellTest {
   @Test("Verifies truncate round down") func rounddown() async throws {
     let k = try tmpfile("afile5.txt", "abcd\n")
     try await run(args: ["-s/2", k])
-    let jc = try FileManager.default.attributesOfItem(atPath: k.path)[FileAttributeKey.size] as? Int
+    let jc = try FileMetadata(for: k).size
     #expect(jc == 4, "new file should now be 4 bytes")
     rm(k)
   }
@@ -208,7 +205,7 @@ struct truncateTest : ShellTest {
   @Test("Verifies truncate round down to zero") func rounddown_zero() async throws {
     let k = try tmpfile("afile6.txt", "abcd\n")
     try await run(args: ["-s/10", k])
-    let jc = try FileManager.default.attributesOfItem(atPath: k.path)[FileAttributeKey.size] as? Int
+    let jc = try FileMetadata(for: k).size
     #expect(jc == 0, "new file should now be 0 bytes")
     rm(k)
   }
