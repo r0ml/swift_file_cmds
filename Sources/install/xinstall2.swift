@@ -76,26 +76,26 @@ extension xinstall {
   func do_link(_ from_name : FilePath, _ to_name : FilePath, _ target_sb : FileMetadata?) -> Int {
     var ret = 0
     if let target_sb {
-      let tmpl = "\(to_name).inst.XXXXXX"
+      var tmpl = "\(to_name.string).inst.XXXXXX"
       /* This usage is safe. */
-      guard let _ = quiet_mktemp(tmpl) else {
+      guard let tmpl = quiet_mktemp(tmpl) else {
         err( Int(EX_OSERR), "\(tmpl): mktemp")
       }
-      ret = Int(link(from_name, tmpl))
+      ret = Int(link(from_name.string, tmpl))
       if ret == 0 {
-        if target_sb.filetype == .directory && rmdir(to_name) == -1 {
+        if target_sb.filetype == .directory && rmdir(to_name.string) == -1 {
           unlink(tmpl)
-          err(Int(EX_OSERR), to_name)
+          err(Int(EX_OSERR), to_name.string)
         }
 
         if target_sb.flags.containsAny(of: NOCHANGEBITS) {
-          chflags(to_name, target_sb.flags.subtracting(NOCHANGEBITS).rawValue)
+          chflags(to_name.string, target_sb.flags.subtracting(NOCHANGEBITS).rawValue)
         }
 
         if 0 != options.verbose {
-          print("install: link \(from_name) -> \(to_name)")
+          print("install: link \(from_name.string) -> \(to_name.string)")
         }
-        ret = Int(rename(tmpl, to_name))
+        ret = Int(rename(tmpl, to_name.string))
         /*
          * If rename has posix semantics, then the temporary
          * file may still exist when from_name and to_name point
@@ -108,7 +108,7 @@ extension xinstall {
       if 0 != options.verbose {
         print("install: link \(from_name) -> \(to_name)")
       }
-      return Int(link(from_name, to_name))
+      return Int(link(from_name.string, to_name.string))
     }
   }
 
@@ -118,39 +118,39 @@ extension xinstall {
    */
   func do_symlink(_ from_name : FilePath, _ to_name : FilePath, _ target_sb : FileMetadata?) {
     if let target_sb {
-      let tmpl = "\(to_name).inst.XXXXXX"
+      var tmpl = "\(to_name.string).inst.XXXXXX"
       /* This usage is safe. */
-      guard let _ = quiet_mktemp(tmpl) else  {
+      guard let tmpl = quiet_mktemp(tmpl) else  {
         err(Int(EX_OSERR), "\(tmpl): mktemp")
       }
 
-      if symlink(from_name, tmpl) == -1 {
-        err(Int(EX_OSERR), "symlink \(from_name) -> \(tmpl)")
+      if symlink(from_name.string, tmpl) == -1 {
+        err(Int(EX_OSERR), "symlink \(from_name.string) -> \(tmpl)")
       }
 
-      if target_sb.filetype == .directory && rmdir(to_name) == -1 {
+      if target_sb.filetype == .directory && rmdir(to_name.string) == -1 {
         unlink(tmpl)
-        err(Int(EX_OSERR), to_name)
+        err(Int(EX_OSERR), to_name.string)
       }
 
       if target_sb.flags.containsAny(of: NOCHANGEBITS) {
-        chflags(to_name, target_sb.flags.subtracting(NOCHANGEBITS).rawValue)
+        chflags(to_name.string, target_sb.flags.subtracting(NOCHANGEBITS).rawValue)
       }
 
       if 0 != options.verbose {
-        print("install: symlink \(from_name) -> \(to_name)")
+        print("install: symlink \(from_name.string) -> \(to_name.string)")
       }
-      if rename(tmpl, to_name) == -1 {
+      if rename(tmpl, to_name.string) == -1 {
         /* Remove temporary link before exiting. */
         unlink(tmpl)
-        err(Int(EX_OSERR), "\(to_name): rename")
+        err(Int(EX_OSERR), "\(to_name.string): rename")
       }
     } else {
       if options.verbose != 0 {
-        print("install: symlink \(from_name) -> \(to_name)")
+        print("install: symlink \(from_name.string) -> \(to_name.string)")
       }
-      if symlink(from_name, to_name) == -1 {
-        err(Int(EX_OSERR), "symlink \(from_name) -> \(to_name)")
+      if symlink(from_name.string, to_name.string) == -1 {
+        err(Int(EX_OSERR), "symlink \(from_name.string) -> \(to_name.string)")
       }
     }
   }
@@ -207,9 +207,8 @@ extension xinstall {
           }
           let dres = digest_file(from_name)
 
-          metadata_log(to_name, "file", NULL, NULL, dres, to_sb.st_size);
+          metadata_log(to_name, "file", nil, nil, dres, Int64(to_sb.size))
 
-          free(dres);
           mode = omode;
           owner = oowner;
           group = ogroup;
@@ -222,21 +221,21 @@ extension xinstall {
     /* Symbolic links. */
     if options.dolink.contains(.ABSOLUTE) {
       /* Convert source path to absolute. */
-      guard let _ = realpath(from_name, src) else {
-        err(Int(EX_OSERR), "\(from_name): realpath")
+      guard let _ = realpath(from_name.string, src) else {
+        err(Int(EX_OSERR), "\(from_name.string): realpath")
       }
       do_symlink(src, to_name, target_sb);
       /* XXX: src may point outside of destdir */
-      metadata_log(to_name, "link", NULL, src, NULL, 0);
+      metadata_log(to_name, "link", nil, src, nil, 0)
       return
     }
 
     if options.dolink.contains(.RELATIVE) {
-      if from_name.first != "/" {
+      if from_name.string.first != "/" {
         /* this is already a relative link */
         do_symlink(from_name, to_name, target_sb);
         /* XXX: from_name may point outside of destdir. */
-        metadata_log(to_name, "link", NULL, from_name, NULL, 0);
+        metadata_log(to_name, "link", nil, from_name, nil, 0)
         return
       }
 
@@ -249,12 +248,9 @@ extension xinstall {
        * The last component of to_name may be a symlink,
        * so use realpath to resolve only the directory.
        */
-      to_name_copy = strdup(to_name);
-      if (to_name_copy == NULL) {
-        err(EX_OSERR, "%s: strdup", to_name);
-      }
-      base = basename(to_name_copy);
-      if (base == to_name_copy) {
+      let to_name_copy = to_name
+      let base = basename(to_name_copy.string)
+      if base == to_name_copy.string {
         /* destination is a file in cwd */
         (void)strlcpy(dst, "./", sizeof(dst));
       } else if (base == to_name_copy + 1) {
@@ -274,7 +270,6 @@ extension xinstall {
       if (strlcat(dst, base, sizeof(dst)) >= sizeof(dst)) {
         errx(1, "resolved pathname too long");
       }
-      free(to_name_copy);
 
       /* Trim common path components. */
       ls = ld = NULL;

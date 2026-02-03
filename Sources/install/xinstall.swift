@@ -398,7 +398,7 @@ let BACKUP_SUFFIX = ".old"
       exit(EX_OK);
     }
 
-    var to_name = options.args.last!
+    var to_name = FilePath(options.args.last!)
     var to_sb = try? FileMetadata(for: to_name)
     if to_sb != nil, to_sb!.filetype == .directory {
       if options.dolink.contains(.SYMBOLIC) {
@@ -409,14 +409,14 @@ let BACKUP_SUFFIX = ".old"
         if to_sb.filetype == .symbolicLink {
           if options.args.count != 2 {
             errno = ENOTDIR
-            err(Int(EX_CANTCREAT), to_name)
+            err(Int(EX_CANTCREAT), to_name.string)
           }
-          install(options.args[0], to_name, options.fset, options.iflags);
+          install(FilePath(options.args[0]), to_name, options.fset, options.iflags);
           exit(EX_OK);
         }
       }
       for argv in options.args.dropLast() {
-        install(argv, to_name, options.fset, options.iflags.union(.DIRECTORY))
+        install(FilePath(argv), to_name, options.fset, options.iflags.union(.DIRECTORY))
       }
       exit(EX_OK);
     }
@@ -433,19 +433,19 @@ let BACKUP_SUFFIX = ".old"
     }
 
     if to_sb != nil && options.dolink.isEmpty {
-      let argv = options.args[0]
+      let argv = FilePath(options.args[0])
       guard let from_sb = try? FileMetadata(for: argv) else {
-        err(Int(EX_OSERR), argv)
+        err(Int(EX_OSERR), argv.string)
       }
       if to_sb!.filetype != .regular {
         errno = EFTYPE
-        err(Int(EX_OSERR), to_name)
+        err(Int(EX_OSERR), to_name.string)
       }
       if to_sb!.device == from_sb.device && to_sb!.inode == from_sb.inode {
-        errx(Int(EX_USAGE), "\(argv) and \(to_name) are the same file")
+        errx(Int(EX_USAGE), "\(argv.string) and \(to_name.string) are the same file")
       }
     }
-    install(options.args.first!, to_name, options.fset, options.iflags)
+    install(FilePath(options.args.first!), to_name, options.fset, options.iflags)
     exit(EX_OK)
     /* NOTREACHED */
   }
