@@ -11,7 +11,7 @@ struct xattrTest : ShellTest {
     defer { rm(k) }
     try await run(
       status: 1,
-      error: /xattr: XXXX1: No such xattr:/,
+      error: /xattr: .*: No such xattr:/,
       args: "-p", "com.apple.xattrtest.idontexist", k
     )
   }

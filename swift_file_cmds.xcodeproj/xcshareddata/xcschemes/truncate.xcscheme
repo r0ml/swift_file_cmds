@@ -30,7 +30,7 @@
       shouldUseLaunchSchemeArgsEnv = "YES">
       <TestPlans>
          <TestPlanReference
-            reference = "container:Tests/truncate/truncate.xctestplan"
+            reference = "container:Tests/truncateTest/truncate.xctestplan"
             default = "YES">
          </TestPlanReference>
       </TestPlans>

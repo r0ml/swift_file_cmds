@@ -88,13 +88,13 @@ struct truncateTest : ShellTest {
   @Test("Verifies that truncate detects a non-existent reference file") func bad_refer() async throws {
     let k = try tmpfile("afile")
     rm(k)
-    try await run(status: 1, error: /truncate: afile: No such file or directory/, args: ["-r", k, k])
+    try await run(status: 1, error: /truncate: .*afile: No such file or directory/, args: ["-r", k, k])
   }
 
   @Test("Verifies that truncate reports an error during truncation") func bad_truncate() async throws {
     let k = try tmpfile("exists.txt", "")
     try k.setPermissions(FilePermissions(rawValue: 0o444))
-    try await run(status: 1, error: /truncate: *exists.txt: Permission denied/, args: ["-s1", k])
+    try await run(status: 1, error: /truncate: .*exists.txt: Permission denied/, args: ["-s1", k])
   }
 
   @Test("Verifies truncate can make and grow a new 1m file") func new_absolute_grow() async throws {
