@@ -43,8 +43,8 @@ struct rmTest : ShellTest {
     let dash_bar = try tmpfile("-bar", "")
     defer { rm(foo, bar, dash_foo, dash_bar)}
 
-    try await run(args: "foo")
-    try await run(args: "--", "bar")
+    try await run(args: foo)
+    try await run(args: "--", bar)
     // FIXME: this succeeds when called as 'unlink'; fails when calles as 'rm'
     try await run(args: "-foo")
     try await run(args: "--", "-bar")
