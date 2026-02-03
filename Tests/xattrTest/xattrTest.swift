@@ -7,67 +7,50 @@ struct xattrTest : ShellTest {
   var suiteBundle = "sattrTest"
   
   @Test("Verify that xattr does not exit cleanly on failure") func rdar79795987() async throws {
-    let k = try tmpfile("XXXX1/abc", "")
-    rm(k)
+    let k = try tmpdir("XXXX1")
+    defer { rm(k) }
     try await run(
       status: 1,
       error: /xattr: XXXX1: No such xattr:/,
-      args: ["-p", "com.apple.xattrtest.idontexist", k.removingLastComponent()]
+      args: "-p", "com.apple.xattrtest.idontexist", k
     )
-    rm(k.removingLastComponent())
   }
 
   @Test("Verify that xattr behaves correctly when hex values have embedded NULs") func rdar79990691() async throws {
-    let k = try tmpfile("XXXX2/abc", "")
-    rm(k)
+    let k = try tmpdir("XXXX2")
+    defer { rm(k) }
     try await run(
-      args: [
+      args:
         "-w",
         "-x",
         "com.apple.xattrtest",
         "00 00 00 00 00 00 00 00 04 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
-        k.removingLastComponent()
-      ]
+        k
     )
-    rm(k.removingLastComponent())
   }
 
   @Test("Verify that deleting an xattr recursively does not exit with an error") func rdar80300336() async throws {
-    let k = try tmpfile("XXXX3/XXXX/abc", "")
+    let k = try tmpdir("XXXX3/XXXX")
+    defer { rm(k.removingRoot() ) }
     try await run(
-      args: [
+      args:
         "-d",
         "-r",
         "com.apple.xattrtest",
         k
-          .removingLastComponent()
-          .removingLastComponent()
-      ]
-    )
-    rm(
-      k,
-      k
-        .removingLastComponent()
-        .removingLastComponent()
-        .removingLastComponent()
     )
   }
 
   @Test("Verifying that deleting an xattr recursively with a symlink directory target does not affect files in that directory") func rdar82573904() async throws {
-
+    try tmpdir("XXXX4").removeTree()
     let fn = try tmpfile("XXXX4/XXXX/abc", "")
-    try await run(args: ["-w", "com.apple.xattrtest", "testvalue", fn])
-    try await run(output: "testvalue\n", args: ["-p", "com.apple.xattrtest", fn])
+    defer { try? rm( tmpdir("XXXX4") ) }
+    try await run(args: "-w", "com.apple.xattrtest", "testvalue", fn)
+    try await run(output: "testvalue\n", args: "-p", "com.apple.xattrtest", fn)
     let sl = try tmpfile("XXXX4/symlink")
     try sl.createSymbolicLink(to: fn.removingLastComponent())
-    try await run(args: ["-d", "-r", "com.apple.xattrtest", sl])
-    try await run(output: "testvalue\n", args: ["-p", "com.apple.xattrtest", fn])
-    rm(
-      fn,
-      sl,
-      fn.removingLastComponent(),
-      fn.removingLastComponent().removingLastComponent()
-    )
+    try await run(args: "-d", "-r", "com.apple.xattrtest", sl)
+    try await run(output: "testvalue\n", args: "-p", "com.apple.xattrtest", fn)
   }
 }
 
