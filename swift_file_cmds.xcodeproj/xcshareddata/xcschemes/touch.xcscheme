@@ -30,7 +30,7 @@
       shouldUseLaunchSchemeArgsEnv = "YES">
       <TestPlans>
          <TestPlanReference
-            reference = "container:Tests/touch/touch.xctestplan"
+            reference = "container:Tests/touchTest/touch.xctestplan"
             default = "YES">
          </TestPlanReference>
       </TestPlans>
