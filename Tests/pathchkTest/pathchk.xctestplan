@@ -1,7 +1,7 @@
 {
   "configurations" : [
     {
-      "id" : "D4B3B875-0153-438B-9183-2A20A4C181DE",
+      "id" : "B1AEC42B-930E-47C8-AE71-FAEB50F08BF2",
       "name" : "Configuration 1",
       "options" : {
 
@@ -15,8 +15,8 @@
     {
       "target" : {
         "containerPath" : "container:swift_file_cmds.xcodeproj",
-        "identifier" : "E77400DC2F02D27800498517",
-        "name" : "mkdirTest"
+        "identifier" : "E7DDF92B2F3244B500EB9B50",
+        "name" : "pathchkTest"
       }
     }
   ],

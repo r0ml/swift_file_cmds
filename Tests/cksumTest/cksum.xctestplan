@@ -1,0 +1,18 @@
+{
+  "configurations" : [
+    {
+      "id" : "CFD54A12-DCAE-4927-B79F-B884F1539543",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+
+  ],
+  "version" : 1
+}

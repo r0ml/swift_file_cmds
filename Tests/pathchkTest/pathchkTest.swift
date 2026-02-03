@@ -1,0 +1,16 @@
+// Copyright (c) 1868 Charles Babbage
+// Modernized by Robert "r0ml" Lefkowitz <code@liberally.net> in 2026
+
+import Foundation
+
+import ShellTesting
+
+@Suite("pathchkTest") struct pathchkTest : ShellTest {
+  let cmd = "pathchk"
+  let suiteBundle = "file_cmds_pathchkTest"
+
+  @Test func notYetImplemented() {
+    Issue.record("Tests not yet implemented")
+  }
+}
+

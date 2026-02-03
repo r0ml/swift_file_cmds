@@ -73,7 +73,7 @@ extension xinstall {
    *  make a hard link, obeying dorename if set
    *  return -1 on failure
    */
-  func do_link(_ from_name : String, _ to_name : String, _ target_sb : FileMetadata?) -> Int {
+  func do_link(_ from_name : FilePath, _ to_name : FilePath, _ target_sb : FileMetadata?) -> Int {
     var ret = 0
     if let target_sb {
       let tmpl = "\(to_name).inst.XXXXXX"
@@ -116,7 +116,7 @@ extension xinstall {
    * do_symlink --
    *  Make a symbolic link, obeying dorename if set. Exit on failure.
    */
-  func do_symlink(_ from_name : String, _ to_name : String, _ target_sb : FileMetadata?) {
+  func do_symlink(_ from_name : FilePath, _ to_name : FilePath, _ target_sb : FileMetadata?) {
     if let target_sb {
       let tmpl = "\(to_name).inst.XXXXXX"
       /* This usage is safe. */
@@ -159,7 +159,7 @@ extension xinstall {
    * makelink --
    *  make a link from source to destination
    */
-  func makelink(_ from_name : String, _ to_name : String, _ target_sb : FileMetadata?) {
+  func makelink(_ from_name : FilePath, _ to_name : FilePath, _ target_sb : FileMetadata?) {
 //    char src[MAXPATHLEN], dst[MAXPATHLEN], lnk[MAXPATHLEN];
 //    char *to_name_copy, *d, *ld, *ls, *s;
 //    const char *base, *dir;
@@ -319,14 +319,14 @@ extension xinstall {
      */
     do_symlink(from_name, to_name, target_sb);
     /* XXX: from_name may point outside of destdir. */
-    metadata_log(to_name, "link", NULL, from_name, NULL, 0);
+    metadata_log(to_name, "link", nil, from_name, nil, 0);
   }
 
   /*
    * install --
    *  build a path name and install the file
    */
-  func install(_ from_name : String, _ to_name : String, _ fset : FileFlags, _ flags : IFlags) {
+  func install(_ from_name : FilePath, _ to_namex : FilePath, _ fset : FileFlags, _ flags : IFlags) {
     //    struct stat from_sb, temp_sb, to_sb;
     //    struct timespec tsb[2];
     //    int devnull, files_match, from_fd, serrno, stripped, target;
@@ -340,24 +340,26 @@ extension xinstall {
     //    to_fd = -1;
 
     var devnull = false
+    var to_name = to_namex
+    var from_sb : FileMetadata
 
     /* If try to install NULL file to a directory, fails. */
-    if flags.contains(.DIRECTORY) || from_name != CMigration._PATH_DEVNULL {
+    if flags.contains(.DIRECTORY) || from_name != FilePath(CMigration._PATH_DEVNULL) {
       if options.dolink.isEmpty {
-        guard let from_sb = try? FileMetadata(for: from_name) else {
-          err(Int(EX_OSERR), from_name)
+        guard let fsb = try? FileMetadata(for: from_name) else {
+          err(Int(EX_OSERR), from_name.string)
           fatalError()
         }
+        from_sb = fsb
         if from_sb.filetype != .regular {
           errno = EFTYPE
-          err(Int(EX_OSERR), from_name)
+          err(Int(EX_OSERR), from_name.string)
         }
       }
       /* Build the target path. */
       if flags.contains(.DIRECTORY) {
-        let p1 = to_name.hasSuffix("/") ? "" : "/"
-        let p2 = from_name.split(separator: "/").last!
-        to_name = "\(to_name)\(p1)\(p2)"
+        to_name.append(from_name.components.last!)
+      } else {
       }
       devnull = false
     } else {
@@ -368,6 +370,7 @@ extension xinstall {
     }
 
     let to_sb = try? FileMetadata(for: to_name, followSymlinks: false)
+    let target = to_sb != nil
 
     if options.dolink.rawValue != 0 {
       makelink(from_name, to_name, to_sb)
@@ -375,33 +378,35 @@ extension xinstall {
     }
 
     guard let to_sb else {
-      err(Int(EX_CANTCREAT), to_name)
+      err(Int(EX_CANTCREAT), to_name.string)
     }
 
     if to_sb.filetype == .regular, to_sb.filetype == .symbolicLink {
       errno = EFTYPE
-      err(Int(EX_CANTCREAT), to_name)
+      err(Int(EX_CANTCREAT), to_name.string)
     }
 
 
     guard devnull, let from_fd = try? FileDescriptor.open(from_name, .readOnly) else {
       //    if !devnull && (from_fd = open(from_name, O_RDONLY, 0)) < 0 {
-      err(Int(EX_OSERR), from_name)
+      err(Int(EX_OSERR), from_name.string)
     }
 
     var files_match = false
+    let to_fd : FileDescriptor
+
     /* If we don't strip, we can compare first. */
     if (options.docompare && !options.dostrip && target && to_sb.filetype == .regular) {
-      guard let to_fd = try? FileDescriptor.open(to_name,.readOnly) else {
-        err(Int(EX_OSERR), to_name)
+      guard let tfd = try? FileDescriptor.open(to_name,.readOnly) else {
+        err(Int(EX_OSERR), to_name.string)
       }
+      to_fd = tfd
       if devnull {
         files_match = to_sb.size == 0
       }
       else {
-        files_match = !compare(from_fd, from_name,
-                               from_sb.size, to_fd,
-                               to_name, to_sb.size, &digestresult)
+        files_match = !compare(from_fd, from_name, Int(from_sb.size),
+                               to_fd,   to_name, Int(to_sb.size), &digestresult)
       }
 
       /* Close "to" file unless we match. */
@@ -411,7 +416,8 @@ extension xinstall {
     }
 
     if !files_match {
-      to_fd = create_tempfile(to_name, tempfile, sizeof(tempfile));
+      var tempfile : FilePath
+      (to_fd, tempfile) = create_tempfile(to_name)
       if (to_fd < 0) {
         /*
          * See rdar://138344946
@@ -441,16 +447,16 @@ extension xinstall {
           /* fall through to err() below */
         }
 
-        err(Int(EX_OSERR), tempfile)
+        err(Int(EX_OSERR), tempfile.string)
 
       }
 
       if !devnull {
         if options.dostrip {
-          stripped = strip(tempfile, to_fd, from_name, &digestresult);
+          stripped = strip(tempfile.string, to_fd, from_name.string, &digestresult);
         }
         if (!stripped) {
-          digestresult = copy(from_fd, from_name, to_fd, tempfile, from_sb.size)
+          digestresult = copy(from_fd, from_name.string, to_fd, tempfile.string, Int64(from_sb.size))
         }
       }
     }
@@ -522,52 +528,47 @@ extension xinstall {
         chflags(to_name, to_sb.flags.subtracting(NOCHANGEBITS).rawValue)
       }
 
-      if (target && dobackup) {
-        if ((size_t)snprintf(backup, MAXPATHLEN, "%s%s", to_name,
-                             suffix) != strlen(to_name) + strlen(suffix)) {
-          unlink(tempfile);
-          errx(EX_OSERR, "%s: backup filename too long",
-               to_name);
+      if target && options.dobackup {
+        // FIXME: should I throw an error if filename too long?
+        let backup = FilePath(to_name.string + options.suffix)
+        if 0 != options.verbose {
+          print("install: \(to_name.string) -> \(backup.string)")
         }
-        if (verbose) {
-          (void)printf("install: %s -> %s\n", to_name, backup);
-        }
-        if (unlink(backup) < 0 && errno != ENOENT) {
-          serrno = errno;
+        if (unlink(backup.string) < 0 && errno != ENOENT) {
+          let serrno = errno;
 
-          if (to_sb.st_flags & NOCHANGEBITS) {
-            (void)chflags(to_name, to_sb.st_flags);
+          if to_sb.flags.containsAny(of: NOCHANGEBITS) {
+            chflags(to_name.string, to_sb.flags.rawValue)
           }
 
-          unlink(tempfile);
+          unlink(tempfile.string)
           errno = serrno;
-          err(EX_OSERR, "unlink: %s", backup);
+          err(Int(EX_OSERR), "unlink: \(backup)")
         }
-        if (link(to_name, backup) < 0) {
-          serrno = errno;
+        if (link(to_name.string, backup.string) < 0) {
+          let serrno = errno;
           unlink(tempfile);
 
           if (to_sb.st_flags & NOCHANGEBITS) {
-            (void)chflags(to_name, to_sb.st_flags);
+            Darwin.chflags(to_name.string, to_sb.flags.rawValue)
           }
 
           errno = serrno;
-          err(EX_OSERR, "link: %s to %s", to_name,
-              backup);
+          err(Int(EX_OSERR), "link: \(to_name.string) to \(backup.string)")
         }
       }
       if 0 != options.verbose {
         print("install: \(from_name) -> \(to_name)")
       }
       if rename(tempfile, to_name) < 0 {
-        serrno = errno
+        let serrno = errno
         unlink(tempfile)
         errno = serrno
-        err(Int(EX_OSERR), "rename: \(tempfile) to \(to_name)")
+        err(Int(EX_OSERR), "rename: \(tempfile) to \(to_name.string)")
       }
 
       /* Re-open to_fd so we aren't hosed by the rename(2). */
-      (void) close(to_fd);
+      try? to_fd.close()
       if ((to_fd = open(to_name, O_RDONLY, 0)) < 0) {
         err(EX_OSERR, "%s", to_name);
       }
@@ -589,11 +590,11 @@ extension xinstall {
       (void)utimensat(AT_FDCWD, to_name, tsb, 0);
     }
 
-    if (fstat(to_fd, &to_sb) == -1) {
-      serrno = errno;
-      (void)unlink(to_name);
-      errno = serrno;
-      err(EX_OSERR, "%s", to_name);
+    guard let to_sb = try? FileMetadata(for: to_fd) else {
+      let serrno = errno
+      unlink(to_name.string)
+      errno = serrno
+      err(Int(EX_OSERR), to_name.string)
     }
 
     /*
@@ -620,13 +621,13 @@ extension xinstall {
         err(EX_OSERR,"%s: chown/chgrp", to_name);
       }
     }
-    if (mode != (to_sb.st_mode & ALLPERMS)) {
-      if (fchmod(to_fd,
+    if (mode != to_sb.permissions) {
+      if (fchmod(to_fd.rawValue,
                  dounpriv ? mode & (S_IRWXU|S_IRWXG|S_IRWXO) : mode)) {
-        serrno = errno;
-        (void)unlink(to_name);
+        let serrno = errno;
+        unlink(to_name.string)
         errno = serrno;
-        err(EX_OSERR, "%s: chmod", to_name);
+        err(Int(EX_OSERR), "\(to_name.string): chmod")
       }
     }
 
@@ -643,30 +644,30 @@ extension xinstall {
                  flags & SETFLAGS ? fset : from_sb.st_flags & ~UF_NODUMP)) {
       if (flags & SETFLAGS) {
         if (errno == ENOTSUP) {
-          warn("%s: chflags", to_name);
+          warn("\(to_name.string): chflags")
         }
         else {
-          serrno = errno;
-          (void)unlink(to_name);
+          let serrno = errno;
+          unlink(to_name.string)
           errno = serrno;
-          err(EX_OSERR, "%s: chflags", to_name);
+          err(Int(EX_OSERR), "\(to_name.string): chflags")
         }
       }
     }
 
 
     /* the ACL could prevent credential/permission system calls later on... */
-    if (!devnull && (S_ISLNK(from_sb.st_mode) || S_ISREG(from_sb.st_mode)) &&
+    if (!devnull && (from_sb.filetype == .symbolicLink || from_sb.filetype == .regular) &&
         (fcopyfile(from_fd, to_fd, NULL, COPYFILE_ACL) < 0)) {
-      warn("%s: unable to copy ACL from %s", to_name, from_name);
+      warn("\(to_name.string): unable to copy ACL from \(from_name.string)")
     }
 
-    (void)close(to_fd);
+    try? to_fd.close()
     if (!devnull) {
-      (void)close(from_fd);
+      try? from_fd.close()
     }
 
-    metadata_log(to_name, "file", tsb, NULL, digestresult, to_sb.st_size);
+    metadata_log(to_name, "file", tsb, nil, digestresult, to_sb.st_size);
     free(digestresult);
   }
 

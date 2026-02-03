@@ -44,10 +44,9 @@ extension xinstall {
  *  Compute digest and return its address in *dresp
  *  unless it points to pre-computed digest.
  */
-func compare(_ from_fd : FileDescriptor, _ from_name : String, _ from_len : size_t,
-             _ to_fd : FileDescriptor, _ to_name : String, _ to_len : size_t,
-             _ dresp : inout String)
-{
+func compare(_ from_fd : FileDescriptor, _ from_name : FilePath, _ from_len : size_t,
+             _ to_fd : FileDescriptor, _ to_name : FilePath, _ to_len : size_t,
+             _ dresp : inout String) -> Bool {
   int rv;
   int do_digest;
   DIGEST_CTX ctx;
@@ -131,21 +130,12 @@ func compare(_ from_fd : FileDescriptor, _ from_name : String, _ from_len : size
  * create_tempfile --
  *  create a temporary file based on path and open it
  */
-func create_tempfile(_ path : String, _ temp : String, _ tsize : size_t) -> FileDescriptor {
-  char *p;
-
-  (void)strncpy(temp, path, tsize);
-  temp[tsize - 1] = '\0';
-  if ((p = strrchr(temp, '/')) != NULL) {
-    p++;
+  func create_tempfile(_ path : FilePath) -> (FileDescriptor, FilePath) {
+    let temp = path.removingLastComponent().appending("INS@XXXXXX")
+    var ts = temp.string
+    let fd = mkstemp(&ts)
+    return (FileDescriptor(rawValue: fd), FilePath(String(ts)))
   }
-  else {
-    p = temp;
-  }
-  (void)strncpy(p, "INS@XXXXXX", &temp[tsize - 1] - p);
-  temp[tsize - 1] = '\0';
-  return (mkstemp(temp));
-}
 
 /*
  * copy --
@@ -371,8 +361,8 @@ func install_dir(_ pathx : String) {
  *  metafp, to allow permissions to be set correctly by other tools,
  *  or to allow integrity checks to be performed.
  */
-func metadata_log(_ path : String, _ type : String, _ ts : timespec?,
-                  _ slink : String? , _ digestresult : [UInt8]?, _ size : off_t) {
+func metadata_log(_ path : FilePath, _ type : String, _ ts : timespec?,
+                  _ slink : FilePath? , _ digestresult : [UInt8]?, _ size : off_t) {
   let extra = [ " ", "\t", "\n", "\\", "#", "\0"]
 
   /*    const char *p;
