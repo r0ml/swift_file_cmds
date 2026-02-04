@@ -189,30 +189,20 @@ extension xinstall {
            * XXX: use underlying perms, unless
            * overridden on command line.
            */
-          let omode = options.mode
-          if !options.haveopt_m {
-            options.mode = to_sb.permissions.rawValue & 0o0777
-          }
-          let oowner = options.owner
-          if !options.haveopt_o {
-            options.owner = nil
-          }
-          let ogroup = group
-          if !options.haveopt_g {
-            options.group = nil
-          }
-          let offlags = options.fflags
-          if !options.haveopt_f {
-            options.fflags = nil
-          }
-          let dres = digest_file(from_name)
 
-          metadata_log(to_name, "file", nil, nil, dres, Int64(to_sb.size))
+          // This is just for metadata_log
+          var xmode = FilePermissions(rawValue: options.mode)
+          var xowner = options.owner
+          var xgroup = options.group
+          var xfflags = options.fflags
 
-          mode = omode;
-          owner = oowner;
-          group = ogroup;
-          fflags = offlags;
+          if !options.haveopt_m { xmode = FilePermissions(rawValue: to_sb.permissions.rawValue & 0o0777) }
+          if !options.haveopt_o { xowner =  nil }
+          if !options.haveopt_g { xgroup = nil }
+          if !options.haveopt_f { xfflags = nil }
+          let dres = digest_file(from_name, options.digesttype)
+
+          metadata_log(to_name, "file", nil, nil, dres, to_sb.size, override: (xmode, xowner, xgroup, xfflags))
         }
         return
       }
@@ -221,7 +211,7 @@ extension xinstall {
     /* Symbolic links. */
     if options.dolink.contains(.ABSOLUTE) {
       /* Convert source path to absolute. */
-      guard let _ = realpath(from_name.string, src) else {
+      guard let src = try? from_name.realpath() else {
         err(Int(EX_OSERR), "\(from_name.string): realpath")
       }
       do_symlink(src, to_name, target_sb);
@@ -240,7 +230,7 @@ extension xinstall {
       }
 
       /* Resolve pathnames. */
-      guard let _ = realpath(from_name, src) else {
+      guard let src = try? from_name.realpath() else {
         err(Int(EX_OSERR), "\(from_name): realpath")
       }
 
@@ -249,63 +239,41 @@ extension xinstall {
        * so use realpath to resolve only the directory.
        */
       let to_name_copy = to_name
-      let base = basename(to_name_copy.string)
+      let base = to_name_copy.basename
+      var dst : FilePath
       if base == to_name_copy.string {
         /* destination is a file in cwd */
-        (void)strlcpy(dst, "./", sizeof(dst));
-      } else if (base == to_name_copy + 1) {
+        dst = FilePath("./")
+      } else if base == to_name_copy.string.dropFirst() {
         /* destination is a file in the root */
-        (void)strlcpy(dst, "/", sizeof(dst));
+        dst = FilePath("/")
       } else {
         /* all other cases: safe to call dirname() */
-        dir = dirname(to_name_copy);
-        if (realpath(dir, dst) == NULL) {
-          err(EX_OSERR, "%s: realpath", dir);
+        let dir = to_name_copy.dirname
+        var dstx = try? dir.realpath()
+        guard var dstx else {
+          err(Int(EX_OSERR), "\(dir): realpath")
         }
-        if (strcmp(dst, "/") != 0 &&
-            strlcat(dst, "/", sizeof(dst)) >= sizeof(dst)) {
-          errx(1, "resolved pathname too long");
-        }
+        dst = dstx
       }
-      if (strlcat(dst, base, sizeof(dst)) >= sizeof(dst)) {
-        errx(1, "resolved pathname too long");
-      }
+      dst.append(base)
 
       /* Trim common path components. */
-      ls = ld = NULL;
-      for (s = src, d = dst; *s == *d; ls = s, ld = d, s++, d++) {
-        continue;
-      }
-      /*
-       * If we didn't end after a directory separator, then we've
-       * falsely matched the last component.  For example, if one
-       * invoked install -lrs /lib/foo.so /libexec/ then the source
-       * would terminate just after the separator while the
-       * destination would terminate in the middle of 'libexec',
-       * leading to a full directory getting falsely eaten.
-       */
-      if ((ls != NULL && *ls != '/') || (ld != NULL && *ld != '/')) {
+      var ls = src.components
+      var ld = dst.components
 
-        (void)s--, d--;
-      }
-
-      while (*s != '/') {
-        (void)s--, d--;
+      while !ls.isEmpty, !ld.isEmpty, ls.first == ld.first {
+        ls.removeFirst()
+        ld.removeFirst()
       }
 
       /* Count the number of directories we need to backtrack. */
-      for (++d, lnk[0] = '\0'; *d; d++) {
-        if (*d == '/') {
-          (void)strlcat(lnk, "../", sizeof(lnk));
-        }
-      }
-
-      (void)strlcat(lnk, ++s, sizeof(lnk));
-
-      do_symlink(lnk, to_name, target_sb);
+      var lnk = FilePath(Array(repeating: "../", count: ld.count).joined())
+      for x in ls { lnk.append(x) }
+      do_symlink(lnk, to_name, target_sb)
       /* XXX: Link may point outside of destdir. */
-      metadata_log(to_name, "link", NULL, lnk, NULL, 0);
-      return;
+      metadata_log(to_name, "link", nil, lnk, nil, 0)
+      return
     }
 
     /*
@@ -334,9 +302,113 @@ extension xinstall {
     //    from_fd = -1;
     //    to_fd = -1;
 
+
+    var to_name : FilePath = to_namex
+    guard let cc = clippedForCopy(&to_name, from_name, flags) else {
+      return
+    }
+
+//  copied:
+    /* in case mtime is modified */
+    if !cc.devnull && (cc.from_sb.filetype == .symbolicLink || cc.from_sb.filetype == .regular) &&
+        fcopyfile(cc.from_fd.rawValue, cc.to_fd.rawValue, nil, UInt32(COPYFILE_XATTR) ) < 0 {
+      warn("\(to_name.string): unable to copy extended attributes from \(from_name.string)")
+    }
+
+    /*
+     * Preserve the timestamp of the source file if necessary.
+     */
+    let tsb = (DateTime(cc.from_sb.lastWrite.timespec), DateTime(cc.from_sb.lastAccess.timespec) )
+    if options.dopreserve && !cc.files_match && !cc.devnull {
+      try? to_name.setTimes(modified: cc.from_sb.lastWrite, accessed: cc.from_sb.lastAccess)
+    }
+
+    guard let to_sb = try? FileMetadata(for: cc.to_fd) else {
+      let serrno = errno
+      unlink(to_name.string)
+      errno = serrno
+      err(Int(EX_OSERR), to_name.string)
+    }
+
+    /*
+     * Set owner, group, mode for target; do the chown first,
+     * chown may lose the setuid bits.
+     */
+    if !options.dounpriv && ((options.gid != nil && options.gid != to_sb.groupId) ||
+                      (options.uid != nil && options.uid != to_sb.userId) ||
+                      (options.mode != (to_sb.permissions.rawValue))) {
+
+      /* Try to turn off the immutable bits. */
+      if to_sb.flags.containsAny(of: NOCHANGEBITS) {
+        fchflags(cc.to_fd.rawValue, to_sb.flags.subtracting(NOCHANGEBITS).rawValue)
+      }
+
+    }
+
+    if !options.dounpriv && ((options.gid != nil && options.gid != to_sb.groupId) ||
+                             (options.uid != nil && options.uid != to_sb.userId)) {
+      if (fchown(cc.to_fd.rawValue, options.uid == nil ? -1 : uid_t(options.uid!), options.gid == nil ? -1 : gid_t(options.gid!)) == -1) {
+        let serrno = errno;
+        unlink(to_name.string)
+        errno = serrno;
+        err(Int(EX_OSERR),"\(to_name.string): chown/chgrp")
+      }
+    }
+    if options.mode != to_sb.permissions.rawValue {
+      if 0 != fchmod(cc.to_fd.rawValue, options.dounpriv ? options.mode & (S_IRWXU|S_IRWXG|S_IRWXO) : options.mode) {
+        let serrno = errno;
+        unlink(to_name.string)
+        errno = serrno;
+        err(Int(EX_OSERR), "\(to_name.string): chmod")
+      }
+    }
+
+    /*
+     * If provided a set of flags, set them, otherwise, preserve the
+     * flags, except for the dump flag.
+     * NFS does not support flags.  Ignore ENOTSUP flags if we're just
+     * trying to turn off UF_NODUMP.  If we're trying to set real flags,
+     * then warn if the fs doesn't support it, otherwise fail.
+     */
+    if !options.dounpriv && !cc.devnull
+        && (flags.contains(.SETFLAGS) || cc.from_sb.flags.subtracting(.UF_NODUMP) != to_sb.flags)
+        && 0 != fchflags(cc.to_fd.rawValue, (flags.contains(.SETFLAGS) ? fset : cc.from_sb.flags.subtracting(.UF_NODUMP)).rawValue  ) {
+      if (flags.contains(.SETFLAGS)) {
+        if (errno == ENOTSUP) {
+          warn("\(to_name.string): chflags")
+        }
+        else {
+          let serrno = errno;
+          unlink(to_name.string)
+          errno = serrno;
+          err(Int(EX_OSERR), "\(to_name.string): chflags")
+        }
+      }
+    }
+
+
+    /* the ACL could prevent credential/permission system calls later on... */
+    if !cc.devnull
+        && (cc.from_sb.filetype == .symbolicLink || cc.from_sb.filetype == .regular)
+        && (fcopyfile(cc.from_fd.rawValue, cc.to_fd.rawValue, nil, UInt32(COPYFILE_ACL) ) < 0) {
+      warn("\(to_name.string): unable to copy ACL from \(from_name.string)")
+    }
+
+    try? cc.to_fd.close()
+    if !cc.devnull {
+      try? cc.from_fd.close()
+    }
+
+    metadata_log(to_name, "file", tsb, nil, cc.digestresult, to_sb.size)
+  }
+
+  func clippedForCopy(_ to_name : inout FilePath, _ from_name : FilePath, _ flags : IFlags)
+  -> (devnull: Bool, from_fd : FileDescriptor, to_fd : FileDescriptor, from_sb : FileMetadata, to_sb : FileMetadata?, files_match: Bool, digestresult : [UInt8]? )? {
     var devnull = false
-    var to_name = to_namex
     var from_sb : FileMetadata
+    var tempfile : FilePath
+    var digestresult : [UInt8]?
+    var stripped = false
 
     /* If try to install NULL file to a directory, fails. */
     if flags.contains(.DIRECTORY) || from_name != FilePath(CMigration._PATH_DEVNULL) {
@@ -364,12 +436,13 @@ extension xinstall {
       errx(Int(EX_USAGE), "destination cannot be an empty string")
     }
 
+
     let to_sb = try? FileMetadata(for: to_name, followSymlinks: false)
     let target = to_sb != nil
 
     if options.dolink.rawValue != 0 {
       makelink(from_name, to_name, to_sb)
-      return;
+      return nil
     }
 
     guard let to_sb else {
@@ -387,6 +460,7 @@ extension xinstall {
       err(Int(EX_OSERR), from_name.string)
     }
 
+
     var files_match = false
     let to_fd : FileDescriptor
 
@@ -400,8 +474,10 @@ extension xinstall {
         files_match = to_sb.size == 0
       }
       else {
-        files_match = !compare(from_fd, from_name, Int(from_sb.size),
-                               to_fd,   to_name, Int(to_sb.size), &digestresult)
+        let files_not_match : Bool
+        (files_not_match, digestresult) = compare(from_fd, from_name, Int(from_sb.size),
+                               to_fd,   to_name, Int(to_sb.size) )
+        files_match = !files_not_match
       }
 
       /* Close "to" file unless we match. */
@@ -411,9 +487,11 @@ extension xinstall {
     }
 
     if !files_match {
-      var tempfile : FilePath
-      (to_fd, tempfile) = create_tempfile(to_name)
-      if (to_fd < 0) {
+      let (tfd, tfl) = create_tempfile(to_name)
+      tempfile = tfl
+      if let tfd {
+        to_fd = tfd
+      } else {
         /*
          * See rdar://138344946
          *
@@ -426,17 +504,17 @@ extension xinstall {
          */
         if (errno == EPERM) {
           warnx("sandbox detected, falling back to direct copy")
-          if ((!target || unlink(to_name) == 0 || errno == ENOENT) &&
-              (to_fd = open(to_name, O_RDWR|O_CREAT|O_EXCL, mode)) >= 0) {
-            if (dostrip) {
-              stripped = strip(to_name, to_fd, from_name,
-                               &digestresult);
+          if (!target || unlink(to_name.string) == 0 || errno == ENOENT),
+             let tfd = try? FileDescriptor.open(to_name, .readWrite, options: [.exclusiveCreate, .create], permissions: FilePermissions(rawValue: options.mode) ) {
+            to_fd = tfd
+            if options.dostrip {
+              (stripped, digestresult) = strip(to_name, to_fd, from_name)
             }
             if (!stripped) {
-              digestresult = copy(from_fd, from_name, to_fd,
-                                  to_name, from_sb.st_size);
+              digestresult = copy(from_fd, from_name, to_fd, to_name, from_sb.size)
             }
-            goto copied;
+            // this function was carved out so this return would "goto copied"
+            return (devnull: devnull, from_fd : from_fd, to_fd: to_fd, from_sb : from_sb, to_sb : to_sb, files_match: files_match, digestresult: digestresult)
           }
           errno = EPERM;
           /* fall through to err() below */
@@ -448,17 +526,17 @@ extension xinstall {
 
       if !devnull {
         if options.dostrip {
-          stripped = strip(tempfile.string, to_fd, from_name.string, &digestresult);
+          (stripped, digestresult) = strip(tempfile, to_fd, from_name)
         }
         if (!stripped) {
-          digestresult = copy(from_fd, from_name.string, to_fd, tempfile.string, Int64(from_sb.size))
+          digestresult = copy(from_fd, from_name, to_fd, tempfile, from_sb.size)
         }
       }
     }
 
     if options.dostrip {
       if (!stripped) {
-        strip(tempfile, to_fd, nil, &digestresult)
+        (_, digestresult) = strip(tempfile, to_fd, nil)
       }
 
       /*
@@ -466,50 +544,49 @@ extension xinstall {
        * we did not strip in-place.
        */
       try? to_fd.close()
-      to_fd = try? FileDescriptor.open(tempfile, .readOnly)
-      guard to_fd < 0 else {
+      guard let tfd = try? FileDescriptor.open(tempfile, .readOnly) else {
         err(Int(EX_OSERR), "stripping \(to_name)")
       }
+      to_fd = tfd
     }
 
     /*
      * Compare the stripped temp file with the target.
      */
-    if (docompare && dostrip && target && S_ISREG(to_sb.st_mode)) {
-      temp_fd = to_fd;
+    if options.docompare && options.dostrip && target && to_sb.filetype == .regular {
+      let temp_fd = to_fd;
 
       /* Re-open to_fd using the real target name. */
-      if ((to_fd = open(to_name, O_RDONLY, 0)) < 0) {
-        err(EX_OSERR, "%s", to_name);
+      guard let tfd = try? FileDescriptor.open(to_name, .readOnly) else {
+        err(Int(EX_OSERR), to_name.string)
       }
+      to_fd = tfd
 
-      if (fstat(temp_fd, &temp_sb)) {
-        serrno = errno;
-        (void)unlink(tempfile);
+      guard let temp_sb = try? FileMetadata(for: temp_fd) else {
+        let serrno = errno;
+        unlink(tempfile.string)
         errno = serrno;
-        err(EX_OSERR, "%s", tempfile);
+        err(Int(EX_OSERR), tempfile.string)
       }
 
-      if (compare(temp_fd, tempfile, (size_t)temp_sb.st_size, to_fd,
-                  to_name, (size_t)to_sb.st_size, &digestresult)
-          == 0) {
+      let nfm : Bool
+      (nfm, digestresult) = compare(temp_fd, tempfile, Int(temp_sb.size), to_fd, to_name, Int(to_sb.size))
+      if nfm {
         /*
          * If target has more than one link we need to
          * replace it in order to snap the extra links.
          * Need to preserve target file times, though.
          */
-        if (to_sb.st_nlink != 1) {
-          tsb[0] = to_sb.st_atim;
-          tsb[1] = to_sb.st_mtim;
-          (void)utimensat(AT_FDCWD, tempfile, tsb, 0);
+        if to_sb.links != 1 {
+          try? tempfile.setTimes(modified: to_sb.lastWrite, accessed: to_sb.lastAccess )
         } else {
-          files_match = 1;
-          (void)unlink(tempfile);
+          files_match = true
+          unlink(tempfile.string)
         }
-        (void) close(temp_fd);
+        try? temp_fd.close()
       }
     } else if options.dostrip {
-      digestresult = digest_file(tempfile)
+      digestresult = digest_file(tempfile, options.digesttype)
     }
 
     /*
@@ -520,7 +597,7 @@ extension xinstall {
 
       /* Try to turn off the immutable bits. */
       if to_sb.flags.containsAny(of: NOCHANGEBITS) {
-        chflags(to_name, to_sb.flags.subtracting(NOCHANGEBITS).rawValue)
+        chflags(to_name.string, to_sb.flags.subtracting(NOCHANGEBITS).rawValue)
       }
 
       if target && options.dobackup {
@@ -542,9 +619,9 @@ extension xinstall {
         }
         if (link(to_name.string, backup.string) < 0) {
           let serrno = errno;
-          unlink(tempfile);
+          unlink(tempfile.string)
 
-          if (to_sb.st_flags & NOCHANGEBITS) {
+          if to_sb.flags.containsAny(of: NOCHANGEBITS) {
             Darwin.chflags(to_name.string, to_sb.flags.rawValue)
           }
 
@@ -555,115 +632,23 @@ extension xinstall {
       if 0 != options.verbose {
         print("install: \(from_name) -> \(to_name)")
       }
-      if rename(tempfile, to_name) < 0 {
+      if rename(tempfile.string, to_name.string) < 0 {
         let serrno = errno
-        unlink(tempfile)
+        unlink(tempfile.string)
         errno = serrno
         err(Int(EX_OSERR), "rename: \(tempfile) to \(to_name.string)")
       }
 
       /* Re-open to_fd so we aren't hosed by the rename(2). */
       try? to_fd.close()
-      if ((to_fd = open(to_name, O_RDONLY, 0)) < 0) {
-        err(EX_OSERR, "%s", to_name);
+      guard let tfd = try? FileDescriptor.open(to_name, .readOnly) else {
+        err(Int(EX_OSERR), to_name.string)
       }
+      to_fd = tfd
     }
-
-  copied:
-    /* in case mtime is modified */
-    if (!devnull && (S_ISLNK(from_sb.st_mode) || S_ISREG(from_sb.st_mode)) &&
-        fcopyfile(from_fd, to_fd, NULL, COPYFILE_XATTR) < 0) {
-      warn("%s: unable to copy extended attributes from %s", to_name, from_name);
-    }
-
-    /*
-     * Preserve the timestamp of the source file if necessary.
-     */
-    if (dopreserve && !files_match && !devnull) {
-      tsb[0] = from_sb.st_atim;
-      tsb[1] = from_sb.st_mtim;
-      (void)utimensat(AT_FDCWD, to_name, tsb, 0);
-    }
-
-    guard let to_sb = try? FileMetadata(for: to_fd) else {
-      let serrno = errno
-      unlink(to_name.string)
-      errno = serrno
-      err(Int(EX_OSERR), to_name.string)
-    }
-
-    /*
-     * Set owner, group, mode for target; do the chown first,
-     * chown may lose the setuid bits.
-     */
-    if (!dounpriv && ((gid != (gid_t)-1 && gid != to_sb.st_gid) ||
-                      (uid != (uid_t)-1 && uid != to_sb.st_uid) ||
-                      (mode != (to_sb.st_mode & ALLPERMS)))) {
-
-      /* Try to turn off the immutable bits. */
-      if (to_sb.st_flags & NOCHANGEBITS) {
-        (void)fchflags(to_fd, to_sb.st_flags & ~NOCHANGEBITS);
-      }
-
-    }
-
-    if (!dounpriv && ((gid != (gid_t)-1 && gid != to_sb.st_gid) ||
-                      (uid != (uid_t)-1 && uid != to_sb.st_uid))) {
-      if (fchown(to_fd, uid, gid) == -1) {
-        serrno = errno;
-        (void)unlink(to_name);
-        errno = serrno;
-        err(EX_OSERR,"%s: chown/chgrp", to_name);
-      }
-    }
-    if (mode != to_sb.permissions) {
-      if (fchmod(to_fd.rawValue,
-                 dounpriv ? mode & (S_IRWXU|S_IRWXG|S_IRWXO) : mode)) {
-        let serrno = errno;
-        unlink(to_name.string)
-        errno = serrno;
-        err(Int(EX_OSERR), "\(to_name.string): chmod")
-      }
-    }
-
-    /*
-     * If provided a set of flags, set them, otherwise, preserve the
-     * flags, except for the dump flag.
-     * NFS does not support flags.  Ignore ENOTSUP flags if we're just
-     * trying to turn off UF_NODUMP.  If we're trying to set real flags,
-     * then warn if the fs doesn't support it, otherwise fail.
-     */
-    if (!dounpriv && !devnull && (flags & SETFLAGS ||
-                                  (from_sb.st_flags & ~UF_NODUMP) != to_sb.st_flags) &&
-        fchflags(to_fd,
-                 flags & SETFLAGS ? fset : from_sb.st_flags & ~UF_NODUMP)) {
-      if (flags & SETFLAGS) {
-        if (errno == ENOTSUP) {
-          warn("\(to_name.string): chflags")
-        }
-        else {
-          let serrno = errno;
-          unlink(to_name.string)
-          errno = serrno;
-          err(Int(EX_OSERR), "\(to_name.string): chflags")
-        }
-      }
-    }
-
-
-    /* the ACL could prevent credential/permission system calls later on... */
-    if (!devnull && (from_sb.filetype == .symbolicLink || from_sb.filetype == .regular) &&
-        (fcopyfile(from_fd, to_fd, NULL, COPYFILE_ACL) < 0)) {
-      warn("\(to_name.string): unable to copy ACL from \(from_name.string)")
-    }
-
-    try? to_fd.close()
-    if (!devnull) {
-      try? from_fd.close()
-    }
-
-    metadata_log(to_name, "file", tsb, nil, digestresult, to_sb.st_size);
-    free(digestresult);
+    return (devnull: devnull, from_fd: from_fd, to_fd: to_fd, from_sb: from_sb, to_sb: to_sb, files_match: files_match, digestresult: digestresult)
   }
+
+
 
 }

@@ -3,14 +3,18 @@
 import CommonCrypto
 import CMigration
 
-/*
 protocol Digestor {
   init()
   mutating func update(_ buffer: UnsafeRawBufferPointer)
-  mutating func update(_ bytes: [UInt8])
+  mutating func update(_ bytes: ArraySlice<UInt8>)
   mutating func finalize() -> [UInt8]
 }
 
+extension Digestor {
+  mutating func update(_ bytes: Array<UInt8>) {
+    update(ArraySlice(bytes))
+  }
+}
 public struct SHA256 : Digestor {
     private var ctx = CC_SHA256_CTX()
 
@@ -25,7 +29,7 @@ public struct SHA256 : Digestor {
     }
 
     /// Convenience for [UInt8] / Array / Contiguous storage
-    public mutating func update(_ bytes: [UInt8]) {
+    public mutating func update(_ bytes: ArraySlice<UInt8>) {
         bytes.withUnsafeBytes { update($0) }
     }
 
@@ -38,8 +42,62 @@ public struct SHA256 : Digestor {
         return digest
     }
 }
-*/
 
+public struct SHA512 : Digestor {
+    private var ctx = CC_SHA512_CTX()
+
+    public init() {
+        CC_SHA512_Init(&ctx)
+    }
+
+    /// Feed bytes into the hash.
+    public mutating func update(_ buffer: UnsafeRawBufferPointer) {
+        // CC_SHA256_Update takes CC_LONG, so cast count carefully.
+        CC_SHA512_Update(&ctx, buffer.baseAddress, CC_LONG(buffer.count))
+    }
+
+    /// Convenience for [UInt8] / Array / Contiguous storage
+    public mutating func update(_ bytes: ArraySlice<UInt8>) {
+        bytes.withUnsafeBytes { update($0) }
+    }
+
+    /// Finish and return the 32-byte digest.
+    public mutating func finalize() -> [UInt8] {
+        var digest = [UInt8](repeating: 0, count: Int(CC_SHA512_DIGEST_LENGTH))
+        digest.withUnsafeMutableBytes { outBuf in
+            _ = CC_SHA512_Final(outBuf.bindMemory(to: UInt8.self).baseAddress, &ctx)
+        }
+        return digest
+    }
+}
+
+public struct SHA1 : Digestor {
+    private var ctx = CC_SHA1_CTX()
+
+    public init() {
+        CC_SHA1_Init(&ctx)
+    }
+
+    /// Feed bytes into the hash.
+    public mutating func update(_ buffer: UnsafeRawBufferPointer) {
+        // CC_SHA256_Update takes CC_LONG, so cast count carefully.
+        CC_SHA1_Update(&ctx, buffer.baseAddress, CC_LONG(buffer.count))
+    }
+
+    /// Convenience for [UInt8] / Array / Contiguous storage
+    public mutating func update(_ bytes: ArraySlice<UInt8>) {
+        bytes.withUnsafeBytes { update($0) }
+    }
+
+    /// Finish and return the 32-byte digest.
+    public mutating func finalize() -> [UInt8] {
+        var digest = [UInt8](repeating: 0, count: Int(CC_SHA1_DIGEST_LENGTH))
+        digest.withUnsafeMutableBytes { outBuf in
+            _ = CC_SHA1_Final(outBuf.bindMemory(to: UInt8.self).baseAddress, &ctx)
+        }
+        return digest
+    }
+}
 
 
 

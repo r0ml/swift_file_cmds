@@ -45,192 +45,182 @@ extension xinstall {
  *  unless it points to pre-computed digest.
  */
 func compare(_ from_fd : FileDescriptor, _ from_name : FilePath, _ from_len : size_t,
-             _ to_fd : FileDescriptor, _ to_name : FilePath, _ to_len : size_t,
-             _ dresp : inout String) -> Bool {
-  int rv;
+             _ to_fd : FileDescriptor, _ to_name : FilePath, _ to_len : size_t) -> (Bool, [UInt8]?) {
+  /*int rv;
   int do_digest;
   DIGEST_CTX ctx;
+*/
 
   if (from_len != to_len) {
-    return 1;
+    return (true, nil)
   }
 
-  do_digest = (digesttype != DIGEST_NONE && dresp != NULL &&
-               *dresp == NULL);
-  if (from_len <= MAX_CMP_SIZE) {
-    static char *buf, *buf1, *buf2;
+  // FIXME: if the dresp argument is nil, don't do digest
+  let do_digest = options.digesttype != .NONE
+
+  var digestor : (any Digestor)? = nil
+  var rv = true
+
+  if from_len <= MAX_CMP_SIZE {
+/*    static char *buf, *buf1, *buf2;
     static size_t bufsize;
     int n1, n2;
-
-    if (do_digest) {
-      digest_init(&ctx);
+*/
+     if do_digest {
+      switch options.digesttype {
+        case .SHA1: digestor = SHA1()
+        case .SHA256: digestor = SHA256()
+        case .SHA512: digestor = SHA512()
+        case .NONE: digestor = nil
+      }
     }
 
-    if (buf == NULL) {
+
       /*
        * Note that buf and bufsize are static. If
        * malloc() fails, it will fail at the start
        * and not copy only some files.
        */
+    var bufsize : Int = Int(BUFSIZE_SMALL)
       if (sysconf(_SC_PHYS_PAGES) > PHYSPAGES_THRESHOLD) {
-        bufsize = MIN(BUFSIZE_MAX, MAXPHYS * 8);
+        bufsize = min(BUFSIZE_MAX, Int(MAXPHYS) * 8)
       }
-      else {
-        bufsize = BUFSIZE_SMALL;
-      }
-      buf = malloc(bufsize * 2);
-      if (buf == NULL) {
-        err(1, "Not enough memory");
-      }
-      buf1 = buf;
-      buf2 = buf + bufsize;
-    }
-    rv = 0;
-    lseek(from_fd, 0, SEEK_SET);
-    lseek(to_fd, 0, SEEK_SET);
-    while (rv == 0) {
-      n1 = read(from_fd, buf1, bufsize);
-      if (n1 == 0){
-        break;    /* EOF */
-      }
-      else if (n1 > 0) {
-        n2 = read(to_fd, buf2, n1);
-        if (n2 == n1) {
-          rv = memcmp(buf1, buf2, n1);
+    var buf1 = Array(repeating: UInt8(0), count: bufsize)
+    var buf2 = Array(repeating: UInt8(0), count: bufsize)
+
+     let _ = try? from_fd.seek(offset: 0, from: .start)
+    let _ = try? to_fd.seek(offset: 0, from: .start)
+
+    rv = false
+    while !rv {
+      if let n1 = (withUnsafeMutableBytes(of: &buf1) { try? from_fd.read(into: $0 ) }) {
+        if (n1 == 0) {  break }    /* EOF */
+        if let n2 = (withUnsafeMutableBytes(of: &buf2) { try? to_fd.read(into: $0) } ) {
+          if n2 == n1 {
+            rv = buf1[0..<n1] == buf2[0..<n2]
+          }
         }
-        else {
-          rv = 1;  /* out of sync */
-        }
-      } else {
-        rv = 1;    /* read failure */
+        digestor?.update(Array(buf1[0..<n1]) )
+        continue
       }
-      if (do_digest) {
-        digest_update(&ctx, buf1, n1);
-      }
+      rv = true
     }
-    lseek(from_fd, 0, SEEK_SET);
-    lseek(to_fd, 0, SEEK_SET);
-  } else {
-    rv = 1;  /* don't bother in this case */
+    let _ = try? from_fd.seek(offset: 0, from: .start)
+    let _ = try? to_fd.seek(offset: 0, from: .start)
   }
 
-  if (do_digest) {
-    if (rv == 0) {
-      *dresp = digest_end(&ctx, NULL);
-    }
-    else {
-      (void)digest_end(&ctx, NULL);
-    }
-  }
-
-  return rv;
+  let digest = digestor?.finalize()
+  return (rv, digest)
 }
 
 /*
  * create_tempfile --
  *  create a temporary file based on path and open it
  */
-  func create_tempfile(_ path : FilePath) -> (FileDescriptor, FilePath) {
+  func create_tempfile(_ path : FilePath) -> (FileDescriptor?, FilePath) {
     let temp = path.removingLastComponent().appending("INS@XXXXXX")
     var ts = temp.string
     let fd = mkstemp(&ts)
-    return (FileDescriptor(rawValue: fd), FilePath(String(ts)))
+    return (fd < 0 ? nil : FileDescriptor(rawValue: fd), FilePath(String(ts)))
   }
 
 /*
  * copy --
  *  copy from one file to another
  */
-func copy(_ from_fd : FileDescriptor, _ from_name : String, _ to_fd : FileDescriptor, _ to_name : String, _ size : off_t) -> [UInt8] {
-  static char *buf = NULL;
-  static size_t bufsize;
-  int nr, nw;
-  int serrno;
-  //    #ifndef BOOTSTRAP_XINSTALL
-  ssize_t ret;
-  // #endif
-  DIGEST_CTX ctx;
+  func copy(_ from_fd : FileDescriptor, _ from_name : FilePath, _ to_fd : FileDescriptor, _ to_name : FilePath, _ size : UInt) -> [UInt8]? {
+    /*  static char *buf = NULL;
+     static size_t bufsize;
+     int nr, nw;
+     int serrno;
+     //    #ifndef BOOTSTRAP_XINSTALL
+     ssize_t ret;
+     // #endif
+     DIGEST_CTX ctx;
+     */
 
-  /* Rewind file descriptors. */
-  if (lseek(from_fd, 0, SEEK_SET) < 0) {
-    err(EX_OSERR, "lseek: %s", from_name);
-  }
-  if (lseek(to_fd, 0, SEEK_SET) < 0) {
-    err(EX_OSERR, "lseek: %s", to_name);
-  }
-
-  //    #ifndef BOOTSTRAP_XINSTALL
-  /* Try copy_file_range() if no digest is requested */
-  if (digesttype == DIGEST_NONE) {
-
-    ret = fcopyfile(from_fd, to_fd, NULL,
-                    COPYFILE_DATA | COPYFILE_DATA_SPARSE);
-
-    if (ret == 0) {
-      goto done;
+    /* Rewind file descriptors. */
+    guard let _ = try? from_fd.seek(offset: 0, from: .start) else {
+      err(Int(EX_OSERR), "lseek: \(from_name.string)")
+    }
+    guard let _ = try? to_fd.seek(offset: 0, from: .start) else {
+      err(Int(EX_OSERR), "lseek: \(to_name.string)")
     }
 
-    if (errno != ENOTSUP) {
-
-      serrno = errno;
-      (void)unlink(to_name);
-      errno = serrno;
-      err(EX_OSERR, "%s", to_name);
+    var digestor : (any Digestor)? = nil
+    switch options.digesttype {
+      case .SHA1: digestor = SHA1()
+      case .SHA256: digestor = SHA256()
+      case .SHA512: digestor = SHA512()
+      case .NONE: digestor = nil
     }
-    /* Fall back */
-  }
-  // #endif
-  digest_init(&ctx);
 
-  if (buf == NULL) {
+    //    #ifndef BOOTSTRAP_XINSTALL
+    /* Try copy_file_range() if no digest is requested */
+    if options.digesttype == .NONE {
+      let ret = Darwin.fcopyfile(from_fd.rawValue, to_fd.rawValue, nil, UInt32(COPYFILE_DATA | COPYFILE_DATA_SPARSE))
+
+      if (ret == 0) {
+        if (options.safecopy && fsync(to_fd.rawValue) == -1) {
+          let serrno = errno;
+          unlink(to_name.string)
+          errno = serrno;
+          err(Int(EX_OSERR), "fsync failed for \(to_name)")
+        }
+        return digestor?.finalize()
+      }
+
+      if (errno != ENOTSUP) {
+        let serrno = errno;
+        unlink(to_name.string)
+        errno = serrno;
+        err(Int(EX_OSERR), to_name.string)
+      }
+      /* Fall back */
+    }
+    // #endif
+
     /*
      * Note that buf and bufsize are static. If
      * malloc() fails, it will fail at the start
      * and not copy only some files.
      */
+    var bufsize = Int(BUFSIZE_SMALL)
     if (sysconf(_SC_PHYS_PAGES) > PHYSPAGES_THRESHOLD) {
-      bufsize = MIN(BUFSIZE_MAX, MAXPHYS * 8);
+      bufsize = min(BUFSIZE_MAX, Int(MAXPHYS) * 8)
     }
-    else {
-      bufsize = BUFSIZE_SMALL;
-    }
-    buf = malloc(bufsize);
-    if (buf == NULL) {
-      err(1, "Not enough memory");
-    }
-  }
-  while ((nr = read(from_fd, buf, bufsize)) > 0) {
-    if ((nw = write(to_fd, buf, nr)) != nr) {
-      serrno = errno;
-      (void)unlink(to_name);
-      if (nw >= 0) {
-        errx(EX_OSERR,
-             "short write to %s: %jd bytes written, "
-             "%jd bytes asked to write",
-             to_name, (uintmax_t)nw,
-             (uintmax_t)size);
-      } else {
+
+    var buf = Array(repeating: UInt8(0), count: bufsize)
+
+    while true {
+      guard let nr = (withUnsafeMutableBytes(of: &buf) { try? from_fd.read(into: $0) }) else {
+        let serrno = errno;
+        unlink(to_name.string)
         errno = serrno;
-        err(EX_OSERR, "%s", to_name);
+        err(Int(EX_OSERR), from_name.string)
       }
+      if nr == 0 { break }
+      let nw = try? to_fd.write(buf[0..<nr])
+      guard nw == nr else {
+        let serrno = errno
+        unlink(to_name.string)
+        if let nw {
+          errx(Int(EX_OSERR), "short write to \(to_name.string): \(nw) bytes written, \(size) bytes asked to write")
+        } else {
+          errno = serrno
+          err(Int(EX_OSERR), to_name.string)
+        }
+      }
+      digestor?.update(buf[0..<nr])
     }
-    digest_update(&ctx, buf, nr);
+    if options.safecopy && fsync(to_fd.rawValue) == -1 {
+      let serrno = errno;
+      unlink(to_name.string)
+      errno = serrno;
+      err(Int(EX_OSERR), "fsync failed for \(to_name.string)")
+    }
+    return digestor?.finalize()
   }
-  if (nr != 0) {
-    serrno = errno;
-    (void)unlink(to_name);
-    errno = serrno;
-    err(EX_OSERR, "%s", from_name);
-  }
-done:
-  if (safecopy && fsync(to_fd) == -1) {
-    serrno = errno;
-    (void)unlink(to_name);
-    errno = serrno;
-    err(EX_OSERR, "fsync failed for %s", to_name);
-  }
-  return (digest_end(&ctx, NULL));
-}
 
 /*
  * strip --
@@ -240,7 +230,7 @@ done:
  *  Return 1 on success and assign result of digest_file(to_name)
  *  to *dresp.
  */
-func strip(_ to_name : String, _ to_fd : FileDescriptor, _ from_name : String?, _ dresp : inout String) -> Bool {
+func strip(_ to_name : FilePath, _ to_fd : FileDescriptor, _ from_name : FilePath?) -> (Bool, [UInt8]?) {
 //  const char *stripbin;
 //  const char *args[5];
 //  char *prefixed_from_name;
@@ -248,7 +238,7 @@ func strip(_ to_name : String, _ to_fd : FileDescriptor, _ from_name : String?, 
 //  int error, serrno, status;
 
   prefixed_from_name = NULL;
-  stripbin = Environment["STRIPBIN"] ?? "strip"
+  let stripbin = Environment["STRIPBIN"] ?? "strip"
 
   args[0] = stripbin;
   if (from_name == NULL) {
@@ -278,35 +268,33 @@ func strip(_ to_name : String, _ to_fd : FileDescriptor, _ from_name : String?, 
   }
   free(prefixed_from_name);
   if (waitpid(pid, &status, 0) == -1) {
-    error = errno;
-    (void)unlink(to_name);
-    errc(EX_SOFTWARE, error, "wait");
+    let error = errno;
+    unlink(to_name.string)
+    errno = error
+    err(Int(EX_SOFTWARE), "wait")
     /* NOTREACHED */
   }
   if (status != 0) {
     if let from_name {
-      return false
+      return (false, nil)
     }
-    unlink(to_name)
-    errx(Int(EX_SOFTWARE), "strip command \(stripbin) failed on \(to_name)")
+    unlink(to_name.string)
+    errx(Int(EX_SOFTWARE), "strip command \(stripbin) failed on \(to_name.string)")
   }
-  if let from_name, safecopy, fsync(to_fd) == -1 {
+  if let from_name, options.safecopy, fsync(to_fd.rawValue) == -1 {
     let serrno = errno
-    unlink(to_name)
+    unlink(to_name.string)
     errno = serrno
-    err(Int(EX_OSERR), "fsync failed for \(to_name)")
+    err(Int(EX_OSERR), "fsync failed for \(to_name.string)")
   }
-  if (dresp != nil) {
-    *dresp = digest_file(to_name);
-  }
-  return true
+  return (true, digest_file(to_name, options.digesttype))
 }
 
 /*
  * install_dir --
  *  build directory hierarchy
  */
-func install_dir(_ pathx : String) {
+func install_dir(_ pathx : FilePath) {
 
   var path = ""
   for p in pathx.split(separator: "/") {
@@ -361,8 +349,9 @@ func install_dir(_ pathx : String) {
  *  metafp, to allow permissions to be set correctly by other tools,
  *  or to allow integrity checks to be performed.
  */
-func metadata_log(_ path : FilePath, _ type : String, _ ts : timespec?,
-                  _ slink : FilePath? , _ digestresult : [UInt8]?, _ size : off_t) {
+func metadata_log(_ path : FilePath, _ type : String, _ ts : (DateTime, DateTime)?,
+                  _ slink : FilePath? , _ digestresult : [UInt8]?, _ size : UInt,
+                  override: (FilePermissions, String?, String?, String?)? = nil) {
   let extra = [ " ", "\t", "\n", "\\", "#", "\0"]
 
   /*    const char *p;
@@ -371,30 +360,40 @@ func metadata_log(_ path : FilePath, _ type : String, _ ts : timespec?,
    struct flock metalog_lock;
    */
 
+  var mode = FilePermissions(rawValue: options.mode)
+  var owner = options.owner
+  var group = options.group
+  var fflags = options.fflags
+
+  if let override { (mode, owner, group, fflags) = override }
+
   guard var metafp = options.metafp else {
     return
   }
 
+  let metafile = options.metafile!
+
   /* Buffer for strsnvis(3), used for both path and slink. */
-  buflen = strlen(path);
+/*  buflen = strlen(path);
   if (slink && strlen(slink) > buflen) {
     buflen = strlen(slink);
   }
   buflen = 4 * buflen + 1;
   if ((buf = malloc(buflen)) == NULL) {
-    warn(NULL);
+    warn(nil)
     return;
   }
+*/
 
   /* Lock log file. */
+  var metalog_lock = flock()
   metalog_lock.l_start = 0;
   metalog_lock.l_len = 0;
-  metalog_lock.l_whence = SEEK_SET;
-  metalog_lock.l_type = F_WRLCK;
-  if (fcntl(fileno(metafp), F_SETLKW, &metalog_lock) == -1) {
-    warn("can't lock %s", metafile);
-    free(buf);
-    return;
+  metalog_lock.l_whence = Int16(SEEK_SET)
+  metalog_lock.l_type = Int16(F_WRLCK)
+  if -1 == fcntl(metafp.rawValue, F_SETLKW, &metalog_lock) {
+    warn("can't lock \(metafile)")
+    return
   }
 
   /* Remove destdir. */
@@ -413,43 +412,43 @@ func metadata_log(_ path : FilePath, _ type : String, _ ts : timespec?,
   p = buf;
   /* Print details. */
   fprintf(metafp, ".%s%s type=%s", *p ? "/" : "", p, type);
-  if (owner) {
-    fprintf(metafp, " uname=%s", owner);
+
+  if let owner {
+    print(" uname=\(owner)", terminator: "", to: &metafp)
   }
-  if (group) {
-    fprintf(metafp, " gname=%s", group);
+  if let group {
+    print(" gname=\(group)", terminator: "", to: &metafp)
   }
-  fprintf(metafp, " mode=%#o", mode);
-  if (slink) {
+  print(" mode=\(String(mode.rawValue, radix: 8))", terminator: "", to: &metafp)
+  if let slink {
     strsnvis(buf, buflen, slink, VIS_CSTYLE, extra);
     fprintf(metafp, " link=%s", buf);
   }
-  if (*type == 'f') { /* type=file */
-    fprintf(metafp, " size=%lld", (long long)size);
+  if type.first == "f" { /* type=file */
+    print(" size=\(size)", terminator: "", to: &metafp)
   }
-  if (ts != NULL && dopreserve) {
+  if let ts, options.dopreserve {
     fprintf(metafp, " time=%lld.%09ld",
             (long long)ts[1].tv_sec, ts[1].tv_nsec);
   }
-  if (digestresult && digest) {
-    fprintf(metafp, " \(digest)=\(digestresult)")
+  if let digestresult, let digest = options.digest {
+    print(" \(digest)=\(digestresult)", terminator: "", to: &metafp)
   }
-  if (fflags) {
-    fprintf(metafp, " flags=\(fflags)")
+  if let fflags {
+    print(" flags=\(fflags)", terminator: "", to: &metafp)
   }
-  if (tags) {
-    fprintf(metafp, " tags=\(tags)")
+  if let tags = options.tags {
+    print(" tags=\(tags)", terminator: "", to: &metafp)
   }
   print("", to: &metafp)
   /* Flush line. */
 //    fflush(metafp);
 
   /* Unlock log file. */
-  metalog_lock.l_type = F_UNLCK;
-  if (fcntl(fileno(metafp), F_SETLKW, &metalog_lock) == -1) {
-    warn("can't unlock %s", metafile);
+  metalog_lock.l_type = Int16(F_UNLCK)
+  if -1 == fcntl(metafp.rawValue, F_SETLKW, &metalog_lock) {
+    warn("can't unlock \(metafile)")
   }
-  free(buf);
 }
 
 }
