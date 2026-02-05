@@ -55,6 +55,11 @@ let package = Package(
  */
 )
 
+private func packageRoot() -> URL {
+  let manifestURL = URL(fileURLWithPath: #filePath)
+  return manifestURL.deletingLastPathComponent()
+
+}
 func generateLibs() -> [Target] {
   var res = [Target]()
   for i in ["BZip2", "Curses", "VIS"] {
@@ -64,7 +69,7 @@ func generateLibs() -> [Target] {
      )
     res.append(t)
   }
-  let k = Target.systemLibrary(name: "CLZMA", path: "Vendors/LZMA", pkgConfig: "liblzma", providers: [.brew(["lzma"])] )
+  let k = Target.systemLibrary(name: "CLZMA", path: "Vendors/LZMA", pkgConfig: "liblzma", providers: [.brew(["xz"])] )
   res.append(k)
   return res
 }
@@ -78,9 +83,12 @@ let additionalDeps : [String:[String]] = [
 
 func generateTargets() -> [Target] {
     var res = [Target]()
-    let cd = try! FileManager.default.contentsOfDirectory(atPath: "Sources")
+
+  let sourceURL = packageRoot().appendingPathComponent("Sources", isDirectory: true)
+  let cd = try! FileManager.default.contentsOfDirectory(atPath: sourceURL.path)
   for i in cd {
     if i == ".DS_Store" { continue }
+    if i.hasPrefix(".") { continue }
     if WIP.contains(i) { continue}
     let baseDeps : [Target.Dependency] = [.product(name: "CMigration", package: "CMigration"), .product(name: "Atomics", package: "swift-atomics")]
     var deps : [Target.Dependency] = baseDeps
@@ -112,16 +120,17 @@ func generateTestTargets() -> [Target] {
   let skipTestsForNow = ["lsTest", "cpTest"]
 
     var res = [ Target]()
-    
-    let cd = try! FileManager.default.contentsOfDirectory(atPath: "Tests")
+
+  let testurl = packageRoot().appendingPathComponent("Tests", isDirectory: true)
+  let cd = try! FileManager.default.contentsOfDirectory(atPath: testurl.path )
     for i in cd {
       if i == ".DS_Store" { continue }
 
       if skipTestsForNow.contains(i) { continue }
 
       if TestWIP.contains(i) { continue }
-        let r =  FileManager.default.fileExists(atPath: "Tests/\(i)/Resources")
-      let x = try! FileManager.default.contentsOfDirectory(atPath: "Tests/\(i)").filter { $0.hasSuffix(".xctestplan") }
+      let r =  FileManager.default.fileExists(atPath: testurl.appendingPathComponent(i).appendingPathComponent("Resources").path  )
+      let x = try! FileManager.default.contentsOfDirectory(atPath: testurl.appendingPathComponent(i).path ).filter { $0.hasSuffix(".xctestplan") }
         let rr = r ? [Resource.copy("Resources")] : []
         let t = Target.testTarget(name: i,
                                   dependencies: [.product(name: "ShellTesting", package: "ShellTesting"),
