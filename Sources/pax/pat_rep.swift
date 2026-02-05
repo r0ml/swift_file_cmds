@@ -49,8 +49,8 @@ extension pax {
    */
   
   #define MAXSUBEXP	10		/* max subexpressions, DO NOT CHANGE */
-  static PATTERN *pathead = NULL;		/* file pattern match list head */
-  static PATTERN *pattail = NULL;		/* file pattern match list tail */
+  static var pathead : PATTERN?		/* file pattern match list head */
+  static var pattail : PATTERN?		/* file pattern match list tail */
   static REPLACE *rephead = NULL;		/* replacement string list head */
   static REPLACE *reptail = NULL;		/* replacement string list tail */
   

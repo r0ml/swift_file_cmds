@@ -44,9 +44,9 @@ extension pax {
  * routines that deal with I/O to and from the user
  */
 
-#define DEVTTY	  "/dev/tty"      /* device for interactive i/o */
-static FILE *ttyoutf = NULL;		/* output pointing at control tty */
-static FILE *ttyinf = NULL;		/* input pointing at control tty */
+static let DEVTTY	= "/dev/tty"          /* device for interactive i/o */
+  static var ttyoutf = FileDescriptor.standardOutput	/* output pointing at control tty */
+  static var ttyinf : FileDescriptor?		/* input pointing at control tty */
 
 /*
  * tty_init()
@@ -54,9 +54,7 @@ static FILE *ttyinf = NULL;		/* input pointing at control tty */
  *	open fails, future ops that require user input will get an EOF
  */
 
-int
-tty_init(void)
-{
+func tty_init() -> Bool {
 	int ttyfd;
 
 	if ((ttyfd = open(DEVTTY, O_RDWR)) >= 0) {
@@ -81,16 +79,8 @@ tty_init(void)
  *	if there is no controlling terminal, just return.
  */
 
-void
-tty_prnt(const char *fmt, ...)
-{
-	va_list ap;
-	if (ttyoutf == NULL)
-		return;
-	va_start(ap, fmt);
-	(void)vfprintf(ttyoutf, fmt, ap);
-	va_end(ap);
-	(void)fflush(ttyoutf);
+  func tty_prnt(_ fmt : String) {
+    print(fmt, terminator: "", to: &Self.ttyoutf)
 }
 
 /*
@@ -101,9 +91,7 @@ tty_prnt(const char *fmt, ...)
  *	0 if data was read, -1 otherwise.
  */
 
-int
-tty_read(char *str, int len)
-{
+func tty_read() -> String? {
 	char *pt;
 
 	if ((--len <= 0) || (ttyinf == NULL) || (fgets(str,len,ttyinf) == NULL))
@@ -124,30 +112,24 @@ tty_read(char *str, int len)
  *	will be non-zero.
  */
 
-void
-paxwarn(int set, const char *fmt, ...)
-  {
-    va_list ap;
-    va_start(ap, fmt);
-
-    if (set && (pax_invalid_action == 0)) {
-
-        exit_val = 1;
-      }
-      /*
-       * when vflag we better ship out an extra \n to get this message on a
-       * line by itself
-       */
-      if (vflag && vfpart) {
-        (void)fflush(listf);
-        (void)fputc('\n', stderr);
-        vfpart = 0;
-      }
-      (void)fprintf(stderr, "%s: ", argv0);
-      (void)vfprintf(stderr, fmt, ap);
-      va_end(ap);
-      (void)fputc('\n', stderr);
+  func paxwarn(_ ex : Bool, _ fmt : String) {
+    if ex && pax_invalid_action == 0 {
+      runtime.exit_val = 1
     }
+
+    var se = FileDescriptor.standardError
+    /*
+     * when vflag we better ship out an extra \n to get this message on a
+     * line by itself
+     */
+    if runtime.vflag && runtime.vfpart {
+      print("", to: &options.listf)
+      print("", to: &se)
+      runtime.vfpart = false
+    }
+
+    print("\(programName): \(fmt)", to: &se)
+  }
 
     /*
      * syswarn()
@@ -155,33 +137,30 @@ paxwarn(int set, const char *fmt, ...)
      *	will be non-zero.
      */
 
-    void
-    syswarn(int set, int errnum, const char *fmt, ...)
-    {
-      va_list ap;
-      va_start(ap, fmt);
-      if (set) {
-        exit_val = 1;
+  func syswarn(_ ex : Bool, _ errnum : any BinaryInteger, _ fmt : String) {
+      if ex {
+        runtime.exit_val = 1
       }
       /*
        * when vflag we better ship out an extra \n to get this message on a
        * line by itself
        */
-      if (vflag && vfpart) {
-        (void)fflush(listf);
-        (void)fputc('\n', stderr);
-        vfpart = 0;
+        var se = FileDescriptor.standardError
+      if runtime.vflag && runtime.vfpart {
+
+        print("", to: &se)
+        runtime.vfpart = false
       }
-      (void)fprintf(stderr, "%s: ", argv0);
-      (void)vfprintf(stderr, fmt, ap);
-      va_end(ap);
+      print("\(programName): \(fmt)", terminator: "", to: &se)
 
       /*
        * format and print the errno
        */
-      if (errnum > 0) {
-        (void)fprintf(stderr, " <%s>", strerror(errnum));
+      if Int(errnum) > 0 {
+        let j = POSIXErrno(Int32(errnum)).localizedDescription
+        print(" <\(j)>", to: &se)
+      } else {
+        print("", to: &se)
       }
-      (void)fputc('\n', stderr);
     }
   }

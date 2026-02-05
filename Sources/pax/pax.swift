@@ -40,6 +40,251 @@ import CMigration
 import Darwin
 
 @main struct pax : ShellCommand {
+
+  /*
+   * BSD PAX global data structures and constants.
+   */
+
+  let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
+          /* WARNING: increasing MAXBLK past 32256 */
+          /* will violate posix spec. */
+  let MAXBLK_POSIX = 32256  /* MAX blocksize supported as per POSIX */
+  let BLKMULT = 512  /* blocksize must be even mult of 512 bytes */
+          /* Don't even think of changing this */
+  let DEVBLK = 8192  /* default read blksize for devices */
+  let FILEBLK = 10240  /* default read blksize for files */
+  let PAXPATHLEN = 3072  /* maximum path length for pax. MUST be */
+          /* longer than the system PATH_MAX */
+
+  /*
+   * Pax modes of operation
+   */
+  enum OpModes : Int {
+    case LIST = 0  /* List the file in an archive */
+    case EXTRACT   /* extract the files in an archive */
+    case ARCHIVE   /* write a new archive */
+    case APPND    /* append to the end of an archive */
+    case COPY     /* copy files to destination dir */
+  }
+
+  let DEFOP = OpModes.LIST  /* if no flags default is to LIST */
+
+  struct PatternFlags : OptionSet {
+    let rawValue: Int
+    init(rawValue: Int) { self.rawValue = rawValue }
+
+    static let MTCH = Self(rawValue: 0x1) /* pattern has been matched */
+    static let DIR_MTCH =  Self(rawValue: 0x2)    /* pattern matched a directory */
+  }
+
+  /*
+   * Pattern matching structure
+   *
+   * Used to store command line patterns
+   */
+  struct PATTERN {
+    var pstr : String    /* pattern to match, user supplied */
+    var pend : String    /* end of a prefix match */
+    var chdname : String /* the dir to change to if not NULL.  */
+    var plen : UInt       /* length of pstr */
+    var flgs : PatternFlags    /* processing/state flags */
+//    struct pattern  *fow;    /* next pattern */
+  }
+
+
+  /*
+   * General Archive Structure (used internal to pax)
+   *
+   * This structure is used to pass information about archive members between
+   * the format independent routines and the format specific routines. When
+   * new archive formats are added, they must accept requests and supply info
+   * encoded in a structure of this type. The name fields are declared statically
+   * here, as there is only ONE of these floating around, size is not a major
+   * consideration. Eventually converting the name fields to a dynamic length
+   * may be required if and when the supporting operating system removes all
+   * restrictions on the length of pathnames it will resolve.
+   */
+  struct ARCHD {
+    var name : String    /* file name */
+    var ln_name : String /* name to link to (if any) */
+    var org_name : String /* orig name in file system */
+    var pat : PATTERN     /* ptr to pattern match (if any) */
+    var sb : FileMetadata /* stat buffer see stat(2) */
+    var pad : Int         /* bytes of padding after file xfer */
+    var skip : Int        /* bytes of real data after header */
+            /* IMPORTANT. The st_size field does */
+            /* not always indicate the amount of */
+            /* data following the header. */
+    var crc : UInt      /* file crc */
+    var type : PAXType   /* type of file node */
+  }
+
+  /*
+   * Device type of the current archive volume
+   */
+  enum DeviceTypes : Int {
+    case ISREG = 0  /* regular file */
+    case ISCHR      /* character device */
+    case ISBLK     /* block device */
+    case ISTAPE    /* tape drive */
+    case ISPIPE    /* pipe/socket */
+  }
+
+//  typedef struct archd ARCHD;
+//  typedef struct fsub FSUB;
+//  typedef struct oplist OPLIST;
+//  typedef struct pattern PATTERN;
+
+    // FIXME: is this really a protocol?
+  /*
+   * Format Specific Routine Table
+   *
+   * The format specific routine table allows new archive formats to be quickly
+   * added. Overall pax operation is independent of the actual format used to
+   * form the archive. Only those routines which deal directly with the archive
+   * are tailored to the oddities of the specific format. All other routines are
+   * independent of the archive format. Data flow in and out of the format
+   * dependent routines pass pointers to ARCHD structure (described below).
+   */
+  struct FSUB {
+    var name : String  /* name of format, this is the name the user */
+          /* gives to -x option to select it. */
+    var bsz : UInt    /* default block size. used when the user */
+          /* does not specify a blocksize for writing */
+          /* Appends continue to with the blocksize */
+          /* the archive is currently using. */
+    var hsz : UInt    /* Header size in bytes. this is the size of */
+          /* the smallest header this format supports. */
+          /* Headers are assumed to fit in a BLKMULT. */
+          /* If they are bigger, get_head() and */
+          /* get_arc() must be adjusted */
+    var udev : UInt    /* does append require unique dev/ino? some */
+          /* formats use the device and inode fields */
+          /* to specify hard links. when members in */
+          /* the archive have the same inode/dev they */
+          /* are assumed to be hard links. During */
+          /* append we may have to generate unique ids */
+          /* to avoid creating incorrect hard links */
+    var hlk : Bool    /* does archive store hard links info? if */
+          /* not, we do not bother to look for them */
+          /* during archive write operations */
+    var blkalgn : Bool    /* writes must be aligned to blkalgn boundary */
+    var inhead : Bool    /* is the trailer encoded in a valid header? */
+          /* if not, trailers are assumed to be found */
+          /* in invalid headers (i.e like tar) */
+    var id : ([UInt8]) -> Bool  /* checks if a buffer is a valid header */
+          /* returns 1 if it is, o.w. returns a 0 */
+    var st_rd : () -> Bool  /* initialize routine for read. so format */
+          /* can set up tables etc before it starts */
+          /* reading an archive */
+    var rd : ([UInt8]) -> ARCHD?
+          /* read header routine. passed a pointer to */
+          /* ARCHD. It must extract the info from the */
+          /* format and store it in the ARCHD struct. */
+          /* This routine is expected to fill all the */
+          /* fields in the ARCHD (including stat buf) */
+          /* 0 is returned when a valid header is */
+          /* found. -1 when not valid. This routine */
+          /* set the skip and pad fields so the format */
+          /* independent routines know the amount of */
+          /* padding and the number of bytes of data */
+          /* which follow the header. This info is */
+          /* used skip to the next file header */
+    var end_rd : () -> Int  /* read cleanup. Allows format to clean up */
+          /* and MUST RETURN THE LENGTH OF THE TRAILER */
+          /* RECORD (so append knows how many bytes */
+          /* to move back to rewrite the trailer) */
+    var st_wr : () -> Bool  /* initialize routine for write operations */
+    var wr : (ARCHD) -> Bool?  /* write archive header. Passed an ARCHD */
+          /* filled with the specs on the next file to */
+          /* archived. Returns a 1 if no file data is */
+          /* is to be stored; 0 if file data is to be */
+          /* added. A -1 is returned if a write */
+          /* operation to the archive failed. this */
+          /* function sets the skip and pad fields so */
+          /* the proper padding can be added after */
+          /* file data. This routine must NEVER write */
+          /* a flawed archive header. */
+    var end_wr : () -> Bool  /* end write. write the trailer and do any */
+          /* other format specific functions needed */
+          /* at the end of an archive write */
+    var trail_cpio : (ARCHD) -> Bool
+    var trail_tar : ([UInt8], inout Int) -> Bool?
+          /* returns 0 if a valid trailer, -1 if not */
+          /* For formats which encode the trailer */
+          /* outside of a valid header, a return value */
+          /* of 1 indicates that the block passed to */
+          /* it can never contain a valid header (skip */
+          /* this block, no point in looking at it)  */
+    var rd_data : (ARCHD, Int, inout Int) -> Bool
+          /* read/process file data from the archive */
+    var wr_data : (ARCHD, Int, inout Int) -> Bool
+          /* write/process file data to the archive */
+    var options : () -> Bool  /* process format specific options (-o) */
+  };
+
+  enum PAXType : Int {
+    case DIR = 1    /* directory */
+    case CHR = 2    /* character device */
+    case BLK = 3    /* block device */
+    case REG = 4    /* regular file */
+    case SLK = 5    /* symbolic link */
+    case SCK = 6    /* socket */
+    case FIF = 7    /* fifo */
+    case HLK = 8    /* hard link */
+    case HRG = 9    /* hard link to a regular file */
+    case CTG = 10    /* high performance file */
+
+    case GLL = 11    /* GNU long symlink */
+    case GLF = 12    /* GNU long file */
+
+  }
+
+
+    enum Separator : Int {
+      case none = 0
+      case equals = 1
+      case colonEquals = 2
+    }
+  /*
+   * Format Specific Options List
+   *
+   * Used to pass format options to the format options handler
+   */
+  struct oplist {
+    var name : String    /* option variable name e.g. name= */
+    var value : String   /* value for option variable */
+//    struct oplist  *fow;    /* next option */
+    var separator : Separator  /* 2 means := separator; 1 means = separator
+               0 means no separator */
+  }
+
+  let SEP_COLONEQ = 2
+  let SEP_EQ = 1
+  let SEP_NONE = 0
+
+  /*
+   * General Macros
+   */
+//  #define MAJOR(x)  major(x)
+//  #define MINOR(x)  minor(x)
+//  #define TODEV(x, y)  makedev((x), (y))
+
+  /*
+   * General Defines
+   */
+  let HEX = 16
+  let OCT = 8
+  let _PAX_ = 1
+
+  let _HAVE_REGCOMP_  = 1
+
+  let _TFILE_BASE = "paxXXXXXXXXXX"
+
+
+
+
+
   /*
    * PAX main routines, general globals and some simple start up routines
    */
@@ -47,47 +292,54 @@ import Darwin
   /*
    * Variables that can be accessed by any routine within pax
    */
-  int	act = DEFOP;		/* read/write/append/copy */
-  FSUB	*frmt = NULL;		/* archive format type */
-  int	cflag;			/* match all EXCEPT pattern/file */
-  int	cwdfd;			/* starting cwd */
-  int	dflag;			/* directory member match only  */
-  int	iflag;			/* interactive file/archive rename */
-  int	kflag;			/* do not overwrite existing files */
-  int	lflag;			/* use hard links when possible */
-  int	nflag;			/* select first archive member match */
-  int	tflag;			/* restore access time after read */
-  int	uflag;			/* ignore older modification time files */
-  int	vflag;			/* produce verbose output */
-  int	Dflag;			/* same as uflag except for inode change time */
-  int	Hflag;			/* follow command line symlinks (write only) */
-  int	Lflag;			/* follow symlinks when writing */
-  int	Oflag;			/* limit to single volume */
-  int	Xflag;			/* archive files with same device id only */
-  int	Yflag;			/* same as Dflg except after name mode */
-  int	Zflag;			/* same as uflg except after name mode */
+    struct CommandOptions {
+      var act = OpModes.LIST		/* read/write/append/copy */
+      var fmt : FSUB?       		/* archive format type */
+      var cflag : Bool = false			/* match all EXCEPT pattern/file */
+      var cwdfd : FileDescriptor!			/* starting cwd */
+      var dflag : Bool = false			/* directory member match only  */
+      var iflag : Bool = false /* interactive file/archive rename */
+      var kflag : Bool = false /* do not overwrite existing files */
+      var lflag : Bool = false /* use hard links when possible */
+      var nflag : Bool = false /* select first archive member match */
+      var tflag : Bool = false /* restore access time after read */
+      var uflag : Bool = false /* ignore older modification time files */
+      var Dflag : Bool = false /* same as uflag except for inode change time */
+      var Hflag : Bool = false /* follow command line symlinks (write only) */
+      var Lflag : Bool = false /* follow symlinks when writing */
+      var Oflag : Bool = false /* limit to single volume */
+      var Xflag : Bool = false /* archive files with same device id only */
+      var Yflag : Bool = false /* same as Dflg except after name mode */
+      var Zflag : Bool = false /* same as uflg except after name mode */
 
-  int	zeroflag;		/* use \0 as pathname terminator */
+      var zeroflag : Bool = false /* use \0 as pathname terminator */
 
-  int	vfpart;			/* is partial verbose output in progress */
-  int	patime = 1;		/* preserve file access time */
-  int	pmtime = 1;		/* preserve file modification times */
-  int	nodirs;			/* do not create directories as needed */
-  int	pmode;			/* preserve file mode bits */
-  int	pids;			/* preserve file uid/gid */
-  int	rmleadslash = 0;	/* remove leading '/' from pathnames */
+      var patime = true		/* preserve file access time */
+      var pmtime = true 		/* preserve file modification times */
+      var nodirs : Bool = false /* do not create directories as needed */
+      var pmode : Bool = false /* preserve file mode bits */
+      var pids : Bool = false /* preserve file uid/gid */
+      var rmleadslash = false	/* remove leading '/' from pathnames */
 
-  int	secure = 1; 		/* don't extract names that contain .. */
+      var secure = true 		/* don't extract names that contain .. */
 
-  int	exit_val;		/* exit value */
-  int	docrc;			/* check/create file crc */
-  char	*dirptr;		/* destination dir in a copy */
-  const	char *argv0;		/* root of argv[0] */
-  sigset_t s_mask;		/* signal mask for cleanup critical sect */
-  FILE	*listf;			/* file pointer to print file list to */
-  char	*tempfile;		/* tempfile to use for mkstemp(3) */
-  char	*tempbase;		/* basename of tempfile to use for mkstemp(3) */
+      var docrc : Bool = false			/* check/create file crc */
+      var dirptr : String!		/* destination dir in a copy */
+      var argv0 : [String] = []  /* root of argv[0] */
 
+      var listf = FileDescriptor.standardError       /* file pointer to print file list to */
+    }
+
+    class Runtime {
+      var exit_val : Int32 = 0   /* exit value */
+      var s_mask = sigset_t()   /* signal mask for cleanup critical sect */
+      var tempfile : String!    /* tempfile to use for mkstemp(3) */
+      var tempbase : String!		/* basename of tempfile to use for mkstemp(3) */
+
+      // set by sig
+      var vflag : Bool = false  /* produce verbose output */
+      var vfpart = false      /* is partial verbose output in progress */
+    }
   /*
    *	PAX - Portable Archive Interchange
    *
@@ -201,6 +453,10 @@ import Darwin
    *	write those routines which id, read and write the archive header.
    */
 
+
+    var options : CommandOptions!
+    var runtime = Runtime()
+
   /*
    * main()
    *	parse options, set up and operate as specified by the user.
@@ -208,27 +464,25 @@ import Darwin
    * Return: 0 if ok, 1 otherwise
    */
 
-  int
-  main(int argc, char *argv[])
-  {
-    const char *tmpdir;
-    size_t tdlen;
+  func parseOptions() throws(CmdErr) -> CommandOptions {
+    //    const char *tmpdir;
+    //    size_t tdlen;
 
-    (void) setlocale(LC_ALL, "");
-    listf = stderr;
+    //    (void) setlocale(LC_ALL, "");
+    var options = CommandOptions()
+
     /*
      * Keep a reference to cwd, so we can always come back home.
      */
-    cwdfd = open(".", O_RDONLY | O_CLOEXEC);
-    if (cwdfd < 0) {
-
-      syswarn(1, errno, "Can't open current working directory.");
-
-      return(exit_val);
+    do {
+      options.cwdfd = try FileDescriptor.open(FilePath("."), .readOnly, options: .closeOnExec)
+    } catch(let e) {
+      syswarn(true, errno, "Can't open current working directory.")
+      exit(runtime.exit_val)
     }
 
     if (updatepath() == -1) {
-      return exit_val;
+      exit(runtime.exit_val)
     }
 
     /*
@@ -243,8 +497,8 @@ import Darwin
     }
     tempfile = malloc(tdlen + 1 + sizeof(_TFILE_BASE));
     if (tempfile == NULL) {
-      paxwarn(1, "Cannot allocate memory for temp file name.");
-      return(exit_val);
+      paxwarn(true, "Cannot allocate memory for temp file name.")
+      exit(runtime.exit_val)
     }
     if (tdlen) {
       memcpy(tempfile, tmpdir, tdlen);
@@ -257,75 +511,39 @@ import Darwin
      */
     options(argc, argv);
     if ((gen_init() < 0) || (tty_init() < 0)) {
-      return(exit_val);
+      exit(runtime.exit_val)
     }
+    return options
+  }
+
+  func runCommand() async throws {
 
     /*
      * select a primary operation mode
      */
-    switch (act) {
-      case EXTRACT:
-        extract();
-        break;
-      case ARCHIVE:
-        archive();
-        break;
-      case APPND:
-        if (gzip_program != NULL) {
-
-          errx(1, "can not gzip while appending");
-
+    switch options.act {
+      case .EXTRACT:
+        extract()
+      case .ARCHIVE:
+        archive()
+      case .APPND:
+        if let gzip_program {
+          errx(1, "can not gzip while appending")
         }
-        append();
-        break;
-      case COPY:
-        copy();
-        break;
+        append()
+      case .COPY:
+        copy()
+      case .LIST:
+        list()
       default:
-      case LIST:
-        list();
-        break;
+        list()
     }
 
-    if (exit_val == 0 && (ferror(stdout) != 0 || fflush(stdout) != 0)) {
-      err(1, "stdout");
-    }
+//    if runtime.exit_val == 0 && (ferror(stdout) != 0 || fflush(stdout) != 0) {
+//      err(1, "stdout");
+//    }
 
-    return(exit_val);
-  }
-
-  /*
-   * sig_cleanup()
-   *	when interrupted we try to do whatever delayed processing we can.
-   *	This is not critical, but we really ought to limit our damage when we
-   *	are aborted by the user.
-   * Return:
-   *	never....
-   */
-
-  void
-  sig_cleanup(int which_sig)
-  {
-    /*
-     * restore modes and times for any dirs we may have created
-     * or any dirs we may have read. Set vflag and vfpart so the user
-     * will clearly see the message on a line by itself.
-     */
-    vflag = vfpart = 1;
-
-    ar_close();
-    proc_dir();
-    if (tflag) {
-      atdir_end();
-    }
-
-    /*
-     * Conformance requires us to re-raise these to propagate the correct
-     * exit status up to the caller.
-     */
-    signal(which_sig, SIG_DFL);
-    raise(which_sig);
-
+    exit(runtime.exit_val)
   }
 
   /*
@@ -333,18 +551,18 @@ import Darwin
    *	set a signal to be caught, but only if it isn't being ignored already
    */
 
-  static int
-  setup_sig(int sig, const struct sigaction *n_hand)
-  {
-    struct sigaction o_hand;
+  func setup_sig(_ sig : Int32, _ n_hand : inout sigaction) -> Bool {
+    var o_hand = sigaction()
 
-    if (sigaction(sig, NULL, &o_hand) < 0)
-        return (-1);
+    if sigaction(sig, nil, &o_hand) < 0 {
+      return true
+    }
 
-    if (o_hand.sa_handler == SIG_IGN)
-        return (0);
+    if o_hand.__sigaction_u.__sa_handler == SIG_IGN {
+      return false
+    }
 
-    return (sigaction(sig, n_hand, NULL));
+    return 0 != sigaction(sig, &n_hand, nil)
   }
 
   /*
@@ -353,11 +571,8 @@ import Darwin
    *	when dealing with a medium to large sized archives.
    */
 
-  static int
-  gen_init(void)
-  {
-    struct rlimit reslimit;
-    struct sigaction n_hand;
+  func gen_init() -> Bool {
+    var reslimit = rlimit()
 
     /*
      * Really needed to handle large archives. We can run out of memory for
@@ -365,7 +580,7 @@ import Darwin
      */
     if (getrlimit(RLIMIT_DATA , &reslimit) == 0){
       reslimit.rlim_cur = reslimit.rlim_max;
-      (void)setrlimit(RLIMIT_DATA , &reslimit);
+      setrlimit(RLIMIT_DATA , &reslimit)
     }
 
     /*
@@ -374,7 +589,7 @@ import Darwin
      */
     if (getrlimit(RLIMIT_FSIZE , &reslimit) == 0){
       reslimit.rlim_cur = reslimit.rlim_max;
-      (void)setrlimit(RLIMIT_FSIZE , &reslimit);
+      setrlimit(RLIMIT_FSIZE , &reslimit)
     }
 
     /*
@@ -382,7 +597,7 @@ import Darwin
      */
     if (getrlimit(RLIMIT_STACK , &reslimit) == 0){
       reslimit.rlim_cur = reslimit.rlim_max;
-      (void)setrlimit(RLIMIT_STACK , &reslimit);
+      setrlimit(RLIMIT_STACK , &reslimit)
     }
 
     /*
@@ -390,7 +605,7 @@ import Darwin
      */
     if (getrlimit(RLIMIT_RSS , &reslimit) == 0){
       reslimit.rlim_cur = reslimit.rlim_max;
-      (void)setrlimit(RLIMIT_RSS , &reslimit);
+      setrlimit(RLIMIT_RSS , &reslimit)
     }
 
     /*
@@ -399,32 +614,68 @@ import Darwin
      * deal with any file size limit through failed writes. Cpu time
      * limits are caught and a cleanup is forced.
      */
-    #pragma clang diagnostic push
-    #pragma clang diagnostic ignored "-Wunreachable-code"
-    if ((sigemptyset(&s_mask) < 0) || (sigaddset(&s_mask, SIGTERM) < 0) ||
-        (sigaddset(&s_mask,SIGINT) < 0)||(sigaddset(&s_mask,SIGHUP) < 0) ||
-        (sigaddset(&s_mask,SIGPIPE) < 0)||(sigaddset(&s_mask,SIGQUIT)<0) ||
-        (sigaddset(&s_mask,SIGXCPU) < 0)||(sigaddset(&s_mask,SIGXFSZ)<0)) {
-      paxwarn(1, "Unable to set up signal mask");
-      return(-1);
+//    #pragma clang diagnostic push
+//    #pragma clang diagnostic ignored "-Wunreachable-code"
+    if ((sigemptyset(&runtime.s_mask) < 0) || (sigaddset(&runtime.s_mask, SIGTERM) < 0) ||
+        (sigaddset(&runtime.s_mask,SIGINT) < 0)||(sigaddset(&runtime.s_mask,SIGHUP) < 0) ||
+        (sigaddset(&runtime.s_mask,SIGPIPE) < 0)||(sigaddset(&runtime.s_mask,SIGQUIT)<0) ||
+        (sigaddset(&runtime.s_mask,SIGXCPU) < 0)||(sigaddset(&runtime.s_mask,SIGXFSZ)<0)) {
+      paxwarn(true, "Unable to set up signal mask")
+      return true
     }
-    #pragma clang diagnostic pop
-    memset(&n_hand, 0, sizeof n_hand);
-    n_hand.sa_mask = s_mask;
+//    #pragma clang diagnostic pop
+//    memset(&n_hand, 0, sizeof n_hand);
+
+    var n_hand = sigaction()
+    n_hand.sa_mask = runtime.s_mask;
     n_hand.sa_flags = 0;
-    n_hand.sa_handler = sig_cleanup;
+    n_hand.__sigaction_u.__sa_handler = sig_cleanup;
 
     if (setup_sig(SIGHUP,  &n_hand) ||
         setup_sig(SIGTERM, &n_hand) ||
         setup_sig(SIGINT,  &n_hand) ||
         setup_sig(SIGQUIT, &n_hand) ||
-        setup_sig(SIGXCPU, &n_hand))
-        goto out;
+        setup_sig(SIGXCPU, &n_hand)) {
+      syswarn(true, errno, "Unable to set up signal handler")
+      return true
+    } else {
+      return false
+    }
 
-    return(0);
-
-  out:
-    syswarn(1, errno, "Unable to set up signal handler");
-    return(-1);
   }
 }
+
+
+/*
+ * sig_cleanup()
+ *  when interrupted we try to do whatever delayed processing we can.
+ *  This is not critical, but we really ought to limit our damage when we
+ *  are aborted by the user.
+ * Return:
+ *  never....
+ */
+
+func sig_cleanup(_ which_sig : Int32) {
+  /*
+   * restore modes and times for any dirs we may have created
+   * or any dirs we may have read. Set vflag and vfpart so the user
+   * will clearly see the message on a line by itself.
+   */
+  runtime.vflag = true
+  runtime.vfpart = true
+
+  ar_close();
+  proc_dir();
+  if options.tflag {
+    atdir_end();
+  }
+
+  /*
+   * Conformance requires us to re-raise these to propagate the correct
+   * exit status up to the caller.
+   */
+  signal(which_sig, SIG_DFL)
+  raise(which_sig)
+
+}
+
