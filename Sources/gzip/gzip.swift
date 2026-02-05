@@ -304,8 +304,6 @@ from a file containing the following notice:
           options.dflag = true
         case "V", "version":
           display_version()
-          fatalError()
-
         case "a", "ascii":
           warnx("option --ascii ignored on this system")
         case "f", "force":
@@ -314,7 +312,6 @@ from a file containing the following notice:
           options.kflag = true
         case "L", "license":
           display_license();
-          fatalError()
         case "N", "name":
           options.nflag = false
           options.Nflag = true

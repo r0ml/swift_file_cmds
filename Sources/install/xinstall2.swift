@@ -37,6 +37,7 @@ import CMigration
 import Darwin
 import CommonCrypto
 
+let NO_ID = UInt32(0xffffffff)
 
 extension xinstall {
   /*
@@ -289,7 +290,7 @@ extension xinstall {
    * install --
    *  build a path name and install the file
    */
-  func install(_ from_name : FilePath, _ to_namex : FilePath, _ fset : FileFlags, _ flags : IFlags) {
+  func install(_ from_name : FilePath, _ to_namex : FilePath, _ fset : FileFlags, _ flags : IFlags) async {
     //    struct stat from_sb, temp_sb, to_sb;
     //    struct timespec tsb[2];
     //    int devnull, files_match, from_fd, serrno, stripped, target;
@@ -304,7 +305,7 @@ extension xinstall {
 
 
     var to_name : FilePath = to_namex
-    guard let cc = clippedForCopy(&to_name, from_name, flags) else {
+    guard let cc = await clippedForCopy(&to_name, from_name, flags) else {
       return
     }
 
@@ -347,7 +348,7 @@ extension xinstall {
 
     if !options.dounpriv && ((options.gid != nil && options.gid != to_sb.groupId) ||
                              (options.uid != nil && options.uid != to_sb.userId)) {
-      if (fchown(cc.to_fd.rawValue, options.uid == nil ? -1 : uid_t(options.uid!), options.gid == nil ? -1 : gid_t(options.gid!)) == -1) {
+      if (fchown(cc.to_fd.rawValue, options.uid == nil ? NO_ID : UInt32(options.uid!), options.gid == nil ? NO_ID : gid_t(options.gid!)) == -1) {
         let serrno = errno;
         unlink(to_name.string)
         errno = serrno;
@@ -402,11 +403,14 @@ extension xinstall {
     metadata_log(to_name, "file", tsb, nil, cc.digestresult, to_sb.size)
   }
 
-  func clippedForCopy(_ to_name : inout FilePath, _ from_name : FilePath, _ flags : IFlags)
+  func clippedForCopy(_ to_name : inout FilePath, _ from_name : FilePath, _ flags : IFlags) async
   -> (devnull: Bool, from_fd : FileDescriptor, to_fd : FileDescriptor, from_sb : FileMetadata, to_sb : FileMetadata?, files_match: Bool, digestresult : [UInt8]? )? {
     var devnull = false
-    var from_sb : FileMetadata
-    var tempfile : FilePath
+
+    var from_sb : FileMetadata!
+
+    // FIXME: this will zap things when tempfile is not set.
+    var tempfile : FilePath!
     var digestresult : [UInt8]?
     var stripped = false
 
@@ -415,10 +419,9 @@ extension xinstall {
       if options.dolink.isEmpty {
         guard let fsb = try? FileMetadata(for: from_name) else {
           err(Int(EX_OSERR), from_name.string)
-          fatalError()
         }
         from_sb = fsb
-        if from_sb.filetype != .regular {
+        if fsb.filetype != .regular {
           errno = EFTYPE
           err(Int(EX_OSERR), from_name.string)
         }
@@ -462,7 +465,9 @@ extension xinstall {
 
 
     var files_match = false
-    let to_fd : FileDescriptor
+
+    // FIXME: things will crash if this isn't set!!!
+    var to_fd : FileDescriptor!
 
     /* If we don't strip, we can compare first. */
     if (options.docompare && !options.dostrip && target && to_sb.filetype == .regular) {
@@ -508,7 +513,7 @@ extension xinstall {
              let tfd = try? FileDescriptor.open(to_name, .readWrite, options: [.exclusiveCreate, .create], permissions: FilePermissions(rawValue: options.mode) ) {
             to_fd = tfd
             if options.dostrip {
-              (stripped, digestresult) = strip(to_name, to_fd, from_name)
+              (stripped, digestresult) = await strip(to_name, to_fd, from_name)
             }
             if (!stripped) {
               digestresult = copy(from_fd, from_name, to_fd, to_name, from_sb.size)
@@ -526,7 +531,7 @@ extension xinstall {
 
       if !devnull {
         if options.dostrip {
-          (stripped, digestresult) = strip(tempfile, to_fd, from_name)
+          (stripped, digestresult) = await strip(tempfile, to_fd, from_name)
         }
         if (!stripped) {
           digestresult = copy(from_fd, from_name, to_fd, tempfile, from_sb.size)
@@ -536,7 +541,7 @@ extension xinstall {
 
     if options.dostrip {
       if (!stripped) {
-        (_, digestresult) = strip(tempfile, to_fd, nil)
+        (_, digestresult) = await strip(tempfile, to_fd, nil)
       }
 
       /*
@@ -554,7 +559,9 @@ extension xinstall {
      * Compare the stripped temp file with the target.
      */
     if options.docompare && options.dostrip && target && to_sb.filetype == .regular {
-      let temp_fd = to_fd;
+
+      // FIXME: this will blow up if to_fd wasn't set !!!
+      let temp_fd = to_fd!
 
       /* Re-open to_fd using the real target name. */
       guard let tfd = try? FileDescriptor.open(to_name, .readOnly) else {
@@ -646,6 +653,7 @@ extension xinstall {
       }
       to_fd = tfd
     }
+
     return (devnull: devnull, from_fd: from_fd, to_fd: to_fd, from_sb: from_sb, to_sb: to_sb, files_match: files_match, digestresult: digestresult)
   }
 

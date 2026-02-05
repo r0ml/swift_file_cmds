@@ -399,7 +399,6 @@ let kill_signal = ManagedAtomic<Int32>(0)
     guard let sb = try? FileMetadata(for: io.fd) else {
       // FIXME: not stdin?
       err(1, io.name ?? "(stdout)")
-      fatalError()
     }
 
     if sb.filetype == .regular {

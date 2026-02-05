@@ -128,7 +128,6 @@ extension chmod {
     }
 
     errx(1, "Unable to translate '\(tok)' to a UUID")
-    fatalError()
   }
 
   enum Match : Int {
@@ -754,7 +753,6 @@ extension chmod {
     if optflags.contains(.CLEAR_FLAG) {
       guard let fsec = filesec_init() else {
         err(1, "filesec_init() failed")
-        fatalError()
       }
       defer { filesec_free(fsec) }
 

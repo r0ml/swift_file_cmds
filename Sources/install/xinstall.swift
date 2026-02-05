@@ -340,7 +340,6 @@ let BACKUP_SUFFIX = ".old"
       } else {
         guard let id = parseid(g) else {
           errx(1, "unknown group \(g)")
-          fatalError()
         }
         options.gid = id
       }
@@ -393,7 +392,7 @@ let BACKUP_SUFFIX = ".old"
 
     if options.dodir {
       for argv in options.args {
-        install_dir(argv)
+        install_dir(FilePath(argv))
       }
       exit(EX_OK);
     }
@@ -411,12 +410,12 @@ let BACKUP_SUFFIX = ".old"
             errno = ENOTDIR
             err(Int(EX_CANTCREAT), to_name.string)
           }
-          install(FilePath(options.args[0]), to_name, options.fset, options.iflags);
+          await install(FilePath(options.args[0]), to_name, options.fset, options.iflags);
           exit(EX_OK);
         }
       }
       for argv in options.args.dropLast() {
-        install(FilePath(argv), to_name, options.fset, options.iflags.union(.DIRECTORY))
+        await install(FilePath(argv), to_name, options.fset, options.iflags.union(.DIRECTORY))
       }
       exit(EX_OK);
     }
@@ -445,7 +444,7 @@ let BACKUP_SUFFIX = ".old"
         errx(Int(EX_USAGE), "\(argv.string) and \(to_name.string) are the same file")
       }
     }
-    install(FilePath(options.args.first!), to_name, options.fset, options.iflags)
+    await install(FilePath(options.args.first!), to_name, options.fset, options.iflags)
     exit(EX_OK)
     /* NOTREACHED */
   }

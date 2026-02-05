@@ -319,7 +319,6 @@ extension ls {
           } else {
             guard let u = Darwin.user_from_uid(uid_t(sp.userId), 0) else {
               err(1, "user_from_uid")
-              fatalError() // shouldn't get here
             }
             user = String(cString: u)
             /*
@@ -335,8 +334,6 @@ extension ls {
             guard let g = Darwin.group_from_gid(gid_t(sp.groupId), 0) else {
             /* Ditto. */
               err(1, "group_from_gid")
-              fatalError()
-              // sholdn't get here
             }
             group = String(cString: g)
           }
@@ -348,7 +345,6 @@ extension ls {
           if options.f_flags {
             guard let f = fflagstostr(sp.flags) else {
               err(1, "fflagstostr")
-              fatalError() // shouldn't get here
             }
             if f.isEmpty {
               flags = "-"

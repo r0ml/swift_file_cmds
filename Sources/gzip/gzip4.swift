@@ -505,7 +505,7 @@ usage: \(programName) [-123456789acdfhklLNnqrtVv] [-S .suffix] [<file> [<file> .
 
 
   /* display the license information of FreeBSD gzip */
-  func display_license() {
+  func display_license() -> Never {
     var stderr = FileDescriptor.standardError
     print("\(gzip_version) (based on FreeBSD gzip 20190107, NetBSD gzip 20150113)", to: &stderr)
     print(gzip_copyright, to: &stderr)
@@ -513,7 +513,7 @@ usage: \(programName) [-123456789acdfhklLNnqrtVv] [-S .suffix] [<file> [<file> .
   }
 
   /* display the version of NetBSD gzip */
-  func display_version() {
+  func display_version() -> Never {
     var stderr = FileDescriptor.standardError
     print(gzip_version, to: &stderr)
     exit(0)

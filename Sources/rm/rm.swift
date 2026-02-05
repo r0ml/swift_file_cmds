@@ -245,7 +245,6 @@ let REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
         return
       }
       err(1, "fts_open")
-      fatalError()
     }
 
     var eval : Int32 = 0
@@ -562,7 +561,6 @@ let REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
 
       guard let flagsp = fflagstostr(sp.flags) else {
         err(1, "fflagstostr")
-        fatalError()
       }
       let u = user_from_uid( UInt32(sp.userId), 0)!
       let g = group_from_gid( UInt32(sp.groupId), 0)!

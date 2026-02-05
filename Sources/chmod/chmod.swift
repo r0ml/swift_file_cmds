@@ -243,7 +243,6 @@ func siginfo_handler(_ sig : Int32) {
                   errno = 0
                   guard let aclpos = Int(options.args[0]) else {
                     errx(1, "Invalid ACL entry number: \(options.args[0])")
-                    fatalError()
                   }
 
                   if aclpos > ACL_MAX_ENTRIES || aclpos < 0 {
@@ -348,7 +347,6 @@ func siginfo_handler(_ sig : Int32) {
         let k = parse_acl_entries(mode!)
         guard let k else {
           errx(1, "Invalid ACL specification: \(mode!)")
-          fatalError()
         }
         options.acl_input = k
       }
@@ -356,7 +354,6 @@ func siginfo_handler(_ sig : Int32) {
     else {
       guard let sett = setmode(mode) else {
         errx(1, "Invalid file mode: \(mode!)")
-        fatalError()
       }
       options.sett = sett.assumingMemoryBound(to: UInt16.self).pointee
 
@@ -369,7 +366,6 @@ func siginfo_handler(_ sig : Int32) {
     guard let ftsp = try? FTSWalker(path: options.args, options: options.fts_options, sort: nil) else {
       //    if ((ftsp = fts_open(++argv, fts_options, 0)) == NULL) {
       err(1, "fts_open");
-      fatalError()
     }
     var rval : Int32 = 0
 

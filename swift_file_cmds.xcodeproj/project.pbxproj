@@ -651,6 +651,7 @@
 		E79E5DFE2F2005AD00F3CB3F /* libz.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libz.tbd; path = usr/lib/libz.tbd; sourceTree = SDKROOT; };
 		E79E5E002F20071F00F3CB3F /* libbz2.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libbz2.tbd; path = usr/lib/libbz2.tbd; sourceTree = SDKROOT; };
 		E7A6AA562E428C1A001C9A44 /* chflags */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = chflags; sourceTree = BUILT_PRODUCTS_DIR; };
+		E7B891D62F33F9C2002572DE /* libc.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libc.tbd; path = usr/lib/libc.tbd; sourceTree = SDKROOT; };
 		E7DDF9042F32427F00EB9B50 /* mkfifoTest.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = mkfifoTest.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E7DDF90F2F32428D00EB9B50 /* mknodTest.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = mknodTest.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E7DDF91A2F3242A400EB9B50 /* mtreeTest.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = mtreeTest.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -1796,6 +1797,7 @@
 		E78DE7142E43A989001E00CA /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				E7B891D62F33F9C2002572DE /* libc.tbd */,
 				E71B3C2C2F2616F000A02D2C /* libncurses.tbd */,
 				E71B3C2A2F26163B00A02D2C /* libtermcap.tbd */,
 				E71B3C262F254E7F00A02D2C /* libxpc.tbd */,
@@ -4413,6 +4415,7 @@
 		E77401A12F02D91D00498517 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				HEADER_SEARCH_PATHS = Vendors;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Debug;
@@ -4420,6 +4423,7 @@
 		E77401A22F02D91D00498517 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				HEADER_SEARCH_PATHS = Vendors;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Release;

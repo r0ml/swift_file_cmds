@@ -116,7 +116,7 @@ extension gzip {
       }
     }
 
-    guard let (size, in_size) = gz_compress(inx, out, basename(file.string), isb.lastWrite) else {
+    guard let (size, in_size) = gz_compress(inx, out, file.basename, isb.lastWrite) else {
       return nil
     }
 

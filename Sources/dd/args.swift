@@ -108,7 +108,6 @@ extension dd {
       }
       guard let ap = argmap[String(aa[0])] else {
         errx(1, "unknown operand \(args[0])")
-        fatalError()
       }
       if ddc.ddflags.contains(ap.noset) {
         errx(1, "\(args[0]): illegal argument combination or already set")
@@ -310,7 +309,6 @@ extension dd {
     for tmp in j {
       guard let cp = clist[String(tmp)] else {
         errx(1, "unknown conversion \(tmp)")
-        fatalError()
       }
       if ddc.ddflags.containsAny(of: cp.noset) {
         errx(1, "\(tmp): illegal conversion combination")
@@ -327,7 +325,6 @@ extension dd {
     for tmp in j {
       guard let op = olist[String(tmp)] else {
         errx(1, "unknown open flag \(tmp)")
-        fatalError()
       }
       ddc.ddflags.insert(op)
     }
@@ -378,7 +375,6 @@ extension dd {
 
     guard var num = UInt(val) else {
       errx(1, "\(ddc.oper): invalid numeric value")
-      fatalError()
     }
 
     let mult = UInt(postfix_to_mult(expr.first ?? " "))
@@ -426,7 +422,6 @@ extension dd {
     var expr = String(valx.dropFirst(val.count))
     guard var num = Int(val) else {
       errx(1, "\(ddc.oper): invalid numeric value");
-      fatalError()
     }
 
     let mult = postfix_to_mult(expr.first ?? " ")

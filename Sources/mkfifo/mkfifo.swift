@@ -91,7 +91,6 @@ let BASEMODE = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH
           err(1, "setmode")
         }
         errx(1, "invalid file mode: \(options.modestr)")
-        fatalError()
       }
 
       fifomode = getmode(modep, BASEMODE)

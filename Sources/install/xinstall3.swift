@@ -36,6 +36,7 @@
 import CMigration
 import Darwin
 import CommonCrypto
+import VIS
 
 extension xinstall {
 /*
@@ -230,51 +231,43 @@ func compare(_ from_fd : FileDescriptor, _ from_name : FilePath, _ from_len : si
  *  Return 1 on success and assign result of digest_file(to_name)
  *  to *dresp.
  */
-func strip(_ to_name : FilePath, _ to_fd : FileDescriptor, _ from_name : FilePath?) -> (Bool, [UInt8]?) {
+func strip(_ to_name : FilePath, _ to_fd : FileDescriptor, _ from_name : FilePath?) async -> (Bool, [UInt8]?) {
 //  const char *stripbin;
 //  const char *args[5];
 //  char *prefixed_from_name;
 //  pid_t pid;
 //  int error, serrno, status;
 
-  prefixed_from_name = NULL;
+//  prefixed_from_name = NULL;
   let stripbin = Environment["STRIPBIN"] ?? "strip"
 
-  args[0] = stripbin;
-  if (from_name == NULL) {
-    args[1] = to_name;
-    args[2] = NULL;
-  } else {
-    args[1] = "-o";
-    args[2] = to_name;
+  var args = [stripbin]
+  if let from_name {
+    args.append("-o")
+    args.append(to_name.string)
 
     /* Prepend './' if from_name begins with '-' */
-    if (from_name[0] == '-') {
-      if (asprintf(&prefixed_from_name, "./%s", from_name) == -1) {
-        return (0);
-      }
-      args[3] = prefixed_from_name;
+    if from_name.string.first == "-" {
+      args.append("./\(from_name.string)")
     } else {
-      args[3] = from_name;
+      args.append(from_name.string)
     }
-    args[4] = NULL;
+  } else {
+    args.append(to_name.string)
   }
-  error = posix_spawnp(&pid, stripbin, NULL, NULL,
-                       __DECONST(char **, args), environ);
-  if (error != 0) {
-    unlink(to_name)
-    errc(error == EAGAIN || error == EPROCLIM || error == ENOMEM ?
-         EX_TEMPFAIL : EX_OSERR, error, "spawn %s", stripbin);
-  }
-  free(prefixed_from_name);
-  if (waitpid(pid, &status, 0) == -1) {
-    let error = errno;
+
+  // FIXME: do I need to pass in the environment?
+  var p : DarwinProcess.Output
+  do {
+    p = try await DarwinProcess().run(stripbin, args: args)
+  } catch(let e) {
+    let ec = (e as? POSIXErrno)?.code ?? -1
     unlink(to_name.string)
-    errno = error
-    err(Int(EX_SOFTWARE), "wait")
-    /* NOTREACHED */
+    errno = ec
+    err( Int( ec == EAGAIN || ec == EPROCLIM || ec == ENOMEM ? EX_TEMPFAIL : EX_OSERR), "spawn \(stripbin)")
   }
-  if (status != 0) {
+
+  if p.code != 0 {
     if let from_name {
       return (false, nil)
     }
@@ -296,11 +289,12 @@ func strip(_ to_name : FilePath, _ to_fd : FileDescriptor, _ from_name : FilePat
  */
 func install_dir(_ pathx : FilePath) {
 
-  var path = ""
-  for p in pathx.split(separator: "/") {
+  var path = FilePath("/")
+  var px = pathx.components
+  // FIXME: replace all this nonsense with  FilePath.createDirectory(pathx, 0o0755)  ??
+  for p in px {
     var tried_mkdir = false
-    path.append("/")
-    path.append(contentsOf: p)
+    path.append(p)
   again:
     while true {
       do {
@@ -312,7 +306,7 @@ func install_dir(_ pathx : FilePath) {
         if e.code != ENOENT || tried_mkdir {
           err(Int(EX_OSERR), "stat \(path)")
         }
-        if (mkdir(path, 0o0755) < 0) {
+        if mkdir(path.string, 0o0755) < 0 {
           tried_mkdir = true
           if errno == EEXIST {
             continue again
@@ -328,14 +322,14 @@ func install_dir(_ pathx : FilePath) {
   }
 
   if !options.dounpriv {
-    let u = options.uid == nil ? -1 : uid_t(options.uid!)
-    let g = options.gid == nil ? -1 : gid_t(options.gid!)
+    let u = options.uid == nil ? NO_ID : uid_t(options.uid!)
+    let g = options.gid == nil ? NO_ID : gid_t(options.gid!)
 
-    if (options.gid != nil || options.uid != nil) && 0 != chown(path, u, g) {
+    if (options.gid != nil || options.uid != nil) && 0 != chown(path.string, u, g) {
       warn("chown \(u):\(g) \(path)")
     }
     /* XXXBED: should we do the chmod in the dounpriv case? */
-    if chmod(path, options.mode) != 0 {
+    if chmod(path.string, options.mode) != 0 {
       let k = String(options.mode, radix: 8)
       warn("chmod \(k) \(path)")
     }
@@ -395,23 +389,35 @@ func metadata_log(_ path : FilePath, _ type : String, _ ts : (DateTime, DateTime
     warn("can't lock \(metafile)")
     return
   }
+  let VIS_OCTAL = Int32(1)
+  let VIS_CSTYLE = Int32(2)
 
   /* Remove destdir. */
-  p = path;
-  if (destdir) {
-    destlen = strlen(destdir);
-    if (strncmp(p, destdir, destlen) == 0 &&
-        (p[destlen] == '/' || p[destlen] == '\0')) {
-      p += destlen;
+  var p = path;
+  // FIXME: I can do this with components
+  if let destdir = options.destdir {
+    if destdir == p.string.prefix(destdir.count) && (p.string.count == destdir.count || p.string.dropFirst(destdir.count).first == "/") {
+      p = FilePath(String(p.string.dropFirst(destdir.count)))
     }
   }
-  while (*p && *p == '/') {
-    p++;
+  var k = p.string
+  while k.first == "/" {
+    k.removeFirst()
   }
-  strsnvis(buf, buflen, p, VIS_OCTAL, extra);
-  p = buf;
+  p = FilePath(k)
+
+  let kk = k.utf8
+  let bufs : String = withUnsafeTemporaryAllocation(of: CChar.self, capacity: 4 * kk.count + 1) { ptr in
+    k.withCString { src in
+      let _ : Int32 = VIS.strsnvis(ptr.baseAddress!, ptr.count, src, VIS_OCTAL, extra)
+      return String(cString: ptr.baseAddress!)
+    }
+  }
+
+  let pstr = bufs
+  let px = pstr.isEmpty ? "" : "/"
   /* Print details. */
-  fprintf(metafp, ".%s%s type=%s", *p ? "/" : "", p, type);
+  print(".\(px)\(pstr) type=\(type)", terminator: "", to: &metafp)
 
   if let owner {
     print(" uname=\(owner)", terminator: "", to: &metafp)
@@ -421,15 +427,22 @@ func metadata_log(_ path : FilePath, _ type : String, _ ts : (DateTime, DateTime
   }
   print(" mode=\(String(mode.rawValue, radix: 8))", terminator: "", to: &metafp)
   if let slink {
-    strsnvis(buf, buflen, slink, VIS_CSTYLE, extra);
-    fprintf(metafp, " link=%s", buf);
+    let sss = slink.string.utf8
+    let bufs : String = withUnsafeTemporaryAllocation(of: CChar.self, capacity: 4 * sss.count + 1) { ptr in
+      slink.string.withCString { src in
+        let _ : Int32 = VIS.strsnvis(ptr.baseAddress!, ptr.count, src, VIS_CSTYLE, nil) // extra
+        return String(cString: ptr.baseAddress!)
+      }
+    }
+    print(" link=\(bufs)", terminator: "", to: &metafp)
   }
   if type.first == "f" { /* type=file */
     print(" size=\(size)", terminator: "", to: &metafp)
   }
   if let ts, options.dopreserve {
-    fprintf(metafp, " time=%lld.%09ld",
-            (long long)ts[1].tv_sec, ts[1].tv_nsec);
+    let tx = String(ts.1.nanosecs)
+    let txy = String(repeating: "0", count: 9-tx.count)+tx
+    print(" time=\(ts.1).\(txy)", terminator: "", to: &metafp)
   }
   if let digestresult, let digest = options.digest {
     print(" \(digest)=\(digestresult)", terminator: "", to: &metafp)

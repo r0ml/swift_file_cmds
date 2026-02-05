@@ -576,8 +576,6 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
       guard let what = WhatToShow(rawValue: subfmt) else {
         // FIXME: take a substring of statfmt up to the point where the error is occuring
         errx(1, "\(tf): bad format")
-        // FIXME: exit more cleanly?
-        fatalError()
       }
 
       let buf = format1(st, file, tf, flags, size, prec, ofmt, hilo, what)

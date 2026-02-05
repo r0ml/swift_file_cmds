@@ -288,8 +288,6 @@ let unix2003_compat = true  // COMPAT_MODE("bin/chown", "Unix2003");
       }
     }
     errx(1, "\(name): illegal \(type) name")
-    // FIXME: should get out of here in a better way
-    fatalError()
   }
 
   var euid = geteuid()

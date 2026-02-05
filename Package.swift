@@ -22,8 +22,8 @@
 import PackageDescription
 import Foundation
 
-let WIP = ["install", "pax", "ipcrm", "ipcs", "mtree"]
-let TestWIP = ["installTest", "paxTest"]
+let WIP = ["pax", "ipcrm", "ipcs", "mtree"]
+let TestWIP = ["paxTest", "mtreeTest"]
 
 let package = Package(
   name: "file_cmds",
@@ -57,7 +57,7 @@ let package = Package(
 
 func generateLibs() -> [Target] {
   var res = [Target]()
-  for i in ["BZip2", "Curses"] {
+  for i in ["BZip2", "Curses", "VIS"] {
     let t = Target.systemLibrary(
       name: "C\(i)",
       path: "Vendors/\(i)",
@@ -93,6 +93,9 @@ func generateTargets() -> [Target] {
     if i == "gzip" {
       deps += [.target(name: "CBZip2"), .target(name: "CLZMA")]
 
+    }
+    if i == "install" {
+      deps += [.target(name: "CVIS") ]
     }
 
 //      let deps = baseDeps + [.target(name: "CCurses")] // + (additionalDeps[i] ?? []).map { .target(name: $0) }

@@ -144,7 +144,6 @@ let unix2003 = true
   func runCommand() async throws(CmdErr) {
     guard let ftsp = try? FTSWalker(path: options.args, options: options.fts_options, sort: nil) else {
       err(1, "")
-      fatalError()
     }
 
     var rval : Int32 = 0
@@ -243,8 +242,6 @@ let unix2003 = true
       }
     }
     errx(1, "\(name): illegal \(type) name")
-    // FIXME: should get out of here in a better way
-    fatalError()
   }
 
   var euid = geteuid()
