@@ -146,38 +146,39 @@ import Darwin
    * independent of the archive format. Data flow in and out of the format
    * dependent routines pass pointers to ARCHD structure (described below).
    */
-  struct FSUB {
-    var name : String  /* name of format, this is the name the user */
-          /* gives to -x option to select it. */
-    var bsz : UInt    /* default block size. used when the user */
-          /* does not specify a blocksize for writing */
-          /* Appends continue to with the blocksize */
-          /* the archive is currently using. */
-    var hsz : UInt    /* Header size in bytes. this is the size of */
-          /* the smallest header this format supports. */
-          /* Headers are assumed to fit in a BLKMULT. */
-          /* If they are bigger, get_head() and */
-          /* get_arc() must be adjusted */
-    var udev : UInt    /* does append require unique dev/ino? some */
-          /* formats use the device and inode fields */
-          /* to specify hard links. when members in */
-          /* the archive have the same inode/dev they */
-          /* are assumed to be hard links. During */
-          /* append we may have to generate unique ids */
-          /* to avoid creating incorrect hard links */
-    var hlk : Bool    /* does archive store hard links info? if */
-          /* not, we do not bother to look for them */
-          /* during archive write operations */
-    var blkalgn : Bool    /* writes must be aligned to blkalgn boundary */
-    var inhead : Bool    /* is the trailer encoded in a valid header? */
-          /* if not, trailers are assumed to be found */
-          /* in invalid headers (i.e like tar) */
-    var id : ([UInt8]) -> Bool  /* checks if a buffer is a valid header */
+  protocol FSUB {
+    var name : String { get set }  /* name of format, this is the name the user */
+    /* gives to -x option to select it. */
+    var bsz : UInt { get set }    /* default block size. used when the user */
+    /* does not specify a blocksize for writing */
+    /* Appends continue to with the blocksize */
+    /* the archive is currently using. */
+    var hsz : Int { get set }   /* Header size in bytes. this is the size of */
+    /* the smallest header this format supports. */
+    /* Headers are assumed to fit in a BLKMULT. */
+    /* If they are bigger, get_head() and */
+    /* get_arc() must be adjusted */
+    var udev : UInt { get set }   /* does append require unique dev/ino? some */
+    /* formats use the device and inode fields */
+    /* to specify hard links. when members in */
+    /* the archive have the same inode/dev they */
+    /* are assumed to be hard links. During */
+    /* append we may have to generate unique ids */
+    /* to avoid creating incorrect hard links */
+    var hlk : Bool { get set }    /* does archive store hard links info? if */
+    /* not, we do not bother to look for them */
+    /* during archive write operations */
+    var blkalgn : Bool { get set }    /* writes must be aligned to blkalgn boundary */
+    var inhead : Bool { get set }    /* is the trailer encoded in a valid header? */
+    /* if not, trailers are assumed to be found */
+    /* in invalid headers (i.e like tar) */
+
+    func id(_ : [UInt8]) -> Bool  /* checks if a buffer is a valid header */
           /* returns 1 if it is, o.w. returns a 0 */
-    var st_rd : () -> Bool  /* initialize routine for read. so format */
+    func st_rd() -> Bool  /* initialize routine for read. so format */
           /* can set up tables etc before it starts */
           /* reading an archive */
-    var rd : ([UInt8]) -> ARCHD?
+    func rd(_ : [UInt8]) -> ARCHD?
           /* read header routine. passed a pointer to */
           /* ARCHD. It must extract the info from the */
           /* format and store it in the ARCHD struct. */
@@ -190,12 +191,12 @@ import Darwin
           /* padding and the number of bytes of data */
           /* which follow the header. This info is */
           /* used skip to the next file header */
-    var end_rd : () -> Int  /* read cleanup. Allows format to clean up */
+    func end_rd() -> Int  /* read cleanup. Allows format to clean up */
           /* and MUST RETURN THE LENGTH OF THE TRAILER */
           /* RECORD (so append knows how many bytes */
           /* to move back to rewrite the trailer) */
-    var st_wr : () -> Bool  /* initialize routine for write operations */
-    var wr : (ARCHD) -> Bool?  /* write archive header. Passed an ARCHD */
+    func st_wr() -> Bool  /* initialize routine for write operations */
+    func wr(_ : ARCHD) -> Bool?  /* write archive header. Passed an ARCHD */
           /* filled with the specs on the next file to */
           /* archived. Returns a 1 if no file data is */
           /* is to be stored; 0 if file data is to be */
@@ -205,22 +206,22 @@ import Darwin
           /* the proper padding can be added after */
           /* file data. This routine must NEVER write */
           /* a flawed archive header. */
-    var end_wr : () -> Bool  /* end write. write the trailer and do any */
+    func end_wr() -> Bool  /* end write. write the trailer and do any */
           /* other format specific functions needed */
           /* at the end of an archive write */
-    var trail_cpio : (ARCHD) -> Bool
-    var trail_tar : ([UInt8], inout Int) -> Bool?
+    func trail_cpio(_ : ARCHD) -> Bool
+    func trail_tar(_ : [UInt8], _ : inout Int) -> Bool?
           /* returns 0 if a valid trailer, -1 if not */
           /* For formats which encode the trailer */
           /* outside of a valid header, a return value */
           /* of 1 indicates that the block passed to */
           /* it can never contain a valid header (skip */
           /* this block, no point in looking at it)  */
-    var rd_data : (ARCHD, Int, inout Int) -> Bool
+    func rd_data(_ : ARCHD,_ : Int,_ : inout Int) -> Bool
           /* read/process file data from the archive */
-    var wr_data : (ARCHD, Int, inout Int) -> Bool
+    func wr_data(_ : ARCHD,_ : Int, _ : inout Int) -> Bool
           /* write/process file data to the archive */
-    var options : () -> Bool  /* process format specific options (-o) */
+    func other_options() -> Bool  /* process format specific options (-o) */
   };
 
   enum PAXType : Int {

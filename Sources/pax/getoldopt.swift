@@ -13,17 +13,8 @@
  * in the Public Domain for your edification and enjoyment.
  */
 
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
 
-int getoldopt(int, char **, const char *);
-
-int
-getoldopt(int argc, char **argv, const char *optstring)
-{
+func getoldopt(_ argv : [String], _ optstring : String) -> String {
 	static char	*key;		/* Points to next keyletter */
 	static char	use_getopt;	/* !=0 if argv[1][0] was '-' */
 	char		c;

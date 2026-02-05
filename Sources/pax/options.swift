@@ -40,6 +40,10 @@ import CMigration
 import Darwin
 
 
+let GZIP_CMD = "gzip"    /* command to run as gzip */
+let COMPRESS_CMD = "compress"  /* command to run as compress */
+let BZIP2_CMD = "bzip2"    /* command to run as bzip2 */
+
 extension pax {
   /*
    * Routines which handle command line options
@@ -48,7 +52,8 @@ extension pax {
   static char flgch[] = FLGCH;	/* list of all possible flags */
   static OPLIST *ophead = NULL;	/* head for format specific options -x */
   static OPLIST *optail = NULL;	/* option tail */
-  
+
+  /*
   static int no_op(void);
   static void printflg(unsigned int);
   static int c_frmt(const void *, const void *);
@@ -60,18 +65,15 @@ extension pax {
   static void tar_usage(void);
   static void cpio_options(int, char **);
   static void cpio_usage(void);
-  
+  */
+
   /* errors from get_line */
   #define GETLINE_FILE_CORRUPT 1
   #define GETLINE_OUT_OF_MEM 2
   static int get_line_error;
   
   char *chdname;
-  
-  #define GZIP_CMD	"gzip"		/* command to run as gzip */
-  #define COMPRESS_CMD	"compress"	/* command to run as compress */
-  #define BZIP2_CMD	"bzip2"		/* command to run as bzip2 */
-  
+
   /*
    *	Format specific routine table - MUST BE IN SORTED ORDER BY NAME
    *	(see pax.h for description of each function)
@@ -81,42 +83,36 @@ extension pax {
    *	rd_data, wr_data, options
    */
   
-  FSUB fsub[] = {
+  static let fsub : [FSUB] = [
     /* 0: OLD BINARY CPIO */
-    {"bcpio", 5120, sizeof(HD_BCPIO), 1, 0, 0, 1, bcpio_id, cpio_strd,
-      bcpio_rd, bcpio_endrd, cpio_stwr, bcpio_wr, cpio_endwr, cpio_trail,
-      NULL, rd_wrfile, wr_rdfile, bad_opt},
+    bcpio.init(name: "bcpio", bsz: 5120, hsz: MemoryLayout<HD_BCPIO>.size, udev: 1, hlk: false, blkalgn: false, inhead: true),
+    // id: bcpio_id, st_rd: cpio_strd, rd: bcpio_rd, end_rd: bcpio_endrd, cpio_stwr, bcpio_wr, cpio_endwr, cpio_trail, NULL, rd_wrfile, wr_rdfile, bad_opt},
     
     /* 1: OLD OCTAL CHARACTER CPIO */
-    {"cpio", 5120, sizeof(HD_CPIO), 1, 0, 0, 1, cpio_id, cpio_strd,
-      cpio_rd, cpio_endrd, cpio_stwr, cpio_wr, cpio_endwr, cpio_trail,
-      NULL, rd_wrfile, wr_rdfile, bad_opt},
+    cpio.init(name: "cpio", bsz: 5120, hsz: MemoryLayout<HD_CPIO>.size, udev: 1, hlk: false, blkalgn: false, inhead: true),
+  // cpio_id, cpio_strd,  cpio_rd, cpio_endrd, cpio_stwr, cpio_wr, cpio_endwr, cpio_trail,  NULL, rd_wrfile, wr_rdfile, bad_opt},
     
     /* POSIX 3 PAX */
-    {"pax", 5120, BLKMULT, 0, 1, BLKMULT, 0, pax_id, ustar_strd,
-      pax_rd, tar_endrd, ustar_stwr, pax_wr, tar_endwr, NULL,	tar_trail,
-      rd_wrfile, wr_rdfile, pax_opt},
+    paxer.init("pax", 5120, BLKMULT, 0, 1, BLKMULT, 0),
+      // pax_id, ustar_strd, pax_rd, tar_endrd, ustar_stwr, pax_wr, tar_endwr, NULL,	tar_trail, rd_wrfile, wr_rdfile, pax_opt},
     
     /* 2: SVR4 HEX CPIO */
-    {"sv4cpio", 5120, sizeof(HD_VCPIO), 1, 0, 0, 1, vcpio_id, cpio_strd,
-      vcpio_rd, vcpio_endrd, cpio_stwr, vcpio_wr, cpio_endwr, cpio_trail,
-      NULL, rd_wrfile, wr_rdfile, bad_opt},
-    
+      vcpio.init("sv4cpio", 5120, sizeof(HD_VCPIO), 1, 0, 0, 1),
+      // vcpio_id, cpio_strd,  vcpio_rd, vcpio_endrd, cpio_stwr, vcpio_wr, cpio_endwr, cpio_trail,   NULL, rd_wrfile, wr_rdfile, bad_opt},
+
     /* 3: SVR4 HEX CPIO WITH CRC */
-    {"sv4crc", 5120, sizeof(HD_VCPIO), 1, 0, 0, 1, crc_id, crc_strd,
-      vcpio_rd, vcpio_endrd, crc_stwr, vcpio_wr, cpio_endwr, cpio_trail,
-      NULL, rd_wrfile, wr_rdfile, bad_opt},
+    vcpio_crc.init("sv4crc", 5120, sizeof(HD_VCPIO), 1, 0, 0, 1),
+      // crc_id, crc_strd,  vcpio_rd, vcpio_endrd, crc_stwr, vcpio_wr, cpio_endwr, cpio_trail,   NULL, rd_wrfile, wr_rdfile, bad_opt},
     
     /* 4: OLD TAR */
-    {"tar", 10240, BLKMULT, 0, 1, BLKMULT, 0, tar_id, no_op,
-      tar_rd, tar_endrd, no_op, tar_wr, tar_endwr, NULL, tar_trail,
-      rd_wrfile, wr_rdfile, tar_opt},
-    
+    tar.init("tar", 10240, BLKMULT, 0, 1, BLKMULT, 0),
+      // tar_id, no_op,  tar_rd, tar_endrd, no_op, tar_wr, tar_endwr, NULL, tar_trail,  rd_wrfile, wr_rdfile, tar_opt},
+
     /* 5: POSIX USTAR */
-    {"ustar", 10240, BLKMULT, 0, 1, BLKMULT, 0, ustar_id, ustar_strd,
-      ustar_rd, tar_endrd, ustar_stwr, ustar_wr, tar_endwr, NULL, tar_trail,
-      rd_wrfile, wr_rdfile, bad_opt},
-  };
+    ustar.init("ustar", 10240, BLKMULT, 0, 1, BLKMULT, 0),
+    // ustar_id, ustar_strd, ustar_rd, tar_endrd, ustar_stwr, ustar_wr, tar_endwr, NULL, tar_trail, rd_wrfile, wr_rdfile, bad_opt},
+  ]
+
   #define F_OCPIO	0	/* format when called as cpio -6 */
   #define F_ACPIO	1	/* format when called as cpio -c */
   
@@ -1446,38 +1442,6 @@ extension pax {
     if ((opt = ophead) != NULL)
         ophead = ophead->fow;
     return(opt);
-  }
-  
-  /*
-   * bad_opt()
-   *	generic routine used to complain about a format specific options
-   *	when the format does not support options.
-   */
-  
-  int
-  bad_opt(void)
-  {
-    OPLIST *opt;
-    
-    if (ophead == NULL)
-        return(0);
-    /*
-     * print all we were given
-     */
-    paxwarn(1,"These format options are not supported");
-    
-    while ((opt = opt_next()) != NULL) {
-      if (opt->separator == SEP_EQ) {
-        (void)fprintf(stderr, "\t%s = %s\n", opt->name, opt->value);
-      } else if (opt->separator == SEP_COLONEQ ) {
-        (void)fprintf(stderr, "\t%s := %s\n", opt->name, opt->value);
-      } else {	/* SEP_NONE */
-        (void)fprintf(stderr, "\t%s\n", opt->name);
-      }
-    }
-    
-    pax_usage();
-    return(0);
   }
   
   /*
