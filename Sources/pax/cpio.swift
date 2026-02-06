@@ -60,13 +60,14 @@ class cpio : bcpio {
    *      0 if a valid header, -1 otherwise
    */
 
-  int
-  cpio_id(char *blk, int size)
-  {
-    if ((size < (int)sizeof(HD_CPIO)) ||
-        (strncmp(blk, AMAGIC, sizeof(AMAGIC) - 1) != 0))
-        return(-1);
-    return(0);
+  override func id(_ blk : [UInt8]) -> Bool { // was cpio_id
+    if blk.count < hsz { return true }
+    let b = Array(AMAGIC.utf8CString.dropLast())
+    let a = blk.prefix(AMAGIC.count).map { CChar($0) }
+    if a != b {
+      return true
+    }
+    return false
   }
 
   /*
@@ -77,13 +78,11 @@ class cpio : bcpio {
    *  0 if a valid header, -1 otherwise.
    */
 
-  int
-  cpio_rd(ARCHD *arcn, char *buf)
-  {
+  override func rd(_ buf : [UInt8]) -> pax.ARCHD? {  // was cpio_rd
     int nsz;
     HD_CPIO *hd;
 
-    memset(arcn, 0, sizeof(*arcn));
+    var arcn = pax.ARCHD()
 
     /*
      * check that this is a valid header, if not return -1
@@ -154,10 +153,8 @@ class cpio : bcpio {
    *      size of trailer header in this format
    */
 
-  off_t
-  cpio_endrd(void)
-  {
-    return((off_t)(sizeof(HD_CPIO) + sizeof(TRAILER)));
+  override func end_rd() -> Int { // was  cpio_endrd(void)
+    return hsz + TRAILER.count
   }
 
   /*
@@ -169,9 +166,8 @@ class cpio : bcpio {
    *  data to write after the header, -1 if archive write failed
    */
 
-  int
-  cpio_wr(ARCHD *arcn)
-  {
+  override func wr(_ arcn: pax.ARCHD) -> Bool? { // was cpio_wr(ARCHD *arcn)
+
     HD_CPIO *hd;
     int nsz;
     HD_CPIO hdblk;
