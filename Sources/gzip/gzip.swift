@@ -234,7 +234,7 @@ from a file containing the following notice:
    static	off_t	infile_current;		/* current read/write */
    */
 
-  var longopts : [CMigration.option] = [
+  var longopts : [LongOption] = [
     .init("stdout",	.no_argument), //		0,	'c' },
     .init( "decompress",		.no_argument), //		0,	'd' },
     .init( "uncompress",		.no_argument), //		0,	'd' },

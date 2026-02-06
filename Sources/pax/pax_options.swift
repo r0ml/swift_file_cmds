@@ -46,7 +46,7 @@ extension pax {
    *  the user specified a legal set of flags. If not, complain and exit
    */
 
-  private func pax_options() -> CommandOptions {
+  func pax_options() -> CommandOptions {
     int c;
     size_t i;
     unsigned int flg = 0;

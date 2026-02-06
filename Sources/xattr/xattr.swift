@@ -368,8 +368,8 @@ options:
     }
   }
 
-  let long_opts: [CMigration.option] = [
-    option("help", .no_argument),
+  let long_opts: [LongOption] = [
+    .init("help", .no_argument),
   ]
 
 

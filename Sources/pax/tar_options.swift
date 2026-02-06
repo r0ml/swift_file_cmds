@@ -50,7 +50,7 @@ extension pax {
    *  the user specified a legal set of flags. If not, complain and exit
    */
 
-  private func tar_options() -> CommandOptions {
+  func tar_options() -> CommandOptions {
     int c;
     int fstdin = 0;
     int tar_Oflag = 0;

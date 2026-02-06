@@ -85,7 +85,7 @@ enum WhenColor : Int {
 #define	COLOR_OPT	(CHAR_MAX + 1)
 */
 
-let longOptions : [CMigration.option] = [
+let longOptions : [LongOption] = [
   .init("color",  .optional_argument),
   ]
 

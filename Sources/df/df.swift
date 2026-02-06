@@ -94,8 +94,8 @@ let unix2003 = true
   // static int	  skipvfs_l, skipvfs_t;
   // static const char **vfslist_l, **vfslist_t;
 
-  var long_options : [CMigration.option] = [
-    option("si", .no_argument),
+  var long_options : [LongOption] = [
+    .init("si", .no_argument),
   ]
 
   func parseOptions() throws(CmdErr) -> CommandOptions {

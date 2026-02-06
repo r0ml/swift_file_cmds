@@ -44,19 +44,20 @@ let GZIP_CMD = "gzip"    /* command to run as gzip */
 let COMPRESS_CMD = "compress"  /* command to run as compress */
 let BZIP2_CMD = "bzip2"    /* command to run as bzip2 */
 
+
+let NM_TAR = "tar"
+let NM_CPIO = "cpio"
+let NM_PAX = "pax"
+
+let NONE = "none"
+
 extension pax {
-
-
-  #define NM_TAR  "tar"
-  #define NM_CPIO "cpio"
-  #define NM_PAX  "pax"
 
   /*
    * Constants used to specify the legal sets of flags in pax. For each major
    * operation mode of pax, a set of illegal flags is defined. If any one of
    * those illegal flags are found set, we scream and exit
    */
-  #define NONE  "none"
 
   /*
    * flags (one for each option).
@@ -248,24 +249,21 @@ extension pax {
       return
     }
     else if (strcmp(NM_CPIO, argv0) == 0) {
-      cpio_options(argc, argv);
+      cpio_options()
       return;
     }
     /*
      * assume pax as the default
      */
     argv0 = NM_PAX;
-    pax_options(argc, argv);
+    pax_options()
     return;
   }
 
-  #define OPT_INSECURE 1
-  struct option pax_longopts[] = {
-    { "insecure",       no_argument,        0,  OPT_INSECURE },
-    { 0,                0,                  0,  0 },
-  };
-
-
+//  #define OPT_INSECURE 1
+  static let pax_longopts : [CMigration.option] = [
+    .init("insecure", .no_argument), //        0,  OPT_INSECURE },
+  ]
 
   private mkpath(_ path : String) -> Bool  {
     struct stat sb;

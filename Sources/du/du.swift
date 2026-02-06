@@ -144,8 +144,8 @@ struct ignentry {
    SLIST_INIT(&ignores);
    */
 
-  let long_opts : [CMigration.option] = [
-    option.init("si", .no_argument),
+  let long_opts : [LongOption] = [
+    .init("si", .no_argument),
     //    { "si", no_argument, NULL, SI_OPT },
   ]
 
