@@ -59,8 +59,8 @@ static struct stat arsb;		/* stat of archive device at open */
 static int invld_rec;			/* tape has out of spec record size */
 static int wr_trail = 1;		/* trailer was rewritten in append */
 static int can_unlnk = 0;		/* do we unlink null archives?  */
-const char *arcname;		  	/* printable name of archive */
-const char *gzip_program;		/* name of gzip program */
+// const char *arcname;		  	/* printable name of archive */
+// const char *gzip_program;		/* name of gzip program */
 static pid_t zpid = -1; 		/* pid of child process */
 
 static void ar_start_gzip(int, const char *, int);

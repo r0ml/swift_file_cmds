@@ -39,15 +39,16 @@
 import CMigration
 import Darwin
 
+let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
+        /* WARNING: increasing MAXBLK past 32256 */
+        /* will violate posix spec. */
+
 @main struct pax : ShellCommand {
 
   /*
    * BSD PAX global data structures and constants.
    */
 
-  let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
-          /* WARNING: increasing MAXBLK past 32256 */
-          /* will violate posix spec. */
   let MAXBLK_POSIX = 32256  /* MAX blocksize supported as per POSIX */
   let BLKMULT = 512  /* blocksize must be even mult of 512 bytes */
           /* Don't even think of changing this */
@@ -295,7 +296,7 @@ import Darwin
    */
     struct CommandOptions {
       var act = OpModes.LIST		/* read/write/append/copy */
-      var fmt : FSUB?       		/* archive format type */
+      var frmt : FSUB.Type?       		/* archive format type */
       var cflag : Bool = false			/* match all EXCEPT pattern/file */
       var cwdfd : FileDescriptor!			/* starting cwd */
       var dflag : Bool = false			/* directory member match only  */
@@ -329,6 +330,13 @@ import Darwin
       var argv0 : [String] = []  /* root of argv[0] */
 
       var listf = FileDescriptor.standardError       /* file pointer to print file list to */
+
+      var gzip_program : String? = "gzip"
+      var arcname : String? = "???"
+
+      var blksz = MAXBLK      /* block input/output size in bytes */
+      var wrblksz : Int?        /* user spec output size in bytes */
+
     }
 
     class Runtime {
@@ -508,7 +516,7 @@ import Darwin
     doOptions()
 
 
-    if ((gen_init() < 0) || (tty_init() < 0)) {
+    if gen_init() || tty_init() {
       exit(runtime.exit_val)
     }
     return options
@@ -525,7 +533,7 @@ import Darwin
       case .ARCHIVE:
         archive()
       case .APPND:
-        if let gzip_program {
+        if let _ = options.gzip_program {
           errx(1, "can not gzip while appending")
         }
         append()
@@ -556,9 +564,10 @@ import Darwin
       return true
     }
 
-    if o_hand.__sigaction_u.__sa_handler == SIG_IGN {
-      return false
-    }
+    // FIXME: put this back?
+//    if o_hand.__sigaction_u.__sa_handler == SIG_IGN {
+//      return false
+//    }
 
     return 0 != sigaction(sig, &n_hand, nil)
   }

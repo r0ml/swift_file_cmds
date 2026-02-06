@@ -48,257 +48,264 @@ extension pax {
    *  the user specified a legal set of flags. If not, complain and exit
    */
 
-  func cpio_options() -> CommandOptions {
-    int c;
+  func cpio_options() throws(CmdErr) -> CommandOptions {
+    var options = CommandOptions()
+
+/*    int c;
     size_t i;
     char *str;
     FSUB tmp;
     FILE *fp;
+*/
 
-    kflag = 1;
-    pids = 1;
-    pmode = 1;
-    pmtime = 0;
-    arcname = NULL;
-    dflag = 1;
-    act = -1;
-    nodirs = 1;
-    while ((c=getopt(argc,argv,"abcdfiklmoprstuvzABC:E:F:H:I:LO:SZ6")) != -1)
-            switch (c) {
-    case 'a':
-      /*
-       * preserve access time on files read
-       */
-      tflag = 1;
-      break;
-    case 'b':
-      /*
-       * swap bytes and half-words when reading data
-       */
-      break;
-    case 'c':
-      /*
-       * ASCII cpio header
-       */
-      frmt = &(fsub[F_ACPIO]);
-      break;
-    case 'd':
-      /*
-       * create directories as needed
-       */
-      nodirs = 0;
-      break;
-    case 'f':
-      /*
-       * invert meaning of pattern list
-       */
-      cflag = 1;
-      break;
-    case 'i':
-      /*
-       * restore an archive
-       */
-      act = EXTRACT;
-      break;
-    case 'k':
-      break;
-    case 'l':
-      /*
-       * use links instead of copies when possible
-       */
-      lflag = 1;
-      break;
-    case 'm':
-      /*
-       * preserve modification time
-       */
-      pmtime = 1;
-      break;
-    case 'o':
-      /*
-       * create an archive
-       */
-      act = ARCHIVE;
-      frmt = &(fsub[F_CPIO]);
-      break;
-    case 'p':
-      /*
-       * copy-pass mode
-       */
-      act = COPY;
-      break;
-    case 'r':
-      /*
-       * interactively rename files
-       */
-      iflag = 1;
-      break;
-    case 's':
-      /*
-       * swap bytes after reading data
-       */
-      break;
-    case 't':
-      /*
-       * list contents of archive
-       */
-      act = LIST;
-      listf = stdout;
-      break;
-    case 'u':
-      /*
-       * replace newer files
-       */
-      kflag = 0;
-      break;
-    case 'v':
-      /*
-       * verbose operation mode
-       */
-      vflag = 1;
-      break;
-    case 'z':
-      /*
-       * use gzip.  Non standard option.
-       */
-      gzip_program = GZIP_CMD;
-      break;
-    case 'A':
-      /*
-       * append mode
-       */
-      act = APPND;
-      break;
-    case 'B':
-      /*
-       * Use 5120 byte block size
-       */
-      wrblksz = 5120;
-      break;
-    case 'C':
-      /*
-       * set block size in bytes
-       */
-      wrblksz = atoi(optarg);
-      break;
-    case 'E':
-      /*
-       * file with patterns to extract or list
-       */
-      if ((fp = fopen(optarg, "r")) == NULL) {
-        paxwarn(1, "Unable to open file '%s' for read", optarg);
-        cpio_usage();
-      }
-      while ((str = get_line(fp)) != NULL) {
-        pat_add(str, NULL);
-      }
-      fclose(fp);
-      if (get_line_error) {
-        paxwarn(1, "Problem with file '%s'", optarg);
-        cpio_usage();
-      }
-      break;
-    case 'F':
-    case 'I':
-    case 'O':
-      /*
-       * filename where the archive is stored
-       */
-      if ((optarg[0] == '-') && (optarg[1]== '\0')) {
-        /*
-         * treat a - as stdin
-         */
-        arcname = NULL;
-        break;
-      }
-      arcname = optarg;
-      break;
-    case 'H':
-      /*
-       * specify an archive format on write
-       */
-      tmp.name = optarg;
-      if ((frmt = (FSUB *)bsearch((void *)&tmp, (void *)fsub,
-                                  sizeof(fsub)/sizeof(FSUB), sizeof(FSUB), c_frmt)) != NULL)
-          break;
-      paxwarn(1, "Unknown -H format: %s", optarg);
-      (void)fputs("cpio: Known -H formats are:", stderr);
-      for (i = 0; i < (sizeof(fsub)/sizeof(FSUB)); ++i)
+    options.kflag = true
+    options.pids = true
+    options.pmode = true
+    options.pmtime = false
+    options.arcname = nil
+    options.dflag = true
+    options.act = OpModes(rawValue: 0)!
+    options.nodirs = true
+
+    let opts = "abcdfiklmoprstuvzABC:E:F:H:I:LO:SZ6"
+    let go = BSDGetopt(opts)
+    while let (c, v) = try go.getopt() {
+      switch c {
+        case "a":
+          /*
+           * preserve access time on files read
+           */
+          options.tflag = true
+        case "b":
+          /*
+           * swap bytes and half-words when reading data
+           */
+          break
+        case "c":
+          /*
+           * ASCII cpio header
+           */
+          options.frmt = cpio.self // &(fsub[F_ACPIO]);
+
+        case "d":
+          /*
+           * create directories as needed
+           */
+          options.nodirs = false
+        case "f":
+          /*
+           * invert meaning of pattern list
+           */
+          options.cflag = true
+        case "i":
+          /*
+           * restore an archive
+           */
+          options.act = .EXTRACT
+
+        case "k":
+          break
+        case "l":
+          /*
+           * use links instead of copies when possible
+           */
+          options.lflag = true
+
+        case "m":
+          /*
+           * preserve modification time
+           */
+          options.pmtime = true
+
+        case "o":
+          /*
+           * create an archive
+           */
+          options.act = .ARCHIVE;
+          options.frmt = vcpio_crc() //  &(fsub[F_CPIO]);
+
+        case "p":
+          /*
+           * copy-pass mode
+           */
+          options.act = .COPY
+
+        case "r":
+          /*
+           * interactively rename files
+           */
+          options.iflag = true
+
+        case "s":
+          /*
+           * swap bytes after reading data
+           */
+          break
+        case "t":
+          /*
+           * list contents of archive
+           */
+          options.act = .LIST
+          options.listf = FileDescriptor.standardOutput
+
+        case "u":
+          /*
+           * replace newer files
+           */
+          options.kflag = false
+
+        case "v":
+          /*
+           * verbose operation mode
+           */
+          options.vflag = true
+
+        case "z":
+          /*
+           * use gzip.  Non standard option.
+           */
+          options.gzip_program = GZIP_CMD
+
+        case "A":
+          /*
+           * append mode
+           */
+          options.act = .APPND
+
+        case "B":
+          /*
+           * Use 5120 byte block size
+           */
+          options.wrblksz = 5120
+
+        case "C":
+          /*
+           * set block size in bytes
+           */
+          // FIXME: throw error for invalid Int?
+          options.wrblksz = Int(v)
+
+        case "E":
+          /*
+           * file with patterns to extract or list
+           */
+          if ((fp = fopen(optarg, "r")) == NULL) {
+            paxwarn(1, "Unable to open file '%s' for read", optarg);
+            cpio_usage();
+          }
+          while ((str = get_line(fp)) != NULL) {
+            pat_add(str, NULL);
+          }
+          fclose(fp);
+          if (get_line_error) {
+            paxwarn(1, "Problem with file '%s'", optarg);
+            cpio_usage();
+          }
+
+        case "F", "I", "O":
+          /*
+           * filename where the archive is stored
+           */
+          if v == "-" {
+            /*
+             * treat a - as stdin
+             */
+            options.arcname = nil
+          } else {
+            options.arcname = v
+          }
+
+        case "H":
+          /*
+           * specify an archive format on write
+           */
+          let fsubs = ["bcpio" : bcpio.self, "cpio" : cpio.self, "pax" : paxer.self, "sv4cpio" : vcpio.self, "sv4crc" : vcpio_crc.self, "tar" : tar.self, "ustar" : ustar.self]
+          if let frmt = fsubs[v] {
+            options.frmt = frmt
+            break
+          }
+
+          paxwarn(true, "Unknown -H format: \(v)")
+          var se = FileDescriptor.standardError
+          print("cpio: Known -H formats are:", terminator: "", to: &se)
+          for (i = 0; i < (sizeof(fsub)/sizeof(FSUB)); ++i) {
             (void)fprintf(stderr, " %s", fsub[i].name);
-      (void)fputs("\n\n", stderr);
-      cpio_usage();
-      break;
-    case 'L':
-      /*
-       * follow symbolic links
-       */
-      Lflag = 1;
-      break;
-    case 'S':
-      /*
-       * swap halfwords after reading data
-       */
-      break;
-    case 'Z':
-      /*
-       * use compress.  Non standard option.
-       */
-      gzip_program = COMPRESS_CMD;
-      break;
-    case '6':
-      /*
-       * process Version 6 cpio format
-       */
-      frmt = &(fsub[F_OCPIO]);
-      break;
-    case '?':
-    default:
-      cpio_usage();
-      break;
-    }
-    argc -= optind;
-    argv += optind;
+          }
+          (void)fputs("\n\n", stderr);
+          cpio_usage();
+          break;
+        case "L":
+          /*
+           * follow symbolic links
+           */
+          Lflag = 1;
+          break;
+        case "S":
+          /*
+           * swap halfwords after reading data
+           */
+          break;
+        case "Z":
+          /*
+           * use compress.  Non standard option.
+           */
+          gzip_program = COMPRESS_CMD;
+          break;
+        case "6":
+          /*
+           * process Version 6 cpio format
+           */
+          frmt = &(fsub[F_OCPIO]);
+          break;
+        case "?":
+        default:
+          cpio_usage();
+          break;
+      }
+      argc -= optind;
+      argv += optind;
 
-    /*
-     * process the args as they are interpreted by the operation mode
-     */
-    switch (act) {
-      case LIST:
-      case EXTRACT:
-        while (*argv != NULL)
-                if (pat_add(*argv++, NULL) < 0)
-                cpio_usage();
-        break;
-      case COPY:
-        if (*argv == NULL) {
-          paxwarn(0, "Destination directory was not supplied");
-          cpio_usage();
-        }
-        dirptr = *argv;
-        if (mkpath(dirptr) < 0)
+      /*
+       * process the args as they are interpreted by the operation mode
+       */
+      switch (act) {
+        case LIST:
+        case EXTRACT:
+          while (*argv != NULL)
+                  if (pat_add(*argv++, NULL) < 0)
+                  cpio_usage();
+          break;
+        case COPY:
+          if (*argv == NULL) {
+            paxwarn(0, "Destination directory was not supplied");
             cpio_usage();
-        --argc;
-        ++argv;
-        /* FALLTHROUGH */
-      case ARCHIVE:
-      case APPND:
-        if (*argv != NULL)
+          }
+          dirptr = *argv;
+          if (mkpath(dirptr) < 0)
+              cpio_usage();
+          --argc;
+          ++argv;
+          /* FALLTHROUGH */
+        case ARCHIVE:
+        case APPND:
+          if (*argv != NULL)
+              cpio_usage();
+          /*
+           * no read errors allowed on updates/append operation!
+           */
+          maxflt = 0;
+          while ((str = get_line(stdin)) != NULL) {
+            ftree_add(str, 0);
+          }
+          if (get_line_error) {
+            paxwarn(1, "Problem while reading stdin");
             cpio_usage();
-        /*
-         * no read errors allowed on updates/append operation!
-         */
-        maxflt = 0;
-        while ((str = get_line(stdin)) != NULL) {
-          ftree_add(str, 0);
-        }
-        if (get_line_error) {
-          paxwarn(1, "Problem while reading stdin");
+          }
+          break;
+        default:
           cpio_usage();
-        }
-        break;
-      default:
-        cpio_usage();
-        break;
+          break;
+      }
     }
   }
 }

@@ -40,6 +40,13 @@ import CMigration
 import Darwin
 
 class cpio : bcpio {
+  override var name: String { get { "cpio" } set { } }
+  override var bsz: UInt { get { 5120 } set { } }
+  override var hsz: Int { get { MemoryLayout<HD_CPIO>.size } set { } }
+  override var udev: UInt { get { 1 } set { } }
+  override var hlk: Bool { get { false } set { } }
+  override var blkalgn: Bool { get { false } set { } }
+  override var inhead: Bool { get { true } set { } }
 
   /*
    * Routines common to the extended byte oriented cpio format
@@ -282,3 +289,4 @@ class cpio : bcpio {
   }
 
 }
+

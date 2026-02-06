@@ -56,8 +56,8 @@ extension pax {
   static char *buf;			/* normal start of i/o buffer */
   static char *bufend;			/* end or last char in i/o buffer */
   static char *bufpt;			/* read/write point in i/o buffer */
-  int blksz = MAXBLK;			/* block input/output size in bytes */
-  int wrblksz;				/* user spec output size in bytes */
+//  int blksz = MAXBLK;			/* block input/output size in bytes */
+//  int wrblksz;				/* user spec output size in bytes */
   int maxflt = MAXFLT;			/* MAX consecutive media errors */
   int rdblksz;				/* first read blksize (tapes only) */
   off_t wrlimit;				/* # of bytes written per archive vol */
