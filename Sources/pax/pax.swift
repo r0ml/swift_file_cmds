@@ -482,35 +482,32 @@ import Darwin
       exit(runtime.exit_val)
     }
 
-    if (updatepath() == -1) {
+    if updatepath() {
       exit(runtime.exit_val)
     }
 
     /*
      * Where should we put temporary files?
      */
-    if ((tmpdir = getenv("TMPDIR")) == NULL || *tmpdir == '\0') {
-      tmpdir = _PATH_TMP;
+    var td = Environment["TMPDIR"]
+    if td == nil || td!.isEmpty {
+      td = _PATH_TMP
     }
-    tdlen = strlen(tmpdir);
-    while (tdlen > 0 && tmpdir[tdlen - 1] == '/') {
-      tdlen--;
-    }
-    tempfile = malloc(tdlen + 1 + sizeof(_TFILE_BASE));
-    if (tempfile == NULL) {
-      paxwarn(true, "Cannot allocate memory for temp file name.")
-      exit(runtime.exit_val)
-    }
-    if (tdlen) {
-      memcpy(tempfile, tmpdir, tdlen);
-    }
+    var tmpdir = td!
+
+    while tmpdir.last == "/" { tmpdir.removeLast() }
+
+    tempfile = tmpdir + "/"
+
     tempbase = tempfile + tdlen;
     *tempbase++ = '/';
 
     /*
      * parse options, determine operational mode, general init
      */
-    options(argc, argv);
+    doOptions()
+
+
     if ((gen_init() < 0) || (tty_init() < 0)) {
       exit(runtime.exit_val)
     }

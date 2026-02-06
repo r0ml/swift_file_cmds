@@ -52,20 +52,16 @@ extension pax {
   static char	cwdpath[MAXPATHLEN];	/* current working directory path */
   static size_t	cwdpathlen;		/* current working directory path len */
 
-  int
-  updatepath(void)
-  {
+  func updatepath() -> Bool {
     if (getcwd(cwdpath, sizeof(cwdpath)) == NULL) {
       syswarn(1, errno, "Cannot get working directory");
-      return -1;
+      return true
     }
     cwdpathlen = strlen(cwdpath);
-    return 0;
+    return false
   }
 
-  int
-  fdochdir(int fcwd)
-  {
+  func fdochdir(_ fcwd : FileDescriptor) -> Bool {
     if (fchdir(fcwd) == -1) {
       syswarn(1, errno, "Cannot chdir to `.'");
       return -1;
@@ -73,17 +69,13 @@ extension pax {
     return updatepath();
   }
 
-  int
-  dochdir(const char *name)
-  {
+  func dochdir(_ name : String) -> Bool {
     if (chdir(name) == -1)
         syswarn(1, errno, "Cannot chdir to `%s'", name);
     return updatepath();
   }
 
-  static int
-  path_check(ARCHD *arcn, int level)
-  {
+  private func path_check(_ arcn: ARCHD, _ level : Int) -> Bool {
     char buf[MAXPATHLEN];
     char *p;
 
@@ -122,9 +114,7 @@ extension pax {
    *	(no pattern matches all).
    */
 
-  void
-  list(void)
-  {
+  func list() {
     ARCHD *arcn;
     int res;
     ARCHD archd;
@@ -219,9 +209,7 @@ extension pax {
    *	pattern(s) (no patterns extracts all members)
    */
 
-  void
-  extract(void)
-  {
+  func extract() {
     ARCHD *arcn;
     int res;
     off_t cnt;
@@ -488,9 +476,7 @@ extension pax {
    *	previously written archive.
    */
 
-  static void
-  wr_archive(ARCHD *arcn, int is_app)
-  {
+  private func wr_archive(_ arcn : ARCHD, _ is_app : Bool) {
     int res;
     int hlk;
     int wr_one;
@@ -812,9 +798,7 @@ extension pax {
    *	over write existing files that it creates.
    */
 
-  void
-  append(void)
-  {
+  func append() {
     ARCHD *arcn;
     int res;
     ARCHD archd;
@@ -957,9 +941,7 @@ extension pax {
    *	write a new archive
    */
 
-  void
-  archive(void)
-  {
+  func archive() {
     ARCHD archd;
 
     /*
@@ -985,9 +967,7 @@ extension pax {
    *	(except the files are forced to be under the destination directory).
    */
 
-  void
-  copy(void)
-  {
+  func copy() {
     ARCHD *arcn;
     int res;
     int fddest;
@@ -1286,9 +1266,7 @@ extension pax {
    *	the specs for rd_wrbuf() for more details)
    */
 
-  static int
-  next_head(ARCHD *arcn)
-  {
+  private func next_head(_ arcn : ARCHD) -> Bool {
     int ret;
     char *hdend;
     int res;
@@ -1437,9 +1415,7 @@ extension pax {
    *	0 if archive found -1 otherwise
    */
 
-  static int
-  get_arc(void)
-  {
+  private func get_arc() -> Bool {
     int i;
     int hdsz = 0;
     int res;

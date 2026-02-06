@@ -36,16 +36,6 @@
  * SUCH DAMAGE.
  */
 
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <string.h>
-#include <stdio.h>
-#include <pwd.h>
-#include <grp.h>
-#include <stdlib.h>
-#include "pax.h"
-#include "cache.h"
-#include "extern.h"
 
 /*
  * routines that control user, group, uid and gid caches (for the archive
