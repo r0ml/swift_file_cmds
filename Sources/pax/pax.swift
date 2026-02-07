@@ -109,7 +109,7 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
     var name : String    /* file name */
     var ln_name : String /* name to link to (if any) */
     var org_name : String /* orig name in file system */
-    var pat : PATTERN     /* ptr to pattern match (if any) */
+    var pat : PATTERN?    /* ptr to pattern match (if any) */
     var sb : FileMetadata /* stat buffer see stat(2) */
     var pad : Int         /* bytes of padding after file xfer */
     var skip : Int        /* bytes of real data after header */
@@ -281,9 +281,9 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
 
   let _HAVE_REGCOMP_  = 1
 
-  let _TFILE_BASE = "paxXXXXXXXXXX"
 
-
+  let tables = Tables()
+  let cache = Cache()
 
 
 

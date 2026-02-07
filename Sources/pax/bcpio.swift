@@ -173,33 +173,19 @@ let AVCMAGIC = "070702"  /* ascii string of above */
 
 
 class bcpio : pax.FSUB {
-  var name: String
-
-  var bsz: UInt
-
-  var hsz: Int
-
-  var udev: UInt
-
-  var hlk: Bool
-
-  var blkalgn: Bool
-
-  var inhead: Bool
+  var name: String { get { "bcpio" } set { } }
+  var bsz: UInt { get { 5120 } set { } }
+  var hsz: Int { get { MemoryLayout<HD_BCPIO>.size } set { } }
+  var udev: UInt { get { 1 } set { } }
+  var hlk: Bool { get { false } set { } }
+  var blkalgn: Bool { get { false } set { } }
+  var inhead: Bool { get { true } set { } }
 
   func trail_tar(_: [UInt8], _: inout Int) -> Bool? {
     fatalError("only for tar")
   }
 
-  init(name : String, bsz : UInt, hsz : Int, udev : UInt, hlk : Bool, blkalgn : Bool, inhead : Bool) {
-    self.name = name
-    self.bsz = bsz
-    self.hsz = hsz
-    self.udev = udev
-    self.hlk = hlk
-    self.blkalgn = blkalgn
-    self.inhead = inhead
-  }
+  init() {  }
 
   /*
    * Routines which support the different cpio versions
@@ -219,7 +205,7 @@ class bcpio : pax.FSUB {
    */
 
   func st_rd() -> Bool {  // was cpio_strd
-    return(lnk_start())
+//    return(lnk_start())
   }
 
   /*
@@ -232,13 +218,14 @@ class bcpio : pax.FSUB {
    *	0 if a valid trailer, -1 if not a valid trailer,
    */
 
-  func trail_cpio(_ arcn : pax.ARCHD) {
+  func trail_cpio(_ arcn : pax.ARCHD) -> Bool {
     /*
      * look for trailer id in file we are about to process
      */
-    if ((strcmp(arcn.name, TRAILER) == 0) && (arcn->sb.st_size == 0))
-        return(0);
-    return(-1);
+    if arcn.name == TRAILER && arcn.sb.size == 0 {
+      return false
+    }
+    return true
   }
 
   /*
@@ -252,40 +239,36 @@ class bcpio : pax.FSUB {
     arcn.skip = 0
     arcn.pat = nil
     arcn.org_name = arcn.name
-    switch arcn.sb.fileype {
-      case C_ISFIFO:
-        arcn->type = PAX_FIF;
-        break;
-      case C_ISDIR:
-        arcn->type = PAX_DIR;
-        break;
-      case C_ISBLK:
-        arcn->type = PAX_BLK;
-        break;
-      case C_ISCHR:
-        arcn->type = PAX_CHR;
-        break;
-      case C_ISLNK:
-        arcn->type = PAX_SLK;
-        break;
-      case C_ISOCK:
-        arcn->type = PAX_SCK;
-        break;
-      case C_ISCTG:
-      case C_ISREG:
+    switch arcn.sb.filetype {
+      case .fifo:
+        arcn.type = .FIF
+      case .directory:
+        arcn.type = .DIR
+      case .blockDevice:
+        arcn.type = .BLK
+      case .characterDevice:
+        arcn.type = .CHR
+      case .symbolicLink:
+        arcn.type = .SLK
+      case .socket:
+        arcn.type = .SCK
+//      case C_ISCTG:  where is this set?
+      case .regular:
+        fallthrough
       default:
         /*
          * we have file data, set up skip (pad is set in the format
          * specific sections)
          */
-        arcn->sb.st_mode = (arcn->sb.st_mode & 0xfff) | C_ISREG;
-        arcn->type = PAX_REG;
-        arcn->skip = arcn->sb.st_size;
+        // arcn.sb.permissions = arcn.sb.permissions // |
+        arcn.sb.filetype = .regular
+        arcn.type = .REG
+        arcn.skip = Int(arcn.sb.size)
         break;
     }
-    if (chk_lnk(arcn) < 0)
-        return(-1);
-    return(0);
+
+    tables.chk_lnk(arcn)
+    return false
   }
 
   /*
@@ -436,52 +419,52 @@ class bcpio : pax.FSUB {
     HD_BCPIO *hd;
     int nsz;
 
-    memset(arcn, 0, sizeof(*arcn));
+    var arcn = ARCHD()
 
     /*
      * check the header
      */
-    if (bcpio_id(buf, sizeof(HD_BCPIO)) < 0) {
+    if (bcpio_id(buf, hsz) < 0) {
       return(-1);
     }
 
-    arcn->pad = 0L;
+    arcn.pad = 0
     hd = (HD_BCPIO *)buf;
     if (swp_head) {
       /*
        * header has swapped bytes on 16 bit boundaries
        */
-      arcn->sb.st_dev = (dev_t)(RSHRT_EXT(hd->h_dev));
-      arcn->sb.st_ino = (ino_t)(RSHRT_EXT(hd->h_ino));
-      arcn->sb.st_mode = (mode_t)(RSHRT_EXT(hd->h_mode));
-      arcn->sb.st_uid = (uid_t)(RSHRT_EXT(hd->h_uid));
-      arcn->sb.st_gid = (gid_t)(RSHRT_EXT(hd->h_gid));
-      arcn->sb.st_nlink = (nlink_t)(RSHRT_EXT(hd->h_nlink));
-      arcn->sb.st_rdev = (dev_t)(RSHRT_EXT(hd->h_rdev));
-      arcn->sb.st_mtime = (time_t)(RSHRT_EXT(hd->h_mtime_1));
-      arcn->sb.st_mtime =  (arcn->sb.st_mtime << 16) |
+      arcn.sb.st_dev = (dev_t)(RSHRT_EXT(hd->h_dev));
+      arcn.sb.st_ino = (ino_t)(RSHRT_EXT(hd->h_ino));
+      arcn.sb.st_mode = (mode_t)(RSHRT_EXT(hd->h_mode));
+      arcn.sb.st_uid = (uid_t)(RSHRT_EXT(hd->h_uid));
+      arcn.sb.st_gid = (gid_t)(RSHRT_EXT(hd->h_gid));
+      arcn.sb.st_nlink = (nlink_t)(RSHRT_EXT(hd->h_nlink));
+      arcn.sb.st_rdev = (dev_t)(RSHRT_EXT(hd->h_rdev));
+      arcn.sb.st_mtime = (time_t)(RSHRT_EXT(hd->h_mtime_1));
+      arcn.sb.st_mtime =  (arcn->sb.st_mtime << 16) |
       ((time_t)(RSHRT_EXT(hd->h_mtime_2)));
-      arcn->sb.st_size = (off_t)(RSHRT_EXT(hd->h_filesize_1));
-      arcn->sb.st_size = (arcn->sb.st_size << 16) |
+      arcn.sb.st_size = (off_t)(RSHRT_EXT(hd->h_filesize_1));
+      arcn.sb.st_size = (arcn->sb.st_size << 16) |
       ((off_t)(RSHRT_EXT(hd->h_filesize_2)));
       nsz = (int)(RSHRT_EXT(hd->h_namesize));
     } else {
-      arcn->sb.st_dev = (dev_t)(SHRT_EXT(hd->h_dev));
-      arcn->sb.st_ino = (ino_t)(SHRT_EXT(hd->h_ino));
-      arcn->sb.st_mode = (mode_t)(SHRT_EXT(hd->h_mode));
-      arcn->sb.st_uid = (uid_t)(SHRT_EXT(hd->h_uid));
-      arcn->sb.st_gid = (gid_t)(SHRT_EXT(hd->h_gid));
-      arcn->sb.st_nlink = (nlink_t)(SHRT_EXT(hd->h_nlink));
-      arcn->sb.st_rdev = (dev_t)(SHRT_EXT(hd->h_rdev));
-      arcn->sb.st_mtime = (time_t)(SHRT_EXT(hd->h_mtime_1));
-      arcn->sb.st_mtime =  (arcn->sb.st_mtime << 16) |
+      arcn.sb.st_dev = (dev_t)(SHRT_EXT(hd->h_dev));
+      arcn.sb.st_ino = (ino_t)(SHRT_EXT(hd->h_ino));
+      arcn.sb.st_mode = (mode_t)(SHRT_EXT(hd->h_mode));
+      arcn.sb.st_uid = (uid_t)(SHRT_EXT(hd->h_uid));
+      arcn.sb.st_gid = (gid_t)(SHRT_EXT(hd->h_gid));
+      arcn.sb.st_nlink = (nlink_t)(SHRT_EXT(hd->h_nlink));
+      arcn.sb.st_rdev = (dev_t)(SHRT_EXT(hd->h_rdev));
+      arcn.sb.st_mtime = (time_t)(SHRT_EXT(hd->h_mtime_1));
+      arcn.sb.st_mtime =  (arcn->sb.st_mtime << 16) |
       ((time_t)(SHRT_EXT(hd->h_mtime_2)));
-      arcn->sb.st_size = (off_t)(SHRT_EXT(hd->h_filesize_1));
-      arcn->sb.st_size = (arcn->sb.st_size << 16) |
+      arcn.sb.st_size = (off_t)(SHRT_EXT(hd->h_filesize_1));
+      arcn.sb.st_size = (arcn->sb.st_size << 16) |
       ((off_t)(SHRT_EXT(hd->h_filesize_2)));
       nsz = (int)(SHRT_EXT(hd->h_namesize));
     }
-    arcn->sb.st_ctime = arcn->sb.st_atime = arcn->sb.st_mtime;
+    arcn.sb.st_ctime = arcn.sb.st_atime = arcn.sb.st_mtime;
 
     /*
      * check the file name size, if bogus give up. otherwise read the file
@@ -498,7 +481,7 @@ class bcpio : pax.FSUB {
     /*
      * header + file name are aligned to 2 byte boundaries, skip if needed
      */
-    if (rd_skip((off_t)(BCPIO_PAD(sizeof(HD_BCPIO) + nsz))) < 0) {
+    if (rd_skip((off_t)(BCPIO_PAD(hsz + nsz))) < 0) {
       return(-1);
     }
 
@@ -506,13 +489,13 @@ class bcpio : pax.FSUB {
      * if not a link (or a file with no data), calculate pad size (for
      * padding which follows the file data), clear the link name and return
      */
-    if (((arcn->sb.st_mode & C_IFMT) != C_ISLNK)||(arcn->sb.st_size == 0)){
+    if (((arcn.sb.st_mode & C_IFMT) != C_ISLNK)||(arcn.sb.st_size == 0)){
       /*
        * we have a valid header (not a link)
        */
-      arcn->ln_nlen = 0;
-      arcn->ln_name[0] = '\0';
-      arcn->pad = BCPIO_PAD(arcn->sb.st_size);
+      arcn.ln_nlen = 0;
+      arcn.ln_name[0] = '\0';
+      arcn.pad = BCPIO_PAD(arcn.sb.st_size);
       return(com_rd(arcn));
     }
 
@@ -535,7 +518,7 @@ class bcpio : pax.FSUB {
    */
 
   func end_rd() -> Int { // was bcpio_endrd
-    return (sizeof(HD_BCPIO) + sizeof(TRAILER) +
+    return (hsz + sizeof(TRAILER) +
                    (BCPIO_PAD(sizeof(HD_BCPIO) + sizeof(TRAILER))));
   }
 
@@ -907,7 +890,7 @@ class bcpio : pax.FSUB {
     /*
      * print all we were given
      */
-    paxwarn(1,"These format options are not supported");
+    paxwarn(true,"These format options are not supported");
 
     while ((opt = opt_next()) != NULL) {
       if (opt->separator == SEP_EQ) {

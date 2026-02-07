@@ -41,12 +41,7 @@ import Darwin
 
 class cpio : bcpio {
   override var name: String { get { "cpio" } set { } }
-  override var bsz: UInt { get { 5120 } set { } }
   override var hsz: Int { get { MemoryLayout<HD_CPIO>.size } set { } }
-  override var udev: UInt { get { 1 } set { } }
-  override var hlk: Bool { get { false } set { } }
-  override var blkalgn: Bool { get { false } set { } }
-  override var inhead: Bool { get { true } set { } }
 
   /*
    * Routines common to the extended byte oriented cpio format
@@ -96,19 +91,19 @@ class cpio : bcpio {
      * byte oriented cpio (posix) does not have padding! extract the octal
      * ascii fields from the header
      */
-    arcn->pad = 0L;
-    arcn->sb.st_dev = (dev_t)asc_ul(hd->c_dev, sizeof(hd->c_dev), OCT);
-    arcn->sb.st_ino = (ino_t)asc_ul(hd->c_ino, sizeof(hd->c_ino), OCT);
-    arcn->sb.st_mode = (mode_t)asc_ul(hd->c_mode, sizeof(hd->c_mode), OCT);
-    arcn->sb.st_uid = (uid_t)asc_ul(hd->c_uid, sizeof(hd->c_uid), OCT);
-    arcn->sb.st_gid = (gid_t)asc_ul(hd->c_gid, sizeof(hd->c_gid), OCT);
-    arcn->sb.st_nlink = (nlink_t)asc_ul(hd->c_nlink, sizeof(hd->c_nlink),
+    arcn.pad = 0
+    arcn.sb.st_dev = (dev_t)asc_ul(hd->c_dev, sizeof(hd->c_dev), OCT);
+    arcn.sb.st_ino = (ino_t)asc_ul(hd->c_ino, sizeof(hd->c_ino), OCT);
+    arcn.sb.st_mode = (mode_t)asc_ul(hd->c_mode, sizeof(hd->c_mode), OCT);
+    arcn.sb.st_uid = (uid_t)asc_ul(hd->c_uid, sizeof(hd->c_uid), OCT);
+    arcn.sb.st_gid = (gid_t)asc_ul(hd->c_gid, sizeof(hd->c_gid), OCT);
+    arcn.sb.st_nlink = (nlink_t)asc_ul(hd->c_nlink, sizeof(hd->c_nlink),
                                         OCT);
-    arcn->sb.st_rdev = (dev_t)asc_ul(hd->c_rdev, sizeof(hd->c_rdev), OCT);
-    arcn->sb.st_mtime = (time_t)asc_uqd(hd->c_mtime, sizeof(hd->c_mtime),
+    arcn.sb.st_rdev = (dev_t)asc_ul(hd->c_rdev, sizeof(hd->c_rdev), OCT);
+    arcn.sb.st_mtime = (time_t)asc_uqd(hd->c_mtime, sizeof(hd->c_mtime),
                                         OCT);
-    arcn->sb.st_ctime = arcn->sb.st_atime = arcn->sb.st_mtime;
-    arcn->sb.st_size = (off_t)asc_uqd(hd->c_filesize,sizeof(hd->c_filesize),
+    arcn.sb.st_ctime = arcn->sb.st_atime = arcn->sb.st_mtime;
+    arcn.sb.st_size = (off_t)asc_uqd(hd->c_filesize,sizeof(hd->c_filesize),
                                       OCT);
 
     /*
@@ -175,29 +170,26 @@ class cpio : bcpio {
     /*
      * check and repair truncated device and inode fields in the header
      */
-    if (map_dev(arcn, (u_long)CPIO_MASK, (u_long)CPIO_MASK) < 0) {
-      return(-1);
+    if (map_dev(arcn, CPIO_MASK, CPIO_MASK) < 0) {
+      return true
     }
 
-    arcn->pad = 0L;
-    nsz = arcn->nlen + 1;
+    arcn.pad = 0
+    nsz = arcn.nlen + 1
     hd = &hdblk;
-    if ((arcn->type != PAX_BLK) && (arcn->type != PAX_CHR)) {
-      arcn->sb.st_rdev = 0;
+    if arcn.type != .BLK && arcn.type != .CHR {
+      arcn.sb.st_rdev = 0
     }
 
-    switch(arcn->type) {
-      case PAX_CTG:
-      case PAX_REG:
-      case PAX_HRG:
+    switch arcn.type {
+      case .CTG, .REG, .HRG:
         /*
          * set data size for file data
          */
-        if (uqd_asc((u_quad_t)arcn->sb.st_size, hd->c_filesize,
-                    sizeof(hd->c_filesize), OCT)) {
-          paxwarn(1,"File is too large for cpio format %s",
-                  arcn->org_name);
-          return(1);
+        if (uqd_asc((u_quad_t)arcn.sb.st_size, hd.c_filesize,
+                    sizeof(hd.c_filesize), OCT)) {
+          paxwarn(true,"File is too large for cpio format \(arcn.org_name)")
+          return nil
         }
         break;
       case PAX_SLK:
@@ -223,57 +215,56 @@ class cpio : bcpio {
     /*
      * copy the values to the header using octal ascii
      */
-    if (ul_asc((u_long)MAGIC, hd->c_magic, sizeof(hd->c_magic), OCT) ||
-        ul_asc((u_long)arcn->sb.st_dev, hd->c_dev, sizeof(hd->c_dev),
+    if (ul_asc((u_long)MAGIC, hd.c_magic, sizeof(hd.c_magic), OCT) ||
+        ul_asc((u_long)arcn.sb.st_dev, hd.c_dev, sizeof(hd.c_dev),
                OCT) ||
-        ul_asc((u_long)arcn->sb.st_ino, hd->c_ino, sizeof(hd->c_ino),
+        ul_asc((u_long)arcn.sb.st_ino, hd.c_ino, sizeof(hd.c_ino),
                OCT) ||
-        ul_asc((u_long)arcn->sb.st_mode, hd->c_mode, sizeof(hd->c_mode),
+        ul_asc((u_long)arcn.sb.st_mode, hd.c_mode, sizeof(hd.c_mode),
                OCT) ||
-        ul_asc((u_long)arcn->sb.st_uid, hd->c_uid, sizeof(hd->c_uid),
+        ul_asc((u_long)arcn.sb.st_uid, hd.c_uid, sizeof(hd.c_uid),
                OCT) ||
-        ul_asc((u_long)arcn->sb.st_gid, hd->c_gid, sizeof(hd->c_gid),
+        ul_asc((u_long)arcn.sb.st_gid, hd.c_gid, sizeof(hd.c_gid),
                OCT) ||
-        ul_asc((u_long)arcn->sb.st_nlink, hd->c_nlink, sizeof(hd->c_nlink),
+        ul_asc((u_long)arcn.sb.st_nlink, hd.c_nlink, sizeof(hd.c_nlink),
                OCT) ||
-        ul_asc((u_long)arcn->sb.st_rdev, hd->c_rdev, sizeof(hd->c_rdev),
+        ul_asc((u_long)arcn.sb.st_rdev, hd.c_rdev, sizeof(hd.c_rdev),
                OCT) ||
-        ul_asc((u_long)arcn->sb.st_mtime,hd->c_mtime,sizeof(hd->c_mtime),
+        ul_asc((u_long)arcn.sb.st_mtime,hd.c_mtime,sizeof(hd.c_mtime),
                OCT) ||
-        ul_asc((u_long)nsz, hd->c_namesize, sizeof(hd->c_namesize), OCT)) {
+        ul_asc((u_long)nsz, hd.c_namesize, sizeof(hd.c_namesize), OCT)) {
       goto out;
     }
 
     /*
      * write the file name to the archive
      */
-    if ((wr_rdbuf((char *)&hdblk, (int)sizeof(HD_CPIO)) < 0) ||
+    if ((wr_rdbuf((char *)&hdblk, hsz) < 0) ||
         (wr_rdbuf(arcn->name, nsz) < 0)) {
-      paxwarn(1, "Unable to write cpio header for %s", arcn->org_name);
-      return(-1);
+      paxwarn(true, "Unable to write cpio header for %s", arcn->org_name);
+      return true
     }
 
     /*
      * if this file has data, we are done. The caller will write the file
      * data, if we are link tell caller we are done, go to next file
      */
-    if ((arcn->type == PAX_CTG) || (arcn->type == PAX_REG) ||
-        (arcn->type == PAX_HRG)) {
-      return(0);
+    if arcn.type == .CTG || arcn.type == .REG || arcn.type == .HRG {
+      return false
     }
-    if (arcn->type != PAX_SLK) {
-      return(1);
+    if arcn.type != .SLK {
+      return nil
     }
 
     /*
      * write the link name to the archive, tell the caller to go to the
      * next file as we are done.
      */
-    if (wr_rdbuf(arcn->ln_name, arcn->ln_nlen) < 0) {
-      paxwarn(1,"Unable to write cpio link name for %s",arcn->org_name);
-      return(-1);
+    if (wr_rdbuf(arcn.ln_name, arcn.ln_nlen) < 0) {
+      paxwarn(true,"Unable to write cpio link name for \(arcn.org_name)")
+      return true
     }
-    return(1);
+    return nil
 
   out:
     /*

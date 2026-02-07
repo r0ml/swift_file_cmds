@@ -845,7 +845,7 @@ extension pax {
       }
       if ((arcn->type == PAX_SLK) || (arcn->type == PAX_HLK) ||
           (arcn->type == PAX_HRG)) {
-        sub_name(arcn->ln_name, &(arcn->ln_nlen), sizeof(arcn->ln_name));
+        arcn.ln_name = sub_name(arcn.ln_name)
       }
     }
     return(res);

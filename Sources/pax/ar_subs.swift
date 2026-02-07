@@ -633,13 +633,8 @@ extension pax {
        */
       ftree_sel(arcn);
 
-      if (hlk && (chk_lnk(arcn) < 0)) {
-        if (md_fname) {
-          unlink(md_fname);
-          free(md_fname);
-          md_fname = NULL;
-        }
-        break;
+      if hlk {
+        chk_lnk(arcn)
       }
 
       if ((arcn->type == PAX_REG) || (arcn->type == PAX_HRG) ||
@@ -1112,9 +1107,8 @@ extension pax {
        * user; set the final destination.
        */
       ftree_sel(arcn);
-      if ((chk_lnk(arcn) < 0) || ((res = mod_name(arcn)) < 0)) {
-        break;
-      }
+      chk_lnk(arcn)
+
       if ((res > 0) || (set_dest(arcn, dirbuf, dlen) < 0)) {
         /*
          * skip file, purge from link table

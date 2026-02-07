@@ -39,7 +39,8 @@
 import CMigration
 import Darwin
 
-extension pax {
+class Tables {
+
   /*
    * Routines for controlling the contents of all the different databases pax
    * keeps. Tables are dynamically created only when they are needed. The
@@ -54,21 +55,178 @@ extension pax {
    * Trying to force the fit to the POSIX database routines was not considered
    * time well spent.
    */
-  
-  static HRDLNK **ltab = NULL;	/* hard link table for detecting hard links */
-  static FTM **ftab = NULL;	/* file time table for updating arch */
-  static NAMT **ntab = NULL;	/* interactive rename storage table */
-  static DEVT **dtab = NULL;	/* device/inode mapping tables */
-  static ATDIR **atab = NULL;	/* file tree directory time reset table */
-  
-  static DIRDATA *dirp = NULL;	/* storage for setting created dir time/mode */
-  static size_t dirsize;		/* size of dirp table */
-  
-  static u_long dircnt;		/* entries in dir time/mode storage */
-  static int ffd = -1;		/* tmp file for file time table name storage */
-  
-  static DEVT *chk_dev(dev_t, int);
-  
+
+
+  /*
+   * data structures and constants used by the different databases kept by pax
+   */
+
+  /*
+   * Hash Table Sizes MUST BE PRIME, if set too small performance suffers.
+   * Probably safe to expect 500000 inodes per tape. Assuming good key
+   * distribution (inodes) chains of under 50 long (worse case) is ok.
+   */
+  let L_TAB_SZ = 2503    /* hard link hash table size */
+  let F_TAB_SZ = 50503    /* file time hash table size */
+  let N_TAB_SZ = 541    /* interactive rename hash table */
+  let D_TAB_SZ = 317    /* unique device mapping table */
+  let A_TAB_SZ = 317    /* ftree dir access time reset table */
+  let MAXKEYLEN = 64    /* max number of chars for hash */
+
+  let DIRP_SIZE = 64    /* initial size of created dir table */
+
+  let _TFILE_BASE = "paxXXXXXXXXXX"
+
+  /*
+   * file hard link structure (hashed by dev/ino and chained) used to find the
+   * hard links in a file system or with some archive formats (cpio)
+   */
+  struct HRDLNK {
+    var name : String  /* name of first file seen with this ino/dev */
+    var dev : UInt    /* files device number */
+    var ino : UInt    /* files inode number */
+    var nlink : UInt   /* expected link count */
+    // fow -> ptr to next HRDLNK
+  }
+
+  /*
+   * Archive write update file time table (the -u, -C flag), hashed by filename.
+   * Filenames are stored in a scratch file at seek offset into the file. The
+   * file time (mod time) and the file name length (for a quick check) are
+   * stored in a hash table node. We were forced to use a scratch file because
+   * with -u, the mtime for every node in the archive must always be available
+   * to compare against (and this data can get REALLY large with big archives).
+   * By being careful to read only when we have a good chance of a match, the
+   * performance loss is not measurable (and the size of the archive we can
+   * handle is greatly increased).
+   */
+  struct FTM {
+    var namelen : Int   /* file name length */
+    var mtime : time_t  /* files last modification time */
+    var seek : off_t    /* location in scratch file */
+   // fow -> ptr to next FTM
+  }
+
+  /*
+   * Interactive rename table (-i flag), hashed by orig filename.
+   * We assume this will not be a large table as this mapping data can only be
+   * obtained through interactive input by the user. Nobody is going to type in
+   * changes for 500000 files? We use chaining to resolve collisions.
+   */
+
+/*  struct NAMT {
+    var oname : String    /* old name */
+    var nname : String     /* new name typed in by the user */
+    // fow -> ptr to next NAMT
+  }
+*/
+
+  /*
+   * Unique device mapping tables. Some protocols (e.g. cpio) require that the
+   * <c_dev,c_ino> pair will uniquely identify a file in an archive unless they
+   * are links to the same file. Appending to archives can break this. For those
+   * protocols that have this requirement we map c_dev to a unique value not seen
+   * in the archive when we append. We also try to handle inode truncation with
+   * this table. (When the inode field in the archive header are too small, we
+   * remap the dev on writes to remove accidental collisions).
+   *
+   * The list is hashed by device number using chain collision resolution. Off of
+   * each DEVT are linked the various remaps for this device based on those bits
+   * in the inode which were truncated. For example if we are just remapping to
+   * avoid a device number during an update append, off the DEVT we would have
+   * only a single DLIST that has a truncation id of 0 (no inode bits were
+   * stripped for this device so far). When we spot inode truncation we create
+   * a new mapping based on the set of bits in the inode which were stripped off.
+   * so if the top four bits of the inode are stripped and they have a pattern of
+   * 0110...... (where . are those bits not truncated) we would have a mapping
+   * assigned for all inodes that has the same 0110.... pattern (with this dev
+   * number of course). This keeps the mapping sparse and should be able to store
+   * close to the limit of files which can be represented by the optimal
+   * combination of dev and inode bits, and without creating a fouled up archive.
+   * Note we also remap truncated devs in the same way (an exercise for the
+   * dedicated reader; always wanted to say that...:)
+   */
+
+  struct DEVT {
+    var dev : dev_t    /* the orig device number we now have to map */
+    // struct devt  *fow;  /* new device map list */
+    var dlist : [DLIST] // struct dlist  *list;  /* map list based on inode truncation bits */
+  }
+
+  struct DLIST {
+    var trunc_bits : ino_t   /* truncation pattern for a specific map */
+    var dev : dev_t          /* the new device id we use */
+    // struct dlist *fow;
+  }
+
+  /*
+   * ftree directory access time reset table. When we are done with with a
+   * subtree we reset the access and mod time of the directory when the tflag is
+   * set. Not really explicitly specified in the pax spec, but easy and fast to
+   * do (and this may have even been intended in the spec, it is not clear).
+   * table is hashed by inode with chaining.
+   */
+
+  struct ATDIR {
+    var name : String  /* name of directory to reset */
+    var dev : dev_t    /* dev and inode for fast lookup */
+    var ino : ino_t
+    var mtime : time_t /* access and mod time to reset to */
+
+    var mtime_nsec : time_t
+
+    var atime : time_t
+
+    var atime_nsec :time_t
+
+    // struct atdir *fow;
+  }
+
+  /*
+   * created directory time and mode storage entry. After pax is finished during
+   * extraction or copy, we must reset directory access modes and times that
+   * may have been modified after creation (they no longer have the specified
+   * times and/or modes). We must reset time in the reverse order of creation,
+   * because entries are added  from the top of the file tree to the bottom.
+   * We MUST reset times from leaf to root (it will not work the other
+   * direction).  Entries are recorded into a spool file to make reverse
+   * reading faster.
+   */
+
+  struct DIRDATA {
+
+    var name : String  /* file name */
+
+    var nlen : Int    /* length of the directory name (includes \0) */
+    var npos : off_t  /* position in file where this dir name starts */
+    var mode : mode_t /* file mode to restore */
+    var mtime : time_t /* mtime to set */
+
+    var mtime_nsec : time_t  /* mtime to set (nanoseconds component) */
+
+    var atime : time_t   /* atime to set */
+
+    var atime_nsec : time_t  /* atime to set (nanoseconds component) */
+
+    var frc_mode : Bool  /* do we force mode settings? */
+  }
+
+
+
+
+
+  var ltab : [UInt : HRDLNK] = [:] 	/* hard link table for detecting hard links */
+  var ftab : [FTM] = []             /* file time table for updating arch */
+  var ntab : [String : String] = [:]  /* interactive rename storage table */
+  var dtab : [DEVT] = []            /* device/inode mapping tables */
+  var atab : [ATDIR] = []           /* file tree directory time reset table */
+
+  var dirp : DIRDATA?       /* storage for setting created dir time/mode */
+//  var dirsize : Int         /* size of dirp table */
+
+//  var dircnt : UInt         /* entries in dir time/mode storage */
+  var ffd : FileDescriptor? /* tmp file for file time table name storage */
+
   /*
    * hard link table routines
    *
@@ -84,26 +242,30 @@ extension pax {
    * inode numbers (like cpio). This will allow pax to create a link when one
    * can be detected by the archive format.
    */
-  
+
+
+  init() {}
+
   /*
    * lnk_start
    *	Creates the hard link table.
    * Return:
    *	0 if created, -1 if failure
    */
-  
-  int
-  lnk_start(void)
-  {
-    if (ltab != NULL)
-        return(0);
+
+  /*
+  func lnk_start() -> Bool {
+    if (ltab != NULL) {
+      return false
+    }
     if ((ltab = (HRDLNK **)calloc(L_TAB_SZ, sizeof(HRDLNK *))) == NULL) {
       paxwarn(1, "Cannot allocate memory for hard link table");
       return(-1);
     }
     return(0);
   }
-  
+  */
+
   /*
    * chk_lnk()
    *	Looks up entry in hard link hash table. If found, it copies the name
@@ -116,86 +278,50 @@ extension pax {
    *	if found returns 1; if not found returns 0; -1 on error
    */
   
-  int
-  chk_lnk(ARCHD *arcn)
-  {
-    HRDLNK *pt;
-    HRDLNK **ppt;
-    u_int indx;
-    
-    if (ltab == NULL)
-        return(-1);
+  func chk_lnk(_ arcn : inout pax.ARCHD) {
+
     /*
      * ignore those nodes that cannot have hard links
      */
-    if ((arcn->type == PAX_DIR) || (arcn->sb.st_nlink <= 1))
-        return(0);
-    
+    if arcn.type == .DIR || arcn.sb.links <= 1 {
+      return
+    }
+
     /*
      * hash inode number and look for this file
      */
-    indx = ((unsigned)arcn->sb.st_ino) % L_TAB_SZ;
-    if ((pt = ltab[indx]) != NULL) {
-      /*
-       * it's hash chain in not empty, walk down looking for it
-       */
-      ppt = &(ltab[indx]);
-      while (pt != NULL) {
-        if ((pt->ino == arcn->sb.st_ino) &&
-            (pt->dev == arcn->sb.st_dev))
-            break;
-        ppt = &(pt->fow);
-        pt = pt->fow;
-      }
-      
-      if (pt != NULL) {
+    if let pt = ltab[arcn.sb.inode] {
         /*
          * found a link. set the node type and copy in the
          * name of the file it is to link to. we need to
          * handle hardlinks to regular files differently than
          * other links.
          */
-        arcn->ln_nlen = strlcpy(arcn->ln_name, pt->name,
-                                sizeof(arcn->ln_name));
+      arcn.ln_name = pt.name
         /* XXX truncate? */
-        if (arcn->nlen >= sizeof(arcn->name))
-            arcn->nlen = sizeof(arcn->name) - 1;
-        if (arcn->type == PAX_REG)
-            arcn->type = PAX_HRG;
-        else
-          arcn->type = PAX_HLK;
-        
+      if arcn.type == .REG {
+        arcn.type = .HRG
+      } else {
+        arcn.type = .HLK
+      }
+
         /*
          * if we have found all the links to this file, remove
          * it from the database
          */
-        if (--pt->nlink <= 1) {
-          *ppt = pt->fow;
-          free(pt->name);
-          free(pt);
-        }
-        return(1);
+      ltab[arcn.sb.inode]?.nlink -= 1
+      if ltab[arcn.sb.inode]!.nlink <= 1 {
+        ltab[arcn.sb.inode] = nil
       }
-    }
-    
+    } else {
+
     /*
      * we never saw this file before. It has links so we add it to the
      * front of this hash chain
      */
-    if ((pt = (HRDLNK *)malloc(sizeof(HRDLNK))) != NULL) {
-      if ((pt->name = strdup(arcn->name)) != NULL) {
-        pt->dev = arcn->sb.st_dev;
-        pt->ino = arcn->sb.st_ino;
-        pt->nlink = arcn->sb.st_nlink;
-        pt->fow = ltab[indx];
-        ltab[indx] = pt;
-        return(0);
-      }
-      free(pt);
+      let pt = HRDLNK(name: arcn.name, dev: arcn.sb.device, ino: arcn.sb.inode, nlink: arcn.sb.links)
+      ltab[arcn.sb.inode] = pt
     }
-    
-    paxwarn(1, "Hard link table out of memory");
-    return(-1);
   }
   
   /*
@@ -205,50 +331,15 @@ extension pax {
    *	we do not want to accidentally point another file at it later on.
    */
   
-  void
-  purg_lnk(ARCHD *arcn)
-  {
-    HRDLNK *pt;
-    HRDLNK **ppt;
-    u_int indx;
-    
-    if (ltab == NULL)
-        return;
+  func purg_lnk(_ arcn : pax.ARCHD) {
     /*
      * do not bother to look if it could not be in the database
      */
-    if ((arcn->sb.st_nlink <= 1) || (arcn->type == PAX_DIR) ||
-        (arcn->type == PAX_HLK) || (arcn->type == PAX_HRG))
-        return;
-    
-    /*
-     * find the hash chain for this inode value, if empty return
-     */
-    indx = ((unsigned)arcn->sb.st_ino) % L_TAB_SZ;
-    if ((pt = ltab[indx]) == NULL)
-        return;
-    
-    /*
-     * walk down the list looking for the inode/dev pair, unlink and
-     * free if found
-     */
-    ppt = &(ltab[indx]);
-    while (pt != NULL) {
-      if ((pt->ino == arcn->sb.st_ino) &&
-          (pt->dev == arcn->sb.st_dev))
-          break;
-      ppt = &(pt->fow);
-      pt = pt->fow;
+    if arcn.sb.links <= 1 || arcn.type == .DIR || arcn.type == .HLK || arcn.type == .HRG {
+      return
     }
-    if (pt == NULL)
-        return;
-    
-    /*
-     * remove and free it
-     */
-    *ppt = pt->fow;
-    free(pt->name);
-    free(pt);
+
+    ltab[arcn.sb.inode] = nil
   }
   
   /*
@@ -259,33 +350,8 @@ extension pax {
    *	write phase).
    */
   
-  void
-  lnk_end(void)
-  {
-    int i;
-    HRDLNK *pt;
-    HRDLNK *ppt;
-    
-    if (ltab == NULL)
-        return;
-    
-    for (i = 0; i < L_TAB_SZ; ++i) {
-      if (ltab[i] == NULL)
-          continue;
-      pt = ltab[i];
-      ltab[i] = NULL;
-      
-      /*
-       * free up each entry on this chain
-       */
-      while (pt != NULL) {
-        ppt = pt;
-        pt = ppt->fow;
-        free(ppt->name);
-        free(ppt);
-      }
-    }
-    return;
+  func lnk_end() {
+    ltab = [:]
   }
   
   /*
@@ -319,30 +385,20 @@ extension pax {
    *	0 if the table and file was created ok, -1 otherwise
    */
   
-  int
-  ftime_start(void)
-  {
-    
-    if (ftab != NULL)
-        return(0);
-    if ((ftab = (FTM **)calloc(F_TAB_SZ, sizeof(FTM *))) == NULL) {
-      paxwarn(1, "Cannot allocate memory for file time table");
-      return(-1);
-    }
+  func ftime_start() -> Bool {
     
     /*
      * get random name and create temporary scratch file, unlink name
      * so it will get removed on exit
      */
-    memcpy(tempbase, _TFILE_BASE, sizeof(_TFILE_BASE));
-    if ((ffd = mkstemp(tempfile)) < 0) {
-      syswarn(1, errno, "Unable to create temporary file: %s",
-              tempfile);
-      return(-1);
+    let tfil = options.tempdir + _TFILE_BASE
+    let ffd = mkstemp(tfil))
+    guard ffd >= 0 else {
+      syswarn(true, errno, "Unable to create temporary file: \(tfil)")
+      return true
     }
-    (void)unlink(tempfile);
-    
-    return(0);
+    unlink(tfil)
+    return false
   }
   
   /*
@@ -357,9 +413,7 @@ extension pax {
    *	-1 on error
    */
   
-  int
-  chk_ftime(ARCHD *arcn)
-  {
+  func chk_ftime(_ arcn : pax.ARCHD) -> Int {
     FTM *pt;
     int namelen;
     u_int indx;
@@ -368,9 +422,10 @@ extension pax {
     /*
      * no info, go ahead and add to archive
      */
-    if (ftab == NULL)
-        return(0);
-    
+    if (ftab == NULL) {
+      return(0);
+    }
+
     /*
      * hash the pathname and look up in table
      */
@@ -476,18 +531,10 @@ extension pax {
    *	0 if successful, -1 otherwise
    */
   
-  int
-  name_start(void)
-  {
-    if (ntab != NULL)
-        return(0);
-    if ((ntab = (NAMT **)calloc(N_TAB_SZ, sizeof(NAMT *))) == NULL) {
-      paxwarn(1, "Cannot allocate memory for interactive rename table");
-      return(-1);
-    }
-    return(0);
+/*  func name_start() -> Bool {
   }
-  
+  */
+
   /*
    * add_name()
    *	add the new name to old name mapping just created by the user.
@@ -497,65 +544,8 @@ extension pax {
    *	0 if added, -1 otherwise
    */
   
-  int
-  add_name(char *oname, int onamelen, char *nname)
-  {
-    NAMT *pt;
-    u_int indx;
-    
-    if (ntab == NULL) {
-      /*
-       * should never happen
-       */
-      paxwarn(0, "No interactive rename table, links may fail\n");
-      return(0);
-    }
-    
-    /*
-     * look to see if we have already mapped this file, if so we
-     * will update it
-     */
-    indx = st_hash(oname, onamelen, N_TAB_SZ);
-    if ((pt = ntab[indx]) != NULL) {
-      /*
-       * look down the has chain for the file
-       */
-      while ((pt != NULL) && (strcmp(oname, pt->oname) != 0))
-              pt = pt->fow;
-      
-      if (pt != NULL) {
-        /*
-         * found an old mapping, replace it with the new one
-         * the user just input (if it is different)
-         */
-        if (strcmp(nname, pt->nname) == 0)
-            return(0);
-        
-        free(pt->nname);
-        if ((pt->nname = strdup(nname)) == NULL) {
-          paxwarn(1, "Cannot update rename table");
-          return(-1);
-        }
-        return(0);
-      }
-    }
-    
-    /*
-     * this is a new mapping, add it to the table
-     */
-    if ((pt = (NAMT *)malloc(sizeof(NAMT))) != NULL) {
-      if ((pt->oname = strdup(oname)) != NULL) {
-        if ((pt->nname = strdup(nname)) != NULL) {
-          pt->fow = ntab[indx];
-          ntab[indx] = pt;
-          return(0);
-        }
-        free(pt->oname);
-      }
-      free(pt);
-    }
-    paxwarn(1, "Interactive rename table out of memory");
-    return(-1);
+  func add_name(_ oname : String, _ nname : String) -> Bool {
+    ntab[oname]=nname
   }
   
   /*
@@ -565,42 +555,11 @@ extension pax {
    *	new name (oname is the link to name)
    */
   
-  void
-  sub_name(char *oname, int *onamelen, size_t onamesize)
-  {
-    NAMT *pt;
-    u_int indx;
-    
-    if (ntab == NULL)
-        return;
+  func sub_name(_ oname : String) -> String {
     /*
      * look the name up in the hash table
      */
-    indx = st_hash(oname, *onamelen, N_TAB_SZ);
-    if ((pt = ntab[indx]) == NULL)
-        return;
-    
-    while (pt != NULL) {
-      /*
-       * walk down the hash chain looking for a match
-       */
-      if (strcmp(oname, pt->oname) == 0) {
-        /*
-         * found it, replace it with the new name
-         * and return (we know that oname has enough space)
-         */
-        *onamelen = strlcpy(oname, pt->nname, onamesize);
-        if (*onamelen >= onamesize)
-            *onamelen = onamesize - 1; /* XXX truncate? */
-        return;
-      }
-      pt = pt->fow;
-    }
-    
-    /*
-     * no match, just return
-     */
-    return;
+    return ntab[oname] ?? oname
   }
   
   /*
@@ -643,25 +602,7 @@ extension pax {
    * (for more info see table.h for the data structures involved).
    */
   
-  /*
-   * dev_start()
-   *	create the device mapping table
-   * Return:
-   *	0 if successful, -1 otherwise
-   */
-  
-  int
-  dev_start(void)
-  {
-    if (dtab != NULL)
-        return(0);
-    if ((dtab = (DEVT **)calloc(D_TAB_SZ, sizeof(DEVT *))) == NULL) {
-      paxwarn(1, "Cannot allocate memory for device mapping table");
-      return(-1);
-    }
-    return(0);
-  }
-  
+
   /*
    * add_dev()
    *	add a device number to the table. this will force the device to be
@@ -672,12 +613,11 @@ extension pax {
    *	0 if added ok, -1 otherwise
    */
   
-  int
-  add_dev(ARCHD *arcn)
-  {
-    if (chk_dev(arcn->sb.st_dev, 1) == NULL)
-        return(-1);
-    return(0);
+  func add_dev(_ arcn : ARCHD) -> Bool {
+    if (chk_dev(arcn.sb.device, 1) == NULL) {
+      return true
+    }
+    return false
   }
   
   /*
@@ -693,14 +633,10 @@ extension pax {
    *	is returned (indicates an error).
    */
   
-  static DEVT *
-  chk_dev(dev_t dev, int add)
-  {
+  private func chk_dev(_ dev : dev_t, _ add : Int) -> DEVT? {
     DEVT *pt;
     u_int indx;
     
-    if (dtab == NULL)
-        return(NULL);
     /*
      * look to see if this device is already in the table
      */
@@ -738,6 +674,7 @@ extension pax {
     dtab[indx] = pt;
     return(pt);
   }
+
   /*
    * map_dev()
    *	given an inode and device storage mask (the mask has a 1 for each bit
@@ -751,9 +688,7 @@ extension pax {
    *	0 if all ok, -1 otherwise.
    */
   
-  int
-  map_dev(ARCHD *arcn, u_long dev_mask, u_long ino_mask)
-  {
+  func map_dev(_ arcn : ARCHD, _ dev_mask : UInt, _ ino_mask : UInt) -> Bool {
     DEVT *pt;
     DLIST *dpt;
     static dev_t lastdev = 0;	/* next device number to try */
@@ -762,14 +697,13 @@ extension pax {
     ino_t trunc_bits = 0;
     ino_t nino;
     
-    if (dtab == NULL)
-        return(0);
     /*
      * check for device and inode truncation, and extract the truncated
      * bit pattern.
      */
-    if ((arcn->sb.st_dev & (dev_t)dev_mask) != arcn->sb.st_dev)
-        ++trc_dev;
+    if (arcn.sb.st_dev & dev_mask != arcn.sb.st_dev {
+      ++trc_dev;
+    }
     if ((nino = arcn->sb.st_ino & (ino_t)ino_mask) != arcn->sb.st_ino) {
       ++trc_ino;
       trunc_bits = arcn->sb.st_ino & (ino_t)(~ino_mask);
@@ -779,22 +713,24 @@ extension pax {
      * see if this device is already being mapped, look up the device
      * then find the truncation bit pattern which applies
      */
-    if ((pt = chk_dev(arcn->sb.st_dev, 0)) != NULL) {
+        if ((pt = chk_dev(arcn.sb.st_dev, 0)) != NULL) {
       /*
        * this device is already marked to be remapped
        */
-      for (dpt = pt->list; dpt != NULL; dpt = dpt->fow)
-            if (dpt->trunc_bits == trunc_bits)
-            break;
-      
-      if (dpt != NULL) {
+      for (dpt = pt->list; dpt != NULL; dpt = dpt->fow) {
+        if (dpt->trunc_bits == trunc_bits) {
+          break;
+        }
+      }
+
+      if dpt != nil {
         /*
          * we are being remapped for this device and pattern
          * change the device number to be stored and return
          */
-        arcn->sb.st_dev = dpt->dev;
-        arcn->sb.st_ino = nino;
-        return(0);
+        arcn.sb.st_dev = dpt.dev
+        arcn.sb.st_ino = nino
+        return false
       }
     } else {
       /*
@@ -860,13 +796,12 @@ extension pax {
     pt->list = dpt;
     arcn->sb.st_dev = lastdev;
     arcn->sb.st_ino = nino;
-    return(0);
-    
+    return false
+
   bad:
-    paxwarn(1, "Unable to fix truncated inode/device field when storing %s",
-            arcn->name);
-    paxwarn(0, "Archive may create improper hard links when extracted");
-    return(0);
+    paxwarn(true, "Unable to fix truncated inode/device field when storing \(arcn.name)")
+    paxwarn(false, "Archive may create improper hard links when extracted");
+    return false
   }
   
   /*
@@ -885,26 +820,7 @@ extension pax {
    * directory entries left in this database are reset during final cleanup
    * operations of pax. Entries are hashed by inode number for fast lookup.
    */
-  
-  /*
-   * atdir_start()
-   *	create the directory access time database for directories READ by pax.
-   * Return:
-   *	0 is created ok, -1 otherwise.
-   */
-  
-  int
-  atdir_start(void)
-  {
-    if (atab != NULL)
-        return(0);
-    if ((atab = (ATDIR **)calloc(A_TAB_SZ, sizeof(ATDIR *))) == NULL) {
-      paxwarn(1,"Cannot allocate space for directory access time table");
-      return(-1);
-    }
-    return(0);
-  }
-  
+
   
   /*
    * atdir_end()
@@ -913,9 +829,7 @@ extension pax {
    *	entries are for directories READ by pax
    */
   
-  void
-  atdir_end(void)
-  {
+  func atdir_end() {
     ATDIR *pt;
     int i;
     
@@ -947,18 +861,10 @@ extension pax {
    *	and chained by inode number. This is for directories READ by pax
    */
   
-  void
-  
-  add_atdir(char *fname, dev_t dev, ino_t ino, time_t mtime,
-            time_t mtime_nsec, time_t atime, time_t atime_nsec)
-  
-  {
+  func add_atdir(char *fname, dev_t dev, ino_t ino, time_t mtime,
+            time_t mtime_nsec, time_t atime, time_t atime_nsec) {
     ATDIR *pt;
     u_int indx;
-    
-    if (atab == NULL) {
-      return;
-    }
     
     /*
      * make sure this directory is not already in the table, if so just
@@ -1021,19 +927,12 @@ extension pax {
    *	0 if found, -1 if not found.
    */
   
-  int
-  
-  get_atdir(dev_t dev, ino_t ino, time_t *mtime, time_t *mtime_nsec,
-            time_t *atime, time_t *atime_nsec)
-  
-  {
+  func get_atdir(dev_t dev, ino_t ino, time_t *mtime, time_t *mtime_nsec,
+            time_t *atime, time_t *atime_nsec) -> Bool {
     ATDIR *pt;
     ATDIR **ppt;
     u_int indx;
     
-    if (atab == NULL) {
-      return(-1);
-    }
     /*
      * hash by inode and search the chain for an inode and device match
      */
@@ -1100,34 +999,7 @@ extension pax {
    * the file. To restore we work backwards through the file reading the trailer
    * then the file name.
    */
-  
-  /*
-   * dir_start()
-   *	set up the directory time and file mode storage for directories CREATED
-   *	by pax.
-   * Return:
-   *	0 if ok, -1 otherwise
-   */
-  
-  int
-  dir_start(void)
-  {
-    
-    
-    if (dirp != NULL) {
-      
-      return(0);
-    }
-    
-    dirsize = DIRP_SIZE;
-    if ((dirp = calloc(dirsize, sizeof(DIRDATA))) == NULL) {
-      paxwarn(1, "Unable to allocate memory for directory times");
-      return(-1);
-    }
-    return(0);
-    
-  }
-  
+
   /*
    * add_dir()
    *	add the mode and times for a newly CREATED directory
@@ -1141,20 +1013,10 @@ extension pax {
    *	pax spec)
    */
   
-  void
-  
-  add_dir(char *name, size_t nlen, struct stat *psb, int frc_mode)
-  
-  {
-    
+  func add_dir(char *name, size_t nlen, struct stat *psb, int frc_mode) {
+
     DIRDATA *dblk;
     char realname[MAXPATHLEN], *rp;
-    
-    if (dirp == NULL) {
-      
-      return;
-    }
-    
     
     if (havechd && *name != '/') {
       if ((rp = realpath(name, realname)) == NULL) {
@@ -1195,19 +1057,12 @@ extension pax {
    *	by pax
    */
   
-  void
-  proc_dir(void)
-  {
-    
+  func proc_dir() {
+
     
     DIRDATA *dblk;
     long cnt;
     
-    
-    if (dirp == NULL) {
-      
-      return;
-    }
     /*
      * read backwards through the file and process each directory
      */
