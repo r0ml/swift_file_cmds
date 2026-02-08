@@ -337,6 +337,7 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
       var blksz = MAXBLK      /* block input/output size in bytes */
       var wrblksz : Int?        /* user spec output size in bytes */
 
+      var flg : OptionFlags = []
     }
 
     class Runtime {

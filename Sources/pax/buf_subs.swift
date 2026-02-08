@@ -157,9 +157,7 @@ extension pax {
    *	set up buffer system for copying within the file system
    */
 
-  void
-  cp_start(void)
-  {
+  func cp_start() {
     buf = &(bufmem[BLKMULT]);
     rdblksz = blksz = MAXBLK;
   }
@@ -295,9 +293,7 @@ extension pax {
    *	0 on success, and -1 on failure
    */
 
-  int
-  rd_sync(void)
-  {
+  func rd_sync() -> Bool {
     int errcnt = 0;
     int res;
 
@@ -363,9 +359,7 @@ extension pax {
    *	pback space is increased.
    */
 
-  void
-  pback(char *pt, int cnt)
-  {
+  func pback(_ pt : [UInt8], _ cnt : Int) {
     bufpt -= cnt;
     memcpy(bufpt, pt, cnt);
     return;
@@ -379,9 +373,7 @@ extension pax {
    *	0 if ok, -1 failure, and 1 when EOF on the archive volume was detected.
    */
 
-  int
-  rd_skip(off_t skcnt)
-  {
+  func rd_skip(_ skcnt : off_t) -> Int {
     off_t res;
     off_t cnt;
     off_t skipped = 0;
@@ -448,9 +440,7 @@ extension pax {
    *	BE a requirement....
    */
 
-  void
-  wr_fin(void)
-  {
+  func wr_fin() {
     if (bufpt > buf) {
       memset(bufpt, 0, bufend - bufpt);
       bufpt = bufend;
@@ -469,9 +459,7 @@ extension pax {
    *	0 if buffer was filled ok, -1 o.w. (buffer flush failure)
    */
 
-  int
-  wr_rdbuf(char *out, int outcnt)
-  {
+  func wr_rdbuf(_ out : [UInt8], _ outcnt : Int) -> Bool {
     int cnt;
 
     /*
@@ -505,9 +493,7 @@ extension pax {
    *	-1 is a read error
    */
 
-  int
-  rd_wrbuf(char *in, int cpcnt)
-  {
+  func rd_wrbuf(_ inx : [UInt8], _ cpcnt : Int) -> Int  {
     int res;
     int cnt;
     int incnt = cpcnt;
@@ -553,9 +539,7 @@ extension pax {
    *	0 if ok, -1 if there was a buf_flush failure
    */
 
-  int
-  wr_skip(off_t skcnt)
-  {
+  func wr_skip(_ skcnt : off_t) -> Bool  {
     int cnt;
 
     /*
@@ -580,9 +564,7 @@ extension pax {
    *	destination file so we can properly copy files with holes.
    */
 
-  void
-  cp_file(ARCHD *arcn, int fd1, int fd2)
-  {
+  func cp_file(_ arcn : ARCHD, _ fd1 : FileDescriptor, _ fd2 : FileDescriptor) {
     int cnt;
     off_t cpcnt = 0L;
     int res = 0;
@@ -673,9 +655,7 @@ extension pax {
    *	0 when finished (user specified termination in ar_next()).
    */
 
-  int
-  buf_fill(void)
-  {
+  func buf_fill() -> Int {
     int cnt;
     static int fini = 0;
 
@@ -723,9 +703,7 @@ extension pax {
    *	0 if all is ok, -1 when a write error occurs.
    */
 
-  int
-  buf_flush(int bufcnt)
-  {
+  func buf_flush(_ bufcnt : Int) -> Bool  {
     int cnt;
     int push = 0;
     int totcnt = 0;

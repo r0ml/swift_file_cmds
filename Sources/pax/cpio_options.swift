@@ -238,24 +238,24 @@ extension pax {
           /*
            * follow symbolic links
            */
-          Lflag = 1;
-          break;
+          options.Lflag = true
+
         case "S":
           /*
            * swap halfwords after reading data
            */
-          break;
+          break
         case "Z":
           /*
            * use compress.  Non standard option.
            */
-          gzip_program = COMPRESS_CMD;
-          break;
+          options.gzip_program = COMPRESS_CMD
+
         case "6":
           /*
            * process Version 6 cpio format
            */
-          frmt = &(fsub[F_OCPIO]);
+          options.frmt = &(fsub[F_OCPIO]);
           break;
         case "?":
         default:
@@ -268,14 +268,13 @@ extension pax {
       /*
        * process the args as they are interpreted by the operation mode
        */
-      switch (act) {
-        case LIST:
-        case EXTRACT:
+      switch options.act {
+        case .LIST, .EXTRACT:
           while (*argv != NULL)
                   if (pat_add(*argv++, NULL) < 0)
                   cpio_usage();
           break;
-        case COPY:
+        case .COPY:
           if (*argv == NULL) {
             paxwarn(0, "Destination directory was not supplied");
             cpio_usage();
@@ -285,9 +284,8 @@ extension pax {
               cpio_usage();
           --argc;
           ++argv;
-          /* FALLTHROUGH */
-        case ARCHIVE:
-        case APPND:
+          fallthrough
+        case .ARCHIVE, .APPND:
           if (*argv != NULL)
               cpio_usage();
           /*

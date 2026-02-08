@@ -40,32 +40,35 @@
  * Routines which deal directly with the archive I/O device/file.
  */
 
+import CMigration
+import Darwin
+
 class Ar_io {
 
   let DMOD = 0o0666		/* default mode of created archives */
-  let EXT_MODE = O_RDONLY	/* open mode for list/extract */
+  let EXT_MODE = FileDescriptor.AccessMode.readOnly	/* open mode for list/extract */
   let AR_MODE	= (O_WRONLY | O_CREAT | O_TRUNC)	/* mode for archive */
-  let APP_MODE = O_RDWR		/* mode for append */
+  let APP_MODE = FileDescriptor.AccessMode.readWrite		/* mode for append */
 
   var none = "<NONE>"		/* pseudo name for no file */
   var stdo = "<STDOUT>"	/* pseudo name for stdout */
   var stdn = "<STDIN>"	/* pseudo name for stdin */
-  static int arfd = -1;			/* archive file descriptor */
-  static int artyp = ISREG;		/* archive type: file/FIFO/tape */
-  static int arvol = 1;			/* archive volume number */
-  static int lstrval = -1;		/* return value from last i/o */
-  static int io_ok;			/* i/o worked on volume after resync */
-  static int did_io;			/* did i/o ever occur on volume? */
-  static int done;			/* set via tty termination */
-  static struct stat arsb;		/* stat of archive device at open */
-  static int invld_rec;			/* tape has out of spec record size */
+  var arfd : FileDescriptor?   /* archive file descriptor */
+  var artyp = FileType.regular  /* archive type: file/FIFO/tape */
+  var arvol = 1         /* archive volume number */
+  var lstrval = -1  		/* return value from last i/o */
+  var io_ok : Bool = false    /* i/o worked on volume after resync */
+  var did_io : Bool = false 	/* did i/o ever occur on volume? */
+  var done = false            /* set via tty termination */
+  var arsb : FileMetadata? 		/* stat of archive device at open */
+  var invld_rec = false       /* tape has out of spec record size */
   var wr_trail = true 		/* trailer was rewritten in append */
   var can_unlnk = false		/* do we unlink null archives?  */
   // const char *arcname;		  	/* printable name of archive */
-  // const char *gzip_program;		/* name of gzip program */
-  static pid_t zpid = -1; 		/* pid of child process */
+  // const char *gzip_program;	/* name of gzip program */
+  var zpid = -1                 /* pid of child process */
 
-  static void ar_start_gzip(int, const char *, int);
+//  static void ar_start_gzip(int, const char *, int);
 
   /*
    * ar_open()
@@ -76,9 +79,7 @@ class Ar_io {
    *	-1 on failure, 0 otherwise
    */
 
-  int
-  ar_open(const char *name)
-  {
+  func ar_open(_ name : String) -> Bool {
     if (arfd != -1) {
       (void)close(arfd);
     }
@@ -305,9 +306,7 @@ class Ar_io {
    * ar_close()
    *	closes archive device, increments volume number, and prints i/o summary
    */
-  void
-  ar_close(void)
-  {
+  func ar_close() {
     int status;
 
     if (arfd < 0) {
@@ -426,9 +425,7 @@ class Ar_io {
    *	other side of the pipe from getting a SIGPIPE (pax will stop
    *	reading an archive once a format dependent trailer is detected).
    */
-  void
-  ar_drain(void)
-  {
+  func ar_drain() {
     int res;
     char drbuf[MAXBLK];
 
@@ -461,9 +458,7 @@ class Ar_io {
    *	0 if all ready to write, -1 otherwise
    */
 
-  int
-  ar_set_wr(void)
-  {
+  func ar_set_wr() -> Bool {
     off_t cpos;
 
     /*
@@ -500,9 +495,7 @@ class Ar_io {
    *	0 if we can append, -1 otherwise.
    */
 
-  int
-  ar_app_ok(void)
-  {
+  func ar_app_ok() -> Bool {
     if (artyp == ISPIPE) {
       paxwarn(1, "Cannot append to an archive obtained from a pipe.");
       return(-1);
@@ -525,9 +518,7 @@ class Ar_io {
    *	Number of bytes in buffer. 0 for end of file, -1 for a read error.
    */
 
-  int
-  ar_read(char *buf, int cnt)
-  {
+  func ar_read(_ buf : [UInt8], _ cnt : Int) -> Int {
     int res = 0;
 
     /*
@@ -612,9 +603,7 @@ class Ar_io {
    *	error in the archive occurred.
    */
 
-  int
-  ar_write(char *buf, int bsz)
-  {
+  func ar_write(_ buf : [UInt8], _ bsz : Int) -> Int {
     int res;
     off_t cpos;
 
@@ -753,9 +742,7 @@ class Ar_io {
    *	0 when ok to try i/o again, -1 otherwise.
    */
 
-  int
-  ar_rdsync(void)
-  {
+  func ar_rdsync() -> Bool {
     long fsbz;
     off_t cpos;
     off_t mpos;
@@ -824,9 +811,7 @@ class Ar_io {
    *	partial move (the amount moved is in skipped)
    */
 
-  int
-  ar_fow(off_t sksz, off_t *skipped)
-  {
+  func ar_fow(_ sksz : off_t, _ skipped : inout off_t) -> Int {
     off_t cpos;
     off_t mpos;
 
@@ -888,9 +873,7 @@ class Ar_io {
    *	0 if moved the requested distance, -1 on complete failure
    */
 
-  int
-  ar_rev(off_t sksz)
-  {
+  func ar_rev(_ sksz : off_t) -> Bool {
     off_t cpos;
 
     /*
@@ -973,9 +956,7 @@ class Ar_io {
    *	0 when ready to continue, -1 when all done
    */
 
-  int
-  ar_next(void)
-  {
+  func ar_next() -> Bool {
     static char *arcbuf;
     char buf[PAXPATHLEN+2];
     sigset_t o_mask;
@@ -1125,9 +1106,7 @@ class Ar_io {
    * starts the gzip compression/decompression process as a child, using magic
    * to keep the fd the same in the calling function (parent).
    */
-  void
-  ar_start_gzip(int fd, const char *gzip_prog, int wr)
-  {
+  func ar_start_gzip(_ fd : FileDescriptor, _ gzip_prog : String, _ wr : Int) {
     int fds[2];
     const char *gzip_flags = NULL;
 

@@ -51,7 +51,6 @@ extension pax {
    */
 
   func tar_options() -> CommandOptions {
-    int c;
     int fstdin = 0;
     int tar_Oflag = 0;
     int nincfiles = 0;
@@ -62,10 +61,12 @@ extension pax {
     };
     struct incfile *incfiles = NULL;
 
+    var options = CommandOptions()
+
     /*
      * Set default values.
      */
-    rmleadslash = 1;
+    options.rmleadslash = true
 
     /*
      * process option flags
@@ -75,7 +76,7 @@ extension pax {
                           "b:cef:hjmopqruts:vwxzBC:HI:LOPXZ014578")) != -1) {
 
       switch(c) {
-        case 'b':
+        case "b":
           /*
            * specify blocksize in 512-byte blocks
            */
@@ -85,23 +86,23 @@ extension pax {
           }
           wrblksz *= 512;    /* XXX - check for int oflow */
           break;
-        case 'c':
+        case "c":
           /*
            * create an archive
            */
-          act = ARCHIVE;
-          break;
-        case 'e':
+          options.act = .ARCHIVE
+
+        case "e":
           /*
            * stop after first error
            */
           maxflt = 0;
           break;
-        case 'f':
+        case "f":
           /*
            * filename where the archive is stored
            */
-          if ((optarg[0] == '-') && (optarg[1]== '\0')) {
+          if ((optarg[0] == "-") && (optarg[1]== '\0')) {
             /*
              * treat a - as stdin
              */
@@ -112,55 +113,52 @@ extension pax {
           fstdin = 0;
           arcname = optarg;
           break;
-        case 'h':
+        case "h":
           /*
            * follow symlinks
            */
-          Lflag = 1;
-          break;
-        case 'j':
+          options.Lflag = true
 
-        case 'y':
+        case "j", "y":
 
           /*
            * use bzip2.  Non standard option.
            */
-          gzip_program = BZIP2_CMD;
-          break;
-        case 'm':
+          options.gzip_program = BZIP2_CMD
+
+        case "m":
           /*
            * do not preserve modification time
            */
-          pmtime = 0;
-          break;
-        case 'o':
+          options.pmtime = false
+
+        case "o":
           if (opt_add("write_opt=nodir") < 0) {
             tar_usage();
           }
-        case 'O':
+        case "O":
           tar_Oflag = 1;
           break;
-        case 'p':
+        case "p":
           /*
            * preserve uid/gid and file mode, regardless of umask
            */
-          pmode = 1;
-          pids = 1;
-          break;
-        case 'q':
+          options.pmode = true
+          options.pids = true
+
+        case "q":
           /*
            * select first match for a pattern only
            */
-          nflag = 1;
-          break;
-        case 'r':
-        case 'u':
+          options.nflag = true
+
+        case "r", "u":
           /*
            * append to the archive
            */
-          act = APPND;
-          break;
-        case 's':
+          options.act = .APPND
+
+        case "s":
           /*
            * file name substitution name pattern
            */
@@ -169,56 +167,56 @@ extension pax {
             break;
           }
           break;
-        case 't':
+        case "t":
           /*
            * list contents of the tape
            */
-          act = LIST;
-          break;
-        case 'v':
+          options.act = .LIST
+
+        case "v":
           /*
            * verbose operation mode
            */
           vflag++;
           break;
-        case 'w':
+        case "w":
           /*
            * interactive file rename
            */
-          iflag = 1;
-          break;
-        case 'x':
+          options.iflag = true
+
+        case "x":
           /*
            * extract an archive, preserving mode,
            * and mtime if possible.
            */
-          act = EXTRACT;
-          pmtime = 1;
+          options.act = .EXTRACT
+          options.pmtime = true
           break;
-        case 'z':
+        case "z":
           /*
            * use gzip.  Non standard option.
            */
-          gzip_program = GZIP_CMD;
-          break;
-        case 'B':
+          options.gzip_program = GZIP_CMD
+
+        case "B":
           /*
            * Nothing to do here, this is pax default
            */
-          break;
-        case 'C':
+          break
+        case "C":
 
           havechd++;
 
           chdname = optarg;
           break;
-        case 'H':
+        case "H":
           /*
            * follow command line symlinks only
            */
-          Hflag = 1;
-          break;
-        case 'I':
+          options.Hflag = true
+
+        case "I":
           if (++nincfiles > incfiles_max) {
             incfiles_max = nincfiles + 3;
             incfiles = realloc(incfiles,
@@ -232,48 +230,48 @@ extension pax {
           incfiles[nincfiles - 1].file = optarg;
           incfiles[nincfiles - 1].dir = chdname;
           break;
-        case 'L':
+        case "L":
           /*
            * follow symlinks
            */
-          Lflag = 1;
-          break;
-        case 'P':
+          options.Lflag = true
+
+        case "P":
           /*
-           * do not remove leading '/' from pathnames
+           * do not remove leading "/" from pathnames
            */
-          rmleadslash = 0;
-          break;
-        case 'X':
+          options.rmleadslash = false
+
+        case "X":
           /*
            * do not pass over mount points in the file system
            */
-          Xflag = 1;
-          break;
-        case 'Z':
+          options.Xflag = true
+
+        case "Z":
           /*
            * use compress.
            */
-          gzip_program = COMPRESS_CMD;
-          break;
-        case '0':
-          arcname = DEV_0;
-          break;
-        case '1':
-          arcname = DEV_1;
-          break;
-        case '4':
-          arcname = DEV_4;
-          break;
-        case '5':
-          arcname = DEV_5;
-          break;
-        case '7':
-          arcname = DEV_7;
-          break;
-        case '8':
-          arcname = DEV_8;
-          break;
+          options.gzip_program = COMPRESS_CMD
+
+        case "0":
+          options.arcname = DEV_0;
+
+        case "1":
+          options.arcname = DEV_1;
+
+        case "4":
+          options.arcname = DEV_4;
+
+        case "5":
+          options.arcname = DEV_5;
+
+        case "7":
+          options.arcname = DEV_7;
+
+        case "8":
+          options.arcname = DEV_8;
+
         default:
           tar_usage();
           break;
@@ -291,7 +289,7 @@ extension pax {
     }
 
     /* Traditional tar behaviour (pax wants to read file list from stdin) */
-    if ((act == ARCHIVE || act == APPND) && argc == 0 && nincfiles == 0) {
+    if (options.act == .ARCHIVE || options.act == .APPND) && argc == 0 && nincfiles == 0 {
       exit(0);
     }
 
@@ -299,8 +297,8 @@ extension pax {
      * if we are writing (ARCHIVE) specify tar, otherwise run like pax
      * (unless -o specified)
      */
-    if (act == ARCHIVE || act == APPND) {
-      frmt = &(fsub[tar_Oflag ? F_OTAR : F_TAR]);
+    if options.act == .ARCHIVE || options.act == .APPND {
+      options.frmt = &(fsub[tar_Oflag ? F_OTAR : F_TAR]);
     }
     else if (tar_Oflag) {
       paxwarn(1, "The -O/-o options are only valid when writing an archive");
@@ -310,84 +308,8 @@ extension pax {
     /*
      * process the args as they are interpreted by the operation mode
      */
-    switch (act) {
-      case LIST:
-      case EXTRACT:
-      default:
-        {
-          int sawpat = 0;
-          char *file, *dir = NULL;
-
-          while (nincfiles || *argv != NULL) {
-            /*
-             * If we queued up any include files,
-             * pull them in now.  Otherwise, check
-             * for -I and -C positional flags.
-             * Anything else must be a file to
-             * extract.
-             */
-            if (nincfiles) {
-              file = incfiles->file;
-              dir = incfiles->dir;
-              incfiles++;
-              nincfiles--;
-            } else if (strcmp(*argv, "-I") == 0) {
-              if (*++argv == NULL) {
-                break;
-              }
-              file = *argv++;
-              dir = chdname;
-            } else {
-              file = NULL;
-            }
-            if (file != NULL) {
-              FILE *fp;
-              char *str;
-
-              if (strcmp(file, "-") == 0) {
-                fp = stdin;
-              }
-              else if ((fp = fopen(file, "r")) == NULL) {
-                paxwarn(1, "Unable to open file '%s' for read", file);
-                tar_usage();
-              }
-              while ((str = get_line(fp)) != NULL) {
-                if (pat_add(str, dir) < 0) {
-                  tar_usage();
-                }
-                sawpat = 1;
-              }
-              if (strcmp(file, "-") != 0) {
-                fclose(fp);
-              }
-              if (get_line_error) {
-                paxwarn(1, "Problem with file '%s'", file);
-                tar_usage();
-              }
-            } else if (strcmp(*argv, "-C") == 0) {
-              if (*++argv == NULL) {
-                break;
-              }
-              chdname = *argv++;
-            } else if (pat_add(*argv++, chdname) < 0) {
-              tar_usage();
-            }
-            else {
-              sawpat = 1;
-            }
-          }
-          /*
-           * if patterns were added, we are doing chdir()
-           * on a file-by-file basis, else, just one
-           * global chdir (if any) after opening input.
-           */
-          if (sawpat > 0) {
-            chdname = NULL;
-          }
-        }
-        break;
-      case ARCHIVE:
-      case APPND:
+    switch options.act {
+      case .ARCHIVE, .APPND:
         if (chdname != NULL) {  /* initial chdir() */
           if (ftree_add(chdname, 1) < 0) {
             tar_usage();
@@ -464,11 +386,87 @@ extension pax {
          */
         maxflt = 0;
         break;
+      case .LIST, .EXTRACT:
+        fallthrough
+      default:
+        {
+          int sawpat = 0;
+          char *file, *dir = NULL;
+
+          while (nincfiles || *argv != NULL) {
+            /*
+             * If we queued up any include files,
+             * pull them in now.  Otherwise, check
+             * for -I and -C positional flags.
+             * Anything else must be a file to
+             * extract.
+             */
+            if (nincfiles) {
+              file = incfiles->file;
+              dir = incfiles->dir;
+              incfiles++;
+              nincfiles--;
+            } else if (strcmp(*argv, "-I") == 0) {
+              if (*++argv == NULL) {
+                break;
+              }
+              file = *argv++;
+              dir = chdname;
+            } else {
+              file = NULL;
+            }
+            if (file != NULL) {
+              FILE *fp;
+              char *str;
+
+              if (strcmp(file, "-") == 0) {
+                fp = stdin;
+              }
+              else if ((fp = fopen(file, "r")) == NULL) {
+                paxwarn(1, "Unable to open file '%s' for read", file);
+                tar_usage();
+              }
+              while ((str = get_line(fp)) != NULL) {
+                if (pat_add(str, dir) < 0) {
+                  tar_usage();
+                }
+                sawpat = 1;
+              }
+              if (strcmp(file, "-") != 0) {
+                fclose(fp);
+              }
+              if (get_line_error) {
+                paxwarn(1, "Problem with file '%s'", file);
+                tar_usage();
+              }
+            } else if (strcmp(*argv, "-C") == 0) {
+              if (*++argv == NULL) {
+                break;
+              }
+              chdname = *argv++;
+            } else if (pat_add(*argv++, chdname) < 0) {
+              tar_usage();
+            }
+            else {
+              sawpat = 1;
+            }
+          }
+          /*
+           * if patterns were added, we are doing chdir()
+           * on a file-by-file basis, else, just one
+           * global chdir (if any) after opening input.
+           */
+          if (sawpat > 0) {
+            chdname = NULL;
+          }
+        }
+        break;
+
     }
-    if (!fstdin && ((arcname == NULL) || (*arcname == '\0'))) {
-      arcname = getenv("TAPE");
-      if ((arcname == NULL) || (*arcname == '\0')) {
-        arcname = _PATH_DEFTAPE;
+    if (!fstdin && (options.arcname == nil) || options.arcname!.isEmpty)) {
+      options.arcname = Environment["TAPE"]
+      if options.arcname == nil || options.arcname!.isEmpty {
+        options.arcname = _PATH_DEFTAPE;
       }
     }
   }

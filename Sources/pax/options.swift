@@ -97,7 +97,7 @@ extension pax {
     static let CZF = Self.init(rawValue:  0x20000000)  /* nonstandard extension */
 
     static let C0F = Self.init(rawValue:  0x40000000)  /* nonstandard extension */
-  }
+
 
   /*
    * ascii string indexed by bit position above (alter the above and you must
@@ -113,25 +113,28 @@ extension pax {
    * legal pax operation bit patterns
    */
 
-  #define ISLIST(x)  (((x) & (RF|WF)) == 0)
-  #define  ISEXTRACT(x)  (((x) & (RF|WF)) == RF)
-  #define ISARCHIVE(x)  (((x) & (AF|RF|WF)) == WF)
-  #define ISAPPND(x)  (((x) & (AF|RF|WF)) == (AF|WF))
-  #define  ISCOPY(x)  (((x) & (RF|WF)) == (RF|WF))
-  #define  ISWRITE(x)  (((x) & (RF|WF)) == WF)
+    func ISLIST() -> Bool { self.intersection([.RF, .WF]) == [] }
+    func ISEXTRACT() -> Bool { self.intersection([.RF, .WF]) == .RF }
+    func ISARCHIVE() -> Bool { self.intersection([.AF, .RF, .WF]) == .WF }
+    func ISAPPND() -> Bool { self.intersection([.AF, .RF, .WF ]) == [.AF, .WF] }
+    func ISCOPY() -> Bool { self.intersection([.RF, .WF]) == [.RF, .WF] }
+    func ISWRITE() -> Bool { self.intersection([.RF, .WF]) == .WF }
+  }
 
   /*
    * Illegal option flag subsets based on pax operation
    */
 
-  #define  BDEXTR  (AF|BF|LF|TF|WF|XF|CBF|CHF|CLF|CPF|CXF)
-  #define  BDARCH  (CF|KF|LF|NF|PF|RF|CDF|CEF|CYF|CZF)
+  static let BDEXTR : OptionFlags = [.AF, .BF, .LF, .TF, .WF, .XF, .CBF, .CHF, .CLF, .CPF, .CXF]
+  static let BDARCH : OptionFlags = [.CF, .KF, .LF, .NF, .PF, .RF, .CDF, .CEF, .CYF, .CZF]
 //  #ifndef __APPLE__
 //  #define  BDCOPY  (AF|BF|FF|OF|XF|CBF|CEF)
-//  #define  BDLIST (AF|BF|IF|KF|LF|OF|PF|RF|TF|UF|WF|XF|CBF|CDF|CHF|CLF|CPF|CXF|CYF|CZF)
-//#else
-  #define  BDCOPY  (AF|BF|FF|CBF|CEF)
-  #define  BDLIST (AF|BF|IF|KF|LF|PF|RF|TF|UF|WF|XF|CBF|CDF|CHF|CLF|CPF|CXF|CYF|CZF)
+//  static let BDLIST : OptionFlags = [.AF, .BF, .IF, .KF, .LF, .OF, .PF, .RF, .TF, .UF, .WF, .XF, .CBF, .CDF, .CHF, .CLF, .CPF, .CXF, .CYF, .CZF]
+
+  //#else
+  static let BDCOPY : OptionFlags = [.AF, .BF, .FF, .CBF, .CEF]
+  static let BDLIST : OptionFlags = [.AF, .BF, .IF, .KF, .LF, .PF, .RF, .TF, .UF, .WF, .XF,
+                                     .CBF, .CDF, .CHF, .CLF, .CPF, .CXF, .CYF, .CZF]
 // #endif /* __APPLE__*/
 
 
@@ -261,11 +264,6 @@ extension pax {
     return;
   }
 
-//  #define OPT_INSECURE 1
-  static let pax_longopts : [CMigration.option] = [
-    .init("insecure", .no_argument), //        0,  OPT_INSECURE },
-  ]
-
   private mkpath(_ path : String) -> Bool  {
     struct stat sb;
     char *slash;
@@ -303,7 +301,7 @@ extension pax {
    *	print out those invalid flag sets found to the user
    */
 
-  private func printflg(_ flg : UInt) {
+  private func printflg(_ flg : OptionFlags) {
     int nxt;
     int pos = 0;
 

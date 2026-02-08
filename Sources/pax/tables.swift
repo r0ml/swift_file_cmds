@@ -418,13 +418,6 @@ class Tables {
     int namelen;
     u_int indx;
     char ckname[PAXPATHLEN+1];
-    
-    /*
-     * no info, go ahead and add to archive
-     */
-    if (ftab == NULL) {
-      return(0);
-    }
 
     /*
      * hash the pathname and look up in table

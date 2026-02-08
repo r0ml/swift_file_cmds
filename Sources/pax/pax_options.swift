@@ -46,139 +46,133 @@ extension pax {
    *  the user specified a legal set of flags. If not, complain and exit
    */
 
-  func pax_options() -> CommandOptions {
-    int c;
-    size_t i;
-    unsigned int flg = 0;
-    unsigned int bflg = 0;
-    char *pt;
-    FSUB tmp;
 
-    char * tmp_name;
-
+  func pax_options() throws(CmdErr) -> CommandOptions {
     /*
      * process option flags
      */
+    //  #define OPT_INSECURE 1
+    let pax_longopts : [LongOption] = [
+        .init("insecure", .no_argument), //        0,  OPT_INSECURE },
+      ]
 
-    while ((c=getopt_long(argc,argv,"0ab:cdf:ijklno:p:rs:tuvwx:zB:DE:G:HLOPT:U:XYZ", pax_longopts, NULL)) != -1) {
+    var options = CommandOptions()
 
-      switch (c) {
+    let go = BSDGetopt_long("0ab:cdf:ijklno:p:rs:tuvwx:zB:DE:G:HLOPT:U:XYZ", pax_longopts)
+    while let (c, v) = try go.getopt_long() {
 
-        case '0':
+      switch c {
+
+        case "0":
           /*
            * Use \0 as pathname terminator.
            * (For use with the -print0 option of find(1).)
            */
-          zeroflag = 1;
-          flg |= C0F;
-          break;
+          options.zeroflag = true
+          options.flg.insert(.C0F)
 
-        case 'a':
+        case "a":
           /*
            * append
            */
-          flg |= AF;
-          break;
-        case 'b':
+          options.flg.insert(.AF)
+
+        case "b":
           /*
            * specify blocksize
            */
-          flg |= BF;
+          options.flg.insert(.BF)
           if ((wrblksz = (int)str_offt(optarg)) <= 0) {
             paxwarn(1, "Invalid block size %s", optarg);
             pax_usage();
           }
-          break;
-        case 'c':
+
+        case "c":
           /*
            * inverse match on patterns
            */
-          cflag = 1;
-          flg |= CF;
-          break;
-        case 'd':
+          options.cflag = true
+          options.flg.insert(.CF)
+
+        case "d":
           /*
            * match only dir on extract, not the subtree at dir
            */
-          dflag = 1;
-          flg |= DF;
-          break;
-        case 'f':
+          options.dflag = true
+          options.flg.insert(.DF)
+
+        case "f":
           /*
            * filename where the archive is stored
            */
 
-          if ((optarg[0] == '-') && (optarg[1]== '\0')) {
+          if v == "-" {
             /*
              * treat a - as stdin (like tar)
              */
-            arcname = NULL;
-            break;
+            options.arcname = nil
+          } else {
+            options.arcname = v
+            options.flg.insert(.FF)
           }
 
-          arcname = optarg;
-          flg |= FF;
-          break;
-        case 'i':
+        case "i":
           /*
            * interactive file rename
            */
-          iflag = 1;
-          flg |= IF;
-          break;
+          options.iflag = true
+          options.flg.insert(.IF)
 
-        case 'j':
+        case "j":
           /*
            * use bzip2.  Non standard option.
            */
-          gzip_program = BZIP2_CMD;
-          break;
+          options.gzip_program = BZIP2_CMD
 
-        case 'k':
+        case "k":
           /*
            * do not clobber files that exist
            */
-          kflag = 1;
-          flg |= KF;
-          break;
-        case 'l':
+          options.kflag = true
+          options.flg.insert(.KF)
+
+        case "l":
           /*
            * try to link src to dest with copy (-rw)
            */
-          lflag = 1;
-          flg |= LF;
-          break;
-        case 'n':
+          options.lflag = true
+          options.flg.insert(.LF)
+
+        case "n":
           /*
            * select first match for a pattern only
            */
-          nflag = 1;
-          flg |= NF;
-          break;
-        case 'o':
+          options.nflag = true
+          options.flg.insert(.NF)
+
+        case "o":
           /*
            * pass format specific options
            */
-          flg |= OF;
+          options.flg.insert(.OF)
 
-          if (pax_format_opt_add(optarg) < 0) {
-
+          if (pax_format_opt_add(v) < 0) {
             pax_usage();
           }
-          break;
-        case 'p':
+
+        case "p":
           /*
            * specify file characteristic options
            */
           for (pt = optarg; *pt != '\0'; ++pt) {
             switch(*pt) {
-              case 'a':
+              case "a":
                 /*
                  * do not preserve access time
                  */
                 patime = 0;
                 break;
-              case 'e':
+              case "e":
                 /*
                  * preserve user id, group id, file
                  * mode, access/modification times
@@ -188,19 +182,19 @@ extension pax {
                 patime = 1;
                 pmtime = 1;
                 break;
-              case 'm':
+              case "m":
                 /*
                  * do not preserve modification time
                  */
                 pmtime = 0;
                 break;
-              case 'o':
+              case "o":
                 /*
                  * preserve uid/gid
                  */
                 pids = 1;
                 break;
-              case 'p':
+              case "p":
                 /*
                  * preserve file mode bits
                  */
@@ -212,18 +206,17 @@ extension pax {
                 break;
             }
           }
-          flg |= PF;
-          break;
-        case 'r':
+          options.flg.insert(.PF)
+
+        case "r":
           /*
            * read the archive
            */
 
-          pax_read_or_list_mode=1;
+          options.pax_read_or_list_mode=true
+          options.flg.insert(.RF)
 
-          flg |= RF;
-          break;
-        case 's':
+        case "s":
           /*
            * file name substitution name pattern
            */
@@ -231,36 +224,36 @@ extension pax {
             pax_usage();
             break;
           }
-          flg |= SF;
-          break;
-        case 't':
+          options.flg.insert(.SF)
+
+        case "t":
           /*
            * preserve access time on file system nodes we read
            */
-          tflag = 1;
-          flg |= TF;
-          break;
-        case 'u':
+          options.tflag = true
+          options.flg.insert(.TF)
+
+        case "u":
           /*
            * ignore those older files
            */
-          uflag = 1;
-          flg |= UF;
-          break;
-        case 'v':
+          options.uflag = true
+          options.flg.insert(.UF)
+
+        case "v":
           /*
            * verbose operation mode
            */
-          vflag = 1;
-          flg |= VF;
-          break;
-        case 'w':
+          options.vflag = true
+          options.flg.insert(.VF)
+
+        case "w":
           /*
            * write an archive
            */
-          flg |= WF;
-          break;
-        case 'x':
+          options.flg.insert(.WF)
+
+        case "x":
           /*
            * specify an archive format on write
            */
@@ -278,13 +271,13 @@ extension pax {
           (void)fputs("\n\n", stderr);
           pax_usage();
           break;
-        case 'z':
+        case "z":
           /*
            * use gzip.  Non standard option.
            */
-          gzip_program = GZIP_CMD;
-          break;
-        case 'B':
+          options.gzip_program = GZIP_CMD
+
+        case "B":
           /*
            * non-standard option on number of bytes written on a
            * single archive volume.
@@ -298,23 +291,23 @@ extension pax {
                     BLKMULT);
             pax_usage();
           }
-          flg |= CBF;
-          break;
-        case 'D':
+          options.flg.insert(.CBF)
+
+        case "D":
           /*
            * On extraction check file inode change time before the
            * modification of the file name. Non standard option.
            */
-          Dflag = 1;
-          flg |= CDF;
-          break;
-        case 'E':
+          options.Dflag = true
+          options.flg.insert(.CDF)
+
+        case "E":
           /*
            * non-standard limit on read faults
            * 0 indicates stop after first error, values
            * indicate a limit, "NONE" try forever
            */
-          flg |= CEF;
+          options.flg.insert(.CEF)
           if (strcmp(NONE, optarg) == 0) {
             maxflt = -1;
           }
@@ -323,7 +316,7 @@ extension pax {
             pax_usage();
           }
           break;
-        case 'G':
+        case "G":
           /*
            * non-standard option for selecting files within an
            * archive by group (gid or name)
@@ -332,44 +325,42 @@ extension pax {
             pax_usage();
             break;
           }
-          flg |= CGF;
-          break;
-        case 'H':
+          options.flg.insert(.CGF)
+
+        case "H":
           /*
            * follow command line symlinks only
            */
-          Hflag = 1;
-          flg |= CHF;
+          options.Hflag = true
+          options.flg.insert(.CHF)
 
-          Lflag = 0;  /* -H and -L are mutually exclusive  */
+          options.Lflag = false  /* -H and -L are mutually exclusive  */
           flg &= ~CLF;  /* only use the last one seen    */
 
-          break;
-        case 'L':
+        case "L":
           /*
            * follow symlinks
            */
-          Lflag = 1;
-          flg |= CLF;
+          options.Lflag = true
+          options.flg.insert(.CLF)
 
-          Hflag = 0;  /* -H and -L are mutually exclusive  */
+          options.Hflag = false  /* -H and -L are mutually exclusive  */
           flg &= ~CHF;  /* only use the last one seen    */
 
-          break;
-        case 'O':
+        case "O":
           /*
            * Force one volume. Non standard option.
            */
-          Oflag = 1;
-          break;
-        case 'P':
+          options.Oflag = true
+
+        case "P":
           /*
            * do NOT follow symlinks (default)
            */
-          Lflag = 0;
-          flg |= CPF;
-          break;
-        case 'T':
+          options.Lflag = false
+          options.flg.insert(.CPF)
+
+        case "T":
           /*
            * non-standard option for selecting files within an
            * archive by modification time range (lower,upper)
@@ -378,9 +369,9 @@ extension pax {
             pax_usage();
             break;
           }
-          flg |= CTF;
-          break;
-        case 'U':
+          options.flg.insert(.CTF)
+
+        case "U":
           /*
            * non-standard option for selecting files within an
            * archive by user (uid or name)
@@ -389,35 +380,33 @@ extension pax {
             pax_usage();
             break;
           }
-          flg |= CUF;
-          break;
-        case 'X':
+          options.flg.insert(.CUF)
+
+        case "X":
           /*
            * do not pass over mount points in the file system
            */
-          Xflag = 1;
-          flg |= CXF;
-          break;
-        case 'Y':
+          options.Xflag = true
+          options.flg.insert(.CXF)
+
+        case "Y":
           /*
            * On extraction check file inode change time after the
            * modification of the file name. Non standard option.
            */
-          Yflag = 1;
-          flg |= CYF;
-          break;
-        case 'Z':
+          options.Yflag = true
+          options.flg.insert(.CYF)
+
+        case "Z":
           /*
            * On extraction check modification time after the
            * modification of the file name. Non standard option.
            */
-          Zflag = 1;
-          flg |= CZF;
-          break;
+          options.Zflag = true
+          options.flg.insert(.CZF)
 
-        case OPT_INSECURE:
-          secure = 0;
-          break;
+        case "insecure":
+          options.secure = false
 
         default:
           pax_usage();
@@ -429,34 +418,35 @@ extension pax {
      * Fix for POSIX.cmd/pax/pax.ex test 132: force -wu options to look
      * like -wua options were specified.
      */
-    if (uflag && (flg & WF) && !(flg & RF)) {  /* -w but not -r -w */
-      flg |= AF;
+    if options.uflag && options.flg.contains(.WF) && !options.flg.contains(.RF) {  /* -w but not -r -w */
+      options.flg.insert(.AF)
     }
 
+    var bflg = false
     /*
      * figure out the operation mode of pax read,write,extract,copy,append
      * or list. check that we have not been given a bogus set of flags
      * for the operation mode.
      */
-    if (ISLIST(flg)) {
-      act = LIST;
+    if options.flg.ISLIST() {
+      options.act = .LIST
 
-      pax_read_or_list_mode=1;
+      options.pax_read_or_list_mode=true
 
-      listf = stdout;
-      bflg = flg & BDLIST;
-    } else if (ISEXTRACT(flg)) {
-      act = EXTRACT;
-      bflg = flg & BDEXTR;
-    } else if (ISARCHIVE(flg)) {
-      act = ARCHIVE;
-      bflg = flg & BDARCH;
-    } else if (ISAPPND(flg)) {
-      act = APPND;
-      bflg = flg & BDARCH;
-    } else if (ISCOPY(flg)) {
-      act = COPY;
-      bflg = flg & BDCOPY;
+      options.listf = FileDescriptor.standardOutput
+      bflg = options.flg.containsAny(of: pax.BDLIST)
+    } else if options.flg.ISEXTRACT() {
+      options.act = .EXTRACT
+      bflg = options.flg.containsAny(of: pax.BDEXTR)
+    } else if options.flg.ISARCHIVE() {
+      options.act = .ARCHIVE
+      bflg = options.flg.containsAny(of: pax.BDARCH)
+    } else if options.flg.ISAPPND() {
+      options.act = .APPND
+      bflg = options.flg.containsAny(of: pax.BDARCH)
+    } else if options.flg.ISCOPY() {
+      options.act = .COPY
+      bflg = options.flg.containsAny(of: pax.BDCOPY)
     } else {
       pax_usage();
     }
@@ -470,16 +460,16 @@ extension pax {
      * did not specify a format. when we write during an APPEND, we will
      * adopt the format of the existing archive if none was supplied.
      */
-    if (!(flg & XF) && (act == ARCHIVE)) {
-      frmt = &(fsub[DEFLT]);
+    if !options.flg.contains(.XF) && options.act == .ARCHIVE {
+      options.frmt = ustar.self //  &(fsub[DEFLT]);
     }
 
     /*
      * if copying (-r and -w) and there is no -x specified, we act as
      * if -x pax was specified.
      */
-    if (!(flg & XF) && (act == COPY)) {
-      frmt = &(fsub[F_PAX]);
+    if !options.flg.contains(.XF) && options.act == .COPY {
+      options.frmt = paxer.self // &(fsub[F_PAX]);
     }
 
     /*
@@ -495,25 +485,23 @@ extension pax {
     /*
      * process the args as they are interpreted by the operation mode
      */
-    switch (act) {
-      case LIST:
-      case EXTRACT:
+    switch options.act {
+      case .LIST, .EXTRACT:
         for (; optind < argc; optind++) {
           if (pat_add(argv[optind], NULL) < 0) {
             pax_usage();
           }
         }
-        break;
-      case COPY:
+
+      case .COPY:
         if (optind >= argc) {
           paxwarn(0, "Destination directory was not supplied");
           pax_usage();
         }
         --argc;
         dirptr = argv[argc];
-        /* FALLTHROUGH */
-      case ARCHIVE:
-      case APPND:
+          fallthrough
+      case .ARCHIVE, .APPND:
         for (; optind < argc; optind++) {
           if (ftree_add(argv[optind], 0) < 0) {
             pax_usage();
@@ -523,7 +511,8 @@ extension pax {
          * no read errors allowed on updates/append operation!
          */
         maxflt = 0;
-        break;
+
     }
+    return options
   }
 }
