@@ -148,20 +148,6 @@ extension pax {
   static OPLIST *ophead = NULL;	/* head for format specific options -x */
   static OPLIST *optail = NULL;	/* option tail */
 
-  /*
-   static int no_op(void);
-   static void printflg(unsigned int);
-   static int c_frmt(const void *, const void *);
-   static off_t str_offt(char *);
-   static char *get_line(FILE *fp);
-   static void pax_options(int, char **);
-   static void pax_usage(void);
-   static void tar_options(int, char **);
-   static void tar_usage(void);
-   static void cpio_options(int, char **);
-   static void cpio_usage(void);
-   */
-
   /* errors from get_line */
   #define GETLINE_FILE_CORRUPT 1
   #define GETLINE_OUT_OF_MEM 2
@@ -249,10 +235,12 @@ extension pax {
     let argv0 = programName
 
     if argv0 == NM_TAR {
+      myUsage = .tar
       tar_options()
       return
     }
     else if (strcmp(NM_CPIO, argv0) == 0) {
+      myUsage = .cpio
       cpio_options()
       return;
     }
@@ -260,6 +248,7 @@ extension pax {
      * assume pax as the default
      */
     argv0 = NM_PAX;
+    myUsage = .pax
     pax_options()
     return;
   }
@@ -628,4 +617,17 @@ usage: cpio -o [-aABcLvVzZ] [-C bytes] [-H format] [-O archive]
        cpio -p [-adlLmuvV] destination-directory < name-list
 """
 
+  enum usageType {
+    case pax
+    case tar
+    case cpio
+  }
+
+  var usage : String {
+    switch myUsage {
+      case .pax: Self.pax_usage
+      case .tar: Self.tar_usage
+      case .cpio: Self.cpio_usage
+    }
+  }
 }

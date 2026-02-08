@@ -43,7 +43,17 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
         /* WARNING: increasing MAXBLK past 32256 */
         /* will violate posix spec. */
 
-@main struct pax : ShellCommand {
+@main class pax : ShellCommand {
+  required init() {
+    // FIXME: is this even legal?
+    withUnsafePointer(to: self) { paxInstance = $0 }
+  }
+
+
+  var myUsage : usageType = .tar
+  let ar_io = Ar_io()
+  let tables = Tables()
+  let cache = Cache()
 
   /*
    * BSD PAX global data structures and constants.
@@ -282,8 +292,6 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
   let _HAVE_REGCOMP_  = 1
 
 
-  let tables = Tables()
-  let cache = Cache()
 
 
 
@@ -338,6 +346,7 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
       var wrblksz : Int?        /* user spec output size in bytes */
 
       var flg : OptionFlags = []
+      var tempfile : String = ""
     }
 
     class Runtime {
@@ -505,11 +514,7 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
     var tmpdir = td!
 
     while tmpdir.last == "/" { tmpdir.removeLast() }
-
-    tempfile = tmpdir + "/"
-
-    tempbase = tempfile + tdlen;
-    *tempbase++ = '/';
+    options.tempfile = tmpdir + "/"
 
     /*
      * parse options, determine operational mode, general init
@@ -523,7 +528,7 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
     return options
   }
 
-  func runCommand() async throws {
+  func runCommand() async throws(CmdErr) {
 
     /*
      * select a primary operation mode
@@ -603,7 +608,7 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
     /*
      * increase the size the stack can grow to
      */
-    if (getrlimit(RLIMIT_STACK , &reslimit) == 0){
+    if (getrlimit(RLIMIT_STACK , &reslimit) == 0) {
       reslimit.rlim_cur = reslimit.rlim_max;
       setrlimit(RLIMIT_STACK , &reslimit)
     }
@@ -669,21 +674,32 @@ func sig_cleanup(_ which_sig : Int32) {
    * or any dirs we may have read. Set vflag and vfpart so the user
    * will clearly see the message on a line by itself.
    */
-  runtime.vflag = true
-  runtime.vfpart = true
 
-  ar_close();
-  proc_dir();
-  if options.tflag {
-    atdir_end();
-  }
-
-  /*
-   * Conformance requires us to re-raise these to propagate the correct
-   * exit status up to the caller.
-   */
-  signal(which_sig, SIG_DFL)
-  raise(which_sig)
-
+  let pax = paxInstance.unsafelyUnwrapped.pointee
+  pax.doSigCleanup(which_sig)
 }
+
+
+extension pax {
+  func doSigCleanup(_ which_sig : Int32) {
+    runtime.vflag = true
+    runtime.vfpart = true
+
+    ar_io.ar_close()
+    tables.proc_dir()
+    if options.tflag {
+      tables.atdir_end()
+    }
+
+    /*
+     * Conformance requires us to re-raise these to propagate the correct
+     * exit status up to the caller.
+     */
+    signal(which_sig, SIG_DFL)
+    raise(which_sig)
+
+  }
+}
+
+nonisolated(unsafe) var paxInstance : UnsafePointer<pax>? = nil
 
