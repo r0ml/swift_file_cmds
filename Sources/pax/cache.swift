@@ -80,13 +80,6 @@ class Cache {
   }
 
   /*
-   * uidtb_start
-   *	creates an empty uidtb
-   * Return:
-   *	0 if ok, -1 otherwise
-   */
-
-  /*
    * name_uid()
    *	caches the name (if any) for the uid. If frc set, we always return the
    *	the stored name (if valid or invalid match). We use a simple hash table.

@@ -373,7 +373,7 @@ extension pax {
    *	0 if ok, -1 failure, and 1 when EOF on the archive volume was detected.
    */
 
-  func rd_skip(_ skcnt : off_t) -> Int {
+  func rd_skip(_ skcnt : Int) -> Int {
     off_t res;
     off_t cnt;
     off_t skipped = 0;

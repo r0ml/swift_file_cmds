@@ -101,10 +101,10 @@ class Tables {
    * handle is greatly increased).
    */
   struct FTM {
-    var namelen : Int   /* file name length */
-    var mtime : time_t  /* files last modification time */
-    var seek : off_t    /* location in scratch file */
-   // fow -> ptr to next FTM
+    //    var namelen : Int   /* file name length */
+    var mtime : DateTime  /* files last modification time */
+    //    var seek : off_t    /* location in scratch file */
+    // fow -> ptr to next FTM
   }
 
   /*
@@ -114,12 +114,12 @@ class Tables {
    * changes for 500000 files? We use chaining to resolve collisions.
    */
 
-/*  struct NAMT {
-    var oname : String    /* old name */
-    var nname : String     /* new name typed in by the user */
-    // fow -> ptr to next NAMT
-  }
-*/
+  /*  struct NAMT {
+   var oname : String    /* old name */
+   var nname : String     /* new name typed in by the user */
+   // fow -> ptr to next NAMT
+   }
+   */
 
   /*
    * Unique device mapping tables. Some protocols (e.g. cpio) require that the
@@ -147,15 +147,9 @@ class Tables {
    * dedicated reader; always wanted to say that...:)
    */
 
-  struct DEVT {
-    var dev : dev_t    /* the orig device number we now have to map */
-    // struct devt  *fow;  /* new device map list */
-    var dlist : [DLIST] // struct dlist  *list;  /* map list based on inode truncation bits */
-  }
-
   struct DLIST {
     var trunc_bits : ino_t   /* truncation pattern for a specific map */
-    var dev : dev_t          /* the new device id we use */
+    var dev : UInt          /* the new device id we use */
     // struct dlist *fow;
   }
 
@@ -169,17 +163,15 @@ class Tables {
 
   struct ATDIR {
     var name : String  /* name of directory to reset */
-    var dev : dev_t    /* dev and inode for fast lookup */
-    var ino : ino_t
-    var mtime : time_t /* access and mod time to reset to */
+    var dev : UInt     /* dev and inode for fast lookup */
+    var ino : UInt
+    var mtime : DateTime /* access and mod time to reset to */
+    var atime : DateTime
+  }
 
-    var mtime_nsec : time_t
-
-    var atime : time_t
-
-    var atime_nsec :time_t
-
-    // struct atdir *fow;
+  struct DevInode : Hashable {
+    var dev : UInt
+    var ino : UInt
   }
 
   /*
@@ -197,16 +189,15 @@ class Tables {
 
     var name : String  /* file name */
 
-    var nlen : Int    /* length of the directory name (includes \0) */
-    var npos : off_t  /* position in file where this dir name starts */
-    var mode : mode_t /* file mode to restore */
-    var mtime : time_t /* mtime to set */
+    var npos : off_t = 0 /* position in file where this dir name starts */
+    var mode : FilePermissions /* file mode to restore */
+    var mtime : DateTime       /* mtime to set */
 
-    var mtime_nsec : time_t  /* mtime to set (nanoseconds component) */
+    //    var mtime_nsec : time_t  /* mtime to set (nanoseconds component) */
 
-    var atime : time_t   /* atime to set */
+    var atime : DateTime       /* atime to set */
 
-    var atime_nsec : time_t  /* atime to set (nanoseconds component) */
+    //    var atime_nsec : time_t  /* atime to set (nanoseconds component) */
 
     var frc_mode : Bool  /* do we force mode settings? */
   }
@@ -216,15 +207,15 @@ class Tables {
 
 
   var ltab : [UInt : HRDLNK] = [:] 	/* hard link table for detecting hard links */
-  var ftab : [FTM] = []             /* file time table for updating arch */
+  var ftab : [String : FTM] = [:]             /* file time table for updating arch */
   var ntab : [String : String] = [:]  /* interactive rename storage table */
-  var dtab : [DEVT] = []            /* device/inode mapping tables */
-  var atab : [ATDIR] = []           /* file tree directory time reset table */
+  var dtab : [UInt : [DLIST] ] = [:]            /* device/inode mapping tables */
+  var atab : [DevInode : ATDIR] = [:]           /* file tree directory time reset table */
 
-  var dirp : DIRDATA?       /* storage for setting created dir time/mode */
-//  var dirsize : Int         /* size of dirp table */
+  var dirp : [DIRDATA] = []      /* storage for setting created dir time/mode */
+  //  var dirsize : Int         /* size of dirp table */
 
-//  var dircnt : UInt         /* entries in dir time/mode storage */
+  //  var dircnt : UInt         /* entries in dir time/mode storage */
   var ffd : FileDescriptor? /* tmp file for file time table name storage */
 
   /*
@@ -254,17 +245,17 @@ class Tables {
    */
 
   /*
-  func lnk_start() -> Bool {
-    if (ltab != NULL) {
-      return false
-    }
-    if ((ltab = (HRDLNK **)calloc(L_TAB_SZ, sizeof(HRDLNK *))) == NULL) {
-      paxwarn(1, "Cannot allocate memory for hard link table");
-      return(-1);
-    }
-    return(0);
-  }
-  */
+   func lnk_start() -> Bool {
+   if (ltab != NULL) {
+   return false
+   }
+   if ((ltab = (HRDLNK **)calloc(L_TAB_SZ, sizeof(HRDLNK *))) == NULL) {
+   paxwarn(1, "Cannot allocate memory for hard link table");
+   return(-1);
+   }
+   return(0);
+   }
+   */
 
   /*
    * chk_lnk()
@@ -277,7 +268,7 @@ class Tables {
    * Return:
    *	if found returns 1; if not found returns 0; -1 on error
    */
-  
+
   func chk_lnk(_ arcn : inout pax.ARCHD) {
 
     /*
@@ -291,46 +282,46 @@ class Tables {
      * hash inode number and look for this file
      */
     if let pt = ltab[arcn.sb.inode] {
-        /*
-         * found a link. set the node type and copy in the
-         * name of the file it is to link to. we need to
-         * handle hardlinks to regular files differently than
-         * other links.
-         */
+      /*
+       * found a link. set the node type and copy in the
+       * name of the file it is to link to. we need to
+       * handle hardlinks to regular files differently than
+       * other links.
+       */
       arcn.ln_name = pt.name
-        /* XXX truncate? */
+      /* XXX truncate? */
       if arcn.type == .REG {
         arcn.type = .HRG
       } else {
         arcn.type = .HLK
       }
 
-        /*
-         * if we have found all the links to this file, remove
-         * it from the database
-         */
+      /*
+       * if we have found all the links to this file, remove
+       * it from the database
+       */
       ltab[arcn.sb.inode]?.nlink -= 1
       if ltab[arcn.sb.inode]!.nlink <= 1 {
         ltab[arcn.sb.inode] = nil
       }
     } else {
 
-    /*
-     * we never saw this file before. It has links so we add it to the
-     * front of this hash chain
-     */
+      /*
+       * we never saw this file before. It has links so we add it to the
+       * front of this hash chain
+       */
       let pt = HRDLNK(name: arcn.name, dev: arcn.sb.device, ino: arcn.sb.inode, nlink: arcn.sb.links)
       ltab[arcn.sb.inode] = pt
     }
   }
-  
+
   /*
    * purg_lnk
    *	remove reference for a file that we may have added to the data base as
    *	a potential source for hard links. We ended up not using the file, so
    *	we do not want to accidentally point another file at it later on.
    */
-  
+
   func purg_lnk(_ arcn : pax.ARCHD) {
     /*
      * do not bother to look if it could not be in the database
@@ -341,7 +332,7 @@ class Tables {
 
     ltab[arcn.sb.inode] = nil
   }
-  
+
   /*
    * lnk_end()
    *	Pull apart an existing link table so we can reuse it. We do this between
@@ -349,11 +340,11 @@ class Tables {
    *	used the link table, and we need to start with a fresh table for the
    *	write phase).
    */
-  
+
   func lnk_end() {
     ltab = [:]
   }
-  
+
   /*
    * modification time table routines
    *
@@ -375,32 +366,8 @@ class Tables {
    * only limitation is the amount of scratch file space available to store the
    * path names.
    */
-  
-  /*
-   * ftime_start()
-   *	create the file time hash table and open for read/write the scratch
-   *	file. (after created it is unlinked, so when we exit we leave
-   *	no witnesses).
-   * Return:
-   *	0 if the table and file was created ok, -1 otherwise
-   */
-  
-  func ftime_start() -> Bool {
-    
-    /*
-     * get random name and create temporary scratch file, unlink name
-     * so it will get removed on exit
-     */
-    let tfil = options.tempdir + _TFILE_BASE
-    let ffd = mkstemp(tfil))
-    guard ffd >= 0 else {
-      syswarn(true, errno, "Unable to create temporary file: \(tfil)")
-      return true
-    }
-    unlink(tfil)
-    return false
-  }
-  
+
+
   /*
    * chk_ftime()
    *	looks up entry in file time hash table. If not found, the file is
@@ -411,100 +378,44 @@ class Tables {
    * Return:
    *	0 if file should be added to the archive, 1 if it should be skipped,
    *	-1 on error
-   */
-  
-  func chk_ftime(_ arcn : pax.ARCHD) -> Int {
-    FTM *pt;
-    int namelen;
-    u_int indx;
-    char ckname[PAXPATHLEN+1];
 
+   * changed to assume that the table can be in memory because we have virtual memory
+   */
+
+  func chk_ftime(_ arcn : pax.ARCHD) -> Int {
+    /*    FTM *pt;
+     int namelen;
+     u_int indx;
+     char ckname[PAXPATHLEN+1];
+     */
     /*
      * hash the pathname and look up in table
      */
-    namelen = arcn->nlen;
-    indx = st_hash(arcn->name, namelen, F_TAB_SZ);
-    if ((pt = ftab[indx]) != NULL) {
+    if let pt = ftab[arcn.name] {
+
       /*
-       * the hash chain is not empty, walk down looking for match
-       * only read up the path names if the lengths match, speeds
-       * up the search a lot
+       * found the file, compare the times, save the newer
        */
-      while (pt != NULL) {
-        if (pt->namelen == namelen) {
-          /*
-           * potential match, have to read the name
-           * from the scratch file.
-           */
-          if (lseek(ffd,pt->seek,SEEK_SET) != pt->seek) {
-            syswarn(1, errno,
-                    "Failed ftime table seek");
-            return(-1);
-          }
-          if (read(ffd, ckname, namelen) != namelen) {
-            syswarn(1, errno,
-                    "Failed ftime table read");
-            return(-1);
-          }
-          
-          /*
-           * if the names match, we are done
-           */
-          if (!strncmp(ckname, arcn->name, namelen))
-              break;
-        }
-        
+      if (arcn.sb.lastWrite > pt.mtime) {
         /*
-         * try the next entry on the chain
+         * file is newer
          */
-        pt = pt->fow;
+        ftab[arcn.name]?.mtime = arcn.sb.lastWrite
+        return 0
       }
-      
-      if (pt != NULL) {
-        /*
-         * found the file, compare the times, save the newer
-         */
-        if (arcn->sb.st_mtime > pt->mtime) {
-          /*
-           * file is newer
-           */
-          pt->mtime = arcn->sb.st_mtime;
-          return(0);
-        }
-        /*
-         * file is older
-         */
-        return(1);
-      }
+      /*
+       * file is older
+       */
+      return 1
     }
-    
+
     /*
      * not in table, add it
      */
-    if ((pt = (FTM *)malloc(sizeof(FTM))) != NULL) {
-      /*
-       * add the name at the end of the scratch file, saving the
-       * offset. add the file to the head of the hash chain
-       */
-      if ((pt->seek = lseek(ffd, (off_t)0, SEEK_END)) >= 0) {
-        if (write(ffd, arcn->name, namelen) == namelen) {
-          pt->mtime = arcn->sb.st_mtime;
-          pt->namelen = namelen;
-          pt->fow = ftab[indx];
-          ftab[indx] = pt;
-          return(0);
-        }
-        syswarn(1, errno, "Failed write to file time table");
-      } else
-        syswarn(1, errno, "Failed seek on file time table");
-    } else
-      paxwarn(1, "File time table ran out of memory");
-    
-    if (pt != NULL)
-        free(pt);
-    return(-1);
+    ftab[arcn.name] = FTM(mtime: arcn.sb.lastWrite)
+    return 0
   }
-  
+
   /*
    * Interactive rename table routines
    *
@@ -516,17 +427,17 @@ class Tables {
    * table (it is assumed since input must come from /dev/tty, it is unlikely to
    * be a very large table).
    */
-  
+
   /*
    * name_start()
    *	create the interactive rename table
    * Return:
    *	0 if successful, -1 otherwise
    */
-  
-/*  func name_start() -> Bool {
-  }
-  */
+
+  /*  func name_start() -> Bool {
+   }
+   */
 
   /*
    * add_name()
@@ -536,25 +447,25 @@ class Tables {
    * Return:
    *	0 if added, -1 otherwise
    */
-  
+
   func add_name(_ oname : String, _ nname : String) -> Bool {
     ntab[oname]=nname
   }
-  
+
   /*
    * sub_name()
    *	look up a link name to see if it points at a file that has been
    *	remapped by the user. If found, the link is adjusted to contain the
    *	new name (oname is the link to name)
    */
-  
+
   func sub_name(_ oname : String) -> String {
     /*
      * look the name up in the hash table
      */
     return ntab[oname] ?? oname
   }
-  
+
   /*
    * device/inode mapping table routines
    * (used with formats that store device and inodes fields)
@@ -594,7 +505,7 @@ class Tables {
    * device truncation we remap the device number to a non truncated value.
    * (for more info see table.h for the data structures involved).
    */
-  
+
 
   /*
    * add_dev()
@@ -605,14 +516,14 @@ class Tables {
    * Return:
    *	0 if added ok, -1 otherwise
    */
-  
-  func add_dev(_ arcn : ARCHD) -> Bool {
-    if (chk_dev(arcn.sb.device, 1) == NULL) {
+
+  func add_dev(_ arcn : pax.ARCHD) -> Bool {
+    guard let _ = chk_dev(arcn.sb.device, true) else {
       return true
     }
     return false
   }
-  
+
   /*
    * chk_dev()
    *	check for a device value in the device table. If not found and the add
@@ -625,47 +536,32 @@ class Tables {
    *	not been seen yet). If add is set and the device cannot be added, null
    *	is returned (indicates an error).
    */
-  
-  private func chk_dev(_ dev : dev_t, _ add : Int) -> DEVT? {
-    DEVT *pt;
-    u_int indx;
-    
+
+  private func chk_dev(_ dev : UInt, _ add : Bool) -> [DLIST]? {
+
     /*
      * look to see if this device is already in the table
      */
-    indx = ((unsigned)dev) % D_TAB_SZ;
-    if ((pt = dtab[indx]) != NULL) {
-      while ((pt != NULL) && (pt->dev != dev))
-              pt = pt->fow;
-      
-      /*
-       * found it, return a pointer to it
-       */
-      if (pt != NULL)
-          return(pt);
+    if let pt = dtab[dev] {
+      return pt
     }
-    
+
     /*
      * not in table, we add it only if told to as this may just be a check
      * to see if a device number is being used.
      */
-    if (add == 0)
-        return(NULL);
-    
+    if !add {
+      return nil
+    }
+
     /*
      * allocate a node for this device and add it to the front of the hash
      * chain. Note we do not assign remaps values here, so the pt->list
      * list must be NULL.
      */
-    if ((pt = (DEVT *)malloc(sizeof(DEVT))) == NULL) {
-      paxwarn(1, "Device map table out of memory");
-      return(NULL);
-    }
-    pt->dev = dev;
-    pt->list = NULL;
-    pt->fow = dtab[indx];
-    dtab[indx] = pt;
-    return(pt);
+    let pt = [DLIST]()
+    dtab[dev] = pt
+    return pt
   }
 
   /*
@@ -680,8 +576,8 @@ class Tables {
    * Return:
    *	0 if all ok, -1 otherwise.
    */
-  
-  func map_dev(_ arcn : ARCHD, _ dev_mask : UInt, _ ino_mask : UInt) -> Bool {
+
+  func map_dev(_ arcn : pax.ARCHD, _ dev_mask : UInt, _ ino_mask : UInt) -> Bool {
     DEVT *pt;
     DLIST *dpt;
     static dev_t lastdev = 0;	/* next device number to try */
@@ -689,7 +585,7 @@ class Tables {
     int trc_dev = 0;
     ino_t trunc_bits = 0;
     ino_t nino;
-    
+
     /*
      * check for device and inode truncation, and extract the truncated
      * bit pattern.
@@ -697,15 +593,15 @@ class Tables {
     if (arcn.sb.st_dev & dev_mask != arcn.sb.st_dev {
       ++trc_dev;
     }
-    if ((nino = arcn->sb.st_ino & (ino_t)ino_mask) != arcn->sb.st_ino) {
+        if ((nino = arcn->sb.st_ino & (ino_t)ino_mask) != arcn->sb.st_ino) {
       ++trc_ino;
       trunc_bits = arcn->sb.st_ino & (ino_t)(~ino_mask);
     }
-    
-    /*
-     * see if this device is already being mapped, look up the device
-     * then find the truncation bit pattern which applies
-     */
+
+        /*
+         * see if this device is already being mapped, look up the device
+         * then find the truncation bit pattern which applies
+         */
         if ((pt = chk_dev(arcn.sb.st_dev, 0)) != NULL) {
       /*
        * this device is already marked to be remapped
@@ -732,13 +628,13 @@ class Tables {
        */
       if (!trc_ino && !trc_dev)
           return(0);
-      
+
       /*
        * we have truncation, have to add this as a device to remap
        */
       if ((pt = chk_dev(arcn->sb.st_dev, 1)) == NULL)
           goto bad;
-      
+
       /*
        * if we just have a truncated inode, we have to make sure that
        * all future inodes that do not truncate (they have the
@@ -757,12 +653,12 @@ class Tables {
         pt->list = dpt;
       }
     }
-    
-    /*
-     * look for a device number not being used. We must watch for wrap
-     * around on lastdev (so we do not get stuck looking forever!)
-     */
-    while (++lastdev > 0) {
+
+        /*
+         * look for a device number not being used. We must watch for wrap
+         * around on lastdev (so we do not get stuck looking forever!)
+         */
+        while (++lastdev > 0) {
       if (chk_dev(lastdev, 0) != NULL)
           continue;
       /*
@@ -775,28 +671,28 @@ class Tables {
           goto bad;
       break;
     }
-    
-    if ((lastdev <= 0) || ((dpt = (DLIST *)malloc(sizeof(DLIST))) == NULL))
-        goto bad;
-    
-    /*
-     * got a new device number, store it under this truncation pattern.
-     * change the device number this file is being stored with.
-     */
-    dpt->trunc_bits = trunc_bits;
-    dpt->dev = lastdev;
-    dpt->fow = pt->list;
-    pt->list = dpt;
-    arcn->sb.st_dev = lastdev;
-    arcn->sb.st_ino = nino;
-    return false
 
-  bad:
-    paxwarn(true, "Unable to fix truncated inode/device field when storing \(arcn.name)")
-    paxwarn(false, "Archive may create improper hard links when extracted");
-    return false
+        if ((lastdev <= 0) || ((dpt = (DLIST *)malloc(sizeof(DLIST))) == NULL))
+        goto bad;
+
+        /*
+         * got a new device number, store it under this truncation pattern.
+         * change the device number this file is being stored with.
+         */
+        dpt->trunc_bits = trunc_bits;
+        dpt->dev = lastdev;
+        dpt->fow = pt->list;
+        pt->list = dpt;
+        arcn->sb.st_dev = lastdev;
+        arcn->sb.st_ino = nino;
+        return false
+
+        bad:
+          paxwarn(true, "Unable to fix truncated inode/device field when storing \(arcn.name)")
+        paxwarn(false, "Archive may create improper hard links when extracted");
+        return false
   }
-  
+
   /*
    * directory access/mod time reset table routines (for directories READ by pax)
    *
@@ -814,101 +710,62 @@ class Tables {
    * operations of pax. Entries are hashed by inode number for fast lookup.
    */
 
-  
+
   /*
    * atdir_end()
    *	walk through the directory access time table and reset the access time
    *	of any directory who still has an entry left in the database. These
    *	entries are for directories READ by pax
    */
-  
+
   func atdir_end() {
-    ATDIR *pt;
-    int i;
     
-    if (atab == NULL)
-        return;
     /*
      * for each non-empty hash table entry reset all the directories
      * chained there.
      */
-    for (i = 0; i < A_TAB_SZ; ++i) {
-      if ((pt = atab[i]) == NULL)
-          continue;
-      /*
-       * remember to force the times, set_ftime() looks at pmtime
-       * and patime, which only applies to things CREATED by pax,
-       * not read by pax. Read time reset is controlled by -t.
-       */
-      for (; pt != NULL; pt = pt->fow)
-            
-            set_ftime(pt->name, pt->mtime, pt->mtime_nsec,
-                      pt->atime, pt->atime_nsec, 1);
-      
+    for (k, v) in atab {
+      for (i = 0; i < A_TAB_SZ; ++i) {
+        if ((pt = atab[i]) == NULL)
+            continue;
+        /*
+         * remember to force the times, set_ftime() looks at pmtime
+         * and patime, which only applies to things CREATED by pax,
+         * not read by pax. Read time reset is controlled by -t.
+         */
+        for (; pt != NULL; pt = pt->fow)
+              
+              set_ftime(pt->name, pt->mtime, pt->mtime_nsec,
+                        pt->atime, pt->atime_nsec, 1);
+        
+      }
     }
   }
-  
-  /*
-   * add_atdir()
-   *	add a directory to the directory access time table. Table is hashed
-   *	and chained by inode number. This is for directories READ by pax
-   */
-  
-  func add_atdir(char *fname, dev_t dev, ino_t ino, time_t mtime,
-            time_t mtime_nsec, time_t atime, time_t atime_nsec) {
-    ATDIR *pt;
-    u_int indx;
-    
+
     /*
-     * make sure this directory is not already in the table, if so just
-     * return (the older entry always has the correct time). The only
-     * way this will happen is when the same subtree can be traversed by
-     * different args to pax and the -n option is aborting fts out of a
-     * subtree before all the post-order visits have been made.
+     * add_atdir()
+     *	add a directory to the directory access time table. Table is hashed
+     *	and chained by inode number. This is for directories READ by pax
      */
-    indx = ((unsigned)ino) % A_TAB_SZ;
-    if ((pt = atab[indx]) != NULL) {
-      while (pt != NULL) {
-        if ((pt->ino == ino) && (pt->dev == dev)) {
-          break;
-        }
-        pt = pt->fow;
-      }
-      
+
+    func add_atdir(_ fname : String, _ dev : UInt, _ ino : UInt, _ mtime : DateTime, _ atime : DateTime) -> ATDIR {
+
       /*
-       * oops, already there. Leave it alone.
+       * make sure this directory is not already in the table, if so just
+       * return (the older entry always has the correct time). The only
+       * way this will happen is when the same subtree can be traversed by
+       * different args to pax and the -n option is aborting fts out of a
+       * subtree before all the post-order visits have been made.
        */
-      if (pt != NULL) {
-        return;
+      if let pt = atab[DevInode(dev: dev, ino: ino)] {
+        return pt
       }
+
+      let pt = ATDIR(name: fname, dev: dev, ino: ino, mtime: mtime, atime: atime)
+      atab[DevInode(dev: dev, ino: ino)] = pt
+      return pt
     }
-    
-    /*
-     * add it to the front of the hash chain
-     */
-    if ((pt = (ATDIR *)malloc(sizeof(ATDIR))) != NULL) {
-      if ((pt->name = strdup(fname)) != NULL) {
-        pt->dev = dev;
-        pt->ino = ino;
-        pt->mtime = mtime;
-        
-        pt->mtime_nsec = mtime_nsec;
-        
-        pt->atime = atime;
-        
-        pt->atime_nsec = atime_nsec;
-        
-        pt->fow = atab[indx];
-        atab[indx] = pt;
-        return;
-      }
-      free(pt);
-    }
-    
-    paxwarn(1, "Directory access time reset table ran out of memory");
-    return;
-  }
-  
+
   /*
    * get_atdir()
    *	look up a directory by inode and device number to obtain the access
@@ -919,13 +776,13 @@ class Tables {
    * Return:
    *	0 if found, -1 if not found.
    */
-  
+
   func get_atdir(dev_t dev, ino_t ino, time_t *mtime, time_t *mtime_nsec,
-            time_t *atime, time_t *atime_nsec) -> Bool {
+  time_t *atime, time_t *atime_nsec) -> Bool {
     ATDIR *pt;
     ATDIR **ppt;
     u_int indx;
-    
+
     /*
      * hash by inode and search the chain for an inode and device match
      */
@@ -933,7 +790,7 @@ class Tables {
     if ((pt = atab[indx]) == NULL) {
       return(-1);
     }
-    
+
     ppt = &(atab[indx]);
     while (pt != NULL) {
       if ((pt->ino == ino) && (pt->dev == dev)) {
@@ -945,31 +802,31 @@ class Tables {
       ppt = &(pt->fow);
       pt = pt->fow;
     }
-    
+
     /*
      * return if we did not find it.
      */
     if (pt == NULL) {
       return(-1);
     }
-    
+
     /*
      * found it. return the times and remove the entry from the table.
      */
     *ppt = pt->fow;
     *mtime = pt->mtime;
-    
+
     *mtime_nsec = pt->mtime_nsec;
-    
+
     *atime = pt->atime;
-    
+
     *atime_nsec = pt->atime_nsec;
-    
+
     free(pt->name);
     free(pt);
     return(0);
   }
-  
+
   /*
    * directory access mode and time storage routines (for directories CREATED
    * by pax).
@@ -1005,12 +862,10 @@ class Tables {
    *	have to force the setting at the end. this is stated explicitly in the
    *	pax spec)
    */
-  
-  func add_dir(char *name, size_t nlen, struct stat *psb, int frc_mode) {
 
-    DIRDATA *dblk;
+  func add_dir(_ name : String, _ psb : FileMetadata, _ frc_mode : Bool) {
     char realname[MAXPATHLEN], *rp;
-    
+
     if (havechd && *name != '/') {
       if ((rp = realpath(name, realname)) == NULL) {
         paxwarn(1, "Cannot canonicalize %s", name);
@@ -1018,162 +873,59 @@ class Tables {
       }
       name = rp;
     }
-    if (dircnt == dirsize) {
-      dblk = realloc(dirp, 2 * dirsize * sizeof(DIRDATA));
-      if (dblk == NULL) {
-        paxwarn(1, "Unable to store mode and times for created"
-                " directory: %s", name);
-        return;
-      }
-      dirp = dblk;
-      dirsize *= 2;
-    }
-    dblk = &dirp[dircnt];
-    if ((dblk->name = strdup(name)) == NULL) {
-      paxwarn(1, "Unable to store mode and times for created"
-              " directory: %s", name);
-      return;
-    }
-    dblk->mode = psb->st_mode & 0xffff;
-    dblk->mtime = psb->st_mtime_sec;
-    dblk->mtime_nsec = psb->st_mtime_nsec;
-    dblk->atime = psb->st_atime_sec;
-    dblk->atime_nsec = psb->st_atime_nsec;
-    dblk->frc_mode = frc_mode;
-    ++dircnt;
-    
+
+    dirp.append( DIRDATA(name: name, mode: psb.permissions, mtime: psb.lastWrite, atime: psb.lastAccess, frc_mode: frc_mode) )
   }
-  
+
   /*
    * proc_dir()
    *	process all file modes and times stored for directories CREATED
    *	by pax
    */
-  
+
   func proc_dir() {
 
-    
+
     DIRDATA *dblk;
     long cnt;
-    
+
     /*
      * read backwards through the file and process each directory
      */
-    
+
     cnt = dircnt;
     while (--cnt >= 0) {
-      
+
       /*
        * read the trailer, then the file name, if this fails
        * just give up.
        */
-      
+
       dblk = &dirp[cnt];
-      
+
       /*
        * frc_mode set, make sure we set the file modes even if
        * the user didn't ask for it (see file_subs.c for more info)
        */
-      
+
       if (pmode || dblk->frc_mode) {
         set_pmode(dblk->name, dblk->mode);
       }
-      
+
       if (patime || pmtime) {
-        
+
         set_ftime(dblk->name, dblk->mtime, dblk->mtime_nsec,
                   dblk->atime, dblk->atime_nsec, 0);
       }
       free(dblk->name);
-      
+
     }
-    
-    
+
+
     free(dirp);
     dirp = NULL;
     dircnt = 0;
-    
+
   }
-  
-  /*
-   * database independent routines
-   */
-  
-  /*
-   * st_hash()
-   *	hashes filenames to a u_int for hashing into a table. Looks at the tail
-   *	end of file, as this provides far better distribution than any other
-   *	part of the name. For performance reasons we only care about the last
-   *	MAXKEYLEN chars (should be at LEAST large enough to pick off the file
-   *	name). Was tested on 500,000 name file tree traversal from the root
-   *	and gave almost a perfectly uniform distribution of keys when used with
-   *	prime sized tables (MAXKEYLEN was 128 in test). Hashes (sizeof int)
-   *	chars at a time and pads with 0 for last addition.
-   * Return:
-   *	the hash value of the string MOD (%) the table size.
-   */
-  
-  u_int
-  st_hash(char *name, int len, int tabsz)
-  {
-    char *pt;
-    char *dest;
-    char *end;
-    int i;
-    u_int key = 0;
-    int steps;
-    int res;
-    u_int val;
-    
-    /*
-     * only look at the tail up to MAXKEYLEN, we do not need to waste
-     * time here (remember these are pathnames, the tail is what will
-     * spread out the keys)
-     */
-    if (len > MAXKEYLEN) {
-      pt = &(name[len - MAXKEYLEN]);
-      len = MAXKEYLEN;
-    } else {
-      pt = name;
-    }
-    
-    /*
-     * calculate the number of u_int size steps in the string and if
-     * there is a runt to deal with
-     */
-    steps = len/sizeof(u_int);
-    res = len % sizeof(u_int);
-    
-    /*
-     * add up the value of the string in unsigned integer sized pieces
-     * too bad we cannot have unsigned int aligned strings, then we
-     * could avoid the expensive copy.
-     */
-    for (i = 0; i < steps; ++i) {
-      end = pt + sizeof(u_int);
-      dest = (char *)&val;
-      while (pt < end) {
-        *dest++ = *pt++;
-      }
-      key += val;
-    }
-    
-    /*
-     * add in the runt padded with zero to the right
-     */
-    if (res) {
-      val = 0;
-      end = pt + res;
-      dest = (char *)&val;
-      while (pt < end) {
-        *dest++ = *pt++;
-      }
-      key += val;
-    }
-    
-    /*
-     * return the result mod the table size
-     */
-    return(key % tabsz);
-  }
+
 }

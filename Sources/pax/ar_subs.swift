@@ -47,7 +47,6 @@ extension pax {
    */
 
   static char hdbuf[BLKMULT];		/* space for archive header on read */
-  u_long flcnt;				/* number of files processed */
 
   static char	cwdpath[MAXPATHLEN];	/* current working directory path */
   static size_t	cwdpathlen;		/* current working directory path len */
@@ -115,12 +114,7 @@ extension pax {
    */
 
   func list() {
-    ARCHD *arcn;
-    int res;
-    ARCHD archd;
-    time_t now;
-
-    arcn = &archd;
+    var arcn = ARCHD()
     /*
      * figure out archive type; pass any format specific options to the
      * archive option processing routine; call the format init routine. We
@@ -137,21 +131,20 @@ extension pax {
       return;
     }
 
-    now = time(NULL);
+    let now = Darwin.time(nil)
 
     /*
      * step through the archive until the format says it is done
      */
     while (next_head(arcn) == 0) {
 
-      if (arcn->type == PAX_GLL || arcn->type == PAX_GLF) {
+      if arcn.type == .GLL || arcn.type == .GLF {
         /*
          * we need to read, to get the real filename
          */
-        off_t cnt;
-        if (!(*frmt->rd_data)(arcn, arcn->type == PAX_GLF
-                              ? -1 : -2, &cnt)) {
-          (void)rd_skip(cnt + arcn->pad);
+        var cnt = 0
+        if !options.frmt!.rd_data(arcn, arcn.type == PAXType.GLF ? -1 : -2, &cnt) {
+          rd_skip(cnt + arcn.pad)
         }
         continue;
       }
@@ -197,9 +190,9 @@ extension pax {
      * all done, let format have a chance to cleanup, and make sure that
      * the patterns supplied by the user were all matched
      */
-    (void)(*frmt->end_rd)();
-    (void)sigprocmask(SIG_BLOCK, &s_mask, NULL);
-    ar_close();
+    options.frmt!.end_rd()
+    sigprocmask(SIG_BLOCK, &s_mask, nil)
+    ar_io.ar_close()
     pat_chk();
   }
 
@@ -210,13 +203,10 @@ extension pax {
    */
 
   func extract() {
-    ARCHD *arcn;
     int res;
     off_t cnt;
-    ARCHD archd;
     struct stat sb;
     int fd;
-    time_t now;
 
     int copyfile_disable = (getenv(COPYFILE_DISABLE_VAR) != NULL);
     LIST_HEAD(copyfile_list_t, copyfile_list_entry_t) copyfile_list;
@@ -228,7 +218,7 @@ extension pax {
 
     LIST_INIT(&copyfile_list);
 
-    arcn = &archd;
+    var arcn = ARCHD()
     /*
      * figure out archive type; pass any format specific options to the
      * archive option processing routine; call the format init routine;
@@ -247,23 +237,23 @@ extension pax {
       return;
     }
 
-    now = time(NULL);
+    let now = Darwin.time(nil)
 
     /*
      * step through each entry on the archive until the format read routine
      * says it is done
      */
-    while (next_head(arcn) == 0) {
+    while !next_head(arcn) {
 
-      if (arcn->type == PAX_GLL || arcn->type == PAX_GLF) {
+      if arcn.type == .GLL || arcn.type == .GLF {
         /*
          * we need to read, to get the real filename
          */
-        if (!(*frmt->rd_data)(arcn, arcn->type == PAX_GLF
-                              ? -1 : -2, &cnt)) {
-          (void)rd_skip(cnt + arcn->pad);
+        var cnt = 0
+        if !options.frmt!.rd_data(arcn, arcn.type == .GLF ? -1 : -2, &cnt) {
+          rd_skip(cnt + arcn.pad)
         }
-        continue;
+        continue
       }
 
       /*
@@ -465,7 +455,7 @@ extension pax {
      */
     (void)(*frmt->end_rd)();
     (void)sigprocmask(SIG_BLOCK, &s_mask, NULL);
-    ar_close();
+    ar_io.ar_close();
     proc_dir();
     pat_chk();
   }
@@ -697,7 +687,7 @@ extension pax {
           vfpart = 1;
         }
       }
-      ++flcnt;
+      runtime.flcnt += 1
 
       /*
        * looks safe to store the file, have the format specific
@@ -763,8 +753,8 @@ extension pax {
       (*frmt->end_wr)();
       wr_fin();
     }
-    (void)sigprocmask(SIG_BLOCK, &s_mask, NULL);
-    ar_close();
+    sigprocmask(SIG_BLOCK, &s_mask, nil)
+    ar_io.ar_close();
     if (tflag) {
       proc_dir();
     }
@@ -794,15 +784,12 @@ extension pax {
    */
 
   func append() {
-    ARCHD *arcn;
     int res;
-    ARCHD archd;
-    FSUB *orgfrmt;
     int udev;
     off_t tlen;
 
-    arcn = &archd;
-    orgfrmt = frmt;
+    var arcn = ARCHD()
+    let orgfrmt = options frmt
 
     /*
      * Do not allow an append operation if the actual archive is of a
@@ -820,15 +807,15 @@ extension pax {
     /*
      * pass the format any options and start up format
      */
-    if (((*frmt->options)() < 0) || ((*frmt->st_rd)() < 0)) {
-      return;
+    if (options.frmt!.other_options() || options.frmt!.st_rd() ) {
+      return
     }
 
     /*
      * if we only are adding members that are newer, we need to save the
      * mod times for all files we see.
      */
-    if (uflag && (ftime_start() < 0)) {
+    if (options.uflag && (ftime_start() < 0)) {
       return;
     }
 
@@ -862,7 +849,7 @@ extension pax {
     /*
      * step through the archive until the format says it is done
      */
-    while (next_head(arcn) == 0) {
+    while !next_head(arcn) {
       /*
        * check if this file meets user specified options.
        */
@@ -1142,7 +1129,7 @@ extension pax {
 
         vfpart = 1;
       }
-      ++flcnt;
+      runtime.flcnt += 1
 
       /*
        * try to create a hard link to the src file if requested
@@ -1236,7 +1223,7 @@ extension pax {
      * multiple entry into the cleanup code.
      */
     (void)sigprocmask(SIG_BLOCK, &s_mask, NULL);
-    ar_close();
+    ar_io.ar_close();
     proc_dir();
     ftree_chk();
   }
@@ -1274,7 +1261,8 @@ extension pax {
      * set up initial conditions, we want a whole frmt->hsz block as we
      * have no data yet.
      */
-    res = hsz = frmt->hsz;
+    let res = options.frmt!.hsz
+    let hsz = options.frmt!.hsz
     hdend = hdbuf;
     shftsz = hsz - 1;
     for(;;) {
@@ -1334,19 +1322,21 @@ extension pax {
        * us that this block cannot contain a valid header either, so
        * we then throw out the entire block and start over.
        */
-      if ((*frmt->rd)(arcn, hdbuf) == 0)
-          break;
+      if (options.frmt!.rd(arcn, hdbuf) == 0) {
+        break;
+      }
 
       if (!frmt->inhead) {
         /*
          * this format has trailers outside of valid headers
          */
-        if ((ret = (*frmt->trail_tar)(hdbuf,in_resync,&cnt)) == 0){
+        let ret = options.frmt!.trail_tar(hdbuf,in_resync,&cnt)
+        if ( ret == 0){
           /*
            * valid trailer found, drain input as required
            */
           ar_drain();
-          return(-1);
+          return true
         }
 
         if (ret == 1) {
@@ -1387,16 +1377,16 @@ extension pax {
      * ok got a valid header, check for trailer if format encodes it in
      * the header.
      */
-    if (frmt->inhead && ((*frmt->trail_cpio)(arcn) == 0)) {
+    if (options.frmt!.inhead && (!options.frmt!.trail_cpio(arcn))) {
       /*
        * valid trailer found, drain input as required
        */
-      ar_drain();
-      return(-1);
+      ar_io.ar_drain();
+      return true
     }
 
-    ++flcnt;
-    return(0);
+    runtime.flcnt += 1
+    return false
   }
 
   /*
@@ -1410,12 +1400,9 @@ extension pax {
    */
 
   private func get_arc() -> Bool {
-    int i;
-    int hdsz = 0;
-    int res;
-    int minhd = BLKMULT;
+    let minhd = BLKMULT
     char *hdend;
-    int notice = 0;
+    var notice = false
 
     /*
      * find the smallest header size in all archive formats and then set up
@@ -1425,27 +1412,29 @@ extension pax {
       if (fsub[ford[i]].hsz < minhd)
           minhd = fsub[ford[i]].hsz;
     }
-    if (rd_start() < 0)
-        return(-1);
-    res = BLKMULT;
-    hdsz = 0;
+    if (rd_start() < 0) { return true }
+    var res = BLKMULT
+    var hdsz = 0
     hdend = hdbuf;
-    for(;;) {
-      for (;;) {
+    outer: while true {
+      inner: while true {
         /*
          * fill the buffer with at least the smallest header
          */
-        i = rd_wrbuf(hdend, res);
-        if (i > 0)
-            hdsz += i;
-        if (hdsz >= minhd)
-            break;
+        let i = rd_wrbuf(hdend, res);
+        if i > 0 {
+          hdsz += i
+        }
+        if (hdsz >= minhd) {
+          break
+        }
 
         /*
          * if we cannot recover from a read error quit
          */
-        if ((i == 0) || (rd_sync() < 0))
-            goto out;
+        if i == 0 || rd_sync() < 0 {
+          break outer
+        }
 
         /*
          * when we get an error none of the data we already
@@ -1453,14 +1442,15 @@ extension pax {
          * got an error in the middle), so we throw it all out
          * and refill the buffer with fresh data.
          */
-        res = BLKMULT;
-        hdsz = 0;
+        res = BLKMULT
+        hdsz = 0
         hdend = hdbuf;
-        if (!notice) {
-          if (act == APPND)
-              return(-1);
-          paxwarn(1,"Cannot identify format. Searching...");
-          ++notice;
+        if !notice {
+          if options.act == .APPND {
+            return true
+          }
+          paxwarn(true, "Cannot identify format. Searching...")
+          notice = true
         }
       }
 
@@ -1484,7 +1474,7 @@ extension pax {
          * adding all the special case code is far worse.
          */
         pback(hdbuf, hdsz);
-        return(0);
+        return false
       }
 
       /*
@@ -1492,10 +1482,11 @@ extension pax {
        * we never allow additions to flawed archives
        */
       if (!notice) {
-        if (act == APPND)
-            return(-1);
-        paxwarn(1, "Cannot identify format. Searching...");
-        ++notice;
+        if options.act == .APPND {
+          return true
+        }
+        paxwarn(true, "Cannot identify format. Searching...");
+        notice = true
       }
 
       /*
@@ -1515,11 +1506,11 @@ extension pax {
       }
     }
 
-  out:
+//  out:
     /*
      * we cannot find a header, bow, apologize and quit
      */
-    paxwarn(1, "Sorry, unable to determine archive format.");
-    return(-1);
+    paxwarn(true, "Sorry, unable to determine archive format.")
+    return true
   }
 }

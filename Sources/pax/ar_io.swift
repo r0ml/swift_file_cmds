@@ -54,7 +54,7 @@ class Ar_io {
   var stdo = "<STDOUT>"	/* pseudo name for stdout */
   var stdn = "<STDIN>"	/* pseudo name for stdin */
   var arfd : FileDescriptor?   /* archive file descriptor */
-  var artyp = FileType.regular  /* archive type: file/FIFO/tape */
+  var artyp = pax.DeviceType.ISREG  /* archive type: file/FIFO/tape */
   var arvol = 1         /* archive volume number */
   var lstrval = -1  		/* return value from last i/o */
   var io_ok : Bool = false    /* i/o worked on volume after resync */
@@ -80,22 +80,24 @@ class Ar_io {
    */
 
   func ar_open(_ name : String) -> Bool {
-    if (arfd != -1) {
-      (void)close(arfd);
+    if let arfd {
+      try? arfd.close()
     }
-    arfd = -1;
-    can_unlnk = did_io = io_ok = invld_rec = 0;
-    artyp = ISREG;
+    arfd = nil
+    can_unlnk = false
+    did_io = false
+    io_ok = false
+    invld_rec = false
+    artyp = .ISREG
     flcnt = 0;
 
     /*
      * open based on overall operation mode
      */
-    switch (act) {
-      case LIST:
-      case EXTRACT:
+    switch options.act {
+      case .LIST, .EXTRACT:
         if (name == NULL) {
-          arfd = STDIN_FILENO;
+          arfd = .standardInput
           arcname = stdn;
         } else if ((arfd = open(name, EXT_MODE, DMOD)) < 0) {
 
@@ -106,9 +108,9 @@ class Ar_io {
           ar_start_gzip(arfd, gzip_program, 0);
         }
         break;
-      case ARCHIVE:
+      case .ARCHIVE:
         if (name == NULL) {
-          arfd = STDOUT_FILENO;
+          arfd = .standardOutput
           arcname = stdo;
         } else if ((arfd = open(name, AR_MODE, DMOD)) < 0) {
 
@@ -121,9 +123,9 @@ class Ar_io {
           ar_start_gzip(arfd, gzip_program, 1);
         }
         break;
-      case APPND:
+      case .APPND:
         if (name == NULL) {
-          arfd = STDOUT_FILENO;
+          arfd = .standardOutput
           arcname = stdo;
         } else if ((arfd = open(name, APP_MODE, DMOD)) < 0) {
 
@@ -132,7 +134,7 @@ class Ar_io {
                   name);
         }
         break;
-      case COPY:
+      case .COPY:
         /*
          * arfd not used in COPY mode
          */
@@ -154,47 +156,44 @@ class Ar_io {
     /*
      * set up is based on device type
      */
-    if (fstat(arfd, &arsb) < 0) {
-      syswarn(0, errno, "Failed stat on %s", arcname);
-      (void)close(arfd);
-      arfd = -1;
+    guard let arsb = try? FileMetadata(for: arfd!) else  {
+      syswarn(false, errno, "Failed stat on \(arcname)")
+      try? arfd!.close()
+      arfd = nil
       can_unlnk = 0;
-      return(-1);
+      return true
     }
     if (S_ISDIR(arsb.st_mode)) {
-      paxwarn(0, "Cannot write an archive on top of a directory %s",
-              arcname);
-      (void)close(arfd);
-      arfd = -1;
+      paxwarn(false, "Cannot write an archive on top of a directory \(arcname)")
+      try? arfd!.close()
+      arfd = nil
       can_unlnk = 0;
-      return(-1);
+      return true
     }
 
-    if (S_ISCHR(arsb.st_mode)) {
-
-      artyp = ISCHR;
-
-    } else if (S_ISBLK(arsb.st_mode)) {
-      artyp = ISBLK;
+    if arsb.filetype == .characterDevice {
+      artyp = .ISCHR
+    } else if arsb.filetype == .blockDevice {
+      artyp = .ISBLK
     }
     else if ((lseek(arfd, (off_t)0L, SEEK_CUR) == -1) && (errno == ESPIPE)) {
       artyp = ISPIPE;
     }
     else {
-      artyp = ISREG;
+      artyp = .ISREG
     }
 
     /*
      * make sure we beyond any doubt that we only can unlink regular files
      * we created
      */
-    if (artyp != ISREG) {
+    if artyp != .ISREG {
       can_unlnk = 0;
     }
     /*
      * if we are writing, we are done
      */
-    if (act == ARCHIVE) {
+    if act == .ARCHIVE {
       blksz = rdblksz = wrblksz;
       lstrval = 1;
       return(0);
@@ -207,8 +206,8 @@ class Ar_io {
      * must set blocksize based on what kind of device the archive is
      * stored.
      */
-    switch(artyp) {
-      case ISTAPE:
+    switch artyp {
+      case .ISTAPE:
         /*
          * Tape drives come in at least two flavors. Those that support
          * variable sized records and those that have fixed sized
@@ -225,9 +224,7 @@ class Ar_io {
          */
         blksz = rdblksz = MAXBLK;
         break;
-      case ISPIPE:
-      case ISBLK:
-      case ISCHR:
+      case .ISPIPE, .ISBLK, .ISCHR:
         /*
          * Blocksize is not a major issue with these devices (but must
          * be kept a multiple of 512). If the user specified a write
@@ -258,7 +255,7 @@ class Ar_io {
           blksz = MAXBLK;
         }
         break;
-      case ISREG:
+      case .ISREG:
         /*
          * if the user specified wrblksz works, use it. Under appends
          * we must always keep blksz == rdblksz
@@ -284,7 +281,7 @@ class Ar_io {
         /*
          * for performance go for large reads when we can
          */
-        if (act == APPND) {
+        if (act == .APPND) {
           blksz = rdblksz;
         }
         else {
@@ -299,7 +296,7 @@ class Ar_io {
         break;
     }
     lstrval = 1;
-    return(0);
+    return false
   }
 
   /*
@@ -309,9 +306,11 @@ class Ar_io {
   func ar_close() {
     int status;
 
-    if (arfd < 0) {
-      did_io = io_ok = flcnt = 0;
-      return;
+    guard let arfd else {
+      did_io = false
+      io_ok = false
+      flcnt = 0;
+      return
     }
 
     /*
@@ -320,7 +319,7 @@ class Ar_io {
      * going on (this avoids the user hitting control-c thinking pax is
      * broken).
      */
-    if (vflag && (artyp == ISTAPE)) {
+    if (vflag && (artyp == .ISTAPE)) {
       if (vfpart) {
         (void)putc('\n', listf);
       }
@@ -360,7 +359,7 @@ class Ar_io {
       vfpart = 0;
       (void)fflush(listf);
     }
-    arfd = -1;
+    arfd = nil
 
     if (!io_ok && !did_io) {
       flcnt = 0;
@@ -415,7 +414,7 @@ class Ar_io {
                     (uintmax_t)rdcnt, (uintmax_t)wrcnt);
     }
     (void)fflush(listf);
-    flcnt = 0;
+    runtime.flcnt = 0
   }
 
   /*
@@ -434,7 +433,7 @@ class Ar_io {
      * without reading up to end of file. We sure hope that pipe is closed
      * on the other side so we will get an EOF.
      */
-    if ((artyp != ISPIPE) || (lstrval <= 0)) {
+    if ((artyp != .ISPIPE) || (lstrval <= 0)) {
       return;
     }
 
@@ -470,7 +469,7 @@ class Ar_io {
     /*
      * Add any device dependent code as required here
      */
-    if (artyp != ISREG) {
+    if (artyp != .ISREG) {
       return(0);
     }
     /*
@@ -496,15 +495,15 @@ class Ar_io {
    */
 
   func ar_app_ok() -> Bool {
-    if (artyp == ISPIPE) {
-      paxwarn(1, "Cannot append to an archive obtained from a pipe.");
-      return(-1);
+    if (artyp == .ISPIPE) {
+      paxwarn(true, "Cannot append to an archive obtained from a pipe.");
+      return true
     }
 
     if (!invld_rec) {
-      return(0);
+      return false
     }
-    paxwarn(1,"Cannot append, device record size %d does not support %s spec",
+    paxwarn(true,"Cannot append, device record size %d does not support %s spec",
             rdblksz, argv0);
     return(-1);
   }
@@ -641,7 +640,7 @@ class Ar_io {
     }
 
     switch (artyp) {
-      case ISREG:
+      case .ISREG:
         if ((res > 0) && (res % BLKMULT)) {
           /*
            * try to fix up partial writes which are not BLKMULT
@@ -668,9 +667,7 @@ class Ar_io {
           res = lstrval = 0;
         }
         break;
-      case ISTAPE:
-      case ISCHR:
-      case ISBLK:
+      case .ISTAPE, .ISCHR, .ISBLK:
         if (res >= 0) {
           break;
         }
@@ -1005,7 +1002,7 @@ class Ar_io {
         tty_prnt("\n");
       }
 
-      for(;;) {
+      while true {
         tty_prnt("Type \"y\" to continue, \".\" to quit %s,",
                  argv0);
         tty_prnt(" or \"s\" to switch to new device.\nIf you");
@@ -1026,8 +1023,8 @@ class Ar_io {
         }
 
         switch (buf[0]) {
-          case 'y':
-          case 'Y':
+          case "y":
+          case "Y":
             /*
              * we are to continue with the same device
              */
@@ -1037,8 +1034,8 @@ class Ar_io {
             tty_prnt("Cannot re-open %s, try again\n",
                      arcname);
             continue;
-          case 's':
-          case 'S':
+          case "s":
+          case "S":
             /*
              * user wants to open a different device
              */
@@ -1057,7 +1054,7 @@ class Ar_io {
     /*
      * have to go to a different archive
      */
-    for (;;) {
+    while true {
       tty_prnt("Input archive name or \".\" to quit %s.\n", argv0);
       tty_prnt("Archive name > ");
 
@@ -1066,19 +1063,19 @@ class Ar_io {
         lstrval = -1;
         tty_prnt("Quitting %s!\n", argv0);
         vfpart = 0;
-        return(-1);
+        return true
       }
       if (buf[0] == '\0') {
         tty_prnt("Empty file name, try again\n");
-        continue;
+        continue
       }
       if (!strcmp(buf, "..")) {
         tty_prnt("Illegal file name: .. try again\n");
-        continue;
+        continue
       }
       if (strlen(buf) > PAXPATHLEN) {
         tty_prnt("File name too long, try again\n");
-        continue;
+        continue
       }
 
       /*
@@ -1096,9 +1093,9 @@ class Ar_io {
         break;
       }
       tty_prnt("Cannot open %s, try again\n", buf);
-      continue;
+      continue
     }
-    return(0);
+    return false
   }
 
   /*

@@ -54,6 +54,7 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
   let ar_io = Ar_io()
   let tables = Tables()
   let cache = Cache()
+  let tty = Tty()
 
   /*
    * BSD PAX global data structures and constants.
@@ -133,7 +134,7 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
   /*
    * Device type of the current archive volume
    */
-  enum DeviceTypes : Int {
+  enum DeviceType : Int {
     case ISREG = 0  /* regular file */
     case ISCHR      /* character device */
     case ISBLK     /* block device */
@@ -304,7 +305,7 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
    */
     struct CommandOptions {
       var act = OpModes.LIST		/* read/write/append/copy */
-      var frmt : FSUB.Type?       		/* archive format type */
+      var frmt : FSUB?       		/* archive format type */
       var cflag : Bool = false			/* match all EXCEPT pattern/file */
       var cwdfd : FileDescriptor!			/* starting cwd */
       var dflag : Bool = false			/* directory member match only  */
@@ -354,6 +355,8 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
       var s_mask = sigset_t()   /* signal mask for cleanup critical sect */
       var tempfile : String!    /* tempfile to use for mkstemp(3) */
       var tempbase : String!		/* basename of tempfile to use for mkstemp(3) */
+
+      var flcnt : UInt = 0      /* number of files processed */
 
       // set by sig
       var vflag : Bool = false  /* produce verbose output */
@@ -476,6 +479,7 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
     var options : CommandOptions!
     var runtime = Runtime()
 
+
   /*
    * main()
    *	parse options, set up and operate as specified by the user.
@@ -522,7 +526,7 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
     doOptions()
 
 
-    if gen_init() || tty_init() {
+    if gen_init() {
       exit(runtime.exit_val)
     }
     return options
