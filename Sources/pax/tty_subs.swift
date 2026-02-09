@@ -96,7 +96,7 @@ func tty_read() -> String? {
  *	will be non-zero.
  */
 
-  func paxwarn(_ ex : Bool, _ fmt : String) {
+  static func paxwarn(_ ex : Bool, _ fmt : String) {
     if ex && pax_invalid_action == 0 {
       runtime.exit_val = 1
     }
@@ -121,7 +121,7 @@ func tty_read() -> String? {
      *	will be non-zero.
      */
 
-  func syswarn(_ ex : Bool, _ errnum : any BinaryInteger, _ fmt : String) {
+  static func syswarn(_ ex : Bool, _ errnum : any BinaryInteger, _ fmt : String) {
       if ex {
         runtime.exit_val = 1
       }

@@ -45,6 +45,7 @@ import Darwin
 
 class Ar_io {
 
+
   let DMOD = 0o0666		/* default mode of created archives */
   let EXT_MODE = FileDescriptor.AccessMode.readOnly	/* open mode for list/extract */
   let AR_MODE	= (O_WRONLY | O_CREAT | O_TRUNC)	/* mode for archive */

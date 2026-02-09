@@ -13,55 +13,44 @@
  * in the Public Domain for your edification and enjoyment.
  */
 
+import CMigration
 
-func getoldopt(_ argv : [String], _ optstring : String) -> String {
-	static char	*key;		/* Points to next keyletter */
-	static char	use_getopt;	/* !=0 if argv[1][0] was '-' */
-	char		c;
-	char		*place;
+extension pax {
 
-	optarg = NULL;
+  // The way to deal with the  getoldopt  strategy is to look at the first argument:
+  // if it starts with a "-", then it is not old format
+  // if it does not start with a "-", then it is old format, and the argument list should be modified the intersperse the options
+  // specified in the first argument with the remainder of the arguments (prefixing them with "-".
+  // The resulting argument list can then be passed to the standard getopt implementation.
 
-	if (key == NULL) {		/* First time */
-    if (argc < 2) {
-      return (-1);
+  func getoldopt(_ argv : [String], _ optstring : String) throws(CmdErr) -> [String] {
+    if argv.count < 2 { return argv }
+    if argv[1].first == "-" { return argv }
+    var k = Array(argv[1]) // each option as an element of this array
+
+    var res = [String]()
+    res.append(argv[0])
+
+    var z = argv.dropFirst(2)
+    while !k.isEmpty {
+      let c = k.removeFirst()
+      guard let j = optstring.firstIndex(of: c) else {
+        // this is an unknown option, so ....
+        throw CmdErr(1, "unknown option \(c)")
+      }
+      let ccx = optstring.index(after: j)
+      let cc = ccx < optstring.endIndex ? optstring[optstring.index(after: j)] : " "
+
+      res.append("-"+String(c))
+      if cc == ":" {
+        if z.isEmpty {
+          throw CmdErr(1, "\(c) argument missing")
+        } else {
+          res.append(z.removeFirst())
+        }
+      }
     }
-		key = argv[1];
-    if (*key == '-') {
-      use_getopt++;
-    }
-    else {
-      optind = 2;
-    }
-	}
-
-  if (use_getopt) {
-    return (getopt(argc, argv, optstring));
+    res.append(contentsOf: z)
+    return res
   }
-
-	c = *key++;
-	if (c == '\0') {
-		key--;
-		return (-1);
-	}
-	place = strchr(optstring, c);
-
-	if (place == NULL || c == ':') {
-		fprintf(stderr, "%s: unknown option %c\n", argv[0], c);
-		return ('?');
-	}
-
-	place++;
-	if (*place == ':') {
-		if (optind < argc) {
-			optarg = argv[optind];
-			optind++;
-		} else {
-			fprintf(stderr, "%s: %c argument missing\n",
-				argv[0], c);
-			return ('?');
-		}
-	}
-
-	return (c);
 }

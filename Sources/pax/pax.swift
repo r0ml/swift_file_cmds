@@ -64,7 +64,6 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
   let BLKMULT = 512  /* blocksize must be even mult of 512 bytes */
           /* Don't even think of changing this */
   let DEVBLK = 8192  /* default read blksize for devices */
-  let FILEBLK = 10240  /* default read blksize for files */
   let PAXPATHLEN = 3072  /* maximum path length for pax. MUST be */
           /* longer than the system PATH_MAX */
 
@@ -80,56 +79,6 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
   }
 
   let DEFOP = OpModes.LIST  /* if no flags default is to LIST */
-
-  struct PatternFlags : OptionSet {
-    let rawValue: Int
-    init(rawValue: Int) { self.rawValue = rawValue }
-
-    static let MTCH = Self(rawValue: 0x1) /* pattern has been matched */
-    static let DIR_MTCH =  Self(rawValue: 0x2)    /* pattern matched a directory */
-  }
-
-  /*
-   * Pattern matching structure
-   *
-   * Used to store command line patterns
-   */
-  struct PATTERN {
-    var pstr : String    /* pattern to match, user supplied */
-    var pend : String    /* end of a prefix match */
-    var chdname : String /* the dir to change to if not NULL.  */
-    var plen : UInt       /* length of pstr */
-    var flgs : PatternFlags    /* processing/state flags */
-//    struct pattern  *fow;    /* next pattern */
-  }
-
-
-  /*
-   * General Archive Structure (used internal to pax)
-   *
-   * This structure is used to pass information about archive members between
-   * the format independent routines and the format specific routines. When
-   * new archive formats are added, they must accept requests and supply info
-   * encoded in a structure of this type. The name fields are declared statically
-   * here, as there is only ONE of these floating around, size is not a major
-   * consideration. Eventually converting the name fields to a dynamic length
-   * may be required if and when the supporting operating system removes all
-   * restrictions on the length of pathnames it will resolve.
-   */
-  struct ARCHD {
-    var name : String    /* file name */
-    var ln_name : String /* name to link to (if any) */
-    var org_name : String /* orig name in file system */
-    var pat : PATTERN?    /* ptr to pattern match (if any) */
-    var sb : FileMetadata /* stat buffer see stat(2) */
-    var pad : Int         /* bytes of padding after file xfer */
-    var skip : Int        /* bytes of real data after header */
-            /* IMPORTANT. The st_size field does */
-            /* not always indicate the amount of */
-            /* data following the header. */
-    var crc : UInt      /* file crc */
-    var type : PAXType   /* type of file node */
-  }
 
   /*
    * Device type of the current archive volume
@@ -235,24 +184,6 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
           /* write/process file data to the archive */
     func other_options() -> Bool  /* process format specific options (-o) */
   };
-
-  enum PAXType : Int {
-    case DIR = 1    /* directory */
-    case CHR = 2    /* character device */
-    case BLK = 3    /* block device */
-    case REG = 4    /* regular file */
-    case SLK = 5    /* symbolic link */
-    case SCK = 6    /* socket */
-    case FIF = 7    /* fifo */
-    case HLK = 8    /* hard link */
-    case HRG = 9    /* hard link to a regular file */
-    case CTG = 10    /* high performance file */
-
-    case GLL = 11    /* GNU long symlink */
-    case GLF = 12    /* GNU long file */
-
-  }
-
 
     enum Separator : Int {
       case none = 0

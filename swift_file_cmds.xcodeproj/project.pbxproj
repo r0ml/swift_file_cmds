@@ -951,6 +951,7 @@
 			membershipExceptions = (
 				pax/ar_io.swift,
 				pax/ar_subs.swift,
+				pax/ARCHD.swift,
 				pax/bcpio.swift,
 				pax/buf_subs.swift,
 				pax/cache.swift,

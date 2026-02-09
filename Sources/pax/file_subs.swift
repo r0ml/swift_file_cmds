@@ -39,19 +39,16 @@
 import CMigration
 import Darwin
 
-extension pax {
-
-  static int
-  mk_link(char *,struct stat *,char *, int);
+extension ARCHD {
 
   /*
    * routines that deal with file operations such as: creating, removing;
    * and setting access modes, uid/gid and times of files
    */
 
-  #define FILEBITS		(S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO)
-  #define SETBITS			(S_ISUID | S_ISGID)
-  #define ABITS			(FILEBITS | SETBITS)
+  //  #define FILEBITS		(S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO)
+  //  #define SETBITS			(S_ISUID | S_ISGID)
+  //  #define ABITS			(FILEBITS | SETBITS)
 
   /*
    * file_creat()
@@ -60,18 +57,17 @@ extension pax {
    *	file descriptor or -1 for failure
    */
 
-  int
-  file_creat(ARCHD *arcn)
-  {
-    int fd = -1;
-    mode_t file_mode;
-    int oerrno;
+  func file_creat() -> FileDescriptor? {
+    /*    int fd = -1;
+     mode_t file_mode;
+     int oerrno;
 
-    int rc = 0;
-    char *path_to_open;
-    char *new_path;
-    char *cwd;
-    char cwd_buff[MAXPATHLEN];
+     int rc = 0;
+     char *path_to_open;
+     char *new_path;
+     char *cwd;
+     char cwd_buff[MAXPATHLEN];
+     */
 
     /*
      * assume file doesn't exist, so just try to create it, most times this
@@ -84,8 +80,8 @@ extension pax {
      * performance in common use than checking the file (and the path)
      * first with lstat.
      */
-    file_mode = arcn->sb.st_mode & FILEBITS;
-    if ((fd = open(arcn->name, O_WRONLY | O_CREAT | O_TRUNC | O_EXCL,
+    let file_mode = self.sb.permissions
+    if ((fd = open(self.name, O_WRONLY | O_CREAT | O_TRUNC | O_EXCL,
                    file_mode)) >= 0) {
       return(fd);
     }
@@ -155,9 +151,7 @@ extension pax {
    *	0 for success, -1 for failure
    */
 
-  void
-  file_close(ARCHD *arcn, int fd)
-  {
+  func file_close(_ arcn : ARCHD, _ fd : FileDescriptor?) {
     int res = 0;
 
     if (fd < 0) {
@@ -208,28 +202,26 @@ extension pax {
    *	0 if ok, -1 otherwise
    */
 
-  int
-  lnk_creat(ARCHD *arcn)
-  {
-    struct stat sb;
-
+  func lnk_creat() -> Bool {
     /*
      * we may be running as root, so we have to be sure that link target
      * is not a directory, so we lstat and check
      */
-    if (lstat(arcn->ln_name, &sb) < 0) {
-      syswarn(1,errno,"Unable to link to %s from %s", arcn->ln_name,
-              arcn->name);
-      return(-1);
+    let sb : FileMetadata
+
+    do {
+      sb = try FileMetadata(for: FilePath(self.ln_name), followSymlinks: false)
+    } catch(let e) {
+      Tty.syswarn(true, e.code, "Unable to link to \(ln_name) from \(name)")
+      return true
     }
 
-    if (S_ISDIR(sb.st_mode)) {
-      paxwarn(1, "A hard link to the directory %s is not allowed",
-              arcn->ln_name);
-      return(-1);
+    if sb.filetype == .directory {
+      Try.paxwarn(true, "A hard link to the directory \(ln_name) is not allowed")
+      return true
     }
 
-    if (S_ISLNK(sb.st_mode)) {
+    if sb.filetype == .symbolicLink {
       int res;
       char buff[PATH_MAX+1];
       /*
@@ -246,7 +238,7 @@ extension pax {
       return res;
     }
 
-    return(mk_link(arcn->ln_name, &sb, arcn->name, 0));
+    return mk_link(ln_name, sb, name, false)
   }
 
   /*
@@ -259,9 +251,7 @@ extension pax {
    *	0 if cross_lnk() ok, -1 for fatal flaw (like linking to self).
    */
 
-  int
-  cross_lnk(ARCHD *arcn)
-  {
+  func cross_lnk(_ arcn : ARCHD) -> Int {
     /*
      * try to make a link to original file (-l flag in copy mode). make sure
      * we do not try to link to directories in case we are running as root
@@ -291,9 +281,7 @@ extension pax {
    *	0 skip it file exists (-k) or may be the same as source file
    */
 
-  int
-  chk_same(ARCHD *arcn)
-  {
+  func chk_same(_ arcn : ARCHD) -> Int {
     struct stat sb;
 
     /*
@@ -330,43 +318,40 @@ extension pax {
    *	allowed option). -1 an error occurred.
    */
 
-  static int
-  mk_link(char *to, struct stat *to_sb, char *from,
-          int ign)
-  {
-    struct stat sb;
-    int oerrno;
-
+  private func mk_link(_ to : String, _ to_sb : FileMetadata, _ from : String, _ ign : Bool) -> Int {
     /*
      * if from file exists, it has to be unlinked to make the link. If the
      * file exists and -k is set, skip it quietly
      */
-    if (lstat(from, &sb) == 0) {
-      if (kflag)
-          return(0);
+
+    if let sb = try? FileMetadata(for: FilePath(from) ) {
+      if options.kflag {
+        return 0
+      }
 
       /*
        * make sure it is not the same file, protect the user
        */
-      if ((to_sb->st_dev==sb.st_dev)&&(to_sb->st_ino == sb.st_ino)) {
-        paxwarn(1, "Unable to link file %s to itself", to);
-        return(-1);
+
+      if to_sb.device==sb.device && to_sb.inode == sb.inode {
+        Tty.paxwarn(true, "Unable to link file \(to) to itself")
+        return -1
       }
 
       /*
        * try to get rid of the file, based on the type
        */
-      if (S_ISDIR(sb.st_mode)) {
+      if sb.filetype == .directory {
         if (rmdir(from) < 0) {
-          syswarn(1, errno, "Unable to remove %s", from);
-          return(-1);
+          Tty.syswarn(true, errno, "Unable to remove \(from)")
+          return -1
         }
       } else if (unlink(from) < 0) {
         if (!ign) {
-          syswarn(1, errno, "Unable to remove %s", from);
-          return(-1);
+          Tty.syswarn(true, errno, "Unable to remove \(from)")
+          return -1
         }
-        return(1);
+        return 1
       }
     }
 
@@ -375,203 +360,198 @@ extension pax {
      * if it fails, check the path and try it again (if chk_path() says to
      * try again)
      */
-    for (;;) {
+    while true {
       if (link(to, from) == 0)
           break;
       oerrno = errno;
 
       if (!nodirs && chk_path(from, to_sb->st_uid, to_sb->st_gid, NULL) == 0) {
 
-          continue;
-        }
-        if (!ign) {
-          syswarn(1, oerrno, "Could not link to %s from %s", to,
-                  from);
-          return(-1);
-        }
-        return(1);
+        continue;
       }
-
-      /*
-       * all right the link was made
-       */
-      return(0);
+      if (!ign) {
+        syswarn(1, oerrno, "Could not link to %s from %s", to,
+                from);
+        return(-1);
+      }
+      return(1);
     }
 
     /*
-     * node_creat()
-     *	create an entry in the file system (other than a file or hard link).
-     *	If successful, sets uid/gid modes and times as required.
-     * Return:
-     *	0 if ok, -1 otherwise
+     * all right the link was made
      */
-
-    int
-    node_creat(ARCHD *arcn)
-    {
-      int res;
-      int ign = 0;
-      int oerrno;
-      int pass = 0;
-      mode_t file_mode;
-      struct stat sb;
-
-      /*
-       * create node based on type, if that fails try to unlink the node and
-       * try again. finally check the path and try again. As noted in the
-       * file and link creation routines, this method seems to exhibit the
-       * best performance in general use workloads.
-       */
-      file_mode = arcn->sb.st_mode & FILEBITS;
-
-      for (;;) {
-        switch(arcn->type) {
-          case PAX_DIR:
-            res = mkdir(arcn->name, file_mode);
-            if (ign) {
-              res = 0;
-            }
-            break;
-          case PAX_CHR:
-            file_mode |= S_IFCHR;
-            res = mknod(arcn->name, file_mode, arcn->sb.st_rdev);
-            break;
-          case PAX_BLK:
-            file_mode |= S_IFBLK;
-            res = mknod(arcn->name, file_mode, arcn->sb.st_rdev);
-            break;
-          case PAX_FIF:
-            res = mkfifo(arcn->name, file_mode);
-            break;
-          case PAX_SCK:
-            /*
-             * Skip sockets, operation has no meaning under BSD
-             */
-            paxwarn(0,
-                    "%s skipped. Sockets cannot be copied or extracted",
-                    arcn->name);
-            return(-1);
-          case PAX_SLK:
-            res = symlink(arcn->ln_name, arcn->name);
-            break;
-          case PAX_CTG:
-          case PAX_HLK:
-          case PAX_HRG:
-          case PAX_REG:
-          default:
-            /*
-             * we should never get here
-             */
-            paxwarn(0, "%s has an unknown file type, skipping",
-                    arcn->name);
-            return(-1);
-        }
-
-        /*
-         * if we were able to create the node break out of the loop,
-         * otherwise try to unlink the node and try again. if that
-         * fails check the full path and try a final time.
-         */
-        if (res == 0) {
-          break;
-        }
-
-        /*
-         * we failed to make the node
-         */
-        oerrno = errno;
-        if ((ign = unlnk_exist(arcn->name, arcn->type)) < 0) {
-          return(-1);
-        }
-
-        if (++pass <= 1) {
-          continue;
-        }
-
-
-        if (nodirs || chk_path(arcn->name,arcn->sb.st_uid,arcn->sb.st_gid, NULL) < 0) {
-
-            syswarn(1, oerrno, "Could not create: %s", arcn->name);
-            return(-1);
-          }
-        }
-
-        /*
-         * we were able to create the node. set uid/gid, modes and times
-         */
-        if (pids) {
-          res = set_ids(arcn->name, arcn->sb.st_uid, arcn->sb.st_gid);
-        }
-        else {
-
-          res = 1;	/* without pids, pax should NOT set s bits */
-        }
-
-      /*
-       * symlinks are done now.
-       */
-      if (arcn->type == PAX_SLK) {
-        return(0);
-      }
-
-      /*
-       * IMPORTANT SECURITY NOTE:
-       * if not preserving mode or we cannot set uid/gid, then PROHIBIT any
-       * set uid/gid bits
-       */
-      if (!pmode || res) {
-        arcn->sb.st_mode &= ~(SETBITS);
-      }
-      if (pmode) {
-        set_pmode(arcn->name, arcn->sb.st_mode);
-      }
-
-      if (arcn->type == PAX_DIR && strcmp(NM_CPIO, argv0) != 0) {
-        /*
-         * Dirs must be processed again at end of extract to set times
-         * and modes to agree with those stored in the archive. However
-         * to allow extract to continue, we may have to also set owner
-         * rights. This allows nodes in the archive that are children
-         * of this directory to be extracted without failure. Both time
-         * and modes will be fixed after the entire archive is read and
-         * before pax exits.
-         */
-        if (access(arcn->name, R_OK | W_OK | X_OK) < 0) {
-          if (lstat(arcn->name, &sb) < 0) {
-            syswarn(0, errno,"Could not access %s (stat)",
-                    arcn->name);
-            set_pmode(arcn->name,file_mode | S_IRWXU);
-          } else {
-            /*
-             * We have to add rights to the dir, so we make
-             * sure to restore the mode. The mode must be
-             * restored AS CREATED and not as stored if
-             * pmode is not set.
-             */
-            set_pmode(arcn->name,
-                      ((sb.st_mode & FILEBITS) | S_IRWXU));
-            if (!pmode) {
-              arcn->sb.st_mode = sb.st_mode;
-            }
-          }
-
-          /*
-           * we have to force the mode to what was set here,
-           * since we changed it from the default as created.
-           */
-          add_dir(arcn->name, arcn->nlen, &(arcn->sb), 1);
-        } else if (pmode || patime || pmtime) {
-          add_dir(arcn->name, arcn->nlen, &(arcn->sb), 0);
-        }
-      }
-
-      if (patime || pmtime) {
-
-        set_ftime(arcn->name, arcn->sb.st_mtime, arcn->sb.st_mtime_nsec,
-                  arcn->sb.st_atime, arcn->sb.st_atime_nsec, 0);
-      }
-
     return(0);
+  }
+
+  /*
+   * node_creat()
+   *	create an entry in the file system (other than a file or hard link).
+   *	If successful, sets uid/gid modes and times as required.
+   * Return:
+   *	0 if ok, -1 otherwise
+   */
+
+  func node_creat() -> Bool {
+/*    int res;
+    int ign = 0;
+    int oerrno;
+    int pass = 0;
+    mode_t file_mode;
+    struct stat sb;
+*/
+
+    /*
+     * create node based on type, if that fails try to unlink the node and
+     * try again. finally check the path and try again. As noted in the
+     * file and link creation routines, this method seems to exhibit the
+     * best performance in general use workloads.
+     */
+    let file_mode = self.sb.permissions
+    var ign = false
+
+    while true {
+      switch self.type {
+        case .DIR:
+          res = mkdir(arcn->name, file_mode);
+          if ign {
+            res = 0
+          }
+
+        case .CHR:
+          file_mode |= S_IFCHR;
+          res = mknod(arcn->name, file_mode, arcn->sb.st_rdev);
+
+        case .BLK:
+          file_mode |= S_IFBLK;
+          res = mknod(arcn->name, file_mode, arcn->sb.st_rdev);
+
+        case .FIF:
+          res = mkfifo(arcn->name, file_mode);
+
+        case .SCK:
+          /*
+           * Skip sockets, operation has no meaning under BSD
+           */
+          Tty.paxwarn(false, "\(self.name) skipped. Sockets cannot be copied or extracted")
+          return true
+        case .SLK:
+          res = symlink(arcn->ln_name, arcn->name);
+
+        case .CTG, .HLK, .HRG, .REG:
+          fallthrough
+        default:
+          /*
+           * we should never get here
+           */
+          Tty.paxwarn(false, "\(self.name) has an unknown file type, skipping")
+          return true
+      }
+
+      /*
+       * if we were able to create the node break out of the loop,
+       * otherwise try to unlink the node and try again. if that
+       * fails check the full path and try a final time.
+       */
+      if (res == 0) {
+        break;
+      }
+
+      /*
+       * we failed to make the node
+       */
+      oerrno = errno;
+      if ((ign = unlnk_exist(arcn->name, arcn->type)) < 0) {
+        return(-1);
+      }
+
+      if (++pass <= 1) {
+        continue;
+      }
+
+
+      if (nodirs || chk_path(arcn->name,arcn->sb.st_uid,arcn->sb.st_gid, NULL) < 0) {
+
+        Tty.syswarn(true, oerrno, "Could not create: \(self.name)")
+        return true
+      }
+    }
+
+    /*
+     * we were able to create the node. set uid/gid, modes and times
+     */
+    if (pids) {
+      res = set_ids(arcn->name, arcn->sb.st_uid, arcn->sb.st_gid);
+    }
+    else {
+
+      res = 1;	/* without pids, pax should NOT set s bits */
+    }
+
+    /*
+     * symlinks are done now.
+     */
+    if self.type == .SLK {
+      return false
+    }
+
+    /*
+     * IMPORTANT SECURITY NOTE:
+     * if not preserving mode or we cannot set uid/gid, then PROHIBIT any
+     * set uid/gid bits
+     */
+    if (!pmode || res) {
+      arcn->sb.st_mode &= ~(SETBITS);
+    }
+    if (pmode) {
+      set_pmode(arcn->name, arcn->sb.st_mode);
+    }
+
+    if sekf.type == .DIR && NM_CPIO == programName {
+      /*
+       * Dirs must be processed again at end of extract to set times
+       * and modes to agree with those stored in the archive. However
+       * to allow extract to continue, we may have to also set owner
+       * rights. This allows nodes in the archive that are children
+       * of this directory to be extracted without failure. Both time
+       * and modes will be fixed after the entire archive is read and
+       * before pax exits.
+       */
+      if (access(arcn->name, R_OK | W_OK | X_OK) < 0) {
+        if (lstat(arcn->name, &sb) < 0) {
+          syswarn(0, errno,"Could not access %s (stat)",
+                  arcn->name);
+          set_pmode(arcn->name,file_mode | S_IRWXU);
+        } else {
+          /*
+           * We have to add rights to the dir, so we make
+           * sure to restore the mode. The mode must be
+           * restored AS CREATED and not as stored if
+           * pmode is not set.
+           */
+          set_pmode(arcn->name,
+                    ((sb.st_mode & FILEBITS) | S_IRWXU));
+          if (!pmode) {
+            arcn->sb.st_mode = sb.st_mode;
+          }
+        }
+
+        /*
+         * we have to force the mode to what was set here,
+         * since we changed it from the default as created.
+         */
+        add_dir(arcn->name, arcn->nlen, &(arcn->sb), 1);
+      } else if (pmode || patime || pmtime) {
+        add_dir(arcn->name, arcn->nlen, &(arcn->sb), 0);
+      }
+    }
+
+    if (patime || pmtime) {
+
+      set_ftime(arcn->name, arcn->sb.st_mtime, arcn->sb.st_mtime_nsec,
+                arcn->sb.st_atime, arcn->sb.st_atime_nsec, 0);
+    }
+
+    return false
   }
 
   /*
@@ -586,9 +566,7 @@ extension pax {
    *	1 we found a directory and we were going to create a directory.
    */
 
-  int
-  unlnk_exist(char *name, int type)
-  {
+  func unlnk_exist(_ name : String, _ type : PAXType) {
     struct stat sb;
 
     /*
@@ -607,7 +585,7 @@ extension pax {
        * create a directory anyway, tell the caller (return a 1)
        */
       if (rmdir(name) < 0) {
-        if (type == PAX_DIR) {
+        if (type == .DIR) {
           return(1);
         }
         syswarn(1,errno,"Unable to remove directory %s", name);
@@ -640,11 +618,7 @@ extension pax {
    *	0 otherwise
    */
 
-  int
-
-  chk_path(char *name, uid_t st_uid, gid_t st_gid, char ** new_name)
-
-  {
+  func chk_path(_ name : String, _ st_uid : UInt, _ st_gid : UInt, _ new_name : inout String) -> Bool {
     char *spt = name;
 
     int namelen = strlen(name);
@@ -762,11 +736,7 @@ extension pax {
    *	not set request.
    */
 
-  void
-
-  set_ftime(char *fnm, time_t mtime, time_t mtime_nsec, time_t atime, time_t atime_nsec, int frc)
-
-  {
+  func set_ftime(_ fnm : String, _ mtime : DateTime, _ atime : DateTime, _ frc : Bool) {
 
     struct attrlist ts_req = {
       .bitmapcount = ATTR_BIT_MAP_COUNT,
@@ -841,9 +811,7 @@ extension pax {
    *	0 when set, -1 on failure
    */
 
-  int
-  set_ids(char *fnm, uid_t uid, gid_t gid)
-  {
+  func set_ids(_ fnm : String, _ uid : UInt, _ gid : UInt) -> Bool {
     if (lchown(fnm, uid, gid) < 0) {
       /*
        * ignore EPERM unless in verbose mode or being run by root.
@@ -864,9 +832,7 @@ extension pax {
    *	Set file access mode
    */
 
-  void
-  set_pmode(char *fnm, mode_t mode)
-  {
+  func set_pmode(_ fnm : String, _ mode : FilePermissions) {
     mode &= ABITS;
     if (lchmod(fnm, mode) < 0) {
       syswarn(1, errno, "Could not set permissions on %s", fnm);
@@ -922,22 +888,20 @@ extension pax {
    *	number of bytes written, -1 on write (or lseek) error.
    */
 
-  int
-  file_write(int fd, char *str, int cnt, int *rem, int *isempt, int sz,
-             char *name)
-  {
-    char *pt;
+  func file_write(_ fd : FileDescriptor, _ str : String, _ cnt : Int, _ rem : inout Int, _ isempt : inout Bool, _ sz : Int, _ name : String) -> Int {
+/*    char *pt;
     char *end;
     int wcnt;
     char *st = str;
 
     char **strp;
+*/
 
     /*
      * while we have data to process
      */
-    while (cnt) {
-      if (!*rem) {
+    while cnt != 0 {
+      if rem != 0 {
         /*
          * We are now at the start of file system block again
          * (or what we think one is...). start looking for
@@ -1032,9 +996,7 @@ extension pax {
    *	write the last BYTE with a zero (back up one byte and write a zero).
    */
 
-  void
-  file_flush(int fd, char *fname, int isempt)
-  {
+  func file_flush(_ fd : FileDescriptor, _ fname : String, _ isempt : Bool) {
     static char blnk[] = "\0";
 
     /*
@@ -1065,30 +1027,25 @@ extension pax {
    *	reset access time (tflag) do so (the times are stored in arcn).
    */
 
-  void
-  rdfile_close(ARCHD *arcn, int *fd)
-  {
+  func rdfile_close(_ arcn : ARCHD, _ fd : FileDescriptor? ) {
     /*
      * make sure the file is open
      */
-    if (*fd < 0) {
-      return;
-    }
+    guard let fd else { return }
 
-    (void)close(*fd);
-    *fd = -1;
-    if (!tflag) {
-      return;
+    try? fd.close()
+
+    if !options.tflag {
+      return
     }
 
     /*
      * user wants last access time reset
      */
 
-    set_ftime(arcn->org_name, arcn->sb.st_mtime_sec, arcn->sb.st_mtime_nsec,
-              arcn->sb.st_atime_sec, arcn->sb.st_atime_nsec, 1);
+    set_ftime(org_name, sb.lastWrite, sb.lastAccess, true)
 
-    return;
+    return
   }
 
   /*
@@ -1100,63 +1057,62 @@ extension pax {
    *	0 if was able to calculate the crc, -1 otherwise
    */
 
-  int
-  set_crc(ARCHD *arcn, int fd)
-  {
-    int i;
-    int res;
-    off_t cpcnt = 0L;
-    u_long size;
-    unsigned long crc = 0L;
-    char tbuf[FILEBLK];
-    struct stat sb;
+  mutating func set_crc(_ fd : FileDescriptor?) -> Bool {
+    /*
+     int i;
+     int res;
+     off_t cpcnt = 0L;
+     u_long size;
+     unsigned long crc = 0L;
+     char tbuf[FILEBLK];
+     struct stat sb;
+     */
 
-    if (fd < 0) {
+    guard let fd else {
       /*
        * hmm, no fd, should never happen. well no crc then.
        */
-      arcn->crc = 0L;
-      return(0);
+      self.crc = 0
+      return false
     }
 
-    if ((size = (u_long)arcn->sb.st_blksize) > (u_long)sizeof(tbuf)) {
-      size = (u_long)sizeof(tbuf);
-    }
-
+    var crc : UInt = 0
     /*
      * read all the bytes we think that there are in the file. If the user
      * is trying to archive an active file, forget this file.
      */
-    for(;;) {
-      if ((res = read(fd, tbuf, size)) <= 0) {
-        break;
-      }
-      cpcnt += res;
-      for (i = 0; i < res; ++i) {
-        crc += (tbuf[i] & 0xff);
-      }
-    }
 
-    /*
-     * safety check. we want to avoid archiving files that are active as
-     * they can create inconsistent archive copies.
-     */
-    if (cpcnt != arcn->sb.st_size) {
-      paxwarn(1, "File changed size %s", arcn->org_name);
+    var cpcnt = 0
+    return withUnsafeTemporaryAllocation(byteCount: FILEBLK, alignment: 8) { tbuf in
+      while true {
+        guard let res = try? fd.read(into: tbuf) else { break }
+        if res == 0 { break }
+        cpcnt += res
+        for i in 0 ..< res {
+          crc += UInt(tbuf[i])
+        }
+      }
+
+      /*
+       * safety check. we want to avoid archiving files that are active as
+       * they can create inconsistent archive copies.
+       */
+      if cpcnt != self.sb.size {
+        Tty.paxwarn(true, "File changed size \(org_name)")
+      }
+      else if let sb = FileMetadata(for: fd) {
+        if (self.sb.lastWrite != sb.lastWrite) {
+          Tty.paxwarn(true, "File \(org_name) was modified during read")
+        }
+        else if let _ = fd.seek(offset: 0, from: .start) {
+          self.crc = crc
+          return false
+        }
+        Tty.syswarn(true, errno, "File rewind failed on: \(org_name)")
+      } else {
+        Tty.syswarn(true, errno, "Failed stat on \(org_name)")
+        return true
+      }
     }
-    else if (fstat(fd, &sb) < 0) {
-      syswarn(1, errno, "Failed stat on %s", arcn->org_name);
-    }
-    else if (arcn->sb.st_mtime != sb.st_mtime) {
-      paxwarn(1, "File %s was modified during read", arcn->org_name);
-    }
-    else if (lseek(fd, (off_t)0L, SEEK_SET) < 0) {
-      syswarn(1, errno, "File rewind failed on: %s", arcn->org_name);
-    }
-    else {
-      arcn->crc = crc;
-      return(0);
-    }
-    return(-1);
   }
 }

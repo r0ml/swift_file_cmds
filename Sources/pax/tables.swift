@@ -590,7 +590,7 @@ class Tables {
      * check for device and inode truncation, and extract the truncated
      * bit pattern.
      */
-    if (arcn.sb.st_dev & dev_mask != arcn.sb.st_dev {
+    if (arcn.sb.device & dev_mask != arcn.sb.device {
       ++trc_dev;
     }
         if ((nino = arcn->sb.st_ino & (ino_t)ino_mask) != arcn->sb.st_ino) {
@@ -719,26 +719,13 @@ class Tables {
    */
 
   func atdir_end() {
-    
+
     /*
      * for each non-empty hash table entry reset all the directories
      * chained there.
      */
-    for (k, v) in atab {
-      for (i = 0; i < A_TAB_SZ; ++i) {
-        if ((pt = atab[i]) == NULL)
-            continue;
-        /*
-         * remember to force the times, set_ftime() looks at pmtime
-         * and patime, which only applies to things CREATED by pax,
-         * not read by pax. Read time reset is controlled by -t.
-         */
-        for (; pt != NULL; pt = pt->fow)
-              
-              set_ftime(pt->name, pt->mtime, pt->mtime_nsec,
-                        pt->atime, pt->atime_nsec, 1);
-        
-      }
+    for var (k, v) in atab {
+      set_ftime(v.name, v.mtime, v.atime, 1)
     }
   }
 

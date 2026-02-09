@@ -43,6 +43,122 @@ import Darwin
 extension pax {
 
 
+  /*
+   * defines and data structures common to all tar formats
+   */
+  #define CHK_LEN    8    /* length of checksum field */
+  #define TNMSZ    100    /* size of name field */
+
+  #define NULLCNT    2    /* number of null blocks in trailer */
+  #define CHK_OFFSET  148    /* start of checksum field */
+  #define BLNKSUM    256L    /* sum of checksum field using ' ' */
+
+  /*
+   * Values used in typeflag field in all tar formats
+   * (only REGTYPE, LNKTYPE and SYMTYPE are used in old BSD tar headers)
+   */
+  #define  REGTYPE    '0'    /* Regular File */
+  #define  AREGTYPE  '\0'    /* Regular File */
+  #define  LNKTYPE    '1'    /* Link */
+  #define  SYMTYPE    '2'    /* Symlink */
+  #define  CHRTYPE    '3'    /* Character Special File */
+  #define  BLKTYPE    '4'    /* Block Special File */
+  #define  DIRTYPE    '5'    /* Directory */
+  #define  FIFOTYPE  '6'    /* FIFO */
+  #define  CONTTYPE  '7'    /* high perf file */
+
+  #define  PAXXTYPE  'x'    /* pax format extended header */
+  #define  PAXGTYPE  'g'    /* pax format global extended header */
+
+  /*
+   * GNU tar compatibility;
+   */
+  #define  LONGLINKTYPE  'K'    /* Long Symlink */
+  #define  LONGNAMETYPE  'L'    /* Long File */
+
+  /*
+   * Mode field encoding of the different file types - values in octal
+   */
+  #define TSUID    04000    /* Set UID on execution */
+  #define TSGID    02000    /* Set GID on execution */
+  #define TSVTX    01000    /* Reserved */
+  #define TUREAD    00400    /* Read by owner */
+  #define TUWRITE    00200    /* Write by owner */
+  #define TUEXEC    00100    /* Execute/Search by owner */
+  #define TGREAD    00040    /* Read by group */
+  #define TGWRITE    00020    /* Write by group */
+  #define TGEXEC    00010    /* Execute/Search by group */
+  #define TOREAD    00004    /* Read by other */
+  #define TOWRITE    00002    /* Write by other */
+  #define TOEXEC    00001    /* Execute/Search by other */
+
+  /*
+   * Pad with a bit mask, much faster than doing a mod but only works on powers
+   * of 2. Macro below is for block of 512 bytes.
+   */
+  #define TAR_PAD(x)  ((512 - ((x) & 511)) & 511)
+
+  /*
+   * structure of an old tar header as it appeared in BSD releases
+   */
+  struct HD_TAR {
+    char name[TNMSZ];    /* name of entry */
+    char mode[8];       /* mode */
+    char uid[8];       /* uid */
+    char gid[8];      /* gid */
+    char size[12];      /* size */
+    char mtime[12];      /* modification time */
+    char chksum[CHK_LEN];    /* checksum */
+    char linkflag;      /* norm, hard, or sym. */
+    char linkname[TNMSZ];    /* linked to name */
+  }
+
+  /*
+   * -o options for BSD tar to not write directories to the archive
+   */
+  #define TAR_NODIR  "nodir"
+  #define TAR_OPTION  "write_opt"
+
+  /*
+   * default device names
+   */
+  var DEV_0 = "/dev/rmt0"
+  var DEV_1 = "/dev/rmt1"
+  var DEV_4 = "/dev/rmt4"
+  var DEV_5 = "/dev/rmt5"
+  var DEV_7 = "/dev/rmt7"
+  var DEV_8 = "/dev/rmt8"
+
+  /*
+   * Data Interchange Format - Extended tar header format - POSIX 1003.1-1990
+   */
+  #define TPFSZ    155
+  #define  TMAGIC    "ustar"    /* ustar and a null */
+  #define  TMAGLEN    6
+  #define  TVERSION  "00"    /* 00 and no null */
+  #define  TVERSLEN  2
+
+  struct HD_USTAR {
+    char name[TNMSZ];    /* name of entry */
+    char mode[8];       /* mode */
+    char uid[8];       /* uid */
+    char gid[8];      /* gid */
+    char size[12];      /* size */
+    char mtime[12];      /* modification time */
+    char chksum[CHK_LEN];    /* checksum */
+    char typeflag;      /* type of file. */
+    char linkname[TNMSZ];    /* linked to name */
+    char magic[TMAGLEN];    /* magic cookie */
+    char version[TVERSLEN];    /* version */
+    char uname[32];      /* ascii owner name */
+    char gname[32];      /* ascii group name */
+    char devmajor[8];    /* major device number */
+    char devminor[8];    /* minor device number */
+    char prefix[TPFSZ];    /* linked to name */
+
+  } HD_USTAR __attribute__((aligned(1)));
+
+
 
   /*
    * tar_options()
@@ -50,8 +166,8 @@ extension pax {
    *  the user specified a legal set of flags. If not, complain and exit
    */
 
-  func tar_options() -> CommandOptions {
-    int fstdin = 0;
+  func tar_options() throws(CmdErr) -> CommandOptions {
+/*    int fstdin = 0;
     int tar_Oflag = 0;
     int nincfiles = 0;
     int incfiles_max = 0;
@@ -60,6 +176,7 @@ extension pax {
       char *dir;
     };
     struct incfile *incfiles = NULL;
+*/
 
     var options = CommandOptions()
 
@@ -71,11 +188,15 @@ extension pax {
     /*
      * process option flags
      */
-    while ((c = getoldopt(argc, argv,
 
-                          "b:cef:hjmopqruts:vwxzBC:HI:LOPXZ014578")) != -1) {
+    let optstr = "b:cef:hjmopqruts:vwxzBC:HI:LOPXZ014578"
+    let argv = try getoldopt(CommandLine.arguments, optstr)
 
-      switch(c) {
+    let go = BSDGetopt(optstr, args: argv.dropFirst())
+
+
+    while let (c,v) = try? go.getopt() {
+      switch c {
         case "b":
           /*
            * specify blocksize in 512-byte blocks
@@ -277,6 +398,8 @@ extension pax {
           break;
       }
     }
+
+
     argc -= optind;
     argv += optind;
 
