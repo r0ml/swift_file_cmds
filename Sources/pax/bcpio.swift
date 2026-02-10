@@ -235,7 +235,7 @@ class bcpio : pax.FSUB {
    *	0
    */
 
-  private func com_rd(_ arcn : inout pax.ARCHD) -> Bool {
+  private func com_rd(_ arcn : inout ARCHD) -> Bool {
     arcn.skip = 0
     arcn.pat = nil
     arcn.org_name = arcn.name
@@ -331,28 +331,28 @@ class bcpio : pax.FSUB {
     /*
      * check the length specified for bogus values
      */
-    if ((arcn->sb.st_size == 0) ||
-        ((size_t)arcn->sb.st_size >= sizeof(arcn->ln_name))) {
+    if ((arcn.sb.st_size == 0) ||
+        ((size_t)arcn.sb.st_size >= sizeof(arcn.ln_name))) {
       paxwarn(1, "Cpio link name length is invalid: %ju",
-              (uintmax_t)arcn->sb.st_size);
+              (uintmax_t)arcn.sb.st_size);
       return(-1);
     }
 
     /*
      * read in the link name and \0 terminate it
      */
-    if (rd_wrbuf(arcn->ln_name, (int)arcn->sb.st_size) !=
-        (int)arcn->sb.st_size) {
+    if (rd_wrbuf(arcn.ln_name, (int)arcn.sb.st_size) !=
+        (int)arcn.sb.st_size) {
       paxwarn(1, "Cpio link name read error");
       return(-1);
     }
-    arcn->ln_nlen = arcn->sb.st_size;
-    arcn->ln_name[arcn->ln_nlen] = '\0';
+    arcn.ln_nlen = arcn.sb.st_size;
+    arcn.ln_name[arcn.ln_nlen] = '\0';
 
     /*
      * watch out for those empty link names
      */
-    if (arcn->ln_name[0] == '\0') {
+    if (arcn.ln_name[0] == '\0') {
       paxwarn(1, "Cpio link name is corrupt");
       return(-1);
     }
@@ -415,7 +415,7 @@ class bcpio : pax.FSUB {
    *	0 if a valid header, -1 otherwise.
    */
 
-  func rd(_ buf : [UInt8]) -> pax.ARCHD? { // was bcpio_rd
+  func rd(_ buf : [UInt8]) -> ARCHD? { // was bcpio_rd
     HD_BCPIO *hd;
     int nsz;
 
@@ -442,10 +442,10 @@ class bcpio : pax.FSUB {
       arcn.sb.st_nlink = (nlink_t)(RSHRT_EXT(hd->h_nlink));
       arcn.sb.st_rdev = (dev_t)(RSHRT_EXT(hd->h_rdev));
       arcn.sb.st_mtime = (time_t)(RSHRT_EXT(hd->h_mtime_1));
-      arcn.sb.st_mtime =  (arcn->sb.st_mtime << 16) |
+      arcn.sb.st_mtime =  (arcn.sb.st_mtime << 16) |
       ((time_t)(RSHRT_EXT(hd->h_mtime_2)));
       arcn.sb.st_size = (off_t)(RSHRT_EXT(hd->h_filesize_1));
-      arcn.sb.st_size = (arcn->sb.st_size << 16) |
+      arcn.sb.st_size = (arcn.sb.st_size << 16) |
       ((off_t)(RSHRT_EXT(hd->h_filesize_2)));
       nsz = (int)(RSHRT_EXT(hd->h_namesize));
     } else {
@@ -457,10 +457,10 @@ class bcpio : pax.FSUB {
       arcn.sb.st_nlink = (nlink_t)(SHRT_EXT(hd->h_nlink));
       arcn.sb.st_rdev = (dev_t)(SHRT_EXT(hd->h_rdev));
       arcn.sb.st_mtime = (time_t)(SHRT_EXT(hd->h_mtime_1));
-      arcn.sb.st_mtime =  (arcn->sb.st_mtime << 16) |
+      arcn.sb.st_mtime =  (arcn.sb.st_mtime << 16) |
       ((time_t)(SHRT_EXT(hd->h_mtime_2)));
       arcn.sb.st_size = (off_t)(SHRT_EXT(hd->h_filesize_1));
-      arcn.sb.st_size = (arcn->sb.st_size << 16) |
+      arcn.sb.st_size = (arcn.sb.st_size << 16) |
       ((off_t)(SHRT_EXT(hd->h_filesize_2)));
       nsz = (int)(SHRT_EXT(hd->h_namesize));
     }
@@ -473,7 +473,7 @@ class bcpio : pax.FSUB {
     if (nsz < 2) {
       return(-1);
     }
-    arcn->nlen = nsz - 1;
+    arcn.nlen = nsz - 1;
     if (rd_nm(arcn, nsz) < 0) {
       return(-1);
     }
@@ -500,7 +500,7 @@ class bcpio : pax.FSUB {
     }
 
     if ((rd_ln_nm(arcn) < 0) ||
-        (rd_skip((off_t)(BCPIO_PAD(arcn->sb.st_size))) < 0)) {
+        (rd_skip((off_t)(BCPIO_PAD(arcn.sb.st_size))) < 0)) {
       return(-1);
     }
 
@@ -549,8 +549,8 @@ class bcpio : pax.FSUB {
       return(-1);
     }
 
-    if ((arcn->type != PAX_BLK) && (arcn->type != PAX_CHR)) {
-      arcn->sb.st_rdev = 0;
+    if ((arcn.type != PAX_BLK) && (arcn.type != PAX_CHR)) {
+      arcn.sb.st_rdev = 0;
     }
     hd = &hdblk;
 
@@ -560,16 +560,16 @@ class bcpio : pax.FSUB {
          * caller will copy file data to the archive. tell him how
          * much to pad.
          */
-        arcn->pad = BCPIO_PAD(arcn->sb.st_size);
-        hd->h_filesize_1[0] = CHR_WR_0(arcn->sb.st_size);
-        hd->h_filesize_1[1] = CHR_WR_1(arcn->sb.st_size);
-        hd->h_filesize_2[0] = CHR_WR_2(arcn->sb.st_size);
-        hd->h_filesize_2[1] = CHR_WR_3(arcn->sb.st_size);
+        arcn.pad = BCPIO_PAD(arcn.sb.st_size);
+        hd->h_filesize_1[0] = CHR_WR_0(arcn.sb.st_size);
+        hd->h_filesize_1[1] = CHR_WR_1(arcn.sb.st_size);
+        hd->h_filesize_2[0] = CHR_WR_2(arcn.sb.st_size);
+        hd->h_filesize_2[1] = CHR_WR_3(arcn.sb.st_size);
         t_offt = (off_t)(SHRT_EXT(hd->h_filesize_1));
         t_offt = (t_offt<<16) | ((off_t)(SHRT_EXT(hd->h_filesize_2)));
-        if (arcn->sb.st_size != t_offt) {
+        if (arcn.sb.st_size != t_offt) {
           paxwarn(1,"File is too large for bcpio format %s",
-                  arcn->org_name);
+                  arcn.org_name);
           return(1);
         }
         break;
@@ -578,14 +578,14 @@ class bcpio : pax.FSUB {
          * no file data for the caller to process, the file data has
          * the size of the link
          */
-        arcn->pad = 0L;
-        hd->h_filesize_1[0] = CHR_WR_0(arcn->ln_nlen);
-        hd->h_filesize_1[1] = CHR_WR_1(arcn->ln_nlen);
-        hd->h_filesize_2[0] = CHR_WR_2(arcn->ln_nlen);
-        hd->h_filesize_2[1] = CHR_WR_3(arcn->ln_nlen);
+        arcn.pad = 0L;
+        hd->h_filesize_1[0] = CHR_WR_0(arcn.ln_nlen);
+        hd->h_filesize_1[1] = CHR_WR_1(arcn.ln_nlen);
+        hd->h_filesize_2[0] = CHR_WR_2(arcn.ln_nlen);
+        hd->h_filesize_2[1] = CHR_WR_3(arcn.ln_nlen);
         t_int = (int)(SHRT_EXT(hd->h_filesize_1));
         t_int = (t_int << 16) | ((int)(SHRT_EXT(hd->h_filesize_2)));
-        if (arcn->ln_nlen != t_int) {
+        if (arcn.ln_nlen != t_int) {
           goto out;
         }
         break;
@@ -593,7 +593,7 @@ class bcpio : pax.FSUB {
         /*
          * no file data for the caller to process
          */
-        arcn->pad = 0L;
+        arcn.pad = 0L;
         hd->h_filesize_1[0] = (char)0;
         hd->h_filesize_1[1] = (char)0;
         hd->h_filesize_2[0] = (char)0;
@@ -606,51 +606,51 @@ class bcpio : pax.FSUB {
      */
     hd->h_magic[0] = CHR_WR_2(MAGIC);
     hd->h_magic[1] = CHR_WR_3(MAGIC);
-    hd->h_dev[0] = CHR_WR_2(arcn->sb.st_dev);
-    hd->h_dev[1] = CHR_WR_3(arcn->sb.st_dev);
-    if (arcn->sb.st_dev != (dev_t)(SHRT_EXT(hd->h_dev))) {
+    hd->h_dev[0] = CHR_WR_2(arcn.sb.st_dev);
+    hd->h_dev[1] = CHR_WR_3(arcn.sb.st_dev);
+    if (arcn.sb.st_dev != (dev_t)(SHRT_EXT(hd->h_dev))) {
       goto out;
     }
-    hd->h_ino[0] = CHR_WR_2(arcn->sb.st_ino);
-    hd->h_ino[1] = CHR_WR_3(arcn->sb.st_ino);
-    if (arcn->sb.st_ino != (ino_t)(SHRT_EXT(hd->h_ino))) {
+    hd->h_ino[0] = CHR_WR_2(arcn.sb.st_ino);
+    hd->h_ino[1] = CHR_WR_3(arcn.sb.st_ino);
+    if (arcn.sb.st_ino != (ino_t)(SHRT_EXT(hd->h_ino))) {
       goto out;
     }
-    hd->h_mode[0] = CHR_WR_2(arcn->sb.st_mode);
-    hd->h_mode[1] = CHR_WR_3(arcn->sb.st_mode);
-    if (arcn->sb.st_mode != (mode_t)(SHRT_EXT(hd->h_mode))) {
+    hd->h_mode[0] = CHR_WR_2(arcn.sb.st_mode);
+    hd->h_mode[1] = CHR_WR_3(arcn.sb.st_mode);
+    if (arcn.sb.st_mode != (mode_t)(SHRT_EXT(hd->h_mode))) {
       goto out;
     }
-    hd->h_uid[0] = CHR_WR_2(arcn->sb.st_uid);
-    hd->h_uid[1] = CHR_WR_3(arcn->sb.st_uid);
-    if (arcn->sb.st_uid != (uid_t)(SHRT_EXT(hd->h_uid))) {
+    hd->h_uid[0] = CHR_WR_2(arcn.sb.st_uid);
+    hd->h_uid[1] = CHR_WR_3(arcn.sb.st_uid);
+    if (arcn.sb.st_uid != (uid_t)(SHRT_EXT(hd->h_uid))) {
       goto out;
     }
-    hd->h_gid[0] = CHR_WR_2(arcn->sb.st_gid);
-    hd->h_gid[1] = CHR_WR_3(arcn->sb.st_gid);
-    if (arcn->sb.st_gid != (gid_t)(SHRT_EXT(hd->h_gid))) {
+    hd->h_gid[0] = CHR_WR_2(arcn.sb.st_gid);
+    hd->h_gid[1] = CHR_WR_3(arcn.sb.st_gid);
+    if (arcn.sb.st_gid != (gid_t)(SHRT_EXT(hd->h_gid))) {
       goto out;
     }
-    hd->h_nlink[0] = CHR_WR_2(arcn->sb.st_nlink);
-    hd->h_nlink[1] = CHR_WR_3(arcn->sb.st_nlink);
-    if (arcn->sb.st_nlink != (nlink_t)(SHRT_EXT(hd->h_nlink))) {
+    hd->h_nlink[0] = CHR_WR_2(arcn.sb.st_nlink);
+    hd->h_nlink[1] = CHR_WR_3(arcn.sb.st_nlink);
+    if (arcn.sb.st_nlink != (nlink_t)(SHRT_EXT(hd->h_nlink))) {
       goto out;
     }
-    hd->h_rdev[0] = CHR_WR_2(arcn->sb.st_rdev);
-    hd->h_rdev[1] = CHR_WR_3(arcn->sb.st_rdev);
-    if (arcn->sb.st_rdev != (dev_t)(SHRT_EXT(hd->h_rdev))) {
+    hd->h_rdev[0] = CHR_WR_2(arcn.sb.st_rdev);
+    hd->h_rdev[1] = CHR_WR_3(arcn.sb.st_rdev);
+    if (arcn.sb.st_rdev != (dev_t)(SHRT_EXT(hd->h_rdev))) {
       goto out;
     }
-    hd->h_mtime_1[0] = CHR_WR_0(arcn->sb.st_mtime);
-    hd->h_mtime_1[1] = CHR_WR_1(arcn->sb.st_mtime);
-    hd->h_mtime_2[0] = CHR_WR_2(arcn->sb.st_mtime);
-    hd->h_mtime_2[1] = CHR_WR_3(arcn->sb.st_mtime);
+    hd->h_mtime_1[0] = CHR_WR_0(arcn.sb.st_mtime);
+    hd->h_mtime_1[1] = CHR_WR_1(arcn.sb.st_mtime);
+    hd->h_mtime_2[0] = CHR_WR_2(arcn.sb.st_mtime);
+    hd->h_mtime_2[1] = CHR_WR_3(arcn.sb.st_mtime);
     t_timet = (time_t)(SHRT_EXT(hd->h_mtime_1));
     t_timet =  (t_timet << 16) | ((time_t)(SHRT_EXT(hd->h_mtime_2)));
-    if (arcn->sb.st_mtime != t_timet) {
+    if (arcn.sb.st_mtime != t_timet) {
       goto out;
     }
-    nsz = arcn->nlen + 1;
+    nsz = arcn.nlen + 1;
     hd->h_namesize[0] = CHR_WR_2(nsz);
     hd->h_namesize[1] = CHR_WR_3(nsz);
     if (nsz != (int)(SHRT_EXT(hd->h_namesize))) {
@@ -661,33 +661,33 @@ class bcpio : pax.FSUB {
      * write the header, the file name and padding as required.
      */
     if ((wr_rdbuf((char *)&hdblk, (int)sizeof(HD_BCPIO)) < 0) ||
-        (wr_rdbuf(arcn->name, nsz) < 0) ||
+        (wr_rdbuf(arcn.name, nsz) < 0) ||
         (wr_skip((off_t)(BCPIO_PAD(sizeof(HD_BCPIO) + nsz))) < 0)) {
-      paxwarn(1, "Could not write bcpio header for %s", arcn->org_name);
+      paxwarn(1, "Could not write bcpio header for %s", arcn.org_name);
       return(-1);
     }
 
     /*
      * if we have file data, tell the caller we are done
      */
-    if ((arcn->type == PAX_CTG) || (arcn->type == PAX_REG) ||
-        (arcn->type == PAX_HRG)) {
+    if ((arcn.type == PAX_CTG) || (arcn.type == PAX_REG) ||
+        (arcn.type == PAX_HRG)) {
       return(0);
     }
 
     /*
      * if we are not a link, tell the caller we are done, go to next file
      */
-    if (arcn->type != PAX_SLK) {
+    if (arcn.type != PAX_SLK) {
       return(1);
     }
 
     /*
      * write the link name, tell the caller we are done.
      */
-    if ((wr_rdbuf(arcn->ln_name, arcn->ln_nlen) < 0) ||
-        (wr_skip((off_t)(BCPIO_PAD(arcn->ln_nlen))) < 0)) {
-      paxwarn(1,"Could not write bcpio link name for %s",arcn->org_name);
+    if ((wr_rdbuf(arcn.ln_name, arcn.ln_nlen) < 0) ||
+        (wr_skip((off_t)(BCPIO_PAD(arcn.ln_nlen))) < 0)) {
+      paxwarn(1,"Could not write bcpio link name for %s",arcn.org_name);
       return(-1);
     }
     return(1);
@@ -696,184 +696,13 @@ class bcpio : pax.FSUB {
     /*
      * header field is out of range
      */
-    paxwarn(1,"Bcpio header field is too small for file %s", arcn->org_name);
+    paxwarn(1,"Bcpio header field is too small for file %s", arcn.org_name);
     return(1);
   }
 
 
 
   // ==============================================================================
-
-  // Possibly promote to a superclass -- everybody seems to use this one
-  /*
-   * rd_wrfile()
-   *  extract the contents of a file from the archive. If we are unable to
-   *  extract the entire file (due to failure to write the file) we return
-   *  the numbers of bytes we did NOT process. This way the caller knows how
-   *  many bytes to skip past to find the next archive header. If the failure
-   *  was due to an archive read, we will catch that when we try to skip. If
-   *  the format supplies a file data crc value, we calculate the actual crc
-   *  so that it can be compared to the value stored in the header
-   * NOTE:
-   *  We call a special function to write the file. This function attempts to
-   *  restore file holes (blocks of zeros) into the file. When files are
-   *  sparse this saves space, and is a LOT faster. For non sparse files
-   *  the performance hit is small. As of this writing, no archive supports
-   *  information on where the file holes are.
-   * Return:
-   *  0 ok, -1 if archive read failure. if we cannot write the entire file,
-   *  we return a 0 but "left" is set to be the amount unwritten
-   */
-
-  func rd_data(_ arcn : pax.ARCHD, _ ofd : Int, _ left : inout Int) -> Bool {
-    int cnt = 0;
-    off_t size = arcn->sb.st_size;
-    int res = 0;
-    char *fnm = arcn->name;
-    int isem = 1;
-    int rem;
-    int sz = MINFBSZ;
-    struct stat sb;
-    u_long crc = 0L;
-
-    /*
-     * pass the blocksize of the file being written to the write routine,
-     * if the size is zero, use the default MINFBSZ
-     */
-
-    if (ofd < 0)
-        sz = PAXPATHLEN + 1;    /* GNU tar long link/file */
-    else
-
-      if (fstat(ofd, &sb) == 0) {
-        if (sb.st_blksize > 0) {
-          sz = (int)sb.st_blksize;
-        }
-      } else {
-        syswarn(0,errno,"Unable to obtain block size for file %s",fnm);
-      }
-    rem = sz;
-    *left = 0L;
-
-    /*
-     * Copy the archive to the file the number of bytes specified. We have
-     * to assume that we want to recover file holes as none of the archive
-     * formats can record the location of file holes.
-     */
-    while (size > 0L) {
-      cnt = bufend - bufpt;
-      /*
-       * if we get a read error, we do not want to skip, as we may
-       * miss a header, so we do not set left, but if we get a write
-       * error, we do want to skip over the unprocessed data.
-       */
-      if ((cnt <= 0) && ((cnt = buf_fill()) <= 0)) {
-        break;
-      }
-      cnt = MIN(cnt, size);
-      if ((res = file_write(ofd,bufpt,cnt,&rem,&isem,sz,fnm)) <= 0) {
-        *left = size;
-        break;
-      }
-
-      if (docrc) {
-        /*
-         * update the actual crc value
-         */
-        cnt = res;
-        while (--cnt >= 0) {
-          crc += *bufpt++ & 0xff;
-        }
-      } else {
-        bufpt += res;
-      }
-      size -= res;
-    }
-
-    /*
-     * if the last block has a file hole (all zero), we must make sure this
-     * gets updated in the file. We force the last block of zeros to be
-     * written. just closing with the file offset moved forward may not put
-     * a hole at the end of the file.
-     */
-    if (isem && (arcn->sb.st_size > 0L)) {
-      file_flush(ofd, fnm, isem);
-    }
-
-    /*
-     * if we failed from archive read, we do not want to skip
-     */
-    if ((size > 0L) && (*left == 0L)) {
-      return(-1);
-    }
-
-    /*
-     * some formats record a crc on file data. If so, then we compare the
-     * calculated crc to the crc stored in the archive
-     */
-    if (docrc && (size == 0L) && (arcn->crc != crc)) {
-      paxwarn(1,"Actual crc does not match expected crc %s",arcn->name);
-    }
-    return(0);
-  }
-
-
-  /*
-   * wr_rdfile()
-   *  fill write buffer with the contents of a file. We are passed an open
-   *  file descriptor to the file and the archive structure that describes the
-   *  file we are storing. The variable "left" is modified to contain the
-   *  number of bytes of the file we were NOT able to write to the archive.
-   *  it is important that we always write EXACTLY the number of bytes that
-   *  the format specific write routine told us to. The file can also get
-   *  bigger, so reading to the end of file would create an improper archive,
-   *  we just detect this case and warn the user. We never create a bad
-   *  archive if we can avoid it. Of course trying to archive files that are
-   *  active is asking for trouble. It we fail, we pass back how much we
-   *  could NOT copy and let the caller deal with it.
-   * Return:
-   *  0 ok, -1 if archive write failure. a short read of the file returns a
-   *  0, but "left" is set to be greater than zero.
-   */
-
-  func wr_data(_ arcn : pax.ARCHD, _ ifd : Int, _ left : inout Int) -> Bool {
-    int cnt;
-    int res = 0;
-    off_t size = arcn->sb.st_size;
-    struct stat sb;
-
-    /*
-     * while there are more bytes to write
-     */
-    while (size > 0L) {
-      cnt = bufend - bufpt;
-      if ((cnt <= 0) && ((cnt = buf_flush(blksz)) < 0)) {
-        *left = size;
-        return(-1);
-      }
-      cnt = MIN(cnt, size);
-      if ((res = read(ifd, bufpt, cnt)) <= 0)
-          break;
-      size -= res;
-      bufpt += res;
-    }
-
-    /*
-     * better check the file did not change during this operation
-     * or the file read failed.
-     */
-    if (res < 0)
-        syswarn(1, errno, "Read fault on %s", arcn->org_name);
-    else if (size != 0L)
-              paxwarn(1, "File changed size during read %s", arcn->org_name);
-    else if (fstat(ifd, &sb) < 0)
-              syswarn(1, errno, "Failed stat on %s", arcn->org_name);
-    else if (arcn->sb.st_mtime != sb.st_mtime)
-              paxwarn(1, "File %s was modified during copy to archive",
-                      arcn->org_name);
-    *left = size;
-    return(0);
-  }
 
 
   /*
@@ -890,7 +719,7 @@ class bcpio : pax.FSUB {
     /*
      * print all we were given
      */
-    paxwarn(true,"These format options are not supported");
+    Tty.paxwarn(true,"These format options are not supported");
 
     while ((opt = opt_next()) != NULL) {
       if (opt->separator == SEP_EQ) {

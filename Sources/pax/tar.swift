@@ -40,17 +40,116 @@ import CMigration
 import Darwin
 
 class tar : pax.FSUB {
+
+  /*
+   * defines and data structures common to all tar formats
+   */
+  let CHK_LEN = 8    /* length of checksum field */
+  let TNMSZ = 100    /* size of name field */
+
+  let NULLCNT = 2    /* number of null blocks in trailer */
+  let CHK_OFFSET = 148 /* start of checksum field */
+  let BLNKSUM = 256    /* sum of checksum field using " " */
+
+  /*
+   * Values used in typeflag field in all tar formats
+   * (only REGTYPE, LNKTYPE and SYMTYPE are used in old BSD tar headers)
+   */
+  let REGTYPE =    "0"    /* Regular File */
+  let AREGTYPE =  "\0"    /* Regular File */
+  let LNKTYPE =    "1"    /* Link */
+  let SYMTYPE =    "2"    /* Symlink */
+  let CHRTYPE =    "3"    /* Character Special File */
+  let BLKTYPE =    "4"    /* Block Special File */
+  let DIRTYPE =    "5"    /* Directory */
+  let FIFOTYPE =  "6"    /* FIFO */
+  let CONTTYPE =  "7"    /* high perf file */
+
+  let PAXXTYPE =  "x"    /* pax format extended header */
+  let PAXGTYPE =  "g"    /* pax format global extended header */
+
+  /*
+   * GNU tar compatibility;
+   */
+  let LONGLINKTYPE =  "K"    /* Long Symlink */
+  let LONGNAMETYPE =  "L"    /* Long File */
+
+  /*
+   * Mode field encoding of the different file types - values in octal
+   */
+  let TSUID =    0o04000    /* Set UID on execution */
+  let TSGID =    0o02000    /* Set GID on execution */
+  let TSVTX =    0o01000    /* Reserved */
+  let TUREAD =    0o00400    /* Read by owner */
+  let TUWRITE =    0o00200    /* Write by owner */
+  let TUEXEC =    0o00100    /* Execute/Search by owner */
+  let TGREAD =    0o00040    /* Read by group */
+  let TGWRITE =    0o00020    /* Write by group */
+  let TGEXEC =    0o00010    /* Execute/Search by group */
+  let TOREAD =    0o00004    /* Read by other */
+  let TOWRITE =    0o00002    /* Write by other */
+  let TOEXEC =    0o00001    /* Execute/Search by other */
+
+  /*
+   * -o options for BSD tar to not write directories to the archive
+   */
+  let TAR_NODIR = "nodir"
+  let TAR_OPTION = "write_opt"
+
+  /*
+   * default device names
+   */
+  let DEV_0 = "/dev/rmt0"
+  let DEV_1 = "/dev/rmt1"
+  let DEV_4 = "/dev/rmt4"
+  let DEV_5 = "/dev/rmt5"
+  let DEV_7 = "/dev/rmt7"
+  let DEV_8 = "/dev/rmt8"
+
+  /*
+   * Data Interchange Format - Extended tar header format - POSIX 1003.1-1990
+   */
+  let TPFSZ =  155
+  let  TMAGIC =   "ustar"    /* ustar and a null */
+  let  TMAGLEN  =  6
+  let  TVERSION = "00"    /* 00 and no null */
+  let  TVERSLEN = 2
+
+
+
+
+
+
+//  bcpio.init(name: "bcpio", bsz: 5120, hsz: MemoryLayout<HD_BCPIO>.size, udev: 1, hlk: false, blkalgn: false, inhead: true),
+
+  var name = "tar"
+  var bsz = UInt(10240)
+  var hsz = pax.BLKMULT
+  var udev = UInt(0)
+  var hlk = true
+  var blkalgn = true  // meaning use pax.BLMULT
+  var inhead = false
+
+  // no-op
+  func st_rd() -> Bool {
+    return false
+  }
+
+  // no-op
+  func st_wr() -> Bool {
+    return false
+  }
+  
+  func trail_cpio(_: ARCHD) -> Bool {
+    fatalError("not used by tar")
+  }
+
+  // tar.init("tar", 10240, BLKMULT, 0, 1, BLKMULT, 0),
+  // tar_id, no_op,  tar_rd, tar_endrd, no_op, tar_wr, tar_endwr, NULL, tar_trail,  rd_wrfile, wr_rdfile, tar_opt},
+
 /*
  * Routines for reading, writing and header identify of various versions of tar
  */
-
-
-static size_t expandname(char *, size_t, char **, const char *, size_t);
-
-static u_long tar_chksm(char *, int);
-static char *name_split(char *, int);
-static int ul_oct(u_long, char *, int, int);
-static int uqd_oct(u_quad_t, char *, int, int);
 
 static uid_t uid_nobody;
 static uid_t uid_warn;
@@ -73,10 +172,8 @@ char *gnu_link_string;			/* GNU ././@LongLink hackery link */
  *	0 if ok, -1 otherwise (what wr_skip returns)
  */
 
-int
-tar_endwr(void)
-{
-	return(wr_skip((off_t)(NULLCNT*BLKMULT)));
+func end_wr() -> Bool {
+  return wr_skip(NULLCNT*pax.BLKMULT)
 }
 
 /*
@@ -86,10 +183,8 @@ tar_endwr(void)
  *	size of trailer (2 * BLKMULT)
  */
 
-off_t
-tar_endrd(void)
-{
-	return((off_t)(NULLCNT*BLKMULT));
+func end_rd() -> Int {
+  return NULLCNT*pax.BLKMULT
 }
 
 /*
@@ -103,46 +198,41 @@ tar_endrd(void)
  *	could never contain a header.
  */
 
-int
-tar_trail(char *buf, int in_resync, int *cnt)
-{
-  int i;
+  func trail_tar(_ buf : [UInt8], _ in_resync : Bool, _ cnt : inout Int) -> Int {
 
-  /*
-   * look for all zero, trailer is two consecutive blocks of zero
-   */
-  for (i = 0; i < BLKMULT; ++i) {
-    if (buf[i] != '\0') {
-      break;
+    /*
+     * look for all zero, trailer is two consecutive blocks of zero
+     */
+    if let i = (buf.firstIndex { $0 != 0 }) {
+      /*
+       * if not all zero it is not a trailer, but MIGHT be a header.
+       */
+      return -1
     }
-  }
 
-  /*
-   * if not all zero it is not a trailer, but MIGHT be a header.
-   */
-  if (i != BLKMULT) {
-    return(-1);
-  }
+    /*
+     * When given a zero block, we must be careful!
+     * If we are not in resync mode, check for the trailer. Have to watch
+     * out that we do not mis-identify file data as the trailer, so we do
+     * NOT try to id a trailer during resync mode. During resync mode we
+     * might as well throw this block out since a valid header can NEVER be
+     * a block of all 0 (we must have a valid file name).
+     */
 
-  /*
-   * When given a zero block, we must be careful!
-   * If we are not in resync mode, check for the trailer. Have to watch
-   * out that we do not mis-identify file data as the trailer, so we do
-   * NOT try to id a trailer during resync mode. During resync mode we
-   * might as well throw this block out since a valid header can NEVER be
-   * a block of all 0 (we must have a valid file name).
-   */
-  if (!in_resync && (++*cnt >= NULLCNT)) {
-    return(0);
+    if !in_resync {
+      cnt += 1
+      if cnt >= NULLCNT {
+        return 0
+      }
+    }
+    return 1
   }
-	return(1);
-}
 
 /*
  * ul_oct()
  *	convert an unsigned long to an octal string. many oddball field
  *	termination characters are used by the various versions of tar in the
- *	different fields. term selects which kind to use. str is '0' padded
+ *	different fields. term selects which kind to use. str is "0" padded
  *	at the front to len. we are unable to use only one format as many old
  *	tar readers are very cranky about this.
  * Return:
@@ -160,19 +250,19 @@ ul_oct(u_long val, char *str, int len, int term)
 	pt = str + len - 1;
 	switch(term) {
 	case 3:
-		*pt-- = '\0';
+		*pt-- = "\0";
 		break;
 	case 2:
-		*pt-- = ' ';
-		*pt-- = '\0';
+		*pt-- = " ";
+		*pt-- = "\0";
 		break;
 	case 1:
-		*pt-- = ' ';
+		*pt-- = " ";
 		break;
 	case 0:
 	default:
-		*pt-- = '\0';
-		*pt-- = ' ';
+		*pt-- = "\0";
+		*pt-- = " ";
 		break;
 	}
 
@@ -180,14 +270,14 @@ ul_oct(u_long val, char *str, int len, int term)
 	 * convert and blank pad if there is space
 	 */
 	while (pt >= str) {
-		*pt-- = '0' + (char)(val & 0x7);
+		*pt-- = "0" + (char)(val & 0x7);
     if ((val = val >> 3) == (u_long)0) {
       break;
     }
 	}
 
   while (pt >= str) {
-    *pt-- = '0';
+    *pt-- = "0";
   }
   if (val != (u_long)0) {
     return(-1);
@@ -199,7 +289,7 @@ ul_oct(u_long val, char *str, int len, int term)
  * uqd_oct()
  *	convert an u_quad_t to an octal string. one of many oddball field
  *	termination characters are used by the various versions of tar in the
- *	different fields. term selects which kind to use. str is '0' padded
+ *	different fields. term selects which kind to use. str is "0" padded
  *	at the front to len. we are unable to use only one format as many old
  *	tar readers are very cranky about this.
  * Return:
@@ -217,19 +307,19 @@ uqd_oct(u_quad_t val, char *str, int len, int term)
 	pt = str + len - 1;
 	switch(term) {
 	case 3:
-		*pt-- = '\0';
+		*pt-- = "\0";
 		break;
 	case 2:
-		*pt-- = ' ';
-		*pt-- = '\0';
+		*pt-- = " ";
+		*pt-- = "\0";
 		break;
 	case 1:
-		*pt-- = ' ';
+		*pt-- = " ";
 		break;
 	case 0:
 	default:
-		*pt-- = '\0';
-		*pt-- = ' ';
+		*pt-- = "\0";
+		*pt-- = " ";
 		break;
 	}
 
@@ -237,14 +327,14 @@ uqd_oct(u_quad_t val, char *str, int len, int term)
 	 * convert and blank pad if there is space
 	 */
 	while (pt >= str) {
-		*pt-- = '0' + (char)(val & 0x7);
+		*pt-- = "0" + (char)(val & 0x7);
     if ((val = val >> 3) == 0) {
       break;
     }
 	}
 
   while (pt >= str) {
-    *pt-- = '0';
+    *pt-- = "0";
   }
   if (val != (u_quad_t)0) {
     return(-1);
@@ -304,17 +394,17 @@ tar_chksm(char *blk, int len)
  *	0 if a tar header, -1 otherwise
  */
 
-int
-tar_id(char *blk, int size)
-{
-	HD_TAR *hd;
-	HD_USTAR *uhd;
+  func id(_ blk : [UInt8]) -> Bool {
+//	HD_TAR *hd;
+//	HD_USTAR *uhd;
 
   if (size < BLKMULT) {
     return(-1);
   }
-	hd = (HD_TAR *)blk;
-	uhd = (HD_USTAR *)blk;
+    var blkx = blk
+    // FIXME: this works in C -- but in Swift, the different sizes of HD_TAR and HD_USTAR will cause a crash
+    var hd = blkx.withUnsafeBytes { $0.assumingMemoryBound(to: HD_TAR.self)[0] }
+    var uhd = blkx.withUnsafeBytes { $0.assumingMemoryBound(to: HD_USTAR.self)[0] }
 
 	/*
 	 * check for block of zero's first, a simple and fast test, then make
@@ -323,19 +413,19 @@ tar_id(char *blk, int size)
 	 * wrong and create archives missing the \0. Last we check the
 	 * checksum. If this is ok we have to assume it is a valid header.
 	 */
-  if (hd->name[0] == '\0') {
-    return(-1);
+    if (hd.name[0] == "\0") {
+    return true
   }
-  if (strncmp(uhd->magic, TMAGIC, TMAGLEN - 1) == 0) {
-    return(-1);
+    if (strncmp(uhd.magic, TMAGIC, TMAGLEN - 1) == 0) {
+    return true
   }
-  if (asc_ul(hd->chksum,sizeof(hd->chksum),OCT) != tar_chksm(blk,BLKMULT)) {
-    return(-1);
+    if (asc_ul(hd.chksum,sizeof(hd.chksum),OCT) != tar_chksm(blk,BLKMULT)) {
+    return true
   }
 
 	Oflag = 1;
 
-	return(0);
+	return false
 }
 
 /*
@@ -345,16 +435,14 @@ tar_id(char *blk, int size)
  *	0 if ok -1 otherwise
  */
 
-int
-tar_opt(void)
-{
+func other_options() -> Bool {
 	OPLIST *opt;
 
 	while ((opt = opt_next()) != NULL) {
-		if (strcmp(opt->name, TAR_OPTION) ||
-		    strcmp(opt->value, TAR_NODIR)) {
+    if (strcmp(opt.name, TAR_OPTION) ||
+        strcmp(opt.value, TAR_NODIR)) {
 			paxwarn(1, "Unknown tar format -o option/value pair %s=%s",
-			    opt->name, opt->value);
+              opt.name, opt.value);
 			paxwarn(1,"%s=%s is the only supported tar format option",
 			    TAR_OPTION, TAR_NODIR);
 			return(-1);
@@ -365,7 +453,7 @@ tar_opt(void)
 		 */
 		if ((act != APPND) && (act != ARCHIVE)) {
 			paxwarn(1, "%s=%s is only supported when writing.",
-			    opt->name, opt->value);
+              opt.name, opt.value);
 			return(-1);
 		}
 		tar_nodir = 1;
@@ -382,9 +470,7 @@ tar_opt(void)
  *	0
  */
 
-int
-tar_rd(ARCHD *arcn, char *buf)
-{
+  func rd(_ buf : [UInt8]) -> ARCHD? {
 	HD_TAR *hd;
 	char *pt;
 
@@ -397,62 +483,62 @@ tar_rd(ARCHD *arcn, char *buf)
 
 	memset(arcn, 0, sizeof(*arcn));
 
-	arcn->org_name = arcn->name;
-	arcn->sb.st_nlink = 1;
+    arcn.org_name = arcn.name;
+    arcn.sb.st_nlink = 1;
 
 	/*
 	 * copy out the name and values in the stat buffer
 	 */
 	hd = (HD_TAR *)buf;
 
-	if (hd->linkflag != LONGLINKTYPE && hd->linkflag != LONGNAMETYPE) {
-		arcn->nlen = expandname(arcn->name, sizeof(arcn->name),
-		    &gnu_name_string, hd->name, sizeof(hd->name));
-		arcn->ln_nlen = expandname(arcn->ln_name, sizeof(arcn->ln_name),
-		    &gnu_link_string, hd->linkname, sizeof(hd->linkname));
+    if (hd.linkflag != LONGLINKTYPE && hd.linkflag != LONGNAMETYPE) {
+      arcn.nlen = expandname(arcn.name, sizeof(arcn.name),
+                             &gnu_name_string, hd.name, sizeof(hd.name));
+      arcn.ln_nlen = expandname(arcn.ln_name, sizeof(arcn.ln_name),
+                                &gnu_link_string, hd.linkname, sizeof(hd.linkname));
 	}
 
-	arcn->sb.st_mode = (mode_t)(asc_ul(hd->mode,sizeof(hd->mode),OCT) &
+    arcn.sb.st_mode = (mode_t)(asc_ul(hd.mode,sizeof(hd.mode),OCT) &
 	    0xfff);
-	arcn->sb.st_uid = (uid_t)asc_ul(hd->uid, sizeof(hd->uid), OCT);
-	arcn->sb.st_gid = (gid_t)asc_ul(hd->gid, sizeof(hd->gid), OCT);
-	arcn->sb.st_size = (off_t)asc_uqd(hd->size, sizeof(hd->size), OCT);
-	arcn->sb.st_mtime = (time_t)asc_uqd(hd->mtime, sizeof(hd->mtime), OCT);
-	arcn->sb.st_ctime = arcn->sb.st_atime = arcn->sb.st_mtime;
+    arcn.sb.st_uid = (uid_t)asc_ul(hd.uid, sizeof(hd.uid), OCT);
+    arcn.sb.st_gid = (gid_t)asc_ul(hd.gid, sizeof(hd.gid), OCT);
+    arcn.sb.st_size = (off_t)asc_uqd(hd.size, sizeof(hd.size), OCT);
+    arcn.sb.st_mtime = (time_t)asc_uqd(hd.mtime, sizeof(hd.mtime), OCT);
+    arcn.sb.st_ctime = arcn.sb.st_atime = arcn.sb.st_mtime;
 
 	/*
-	 * have to look at the last character, it may be a '/' and that is used
+	 * have to look at the last character, it may be a "/" and that is used
 	 * to encode this as a directory
 	 */
-	pt = &(arcn->name[arcn->nlen - 1]);
-	arcn->pad = 0;
-	arcn->skip = 0;
-	switch(hd->linkflag) {
+    pt = &(arcn.name[arcn.nlen - 1]);
+    arcn.pad = 0;
+    arcn.skip = 0;
+    switch(hd.linkflag) {
 	case SYMTYPE:
 		/*
 		 * symbolic link, need to get the link name and set the type in
 		 * the st_mode so -v printing will look correct.
 		 */
-		arcn->type = PAX_SLK;
+        arcn.type = .SLK
 
-      arcn->sb.st_mode |= S_IFLNK;
+        arcn.sb.st_mode |= S_IFLNK;
 		break;
 	case LNKTYPE:
 		/*
 		 * hard link, need to get the link name, set the type in the
 		 * st_mode and st_nlink so -v printing will look better.
 		 */
-		arcn->type = PAX_HLK;
-		arcn->sb.st_nlink = 2;
-		arcn->ln_nlen = l_strncpy(arcn->ln_name, hd->linkname,
-		    MIN(sizeof(hd->linkname), sizeof(arcn->ln_name)) - 1);
-		arcn->ln_name[arcn->ln_nlen] = '\0';
+        arcn.type = .HLK
+        arcn.sb.st_nlink = 2;
+        arcn.ln_nlen = l_strncpy(arcn.ln_name, hd.linkname,
+                                 MIN(sizeof(hd.linkname), sizeof(arcn.ln_name)) - 1);
+        arcn.ln_name[arcn.ln_nlen] = "\0";
 
 		/*
 		 * no idea of what type this thing really points at, but
 		 * we set something for printing only.
 		 */
-		arcn->sb.st_mode |= S_IFREG;
+        arcn.sb.st_mode |= S_IFREG;
 		break;
 
 	case LONGLINKTYPE:
@@ -461,21 +547,21 @@ tar_rd(ARCHD *arcn, char *buf)
 		 * GNU long link/file; we tag these here and let the
 		 * pax internals deal with it -- too ugly otherwise.
 		 */
-		arcn->type =
-		    hd->linkflag == LONGLINKTYPE ? PAX_GLL : PAX_GLF;
-		arcn->pad = TAR_PAD(arcn->sb.st_size);
-		arcn->skip = arcn->sb.st_size;
+        arcn.type =
+        hd..linkflag == LONGLINKTYPE ? .GLL : .GLF
+        arcn.pad = TAR_PAD(arcn.sb.st_size);
+        arcn.skip = arcn.sb.st_size;
 		break;
 
 	case DIRTYPE:
 		/*
 		 * It is a directory, set the mode for -v printing
 		 */
-		arcn->type = PAX_DIR;
-		arcn->sb.st_mode |= S_IFDIR;
-		arcn->sb.st_nlink = 2;
-		arcn->ln_name[0] = '\0';
-		arcn->ln_nlen = 0;
+        arcn.type = .DIR;
+        arcn.sb.st_mode |= S_IFDIR;
+        arcn.sb.st_nlink = 2;
+        arcn.ln_name[0] = "\0";
+        arcn.ln_nlen = 0;
 		break;
 	case AREGTYPE:
 	case REGTYPE:
@@ -483,25 +569,25 @@ tar_rd(ARCHD *arcn, char *buf)
 		/*
 		 * If we have a trailing / this is a directory and NOT a file.
 		 */
-		arcn->ln_name[0] = '\0';
-		arcn->ln_nlen = 0;
-		if (*pt == '/') {
+        arcn.ln_name[0] = "\0";
+        arcn.ln_nlen = 0;
+		if (*pt == "/") {
 			/*
 			 * it is a directory, set the mode for -v printing
 			 */
-			arcn->type = PAX_DIR;
-			arcn->sb.st_mode |= S_IFDIR;
-			arcn->sb.st_nlink = 2;
+      arcn.type = .DIR;
+      arcn.sb.st_mode |= S_IFDIR;
+      arcn.sb.st_nlink = 2;
 		} else {
 			/*
 			 * have a file that will be followed by data. Set the
 			 * skip value to the size field and calculate the size
 			 * of the padding.
 			 */
-			arcn->type = PAX_REG;
-			arcn->sb.st_mode |= S_IFREG;
-			arcn->pad = TAR_PAD(arcn->sb.st_size);
-			arcn->skip = arcn->sb.st_size;
+      arcn.type = .REG;
+      arcn.sb.st_mode |= S_IFREG;
+      arcn.pad = TAR_PAD(arcn.sb.st_size);
+      arcn.skip = arcn.sb.st_size;
 		}
 		break;
 	}
@@ -509,9 +595,9 @@ tar_rd(ARCHD *arcn, char *buf)
 	/*
 	 * strip off any trailing slash.
 	 */
-	if (*pt == '/') {
-		*pt = '\0';
-		--arcn->nlen;
+	if (*pt == "/") {
+		*pt = "\0";
+    --arcn.nlen;
 	}
 	return(0);
 }
@@ -528,61 +614,57 @@ tar_rd(ARCHD *arcn, char *buf)
  *	data to write after the header, -1 if archive write failed
  */
 
-int
-tar_wr(ARCHD *arcn)
-{
-	HD_TAR *hd;
+  func wr(_ arcn : ARCHD) -> Int {
+/*	HD_TAR *hd;
 	int len;
 	HD_TAR hdblk;
+*/
 
 	/*
 	 * check for those file system types which tar cannot store
 	 */
-	switch(arcn->type) {
-	case PAX_DIR:
+    switch arcn.type {
+      case .DIR:
 		/*
 		 * user asked that dirs not be written to the archive
 		 */
       if (tar_nodir) {
-        return(1);
+        return 1
       }
 		break;
-	case PAX_CHR:
-		paxwarn(1, "Tar cannot archive a character device %s",
-		    arcn->org_name);
+      case .CHR:
+        Tty.paxwarn(true, "Tar cannot archive a character device \(arcn.org_name)")
 		return(1);
-	case PAX_BLK:
-		paxwarn(1, "Tar cannot archive a block device %s", arcn->org_name);
+      case .BLK:
+        Tty.paxwarn(true, "Tar cannot archive a block device \(arcn.org_name)")
+		return 1
+      case .SCK:
+        Tty.paxwarn(true, "Tar cannot archive a socket \(arcn.org_name)")
+		return 1
+      case .FIF:
+        Tty.paxwarn(true, "Tar cannot archive a fifo \(arcn.org_name)")
 		return(1);
-	case PAX_SCK:
-		paxwarn(1, "Tar cannot archive a socket %s", arcn->org_name);
-		return(1);
-	case PAX_FIF:
-		paxwarn(1, "Tar cannot archive a fifo %s", arcn->org_name);
-		return(1);
-	case PAX_SLK:
-	case PAX_HLK:
-	case PAX_HRG:
-		if (arcn->ln_nlen >= (int)sizeof(hd->linkname)) {
-			paxwarn(1,"Link name too long for tar %s", arcn->ln_name);
-			return(1);
+      case .SLK, .HLK, .HRG:
+        if arcn.ln_name.utf8.count >= MemoryLayout.size(of: hd.linkname) {
+      Tty.paxwarn(true, "Link name too long for tar \(arcn.ln_name)")
+			return 1
 		}
 		break;
-	case PAX_REG:
-	case PAX_CTG:
-	default:
-		break;
+      case .REG, .CTG:
+		break
+      default:
+        break
 	}
 
 	/*
 	 * check file name len, remember extra char for dirs (the / at the end)
 	 */
-	len = arcn->nlen;
-  if (arcn->type == PAX_DIR) {
+    len = arcn.nlen;
+    if (arcn.type == .DIR) {
     ++len;
   }
-	if (len >= (int)sizeof(hd->name)) {
-		paxwarn(1, "File name too long for tar %s", arcn->name);
+    if (len >= (int)sizeof(hd.name)) {
+      paxwarn(1, "File name too long for tar %s", arcn.name);
 		return(1);
 	}
 
@@ -596,66 +678,67 @@ tar_wr(ARCHD *arcn)
 	 */
 
 	memset(&hdblk, 0, sizeof(hdblk));
-	hd = (HD_TAR *)&hdblk;
-	strlcpy(hd->name,  arcn->name, sizeof(hd->name));
 
-	arcn->pad = 0;
+    var hd = HD_TAR()
+    strlcpy(hd.name,  arcn.name, sizeof(hd.name));
 
-	if (arcn->type == PAX_DIR) {
+    arcn.pad = 0;
+
+    if (arcn.type == .DIR) {
 		/*
 		 * directories are the same as files, except have a filename
 		 * that ends with a /, we add the slash here. No data follows,
 		 * dirs, so no pad.
 		 */
-		hd->linkflag = AREGTYPE;
+      hd.linkflag = AREGTYPE;
 
-		hd->name[len-1] = '/';
-    if (ul_oct((u_long)0L, hd->size, sizeof(hd->size), 1)) {
+      hd.name[len-1] = "/";
+      if (ul_oct((u_long)0L, hd.size, sizeof(hd.size), 1)) {
       goto out;
     }
-	} else if (arcn->type == PAX_SLK) {
+    } else if (arcn.type == .SLK) {
 		/*
 		 * no data follows this file, so no pad
 		 */
-		hd->linkflag = SYMTYPE;
+      hd.linkflag = SYMTYPE;
 
-		strlcpy(hd->linkname, arcn->ln_name, sizeof(hd->linkname));
+      strlcpy(hd.linkname, arcn.ln_name, sizeof(hd.linkname));
 
-    if (ul_oct((u_long)0L, hd->size, sizeof(hd->size), 1)) {
+      if (ul_oct((u_long)0L, hd.size, sizeof(hd.size), 1)) {
       goto out;
     }
-	} else if ((arcn->type == PAX_HLK) || (arcn->type == PAX_HRG)) {
+    } else if ((arcn.type == .HLK) || (arcn.type == .HRG)) {
 		/*
 		 * no data follows this file, so no pad
 		 */
-		hd->linkflag = LNKTYPE;
+      hd.linkflag = LNKTYPE;
 
-		strlcpy(hd->linkname, arcn->ln_name, sizeof(hd->linkname));
+      strlcpy(hd.linkname, arcn.ln_name, sizeof(hd.linkname));
 
-    if (ul_oct((u_long)0L, hd->size, sizeof(hd->size), 1)) {
+      if (ul_oct((u_long)0L, hd.size, sizeof(hd.size), 1)) {
       goto out;
     }
 	} else {
 		/*
 		 * data follows this file, so set the pad
 		 */
-		hd->linkflag = AREGTYPE;
+    hd.linkflag = AREGTYPE;
 
-		if (uqd_oct((u_quad_t)arcn->sb.st_size, hd->size,
-		    sizeof(hd->size), 1)) {
-			paxwarn(1,"File is too large for tar %s", arcn->org_name);
+    if (uqd_oct((u_quad_t)arcn.sb.st_size, hd.size,
+                sizeof(hd.size), 1)) {
+      paxwarn(1,"File is too large for tar %s", arcn.org_name);
 			return(1);
 		}
-		arcn->pad = TAR_PAD(arcn->sb.st_size);
+    arcn.pad = TAR_PAD(arcn.sb.st_size);
 	}
 
 	/*
 	 * copy those fields that are independent of the type
 	 */
-	if (ul_oct((u_long)arcn->sb.st_mode, hd->mode, sizeof(hd->mode), 0) ||
-	    ul_oct((u_long)arcn->sb.st_uid, hd->uid, sizeof(hd->uid), 0) ||
-	    ul_oct((u_long)arcn->sb.st_gid, hd->gid, sizeof(hd->gid), 0) ||
-      ul_oct((u_long)arcn->sb.st_mtime, hd->mtime, sizeof(hd->mtime), 1)) {
+    if (ul_oct((u_long)arcn.sb.st_mode, hd.mode, sizeof(hd.mode), 0) ||
+        ul_oct((u_long)arcn.sb.st_uid, hd.uid, sizeof(hd.uid), 0) ||
+        ul_oct((u_long)arcn.sb.st_gid, hd.gid, sizeof(hd.gid), 0) ||
+        ul_oct((u_long)arcn.sb.st_mtime, hd.mtime, sizeof(hd.mtime), 1)) {
     goto out;
   }
 
@@ -664,8 +747,8 @@ tar_wr(ARCHD *arcn)
 	 * 0 tells the caller to now write the file data, 1 says no data needs
 	 * to be written
 	 */
-	if (ul_oct(tar_chksm((char *)&hdblk, sizeof(HD_TAR)), hd->chksum,
-             sizeof(hd->chksum), 3)) {
+    if (ul_oct(tar_chksm((char *)&hdblk, sizeof(HD_TAR)), hd.chksum,
+               sizeof(hd.chksum), 3)) {
     goto out;
   }
   if (wr_rdbuf((char *)&hdblk, sizeof(HD_TAR)) < 0) {
@@ -674,7 +757,7 @@ tar_wr(ARCHD *arcn)
   if (wr_skip((off_t)(BLKMULT - sizeof(HD_TAR))) < 0) {
     return(-1);
   }
-  if ((arcn->type == PAX_CTG) || (arcn->type == PAX_REG)) {
+    if ((arcn.type == .CTG) || (arcn.type == .REG)) {
     return(0);
   }
 	return(1);
@@ -683,7 +766,7 @@ tar_wr(ARCHD *arcn)
 	/*
 	 * header field is out of range
 	 */
-	paxwarn(1, "Tar header field is too small for %s", arcn->org_name);
+    paxwarn(1, "Tar header field is too small for %s", arcn.org_name);
 	return(1);
 }
 
@@ -700,9 +783,7 @@ tar_wr(ARCHD *arcn)
  *	the file name is too long
  */
 
-static char *
-name_split(char *name, int len)
-    {
+  private func name_split(_ name : String, _ len : Int) -> String {
       char *start;
 
       /*
@@ -734,11 +815,11 @@ name_split(char *name, int len)
          * include the slash between the two parts that gets thrown away
          */
         start = name + len - TNMSZ - 1;
-        if ((*start == '/') && (start == name)) {
-          ++start;	/* 101 byte paths with leading '/' are dinged otherwise */
+        if ((*start == "/") && (start == name)) {
+          ++start;	/* 101 byte paths with leading "/" are dinged otherwise */
         }
 
-        while ((*start != '\0') && (*start != '/')) {
+        while ((*start != "\0") && (*start != "/")) {
           ++start;
         }
 
@@ -746,7 +827,7 @@ name_split(char *name, int len)
          * if we hit the end of the string, this name cannot be split, so we
          * cannot store this file.
          */
-        if (*start == '\0') {
+        if (*start == "\0") {
           return(NULL);
         }
         len = start - name;

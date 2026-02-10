@@ -40,123 +40,82 @@ import CMigration
 import Darwin
 
 
-extension pax {
+typealias C12 = ( UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8 )
+typealias C100 = ( UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8
+)
+
+typealias C32 = ( UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8
+)
+
+typealias C155 = (
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8
+)
 
 
-  /*
-   * defines and data structures common to all tar formats
-   */
-  #define CHK_LEN    8    /* length of checksum field */
-  #define TNMSZ    100    /* size of name field */
+extension tar {
 
-  #define NULLCNT    2    /* number of null blocks in trailer */
-  #define CHK_OFFSET  148    /* start of checksum field */
-  #define BLNKSUM    256L    /* sum of checksum field using ' ' */
 
-  /*
-   * Values used in typeflag field in all tar formats
-   * (only REGTYPE, LNKTYPE and SYMTYPE are used in old BSD tar headers)
-   */
-  #define  REGTYPE    '0'    /* Regular File */
-  #define  AREGTYPE  '\0'    /* Regular File */
-  #define  LNKTYPE    '1'    /* Link */
-  #define  SYMTYPE    '2'    /* Symlink */
-  #define  CHRTYPE    '3'    /* Character Special File */
-  #define  BLKTYPE    '4'    /* Block Special File */
-  #define  DIRTYPE    '5'    /* Directory */
-  #define  FIFOTYPE  '6'    /* FIFO */
-  #define  CONTTYPE  '7'    /* high perf file */
-
-  #define  PAXXTYPE  'x'    /* pax format extended header */
-  #define  PAXGTYPE  'g'    /* pax format global extended header */
-
-  /*
-   * GNU tar compatibility;
-   */
-  #define  LONGLINKTYPE  'K'    /* Long Symlink */
-  #define  LONGNAMETYPE  'L'    /* Long File */
-
-  /*
-   * Mode field encoding of the different file types - values in octal
-   */
-  #define TSUID    04000    /* Set UID on execution */
-  #define TSGID    02000    /* Set GID on execution */
-  #define TSVTX    01000    /* Reserved */
-  #define TUREAD    00400    /* Read by owner */
-  #define TUWRITE    00200    /* Write by owner */
-  #define TUEXEC    00100    /* Execute/Search by owner */
-  #define TGREAD    00040    /* Read by group */
-  #define TGWRITE    00020    /* Write by group */
-  #define TGEXEC    00010    /* Execute/Search by group */
-  #define TOREAD    00004    /* Read by other */
-  #define TOWRITE    00002    /* Write by other */
-  #define TOEXEC    00001    /* Execute/Search by other */
 
   /*
    * Pad with a bit mask, much faster than doing a mod but only works on powers
    * of 2. Macro below is for block of 512 bytes.
    */
-  #define TAR_PAD(x)  ((512 - ((x) & 511)) & 511)
+  func TAR_PAD(_ x : Int) -> Int { return ((512 - ((x) & 511)) & 511) }
 
   /*
    * structure of an old tar header as it appeared in BSD releases
    */
+
+
   struct HD_TAR {
-    char name[TNMSZ];    /* name of entry */
-    char mode[8];       /* mode */
-    char uid[8];       /* uid */
-    char gid[8];      /* gid */
-    char size[12];      /* size */
-    char mtime[12];      /* modification time */
-    char chksum[CHK_LEN];    /* checksum */
-    char linkflag;      /* norm, hard, or sym. */
-    char linkname[TNMSZ];    /* linked to name */
+    var name : C100      /* name of entry */
+    var mode : C8        /* mode */
+    var uid : C8         /* uid */
+    var gid : C8         /* gid */
+    var size : C12       /* size */
+    var mtime : C12      /* modification time */
+    var chksum : C8     /* checksum */
+    var linkflag : UInt8  /* norm, hard, or sym. */
+    var linkname : C100   /* linked to name */
   }
 
-  /*
-   * -o options for BSD tar to not write directories to the archive
-   */
-  #define TAR_NODIR  "nodir"
-  #define TAR_OPTION  "write_opt"
 
-  /*
-   * default device names
-   */
-  var DEV_0 = "/dev/rmt0"
-  var DEV_1 = "/dev/rmt1"
-  var DEV_4 = "/dev/rmt4"
-  var DEV_5 = "/dev/rmt5"
-  var DEV_7 = "/dev/rmt7"
-  var DEV_8 = "/dev/rmt8"
-
-  /*
-   * Data Interchange Format - Extended tar header format - POSIX 1003.1-1990
-   */
-  #define TPFSZ    155
-  #define  TMAGIC    "ustar"    /* ustar and a null */
-  #define  TMAGLEN    6
-  #define  TVERSION  "00"    /* 00 and no null */
-  #define  TVERSLEN  2
 
   struct HD_USTAR {
-    char name[TNMSZ];    /* name of entry */
-    char mode[8];       /* mode */
-    char uid[8];       /* uid */
-    char gid[8];      /* gid */
-    char size[12];      /* size */
-    char mtime[12];      /* modification time */
-    char chksum[CHK_LEN];    /* checksum */
-    char typeflag;      /* type of file. */
-    char linkname[TNMSZ];    /* linked to name */
-    char magic[TMAGLEN];    /* magic cookie */
-    char version[TVERSLEN];    /* version */
-    char uname[32];      /* ascii owner name */
-    char gname[32];      /* ascii group name */
-    char devmajor[8];    /* major device number */
-    char devminor[8];    /* minor device number */
-    char prefix[TPFSZ];    /* linked to name */
+    var name : C100    /* name of entry */
+    var mode : C8       /* mode */
+    var uid : C8       /* uid */
+    var gid : C8      /* gid */
+    var size : C12      /* size */
+    var mtime : C12      /* modification time */
+    var chksum : C8    /* checksum */
+    var typeflag : UInt8     /* type of file. */
+    var linkname : C100      /* linked to name */
+    var magic : C6           /* magic cookie */
+    var version : (UInt8, UInt8)  /* version */
+    var uname : C32      /* ascii owner name */
+    var gname : C32      /* ascii group name */
+    var devmajor : C8    /* major device number */
+    var devminor : C8    /* minor device number */
+    var prefix : C155    /* linked to name */
 
-  } HD_USTAR __attribute__((aligned(1)));
+  }
 
 
 
@@ -166,7 +125,7 @@ extension pax {
    *  the user specified a legal set of flags. If not, complain and exit
    */
 
-  func tar_options() throws(CmdErr) -> CommandOptions {
+  func tar_options() throws(CmdErr) -> pax.CommandOptions {
 /*    int fstdin = 0;
     int tar_Oflag = 0;
     int nincfiles = 0;
@@ -178,8 +137,10 @@ extension pax {
     struct incfile *incfiles = NULL;
 */
 
-    var options = CommandOptions()
+    var incfiles = [(String, String)]()
+    var options = pax.CommandOptions()
 
+    var tar_Oflag = false
     /*
      * Set default values.
      */
@@ -202,8 +163,8 @@ extension pax {
            * specify blocksize in 512-byte blocks
            */
           if ((wrblksz = (int)str_offt(optarg)) <= 0) {
-            paxwarn(1, "Invalid block size %s", optarg);
-            tar_usage();
+            Tty.paxwarn(true, "Invalid block size \(v)")
+            throw CmdErr(1)
           }
           wrblksz *= 512;    /* XXX - check for int oflow */
           break;
@@ -223,17 +184,17 @@ extension pax {
           /*
            * filename where the archive is stored
            */
-          if ((optarg[0] == "-") && (optarg[1]== '\0')) {
+          if v == "-" {
             /*
              * treat a - as stdin
              */
             fstdin = 1;
-            arcname = NULL;
-            break;
+            options.arcname = nil
+          } else {
+            fstdin = 0;
+            options.arcname = v
           }
-          fstdin = 0;
-          arcname = optarg;
-          break;
+
         case "h":
           /*
            * follow symlinks
@@ -255,11 +216,11 @@ extension pax {
 
         case "o":
           if (opt_add("write_opt=nodir") < 0) {
-            tar_usage();
+            throw CmdErr(1)
           }
         case "O":
-          tar_Oflag = 1;
-          break;
+          tar_Oflag = true
+
         case "p":
           /*
            * preserve uid/gid and file mode, regardless of umask
@@ -284,10 +245,9 @@ extension pax {
            * file name substitution name pattern
            */
           if (rep_add(optarg) < 0) {
-            tar_usage();
-            break;
+            throw CmdErr(1)
           }
-          break;
+
         case "t":
           /*
            * list contents of the tape
@@ -328,9 +288,8 @@ extension pax {
         case "C":
 
           havechd++;
+          options.chdname = v
 
-          chdname = optarg;
-          break;
         case "H":
           /*
            * follow command line symlinks only
@@ -338,19 +297,8 @@ extension pax {
           options.Hflag = true
 
         case "I":
-          if (++nincfiles > incfiles_max) {
-            incfiles_max = nincfiles + 3;
-            incfiles = realloc(incfiles,
-                               sizeof(*incfiles) * incfiles_max);
-            if (incfiles == NULL) {
-              paxwarn(0, "Unable to allocate space "
-                      "for option list");
-              exit(1);
-            }
-          }
-          incfiles[nincfiles - 1].file = optarg;
-          incfiles[nincfiles - 1].dir = chdname;
-          break;
+          incfiles.append( (options.chdname, v) )
+
         case "L":
           /*
            * follow symlinks
@@ -394,26 +342,23 @@ extension pax {
           options.arcname = DEV_8;
 
         default:
-          tar_usage();
-          break;
+          throw CmdErr(1)
       }
     }
 
-
-    argc -= optind;
-    argv += optind;
+    options.args = go.remaining
 
     /* Traditional tar behaviour (pax uses stderr unless in list mode) */
-    if (fstdin == 1 && act == ARCHIVE) {
-      listf = stderr;
+    if (fstdin == 1 && options.act == .ARCHIVE) {
+      options.listf = FileDescriptor.standardError
     }
     else {
-      listf = stdout;
+      options.listf = FileDescriptor.standardOutput
     }
 
     /* Traditional tar behaviour (pax wants to read file list from stdin) */
-    if (options.act == .ARCHIVE || options.act == .APPND) && argc == 0 && nincfiles == 0 {
-      exit(0);
+    if (options.act == .ARCHIVE || options.act == .APPND) && options.args.count == 0 && incfiles.count == 0 {
+      exit(0)
     }
 
     /*
@@ -421,11 +366,11 @@ extension pax {
      * (unless -o specified)
      */
     if options.act == .ARCHIVE || options.act == .APPND {
-      options.frmt = &(fsub[tar_Oflag ? F_OTAR : F_TAR]);
+      options.frmt = tar_Oflag ? tar() : ustar()
     }
     else if (tar_Oflag) {
-      paxwarn(1, "The -O/-o options are only valid when writing an archive");
-      tar_usage();    /* only valid when writing */
+      Tty.paxwarn(true, "The -O/-o options are only valid when writing an archive")
+      throw CmdErr(1) // tar_usage();    /* only valid when writing */
     }
 
     /*
@@ -433,9 +378,9 @@ extension pax {
      */
     switch options.act {
       case .ARCHIVE, .APPND:
-        if (chdname != NULL) {  /* initial chdir() */
+        if let chdname = options.chdname {  /* initial chdir() */
           if (ftree_add(chdname, 1) < 0) {
-            tar_usage();
+            throw CmdErr(1) // tar_usage
           }
         }
 
@@ -568,7 +513,7 @@ extension pax {
               }
               chdname = *argv++;
             } else if (pat_add(*argv++, chdname) < 0) {
-              tar_usage();
+              throw CmdErr(1) // tar_usage();
             }
             else {
               sawpat = 1;
@@ -593,4 +538,43 @@ extension pax {
       }
     }
   }
+
+
+  // The way to deal with the  getoldopt  strategy is to look at the first argument:
+  // if it starts with a "-", then it is not old format
+  // if it does not start with a "-", then it is old format, and the argument list should be modified the intersperse the options
+  // specified in the first argument with the remainder of the arguments (prefixing them with "-".
+  // The resulting argument list can then be passed to the standard getopt implementation.
+
+  func getoldopt(_ argv : [String], _ optstring : String) throws(CmdErr) -> [String] {
+    if argv.count < 2 { return argv }
+    if argv[1].first == "-" { return argv }
+    var k = Array(argv[1]) // each option as an element of this array
+
+    var res = [String]()
+    res.append(argv[0])
+
+    var z = argv.dropFirst(2)
+    while !k.isEmpty {
+      let c = k.removeFirst()
+      guard let j = optstring.firstIndex(of: c) else {
+        // this is an unknown option, so ....
+        throw CmdErr(1, "unknown option \(c)")
+      }
+      let ccx = optstring.index(after: j)
+      let cc = ccx < optstring.endIndex ? optstring[optstring.index(after: j)] : " "
+
+      res.append("-"+String(c))
+      if cc == ":" {
+        if z.isEmpty {
+          throw CmdErr(1, "\(c) argument missing")
+        } else {
+          res.append(z.removeFirst())
+        }
+      }
+    }
+    res.append(contentsOf: z)
+    return res
+  }
+
 }

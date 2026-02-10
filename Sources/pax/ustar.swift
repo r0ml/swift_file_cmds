@@ -40,6 +40,8 @@ import CMigration
 import Darwin
 
 class ustar : tar {
+//  ustar.init("ustar", 10240, BLKMULT, 0, 1, BLKMULT, 0),
+  // ustar_id, ustar_strd, ustar_rd, tar_endrd, ustar_stwr, ustar_wr, tar_endwr, NULL, tar_trail, rd_wrfile, wr_rdfile, bad_opt},
 
 
   /*
@@ -53,13 +55,8 @@ class ustar : tar {
    *  0 if ok, -1 otherwise
    */
 
-  int
-  ustar_strd(void)
-  {
-    if ((usrtb_start() < 0) || (grptb_start() < 0)) {
-      return(-1);
-    }
-    return(0);
+  override func st_rd() -> Bool {
+    return false
   }
 
   /*
@@ -69,13 +66,8 @@ class ustar : tar {
    *  0 if ok, -1 otherwise
    */
 
-  int
-  ustar_stwr(void)
-  {
-    if ((uidtb_start() < 0) || (gidtb_start() < 0)) {
-      return(-1);
-    }
-    return(0);
+  override func st_wr() -> Bool {
+    return false
   }
 
   /*
@@ -86,9 +78,7 @@ class ustar : tar {
    *  0 if a ustar header, -1 otherwise
    */
 
-  int
-  ustar_id(char *blk, int size)
-  {
+  override func id( _ blk : [UInt8]) -> Bool {
     HD_USTAR *hd;
 
     if (size < BLKMULT) {
@@ -122,44 +112,43 @@ class ustar : tar {
    *  0
    */
 
-  int
-  ustar_rd(ARCHD *arcn, char *buf)
-  {
+  override func rd(_ buf : [UInt8]) -> ARCHD? {
     HD_USTAR *hd;
     char *dest;
     int cnt = 0;
     dev_t devmajor;
     dev_t devminor;
 
+    var arcn = ARCHD()
     /*
      * we only get proper sized buffers
      */
-    if (ustar_id(buf, BLKMULT) < 0) {
-      return(-1);
+    if self.id(buf) {
+      return nil
     }
-    arcn->org_name = arcn->name;
-    arcn->sb.st_nlink = 1;
-    arcn->pat = NULL;
-    arcn->nlen = 0;
-    hd = (HD_USTAR *)buf;
+    arcn.org_name = arcn.name
+    arcn.sb.links = 1
+    arcn.pat = nil
+    arcn.nlen = 0
+    hd = (HD_USTAR *)buf
 
     /*
      * see if the filename is split into two parts. if, so joint the parts.
      * we copy the prefix first and add a / between the prefix and name.
      */
-    dest = arcn->name;
+    dest = arcn.name;
     if (*(hd->prefix) != '\0') {
       cnt = l_strncpy(dest, hd->prefix,
-          MIN(sizeof(hd->prefix), sizeof(arcn->name) - 2));
+          MIN(sizeof(hd->prefix), sizeof(arcn.name) - 2));
       dest += cnt;
       *dest++ = '/';
       cnt++;
     }
 
     if (hd->typeflag != LONGLINKTYPE && hd->typeflag != LONGNAMETYPE) {
-      arcn->nlen = cnt + expandname(dest, sizeof(arcn->name) - cnt,
+      arcn.nlen = cnt + expandname(dest, sizeof(arcn.name) - cnt,
           &gnu_name_string, hd->name, sizeof(hd->name));
-      arcn->ln_nlen = expandname(arcn->ln_name, sizeof(arcn->ln_name),
+      arcn.ln_nlen = expandname(arcn.ln_name, sizeof(arcn.ln_name),
           &gnu_link_string, hd->linkname, sizeof(hd->linkname));
     }
 
@@ -168,19 +157,19 @@ class ustar : tar {
      * if it fills the entire field.  this also applies to
      * the prefix and the linkname.
      */
-    arcn->nlen = cnt + l_strncpy(dest, hd->name,
-        MIN(sizeof(hd->name), sizeof(arcn->name) - cnt - 1));
-    arcn->name[arcn->nlen] = '\0';
+    arcn.nlen = cnt + l_strncpy(dest, hd->name,
+        MIN(sizeof(hd->name), sizeof(arcn.name) - cnt - 1));
+    arcn.name[arcn.nlen] = '\0';
 
     /*
      * follow the spec to the letter. we should only have mode bits, strip
      * off all other crud we may be passed.
      */
-    arcn->sb.st_mode = (mode_t)(asc_ul(hd->mode, sizeof(hd->mode), OCT) &
+    arcn.sb.st_mode = (mode_t)(asc_ul(hd->mode, sizeof(hd->mode), OCT) &
         0xfff);
-    arcn->sb.st_size = (off_t)asc_uqd(hd->size, sizeof(hd->size), OCT);
-    arcn->sb.st_mtime = (time_t)asc_uqd(hd->mtime, sizeof(hd->mtime), OCT);
-    arcn->sb.st_ctime = arcn->sb.st_atime = arcn->sb.st_mtime;
+    arcn.sb.st_size = (off_t)asc_uqd(hd->size, sizeof(hd->size), OCT);
+    arcn.sb.st_mtime = (time_t)asc_uqd(hd->mtime, sizeof(hd->mtime), OCT);
+    arcn.sb.st_ctime = arcn.sb.st_atime = arcn.sb.st_mtime;
 
     /*
      * If we can find the ascii names for gname and uname in the password
@@ -189,43 +178,43 @@ class ustar : tar {
      * the POSIX spec wants).
      */
     hd->gname[sizeof(hd->gname) - 1] = '\0';
-    if (gid_name(hd->gname, &(arcn->sb.st_gid)) < 0) {
-      arcn->sb.st_gid = (gid_t)asc_ul(hd->gid, sizeof(hd->gid), OCT);
+    if (gid_name(hd->gname, &(arcn.sb.st_gid)) < 0) {
+      arcn.sb.st_gid = (gid_t)asc_ul(hd->gid, sizeof(hd->gid), OCT);
     }
     hd->uname[sizeof(hd->uname) - 1] = '\0';
-    if (uid_name(hd->uname, &(arcn->sb.st_uid)) < 0) {
-      arcn->sb.st_uid = (uid_t)asc_ul(hd->uid, sizeof(hd->uid), OCT);
+    if (uid_name(hd->uname, &(arcn.sb.st_uid)) < 0) {
+      arcn.sb.st_uid = (uid_t)asc_ul(hd->uid, sizeof(hd->uid), OCT);
     }
 
     /*
      * set the defaults, these may be changed depending on the file type
      */
-    arcn->ln_name[0] = '\0';
-    arcn->ln_nlen = 0;
-    arcn->pad = 0;
-    arcn->skip = 0;
-    arcn->sb.st_rdev = (dev_t)0;
+    arcn.ln_name[0] = '\0';
+    arcn.ln_nlen = 0;
+    arcn.pad = 0;
+    arcn.skip = 0;
+    arcn.sb.st_rdev = (dev_t)0;
 
     /*
      * set the mode and PAX type according to the typeflag in the header
      */
     switch(hd->typeflag) {
     case FIFOTYPE:
-      arcn->type = PAX_FIF;
-      arcn->sb.st_mode |= S_IFIFO;
+      arcn.type = PAX_FIF;
+      arcn.sb.st_mode |= S_IFIFO;
       break;
     case DIRTYPE:
-      arcn->type = PAX_DIR;
-      arcn->sb.st_mode |= S_IFDIR;
-      arcn->sb.st_nlink = 2;
+      arcn.type = PAX_DIR;
+      arcn.sb.st_mode |= S_IFDIR;
+      arcn.sb.st_nlink = 2;
 
       /*
        * Some programs that create ustar archives append a '/'
        * to the pathname for directories. This clearly violates
        * ustar specs, but we will silently strip it off anyway.
        */
-        if (arcn->name[arcn->nlen - 1] == '/') {
-          arcn->name[--arcn->nlen] = '\0';
+        if (arcn.name[arcn.nlen - 1] == '/') {
+          arcn.name[--arcn.nlen] = '\0';
         }
       break;
     case BLKTYPE:
@@ -234,28 +223,28 @@ class ustar : tar {
        * this type requires the rdev field to be set.
        */
       if (hd->typeflag == BLKTYPE) {
-        arcn->type = PAX_BLK;
-        arcn->sb.st_mode |= S_IFBLK;
+        arcn.type = PAX_BLK;
+        arcn.sb.st_mode |= S_IFBLK;
       } else {
-        arcn->type = PAX_CHR;
-        arcn->sb.st_mode |= S_IFCHR;
+        arcn.type = PAX_CHR;
+        arcn.sb.st_mode |= S_IFCHR;
       }
       devmajor = (dev_t)asc_ul(hd->devmajor,sizeof(hd->devmajor),OCT);
       devminor = (dev_t)asc_ul(hd->devminor,sizeof(hd->devminor),OCT);
-      arcn->sb.st_rdev = TODEV(devmajor, devminor);
+      arcn.sb.st_rdev = TODEV(devmajor, devminor);
       break;
     case SYMTYPE:
     case LNKTYPE:
       if (hd->typeflag == SYMTYPE) {
-        arcn->type = PAX_SLK;
-        arcn->sb.st_mode |= S_IFLNK;
+        arcn.type = PAX_SLK;
+        arcn.sb.st_mode |= S_IFLNK;
       } else {
-        arcn->type = PAX_HLK;
+        arcn.type = PAX_HLK;
         /*
          * so printing looks better
          */
-        arcn->sb.st_mode |= S_IFREG;
-        arcn->sb.st_nlink = 2;
+        arcn.sb.st_mode |= S_IFREG;
+        arcn.sb.st_nlink = 2;
       }
 
       break;
@@ -266,10 +255,10 @@ class ustar : tar {
        * GNU long link/file; we tag these here and let the
        * pax internals deal with it -- too ugly otherwise.
        */
-      arcn->type =
+      arcn.type =
           hd->typeflag == LONGLINKTYPE ? PAX_GLL : PAX_GLF;
-      arcn->pad = TAR_PAD(arcn->sb.st_size);
-      arcn->skip = arcn->sb.st_size;
+      arcn.pad = TAR_PAD(arcn.sb.st_size);
+      arcn.skip = arcn.sb.st_size;
       break;
 
     case CONTTYPE:
@@ -280,13 +269,13 @@ class ustar : tar {
        * these types have file data that follows. Set the skip and
        * pad fields.
        */
-      arcn->type = PAX_REG;
-      arcn->pad = TAR_PAD(arcn->sb.st_size);
-      arcn->skip = arcn->sb.st_size;
-      arcn->sb.st_mode |= S_IFREG;
+        arcn.type = .REG;
+        arcn.pad = TAR_PAD(arcn.sb.size)
+      arcn.skip = arcn.sb.size
+        arcn.sb.filetype = .regular
       break;
     }
-    return(0);
+    return false
   }
 
   /*
@@ -301,9 +290,7 @@ class ustar : tar {
    *  data to write after the header, -1 if archive write failed
    */
 
-  int
-  ustar_wr(ARCHD *arcn)
-  {
+  override func wr(_ arcn : ARCHD) -> Int {
     HD_USTAR *hd;
     char *pt;
 
@@ -315,43 +302,40 @@ class ustar : tar {
     /*
      * check for those file system types ustar cannot store
      */
-    if (arcn->type == PAX_SCK) {
-      paxwarn(1, "Ustar cannot archive a socket %s", arcn->org_name);
-      return(1);
+    if (arcn.type == .SCK) {
+      Tty.paxwarn(true, "Ustar cannot archive a socket \(arcn.org_name)")
+      return 1
     }
 
     /*
      * check the length of the linkname
      */
-    if (((arcn->type == PAX_SLK) || (arcn->type == PAX_HLK) ||
-        (arcn->type == PAX_HRG)) &&
-        (arcn->ln_nlen > (int)sizeof(hd->linkname))) {
-      paxwarn(1, "Link name too long for ustar %s", arcn->ln_name);
+    if (arcn.type == .SLK || arcn.type == .HLK || arcn.type == .HRG) && (arcn.ln_name.utf8.count > MemoryLayout(of: hd.linkname).size) {
+      Tty.paxwarn(true, "Link name too long for ustar \(arcn.ln_name)")
 
       /*
        * Conformance: test pax:285 wants error code to be non-zero, and
        * test tar:12 wants error code from pax to be 0
        */
-
-      return(1);
+      return 1
     }
 
     /*
      * split the path name into prefix and name fields (if needed). if
-     * pt != arcn->name, the name has to be split
+     * pt != arcn.name, the name has to be split
      */
-    if ((pt = name_split(arcn->name, arcn->nlen)) == NULL) {
-      paxwarn(1, "File name too long for ustar %s", arcn->name);
-      return(1);
+    if ((pt = name_split(arcn.name, arcn.nlen)) == NULL) {
+      Tty.paxwarn(true, "File name too long for ustar \(arcn.name)")
+      return 1
     }
 
     /*
      * zero out the header so we don't have to worry about zero fill below
      */
     memset(hdblk, 0, sizeof(hdblk));
-    hd = (HD_USTAR *)hdblk;
+    var hd = HD_USTAR()
 
-    arcn->pad = 0L;
+    arcn.pad = 0
 
     /* To pass conformance tests 274/301, always set these fields to "zero" */
     ul_oct(0, hd->devmajor, sizeof(hd->devmajor), term_char);
@@ -360,14 +344,14 @@ class ustar : tar {
     /*
      * split the name, or zero out the prefix
      */
-    if (pt != arcn->name) {
+    if (pt != arcn.name) {
       /*
        * name was split, pt points at the / where the split is to
        * occur, we remove the / and copy the first part to the prefix
        */
       *pt = '\0';
 
-      strlcpy(hd->prefix, arcn->name, sizeof(hd->prefix));
+      strlcpy(hd->prefix, arcn.name, sizeof(hd->prefix));
 
       *pt++ = '/';
     }
@@ -386,8 +370,8 @@ class ustar : tar {
     /*
      * set the fields in the header that are type dependent
      */
-    switch(arcn->type) {
-    case PAX_DIR:
+    switch arcn.type {
+      case .DIR:
       hd->typeflag = DIRTYPE;
 
           if (ul_oct((u_long)0L, hd->size, sizeof(hd->size), term_char)) {
@@ -395,27 +379,26 @@ class ustar : tar {
             goto out;
           }
       break;
-    case PAX_CHR:
-    case PAX_BLK:
-          if (arcn->type == PAX_CHR) {
+      case .CHR, .BLK:
+          if (arcn.type == PAX_CHR) {
             hd->typeflag = CHRTYPE;
           }
           else {
             hd->typeflag = BLKTYPE;
           }
 
-        if (ul_oct((u_long)MAJOR(arcn->sb.st_rdev), hd->devmajor,
+        if (ul_oct((u_long)MAJOR(arcn.sb.st_rdev), hd->devmajor,
 
          sizeof(hd->devmajor), term_char) ||
 
-         ul_oct((u_long)MINOR(arcn->sb.st_rdev), hd->devminor,
+         ul_oct((u_long)MINOR(arcn.sb.st_rdev), hd->devminor,
 
          sizeof(hd->devminor), term_char) ||
          ul_oct((u_long)0L, hd->size, sizeof(hd->size), term_char))
 
         goto out;
       break;
-    case PAX_FIF:
+      case .FIF:
       hd->typeflag = FIFOTYPE;
 
             if (ul_oct((u_long)0L, hd->size, sizeof(hd->size), term_char)) {
@@ -423,45 +406,43 @@ class ustar : tar {
               goto out;
             }
       break;
-    case PAX_SLK:
-    case PAX_HLK:
-    case PAX_HRG:
-            if (arcn->type == PAX_SLK) {
+      case .SLK, .HLK, .HRG:
+        if arcn.type == .SLK {
               hd->typeflag = SYMTYPE;
             }
             else {
               hd->typeflag = LNKTYPE;
             }
 
-      if (strlen(arcn->ln_name) == sizeof(hd->linkname)) {  /* must account for name just fits in buffer */
-        strncpy(hd->linkname, arcn->ln_name, sizeof(hd->linkname));
+      if (strlen(arcn.ln_name) == sizeof(hd->linkname)) {  /* must account for name just fits in buffer */
+        strncpy(hd->linkname, arcn.ln_name, sizeof(hd->linkname));
       } else {
-        strlcpy(hd->linkname, arcn->ln_name, sizeof(hd->linkname));
+        strlcpy(hd->linkname, arcn.ln_name, sizeof(hd->linkname));
       }
         if (ul_oct((u_long)0L, hd->size, sizeof(hd->size), term_char)) {
 
             goto out;
           }
       break;
-    case PAX_REG:
-    case PAX_CTG:
+      case .REG, .CTG:
+        fallthrough
     default:
       /*
        * file data with this type, set the padding
        */
-          if (arcn->type == PAX_CTG) {
+        if arcn.type == .CTG {
             hd->typeflag = CONTTYPE;
           }
           else {
             hd->typeflag = REGTYPE;
           }
 
-      arcn->pad = TAR_PAD(arcn->sb.st_size);
-      if (uqd_oct((u_quad_t)arcn->sb.st_size, hd->size,
+      arcn.pad = TAR_PAD(arcn.sb.st_size);
+      if (uqd_oct((u_quad_t)arcn.sb.st_size, hd->size,
 
           sizeof(hd->size), term_char)) {
 
-        paxwarn(1,"File is too long for ustar %s",arcn->org_name);
+        paxwarn(1,"File is too long for ustar %s",arcn.org_name);
         return(1);
       }
       break;
@@ -475,33 +456,33 @@ class ustar : tar {
      * we better humor them (they really do not meet spec though)....
      */
 
-    if (ul_oct((u_long)arcn->sb.st_uid, hd->uid, sizeof(hd->uid), term_char)) {
+    if (ul_oct((u_long)arcn.sb.st_uid, hd->uid, sizeof(hd->uid), term_char)) {
       if (uid_nobody == 0) {
         if (uid_name("nobody", &uid_nobody) == -1) {
           goto out;
         }
       }
-      if (uid_warn != arcn->sb.st_uid) {
-        uid_warn = arcn->sb.st_uid;
+      if (uid_warn != arcn.sb.st_uid) {
+        uid_warn = arcn.sb.st_uid;
         paxwarn(1,
             "Ustar header field is too small for uid %lu, "
-            "using nobody", (u_long)arcn->sb.st_uid);
+            "using nobody", (u_long)arcn.sb.st_uid);
       }
       if (ul_oct((u_long)uid_nobody, hd->uid, sizeof(hd->uid), term_char)) {
         goto out;
       }
     }
-    if (ul_oct((u_long)arcn->sb.st_gid, hd->gid, sizeof(hd->gid), term_char)) {
+    if (ul_oct((u_long)arcn.sb.st_gid, hd->gid, sizeof(hd->gid), term_char)) {
       if (gid_nobody == 0) {
         if (gid_name("nobody", &gid_nobody) == -1) {
           goto out;
         }
       }
-      if (gid_warn != arcn->sb.st_gid) {
-        gid_warn = arcn->sb.st_gid;
+      if (gid_warn != arcn.sb.st_gid) {
+        gid_warn = arcn.sb.st_gid;
         paxwarn(1,
             "Ustar header field is too small for gid %lu, "
-            "using nobody", (u_long)arcn->sb.st_gid);
+            "using nobody", (u_long)arcn.sb.st_gid);
       }
       if (ul_oct((u_long)gid_nobody, hd->gid, sizeof(hd->gid), term_char)) {
         goto out;
@@ -509,15 +490,15 @@ class ustar : tar {
     }
     /* However, Unix conformance tests do not like MORE than 12 mode bits:
        remove all beyond (see definition of stat.st_mode structure)    */
-    mode12only = ((u_long)arcn->sb.st_mode) & 0x00000fff;
+    mode12only = ((u_long)arcn.sb.st_mode) & 0x00000fff;
     if (ul_oct((u_long)mode12only, hd->mode, sizeof(hd->mode), term_char) ||
-        ul_oct((u_long)arcn->sb.st_mtime,hd->mtime,sizeof(hd->mtime),term_char)) {
+        ul_oct((u_long)arcn.sb.st_mtime,hd->mtime,sizeof(hd->mtime),term_char)) {
 
       goto out;
     }
 
-    strncpy(hd->uname, name_uid(arcn->sb.st_uid, 0), sizeof(hd->uname));
-    strncpy(hd->gname, name_gid(arcn->sb.st_gid, 0), sizeof(hd->gname));
+    strncpy(hd->uname, name_uid(arcn.sb.st_uid, 0), sizeof(hd->uname));
+    strncpy(hd->gname, name_gid(arcn.sb.st_gid, 0), sizeof(hd->gname));
 
     /*
      * calculate and store the checksum write the header to the archive
@@ -536,7 +517,7 @@ class ustar : tar {
       if (wr_skip((off_t)(BLKMULT - sizeof(HD_USTAR))) < 0) {
         return(-1);
       }
-      if ((arcn->type == PAX_CTG) || (arcn->type == PAX_REG)) {
+      if ((arcn.type == PAX_CTG) || (arcn.type == PAX_REG)) {
         return(0);
       }
     return(1);
@@ -545,8 +526,8 @@ class ustar : tar {
         /*
      * header field is out of range
      */
-    paxwarn(1, "Ustar header field is too small for %s", arcn->org_name);
-    return(1);
+    Tty.paxwarn(true, "Ustar header field is too small for \(arcn.org_name)")
+    return 1
   }
 
 

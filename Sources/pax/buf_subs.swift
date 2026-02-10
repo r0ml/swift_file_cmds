@@ -568,7 +568,7 @@ extension pax {
     int cnt;
     off_t cpcnt = 0L;
     int res = 0;
-    char *fnm = arcn->name;
+    char *fnm = arcn.name;
     int no_hole = 0;
     int isem = 1;
     int rem;
@@ -579,7 +579,7 @@ extension pax {
      * check for holes in the source file. If none, we will use regular
      * write instead of file write.
      */
-    if (((off_t)(arcn->sb.st_blocks * BLKMULT)) >= arcn->sb.st_size) {
+    if (((off_t)(arcn.sb.st_blocks * BLKMULT)) >= arcn.sb.st_size) {
       ++no_hole;
     }
 
@@ -620,18 +620,18 @@ extension pax {
      */
     if (res < 0) {
       syswarn(1, errno, "Failed write during copy of %s to %s",
-              arcn->org_name, arcn->name);
+              arcn.org_name, arcn.name);
     }
-    else if (cpcnt != arcn->sb.st_size) {
+    else if (cpcnt != arcn.sb.st_size) {
       paxwarn(1, "File %s changed size during copy to %s",
-              arcn->org_name, arcn->name);
+              arcn.org_name, arcn.name);
     }
     else if (fstat(fd1, &sb) < 0) {
-      syswarn(1, errno, "Failed stat of %s", arcn->org_name);
+      syswarn(1, errno, "Failed stat of %s", arcn.org_name);
     }
-    else if (arcn->sb.st_mtime != sb.st_mtime) {
+    else if (arcn.sb.st_mtime != sb.st_mtime) {
       paxwarn(1, "File %s was modified during copy to %s",
-              arcn->org_name, arcn->name);
+              arcn.org_name, arcn.name);
     }
 
     /*
@@ -640,7 +640,7 @@ extension pax {
      * written. just closing with the file offset moved forward may not put
      * a hole at the end of the file.
      */
-    if (!no_hole && isem && (arcn->sb.st_size > 0L)) {
+    if (!no_hole && isem && (arcn.sb.st_size > 0L)) {
       file_flush(fd2, fnm, isem);
     }
     return;

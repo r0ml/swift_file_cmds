@@ -159,9 +159,9 @@ extension pax {
     /*
      * hash and look for it in the table
      */
-    pt = usrtb[((unsigned)arcn->sb.st_uid) % USR_TB_SZ];
+    pt = usrtb[((unsigned)arcn.sb.st_uid) % USR_TB_SZ];
     while (pt != NULL) {
-      if (pt->uid == arcn->sb.st_uid)
+      if (pt->uid == arcn.sb.st_uid)
           return(0);
       pt = pt->fow;
     }
@@ -256,9 +256,9 @@ extension pax {
     /*
      * hash and look for it in the table
      */
-    pt = grptb[((unsigned)arcn->sb.st_gid) % GRP_TB_SZ];
+    pt = grptb[((unsigned)arcn.sb.st_gid) % GRP_TB_SZ];
     while (pt != NULL) {
-      if (pt->gid == arcn->sb.st_gid)
+      if (pt->gid == arcn.sb.st_gid)
           return(0);
       pt = pt->fow;
     }
@@ -457,11 +457,11 @@ extension pax {
            * time range
            */
           if (((pt->flgs & HASLOW) &&
-               (arcn->sb.st_mtime < pt->low_time) &&
-               (arcn->sb.st_ctime < pt->low_time)) ||
+               (arcn.sb.st_mtime < pt->low_time) &&
+               (arcn.sb.st_ctime < pt->low_time)) ||
               ((pt->flgs & HASHIGH) &&
-               (arcn->sb.st_mtime > pt->high_time) &&
-               (arcn->sb.st_ctime > pt->high_time))) {
+               (arcn.sb.st_mtime > pt->high_time) &&
+               (arcn.sb.st_ctime > pt->high_time))) {
             pt = pt->fow;
             continue;
           }
@@ -471,9 +471,9 @@ extension pax {
            * user wants only ctime checked for this time range
            */
           if (((pt->flgs & HASLOW) &&
-               (arcn->sb.st_ctime < pt->low_time)) ||
+               (arcn.sb.st_ctime < pt->low_time)) ||
               ((pt->flgs & HASHIGH) &&
-               (arcn->sb.st_ctime > pt->high_time))) {
+               (arcn.sb.st_ctime > pt->high_time))) {
             pt = pt->fow;
             continue;
           }
@@ -484,9 +484,9 @@ extension pax {
            * user wants only mtime checked for this time range
            */
           if (((pt->flgs & HASLOW) &&
-               (arcn->sb.st_mtime < pt->low_time)) ||
+               (arcn.sb.st_mtime < pt->low_time)) ||
               ((pt->flgs & HASHIGH) &&
-               (arcn->sb.st_mtime > pt->high_time))) {
+               (arcn.sb.st_mtime > pt->high_time))) {
             pt = pt->fow;
             continue;
           }

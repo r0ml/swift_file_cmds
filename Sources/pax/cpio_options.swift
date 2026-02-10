@@ -85,7 +85,7 @@ extension pax {
           /*
            * ASCII cpio header
            */
-          options.frmt = cpio.self // &(fsub[F_ACPIO]);
+          options.frmt = cpio() // &(fsub[F_ACPIO]);
 
         case "d":
           /*

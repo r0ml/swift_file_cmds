@@ -73,19 +73,17 @@ class cpio : bcpio {
    *  0 if a valid header, -1 otherwise.
    */
 
-  override func rd(_ buf : [UInt8]) -> pax.ARCHD? {  // was cpio_rd
-    int nsz;
-    HD_CPIO *hd;
+  override func rd(_ buf : [UInt8]) -> ARCHD? {  // was cpio_rd
 
-    var arcn = pax.ARCHD()
+    var arcn = ARCHD()
 
     /*
      * check that this is a valid header, if not return -1
      */
-    if (cpio_id(buf, sizeof(HD_CPIO)) < 0) {
-      return(-1);
+    if id(buf, hsz) {
+      return nil
     }
-    hd = (HD_CPIO *)buf;
+    let hd = (HD_CPIO *)buf;
 
     /*
      * byte oriented cpio (posix) does not have padding! extract the octal
@@ -102,7 +100,7 @@ class cpio : bcpio {
     arcn.sb.st_rdev = (dev_t)asc_ul(hd->c_rdev, sizeof(hd->c_rdev), OCT);
     arcn.sb.st_mtime = (time_t)asc_uqd(hd->c_mtime, sizeof(hd->c_mtime),
                                         OCT);
-    arcn.sb.st_ctime = arcn->sb.st_atime = arcn->sb.st_mtime;
+    arcn.sb.st_ctime = arcn.sb.st_atime = arcn.sb.st_mtime;
     arcn.sb.st_size = (off_t)asc_uqd(hd->c_filesize,sizeof(hd->c_filesize),
                                       OCT);
 
@@ -113,17 +111,17 @@ class cpio : bcpio {
     if ((nsz = (int)asc_ul(hd->c_namesize,sizeof(hd->c_namesize),OCT)) < 2) {
       return(-1);
     }
-    arcn->nlen = nsz - 1;
+    arcn.nlen = nsz - 1;
     if (rd_nm(arcn, nsz) < 0) {
       return(-1);
     }
 
-    if (((arcn->sb.st_mode&C_IFMT) != C_ISLNK)||(arcn->sb.st_size == 0)) {
+    if (((arcn.sb.st_mode&C_IFMT) != C_ISLNK)||(arcn.sb.st_size == 0)) {
       /*
        * no link name to read for this file
        */
-      arcn->ln_nlen = 0;
-      arcn->ln_name[0] = '\0';
+      arcn.ln_nlen = 0;
+      arcn.ln_name[0] = '\0';
       return(com_rd(arcn));
     }
 
@@ -196,7 +194,7 @@ class cpio : bcpio {
         /*
          * set data size to hold link name
          */
-        if (ul_asc((u_long)arcn->ln_nlen, hd->c_filesize,
+        if (ul_asc((u_long)arcn.ln_nlen, hd->c_filesize,
                    sizeof(hd->c_filesize), OCT)) {
           goto out;
         }
@@ -240,8 +238,8 @@ class cpio : bcpio {
      * write the file name to the archive
      */
     if ((wr_rdbuf((char *)&hdblk, hsz) < 0) ||
-        (wr_rdbuf(arcn->name, nsz) < 0)) {
-      paxwarn(true, "Unable to write cpio header for %s", arcn->org_name);
+        (wr_rdbuf(arcn.name, nsz) < 0)) {
+      paxwarn(true, "Unable to write cpio header for %s", arcn.org_name);
       return true
     }
 
@@ -271,7 +269,7 @@ class cpio : bcpio {
      * header field is out of range
      */
     paxwarn(1, "Cpio header field is too small to store file %s",
-            arcn->org_name);
+            arcn.org_name);
     return(1);
   }
 

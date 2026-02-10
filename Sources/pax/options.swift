@@ -197,6 +197,7 @@ extension pax {
    ]
    */
 
+  /*
   #define F_OCPIO	0	/* format when called as cpio -6 */
   #define F_ACPIO	1	/* format when called as cpio -c */
 
@@ -205,8 +206,11 @@ extension pax {
   #define F_CPIO	4	/* format when called as cpio */
   #define F_OTAR	5	/* format when called as tar -o */
   #define F_TAR	6	/* format when called as tar */
+*/
 
+  /*
   #define DEFLT	F_TAR	/* default write format from list above */
+*/
 
   /*
    * ford is the archive search order used by get_arc() to determine what kind
@@ -214,7 +218,7 @@ extension pax {
    * some formats may be subsets of others....
    */
 
-  int ford[] = {F_PAX, F_TAR, F_OTAR, F_CPIO, F_SCPIO, F_ACPIO, F_OCPIO, -1 };
+//  int ford[] = {F_PAX, F_TAR, F_OTAR, F_CPIO, F_SCPIO, F_ACPIO, F_OCPIO, -1 };
 
   /*
    * Do we have -C anywhere?

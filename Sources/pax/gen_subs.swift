@@ -39,7 +39,7 @@
 import CMigration
 import Darwin
 
-extension pax {
+struct Gen {
 
   /*
    * a collection of general purpose subroutines used by pax
@@ -48,50 +48,43 @@ extension pax {
   /*
    * constants used by ls_list() when printing out archive members
    */
-  #define MODELEN 20
-  #define DATELEN 64
-  #define SIXMONTHS	 ((365 / 2) * 86400)
-  #define CURFRMTM	"%b %e %H:%M"
-  #define OLDFRMTM	"%b %e  %Y"
-  #define CURFRMTD	"%e %b %H:%M"
-  #define OLDFRMTD	"%e %b  %Y"
+  static let MODELEN = 20
+  static let DATELEN = 64
+  static let SIXMONTHS =	 ((365 / 2) * 86400)
+  static let CURFRMTM =	"%b %e %H:%M"
+  static let OLDFRMTM =	"%b %e  %Y"
+  static let CURFRMTD =	"%e %b %H:%M"
+  static let OLDFRMTD =	"%e %b  %Y"
 
-  #define NAME_WIDTH	8
+  static let NAME_WIDTH = 8
 
-  static int d_first = -1;
+  static let d_first = -1
 
   /*
    * ls_list()
    *	list the members of an archive in ls format
    */
 
-  void
-  ls_list(ARCHD *arcn, time_t now, FILE *fp)
-  {
-    struct stat *sbp;
+  static func ls_list(_ arcn : ARCHD, _ now : DateTime, _ fp : inout FileDescriptor) {
+/*    struct stat *sbp;
     char f_mode[MODELEN];
     char f_date[DATELEN];
     const char *timefrmt;
+*/
 
-    int term;
-
-    term = zeroflag ? '\0' : '\n';	/* path termination character */
+    let term = zeroflag ? "\0" : "\n"  /* path termination character */
 
     /*
      * if not verbose, just print the file name
      */
     if (!vflag) {
-
       if (zeroflag) {
-        (void)fputs(arcn->name, fp);
+        fputs(arcn.name, terminator: term, fp)
       }
       else {
-        safe_print(arcn->name, fp);
+        safe_print(arcn.name, terminator: term, fp)
       }
-      (void)putc(term, fp);
-
-      (void)fflush(fp);
-      return;
+      return
     }
 
     if (pax_list_opt_format) {
@@ -105,21 +98,17 @@ extension pax {
     /*
      * user wants long mode
      */
-    sbp = &(arcn->sb);
-    strmode(sbp->st_mode, f_mode);
+    let sbp = arcn.sb
+    let fmode = strmode(sbp.filetype, sbp.permissions)
 
     /*
      * time format based on age compared to the time pax was started.
      */
-
-    if ((sbp->st_mtime + SIXMONTHS) <= now ||
-        sbp->st_mtime > now)
-
-    {
-      timefrmt = d_first ? OLDFRMTD : OLDFRMTM;
+    if ((sbp.lastWrite + SIXMONTHS) <= now || sbp.lastWrite > now) {
+      timefrmt = d_first ? OLDFRMTD : OLDFRMTM
     }
     else {
-      timefrmt = d_first ? CURFRMTD : CURFRMTM;
+      timefrmt = d_first ? CURFRMTD : CURFRMTM
     }
 
     /*
@@ -137,38 +126,36 @@ extension pax {
     /*
      * print device id's for devices, or sizes for other nodes
      */
-    if ((arcn->type == PAX_CHR) || (arcn->type == PAX_BLK)) {
-      (void)fprintf(fp, "%4lu,%4lu ", (unsigned long)MAJOR(sbp->st_rdev),
-                    (unsigned long)MINOR(sbp->st_rdev));
+    if arcn.type == .CHR || arcn.type == .BLK {
+      print( "%4lu,%4lu ", MAJOR(sbp.rawDevice), MINOR(sbp.rawDevice), to: &fp);
     }
     else {
 
       /*
        * UNIX compliance fix: printing filename length for soft links
-       * from arcn->ln_nlen instead of sbp->st_size, which is 0.
+       * from arcn.ln_nlen instead of sbp->st_size, which is 0.
        */
-      off_t nlen;
-      if (arcn->type == PAX_SLK) {
-        nlen = arcn->ln_nlen;
+      var nlen : Int
+      if arcn.type == .SLK {
+        nlen = arcn.ln_name.count
       } else {
-        nlen = sbp->st_size;
+        nlen = Int(sbp.size)
       }
-      (void)fprintf(fp, "%9ju ", (uintmax_t)nlen);
+      print( cFormat("%9ju", nlen), terminator: " ", to: &fp)
     }
 
     /*
      * print name and link info for hard and soft links
      */
 
-    (void)fputs(f_date, fp);
-    (void)putc(' ', fp);
-    safe_print(arcn->name, fp);
-    if ((arcn->type == PAX_HLK) || (arcn->type == PAX_HRG)) {
-      fputs(" == ", fp);
-      safe_print(arcn->ln_name, fp);
-    } else if (arcn->type == PAX_SLK) {
-      fputs(" -> ", fp);
-      safe_print(arcn->ln_name, fp);
+    print(f_date, terminator: " ", to: &fp)
+    safe_print(arcn.name, fp)
+    if arcn.type == .HLK || arcn.type == .HRG {
+      print(" == ", terminator: "", to: &fp)
+      safe_print(arcn.ln_name, fp)
+    } else if arcn.type == .SLK {
+      print(" -> ", terminator: "", to: &fp)
+      safe_print(arcn.ln_name, fp);
     }
     (void)putc(term, fp);
 
@@ -181,18 +168,17 @@ extension pax {
    * 	print a short summary of file to tty.
    */
 
-  void
-  ls_tty(ARCHD *arcn)
-  {
-    char f_date[DATELEN];
-    char f_mode[MODELEN];
-    const char *timefrmt;
+  static func ls_tty(_ arcn : ARCHD) {
+//    char f_date[DATELEN];
+//    char f_mode[MODELEN];
+//    const char *timefrmt;
 
     if (d_first < 0) {
       d_first = (*nl_langinfo(D_MD_ORDER) == 'd');
     }
 
-    if ((arcn->sb.st_mtime + SIXMONTHS) <= time(NULL)) {
+    var timefrmt : String
+    if (arcn.sb.lastWrite + SIXMONTHS) <= DateTime(Darwin.time(nil)) {
       timefrmt = d_first ? OLDFRMTD : OLDFRMTM;
     }
     else {
@@ -203,11 +189,11 @@ extension pax {
      * convert time to string, and print
      */
     if (strftime(f_date, DATELEN, timefrmt,
-                 localtime(&(arcn->sb.st_mtime))) == 0) {
+                 localtime(&(arcn.sb.st_mtime))) == 0) {
       f_date[0] = '\0';
     }
-    strmode(arcn->sb.st_mode, f_mode);
-    tty_prnt("%s%s %s\n", f_mode, f_date, arcn->name);
+    let fmode = strmode(arcn.sb.filetype, arcn.sb.permissions)
+    Tty.prnt("\(f_mode)\(f_date) \(arcn.name)")
     return;
   }
 
@@ -220,6 +206,7 @@ extension pax {
    *	doing a strncpy(), a strlen(), and then a possible memset())
    */
 
+  /*
   int
   l_strncpy(char *dest, const char *src, int len)
   {
@@ -237,14 +224,13 @@ extension pax {
     }
     return(len);
   }
+*/
 
-  void
-  safe_print(const char *str, FILE *fp)
-  {
+  static func safe_print(_ str : String, _ fp : FileDescriptor) {
     /*
      * if printing to a tty, use strvis(3) to print special characters.
      */
-    if (isatty(fileno(fp))) {
+    if 0 != isatty(fp.rawValue) {
       /*
        * The size of visbuf must be four times the number
        * of bytes encoded from str (plus one for the NUL).
@@ -260,120 +246,14 @@ extension pax {
        * characters
        */
       (void)strnvis(visbuf, visbuflen, str, VIS_CSTYLE);
-      (void)fputs(visbuf, fp);
+      print(visbuf, terminator: "", to: &fp)
       free(visbuf);
     } else {
-      (void)fputs(str, fp);
+      print(str, terminator: "", to: &fp)
     }
   }
 
-  /*
-   * asc_ul()
-   *	convert hex/octal character string into a u_long. We do not have to
-   *	check for overflow! (the headers in all supported formats are not large
-   *	enough to create an overflow).
-   *	NOTE: strings passed to us are NOT TERMINATED.
-   * Return:
-   *	unsigned long value
-   */
-
-  u_long
-  asc_ul(char *str, int len, int base)
-  {
-    char *stop;
-    u_long tval = 0;
-
-    stop = str + len;
-
-    /*
-     * skip over leading blanks and zeros
-     */
-    while ((str < stop) && ((*str == ' ') || (*str == '0'))) {
-      ++str;
-    }
-
-    /*
-     * for each valid digit, shift running value (tval) over to next digit
-     * and add next digit
-     */
-    if (base == HEX) {
-      while (str < stop) {
-        if ((*str >= '0') && (*str <= '9')) {
-          tval = (tval << 4) + (*str++ - '0');
-        }
-        else if ((*str >= 'A') && (*str <= 'F')) {
-          tval = (tval << 4) + 10 + (*str++ - 'A');
-        }
-        else if ((*str >= 'a') && (*str <= 'f')) {
-          tval = (tval << 4) + 10 + (*str++ - 'a');
-        }
-        else {
-          break;
-        }
-      }
-    } else {
-      while ((str < stop) && (*str >= '0') && (*str <= '7')) {
-        tval = (tval << 3) + (*str++ - '0');
-      }
-    }
-    return(tval);
-  }
-
-  /*
-   * ul_asc()
-   *	convert an unsigned long into an hex/oct ascii string. pads with LEADING
-   *	ascii 0's to fill string completely
-   *	NOTE: the string created is NOT TERMINATED.
-   */
-
-  int
-  ul_asc(u_long val, char *str, int len, int base)
-  {
-    char *pt;
-    u_long digit;
-
-    /*
-     * WARNING str is not '\0' terminated by this routine
-     */
-    pt = str + len - 1;
-
-    /*
-     * do a tailwise conversion (start at right most end of string to place
-     * least significant digit). Keep shifting until conversion value goes
-     * to zero (all digits were converted)
-     */
-    if (base == HEX) {
-      while (pt >= str) {
-        if ((digit = (val & 0xf)) < 10) {
-          *pt-- = '0' + (char)digit;
-        }
-        else {
-          *pt-- = 'a' + (char)(digit - 10);
-        }
-        if ((val = (val >> 4)) == (u_long)0) {
-          break;
-        }
-      }
-    } else {
-      while (pt >= str) {
-        *pt-- = '0' + (char)(val & 0x7);
-        if ((val = (val >> 3)) == (u_long)0) {
-          break;
-        }
-      }
-    }
-
-    /*
-     * pad with leading ascii ZEROS. We return -1 if we ran out of space.
-     */
-    while (pt >= str) {
-      *pt-- = '0';
-    }
-    if (val != (u_long)0) {
-      return(-1);
-    }
-    return(0);
-  }
+  static let asc_ul = asc_uqd
 
   /*
    * asc_uqd()
@@ -385,47 +265,12 @@ extension pax {
    *	u_quad_t value
    */
 
-  u_quad_t
-  asc_uqd(char *str, int len, int base)
-  {
-    char *stop;
-    u_quad_t tval = 0;
-
-    stop = str + len;
-
-    /*
-     * skip over leading blanks and zeros
-     */
-    while ((str < stop) && ((*str == ' ') || (*str == '0'))) {
-      ++str;
-    }
-
-    /*
-     * for each valid digit, shift running value (tval) over to next digit
-     * and add next digit
-     */
-    if (base == HEX) {
-      while (str < stop) {
-        if ((*str >= '0') && (*str <= '9')) {
-          tval = (tval << 4) + (*str++ - '0');
-        }
-        else if ((*str >= 'A') && (*str <= 'F')) {
-          tval = (tval << 4) + 10 + (*str++ - 'A');
-        }
-        else if ((*str >= 'a') && (*str <= 'f')) {
-          tval = (tval << 4) + 10 + (*str++ - 'a');
-        }
-        else {
-          break;
-        }
-      }
-    } else {
-      while ((str < stop) && (*str >= '0') && (*str <= '7')) {
-        tval = (tval << 3) + (*str++ - '0');
-      }
-    }
-    return(tval);
+  static func asc_uqd(_ str : String, _ base : Int) -> UInt? {
+    let x = UInt(str, radix: base)
+    return x
   }
+
+  static let ul_asc = uqd_asc
 
   /*
    * uqd_asc()
@@ -434,52 +279,12 @@ extension pax {
    *	NOTE: the string created is NOT TERMINATED.
    */
 
-  int
-  uqd_asc(u_quad_t val, char *str, int len, int base)
-  {
-    char *pt;
-    u_quad_t digit;
-
+  static func uqd_asc(_ val : UInt, _ len : Int, _ base : Int) -> String {
+    let a = String(val, radix: base)
+    let b = String(repeating: "0", count: len - a.count) + a
     /*
      * WARNING str is not '\0' terminated by this routine
      */
-    pt = str + len - 1;
-
-    /*
-     * do a tailwise conversion (start at right most end of string to place
-     * least significant digit). Keep shifting until conversion value goes
-     * to zero (all digits were converted)
-     */
-    if (base == HEX) {
-      while (pt >= str) {
-        if ((digit = (val & 0xf)) < 10) {
-          *pt-- = '0' + (char)digit;
-        }
-        else {
-          *pt-- = 'a' + (char)(digit - 10);
-        }
-        if ((val = (val >> 4)) == (u_quad_t)0) {
-          break;
-        }
-      }
-    } else {
-      while (pt >= str) {
-        *pt-- = '0' + (char)(val & 0x7);
-        if ((val = (val >> 3)) == (u_quad_t)0) {
-          break;
-        }
-      }
-    }
-
-    /*
-     * pad with leading ascii ZEROS. We return -1 if we ran out of space.
-     */
-    while (pt >= str) {
-      *pt-- = '0';
-    }
-    if (val != (u_quad_t)0) {
-      return(-1);
-    }
-    return(0);
+    return b
   }
 }

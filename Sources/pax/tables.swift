@@ -593,9 +593,9 @@ class Tables {
     if (arcn.sb.device & dev_mask != arcn.sb.device {
       ++trc_dev;
     }
-        if ((nino = arcn->sb.st_ino & (ino_t)ino_mask) != arcn->sb.st_ino) {
+        if ((nino = arcn.sb.st_ino & (ino_t)ino_mask) != arcn.sb.st_ino) {
       ++trc_ino;
-      trunc_bits = arcn->sb.st_ino & (ino_t)(~ino_mask);
+      trunc_bits = arcn.sb.st_ino & (ino_t)(~ino_mask);
     }
 
         /*
@@ -632,7 +632,7 @@ class Tables {
       /*
        * we have truncation, have to add this as a device to remap
        */
-      if ((pt = chk_dev(arcn->sb.st_dev, 1)) == NULL)
+      if ((pt = chk_dev(arcn.sb.st_dev, 1)) == NULL)
           goto bad;
 
       /*
@@ -648,7 +648,7 @@ class Tables {
         if ((dpt = (DLIST *)malloc(sizeof(DLIST))) == NULL)
             goto bad;
         dpt->trunc_bits = 0;
-        dpt->dev = arcn->sb.st_dev;
+        dpt->dev = arcn.sb.st_dev;
         dpt->fow = pt->list;
         pt->list = dpt;
       }
@@ -683,8 +683,8 @@ class Tables {
         dpt->dev = lastdev;
         dpt->fow = pt->list;
         pt->list = dpt;
-        arcn->sb.st_dev = lastdev;
-        arcn->sb.st_ino = nino;
+        arcn.sb.st_dev = lastdev;
+        arcn.sb.st_ino = nino;
         return false
 
         bad:

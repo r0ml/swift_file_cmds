@@ -202,7 +202,7 @@ extension pax {
       ftree_skip = 1;
     }
 
-    if (!dflag || (arcn->type != PAX_DIR)) {
+    if (!dflag || (arcn.type != PAX_DIR)) {
       return;
     }
 
@@ -459,11 +459,11 @@ extension pax {
        * ok got a file tree node to process. copy info into arcn
        * structure (initialize as required)
        */
-      arcn->skip = 0;
-      arcn->pad = 0;
-      arcn->ln_nlen = 0;
-      arcn->ln_name[0] = '\0';
-      arcn->sb = *(ftent->fts_statp);
+      arcn.skip = 0;
+      arcn.pad = 0;
+      arcn.ln_nlen = 0;
+      arcn.ln_name[0] = '\0';
+      arcn.sb = *(ftent->fts_statp);
 
       /*
        * file type based set up and copy into the arcn struct
@@ -475,24 +475,24 @@ extension pax {
        * end in case we cut short a file tree traversal). However
        * there is no way to reset access times on symlinks.
        */
-      switch(S_IFMT & arcn->sb.st_mode) {
+      switch(S_IFMT & arcn.sb.st_mode) {
         case S_IFDIR:
-          arcn->type = PAX_DIR;
+          arcn.type = PAX_DIR;
           if (!tflag) {
             break;
           }
-          add_atdir(ftent->fts_path, arcn->sb.st_dev,
-                    arcn->sb.st_ino, arcn->sb.st_mtime,
+          add_atdir(ftent->fts_path, arcn.sb.st_dev,
+                    arcn.sb.st_ino, arcn.sb.st_mtime,
 
-                    arcn->sb.st_mtime_nsec, arcn->sb.st_atime,
-                    arcn->sb.st_atime_nsec);
+                    arcn.sb.st_mtime_nsec, arcn.sb.st_atime,
+                    arcn.sb.st_atime_nsec);
 
           break;
         case S_IFCHR:
-          arcn->type = PAX_CHR;
+          arcn.type = PAX_CHR;
           break;
         case S_IFBLK:
-          arcn->type = PAX_BLK;
+          arcn.type = PAX_BLK;
           break;
         case S_IFREG:
           /*
@@ -501,15 +501,15 @@ extension pax {
            * the skip field is used by pax for actual data it has
            * to read (or skip over).
            */
-          arcn->type = PAX_REG;
-          arcn->skip = arcn->sb.st_size;
+          arcn.type = PAX_REG;
+          arcn.skip = arcn.sb.st_size;
           break;
         case S_IFLNK:
-          arcn->type = PAX_SLK;
+          arcn.type = PAX_SLK;
           /*
            * have to read the symlink path from the file
            */
-          if ((cnt = readlink(ftent->fts_path, arcn->ln_name,
+          if ((cnt = readlink(ftent->fts_path, arcn.ln_name,
                               PAXPATHLEN - 1)) < 0) {
             syswarn(1, errno, "Unable to read symlink %s",
                     ftent->fts_path);
@@ -519,8 +519,8 @@ extension pax {
            * set link name length, watch out readlink does not
            * always NUL terminate the link path
            */
-          arcn->ln_name[cnt] = '\0';
-          arcn->ln_nlen = cnt;
+          arcn.ln_name[cnt] = '\0';
+          arcn.ln_nlen = cnt;
           break;
         case S_IFSOCK:
           /*
@@ -528,10 +528,10 @@ extension pax {
            * let the format specific write function make the
            * decision of what to do with it.
            */
-          arcn->type = PAX_SCK;
+          arcn.type = PAX_SCK;
           break;
         case S_IFIFO:
-          arcn->type = PAX_FIF;
+          arcn.type = PAX_FIF;
           break;
       }
       break;
@@ -540,11 +540,11 @@ extension pax {
     /*
      * copy file name, set file name length
      */
-    arcn->nlen = strlcpy(arcn->name, ftent->fts_path, sizeof(arcn->name));
-    if (arcn->nlen >= sizeof(arcn->name)) {
-      arcn->nlen = sizeof(arcn->name) - 1; /* XXX truncate? */
+    arcn.nlen = strlcpy(arcn.name, ftent->fts_path, sizeof(arcn.name));
+    if (arcn.nlen >= sizeof(arcn.name)) {
+      arcn.nlen = sizeof(arcn.name) - 1; /* XXX truncate? */
     }
-    arcn->org_name = ftent->fts_path;
+    arcn.org_name = ftent->fts_path;
     return(0);
   }
 

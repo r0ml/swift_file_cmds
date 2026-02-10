@@ -91,12 +91,12 @@ extension ARCHD {
      * the second most common failure when traced). If this fails, only
      * then we go to the expense to check and create the path to the file
      */
-    if (unlnk_exist(arcn->name, arcn->type) != 0) {
+    if (unlnk_exist(arcn.name, arcn.type) != 0) {
       return(-1);
     }
 
-    path_to_open = arcn->name;
-    new_path = arcn->name;
+    path_to_open = arcn.name;
+    new_path = arcn.name;
     cwd = getcwd(cwd_buff,sizeof(cwd_buff));
     if (cwd==NULL) { return -1; }
 
@@ -127,16 +127,16 @@ extension ARCHD {
         }
       }
       /* rc == 2 reserved for -o invalid_action=write */
-      if (nodirs || chk_path(path_to_open,arcn->sb.st_uid,arcn->sb.st_gid,
+      if (nodirs || chk_path(path_to_open,arcn.sb.st_uid,arcn.sb.st_gid,
                              (rc==2) ? &new_path: NULL) < 0) {
-        syswarn((pax_invalid_action==0), oerrno, "Unable to create %s", arcn->name);
+        Tty.syswarn((pax_invalid_action==0), oerrno, "Unable to create %s", arcn.name);
         fd = -1;
         break;
       }
 
       if (new_path) { path_to_open = new_path; } /* try again */
     }
-    if (new_path && strcmp(new_path, arcn->name)!=0) {
+    if (new_path && strcmp(new_path, arcn.name)!=0) {
       dochdir(cwd);	/* go back to original directory */
     }
 
@@ -158,8 +158,8 @@ extension ARCHD {
       return;
     }
     if (close(fd) < 0) {
-      syswarn(0, errno, "Unable to close file descriptor on %s",
-              arcn->name);
+      Tty.syswarn(0, errno, "Unable to close file descriptor on %s",
+              arcn.name);
     }
 
     /*
@@ -168,7 +168,7 @@ extension ARCHD {
      * modification times.
      */
     if (pids) {
-      res = set_ids(arcn->name, arcn->sb.st_uid, arcn->sb.st_gid);
+      res = set_ids(arcn.name, arcn.sb.st_uid, arcn.sb.st_gid);
     }
 
     else {
@@ -181,22 +181,22 @@ extension ARCHD {
      * set uid/gid bits
      */
     if (!pmode || res) {
-      arcn->sb.st_mode &= ~(SETBITS);
+      arcn.sb.st_mode &= ~(SETBITS);
     }
     if (pmode) {
-      set_pmode(arcn->name, arcn->sb.st_mode);
+      set_pmode(arcn.name, arcn.sb.st_mode);
     }
     if (patime || pmtime) {
 
-      set_ftime(arcn->name, arcn->sb.st_mtime, arcn->sb.st_mtime_nsec,
-                arcn->sb.st_atime, arcn->sb.st_atime_nsec, 0);
+      set_ftime(arcn.name, arcn.sb.st_mtime, arcn.sb.st_mtime_nsec,
+                arcn.sb.st_atime, arcn.sb.st_atime_nsec, 0);
 
     }
   }
 
   /*
    * lnk_creat()
-   *	Create a hard link to arcn->ln_name from arcn->name. arcn->ln_name
+   *	Create a hard link to arcn.ln_name from arcn.name. arcn.ln_name
    *	must exist;
    * Return:
    *	0 if ok, -1 otherwise
@@ -217,7 +217,7 @@ extension ARCHD {
     }
 
     if sb.filetype == .directory {
-      Try.paxwarn(true, "A hard link to the directory \(ln_name) is not allowed")
+      Tty.paxwarn(true, "A hard link to the directory \(ln_name) is not allowed")
       return true
     }
 
@@ -228,13 +228,13 @@ extension ARCHD {
        * Conformance: cannot make hard link to symlink - just make a
        * symlink to the target of the symlink
        */
-      if ((res = readlink(arcn->ln_name, buff, sizeof(buff)-1)) < 0) {
-        syswarn(1,errno,"Unable to symlink to %s from %s", arcn->ln_name,
-                arcn->name);
+      if ((res = readlink(arcn.ln_name, buff, sizeof(buff)-1)) < 0) {
+        syswarn(1,errno,"Unable to symlink to %s from %s", arcn.ln_name,
+                arcn.name);
         return(-1);
       }
       buff[res] = 0;
-      res = symlink(buff, arcn->name);
+      res = symlink(buff, arcn.name);
       return res;
     }
 
@@ -243,7 +243,7 @@ extension ARCHD {
 
   /*
    * cross_lnk()
-   *	Create a hard link to arcn->org_name from arcn->name. Only used in copy
+   *	Create a hard link to arcn.org_name from arcn.name. Only used in copy
    *	with the -l flag. No warning or error if this does not succeed (we will
    *	then just create the file)
    * Return:
@@ -257,17 +257,17 @@ extension ARCHD {
      * we do not try to link to directories in case we are running as root
      * (and it might succeed).
      */
-    if (arcn->type == PAX_DIR) {
+    if (arcn.type == PAX_DIR) {
       return(1);
     }
 
-    if (arcn->type == PAX_SLK) {	/* for Unix 03 conformance tests 202,203 */
+    if (arcn.type == PAX_SLK) {	/* for Unix 03 conformance tests 202,203 */
       if (!Lflag) {
         return(1);
       }
     }
 
-    return(mk_link(arcn->org_name, &(arcn->sb), arcn->name, 1));
+    return(mk_link(arcn.org_name, &(arcn.sb), arcn.name, 1));
   }
 
   /*
@@ -288,7 +288,7 @@ extension ARCHD {
      * if file does not exist, return. if file exists and -k, skip it
      * quietly
      */
-    if (lstat(arcn->name, &sb) < 0) {
+    if (lstat(arcn.name, &sb) < 0) {
       return(1);
     }
     if (kflag) {
@@ -298,9 +298,9 @@ extension ARCHD {
     /*
      * better make sure the user does not have src == dest by mistake
      */
-    if ((arcn->sb.st_dev == sb.st_dev) && (arcn->sb.st_ino == sb.st_ino)) {
+    if ((arcn.sb.st_dev == sb.st_dev) && (arcn.sb.st_ino == sb.st_ino)) {
       paxwarn(1, "Unable to copy %s, file would overwrite itself",
-              arcn->name);
+              arcn.name);
       return(0);
     }
     return(1);
@@ -370,7 +370,7 @@ extension ARCHD {
         continue;
       }
       if (!ign) {
-        syswarn(1, oerrno, "Could not link to %s from %s", to,
+        Tty.syswarn(1, oerrno, "Could not link to %s from %s", to,
                 from);
         return(-1);
       }
@@ -412,21 +412,21 @@ extension ARCHD {
     while true {
       switch self.type {
         case .DIR:
-          res = mkdir(arcn->name, file_mode);
+          res = mkdir(arcn.name, file_mode);
           if ign {
             res = 0
           }
 
         case .CHR:
           file_mode |= S_IFCHR;
-          res = mknod(arcn->name, file_mode, arcn->sb.st_rdev);
+          res = mknod(arcn.name, file_mode, arcn.sb.st_rdev);
 
         case .BLK:
           file_mode |= S_IFBLK;
-          res = mknod(arcn->name, file_mode, arcn->sb.st_rdev);
+          res = mknod(arcn.name, file_mode, arcn.sb.st_rdev);
 
         case .FIF:
-          res = mkfifo(arcn->name, file_mode);
+          res = mkfifo(arcn.name, file_mode);
 
         case .SCK:
           /*
@@ -435,7 +435,7 @@ extension ARCHD {
           Tty.paxwarn(false, "\(self.name) skipped. Sockets cannot be copied or extracted")
           return true
         case .SLK:
-          res = symlink(arcn->ln_name, arcn->name);
+          res = symlink(arcn.ln_name, arcn.name);
 
         case .CTG, .HLK, .HRG, .REG:
           fallthrough
@@ -460,7 +460,7 @@ extension ARCHD {
        * we failed to make the node
        */
       oerrno = errno;
-      if ((ign = unlnk_exist(arcn->name, arcn->type)) < 0) {
+      if ((ign = unlnk_exist(arcn.name, arcn.type)) < 0) {
         return(-1);
       }
 
@@ -469,7 +469,7 @@ extension ARCHD {
       }
 
 
-      if (nodirs || chk_path(arcn->name,arcn->sb.st_uid,arcn->sb.st_gid, NULL) < 0) {
+      if (nodirs || chk_path(arcn.name,arcn.sb.st_uid,arcn.sb.st_gid, NULL) < 0) {
 
         Tty.syswarn(true, oerrno, "Could not create: \(self.name)")
         return true
@@ -480,7 +480,7 @@ extension ARCHD {
      * we were able to create the node. set uid/gid, modes and times
      */
     if (pids) {
-      res = set_ids(arcn->name, arcn->sb.st_uid, arcn->sb.st_gid);
+      res = set_ids(arcn.name, arcn.sb.st_uid, arcn.sb.st_gid);
     }
     else {
 
@@ -500,10 +500,10 @@ extension ARCHD {
      * set uid/gid bits
      */
     if (!pmode || res) {
-      arcn->sb.st_mode &= ~(SETBITS);
+      arcn.sb.st_mode &= ~(SETBITS);
     }
     if (pmode) {
-      set_pmode(arcn->name, arcn->sb.st_mode);
+      set_pmode(arcn.name, arcn.sb.st_mode);
     }
 
     if sekf.type == .DIR && NM_CPIO == programName {
@@ -516,11 +516,11 @@ extension ARCHD {
        * and modes will be fixed after the entire archive is read and
        * before pax exits.
        */
-      if (access(arcn->name, R_OK | W_OK | X_OK) < 0) {
-        if (lstat(arcn->name, &sb) < 0) {
+      if (access(arcn.name, R_OK | W_OK | X_OK) < 0) {
+        if (lstat(arcn.name, &sb) < 0) {
           syswarn(0, errno,"Could not access %s (stat)",
-                  arcn->name);
-          set_pmode(arcn->name,file_mode | S_IRWXU);
+                  arcn.name);
+          set_pmode(arcn.name,file_mode | S_IRWXU);
         } else {
           /*
            * We have to add rights to the dir, so we make
@@ -528,10 +528,10 @@ extension ARCHD {
            * restored AS CREATED and not as stored if
            * pmode is not set.
            */
-          set_pmode(arcn->name,
+          set_pmode(arcn.name,
                     ((sb.st_mode & FILEBITS) | S_IRWXU));
           if (!pmode) {
-            arcn->sb.st_mode = sb.st_mode;
+            arcn.sb.st_mode = sb.st_mode;
           }
         }
 
@@ -539,16 +539,16 @@ extension ARCHD {
          * we have to force the mode to what was set here,
          * since we changed it from the default as created.
          */
-        add_dir(arcn->name, arcn->nlen, &(arcn->sb), 1);
+        add_dir(arcn.name, arcn.nlen, &(arcn.sb), 1);
       } else if (pmode || patime || pmtime) {
-        add_dir(arcn->name, arcn->nlen, &(arcn->sb), 0);
+        add_dir(arcn.name, arcn.nlen, &(arcn.sb), 0);
       }
     }
 
     if (patime || pmtime) {
 
-      set_ftime(arcn->name, arcn->sb.st_mtime, arcn->sb.st_mtime_nsec,
-                arcn->sb.st_atime, arcn->sb.st_atime_nsec, 0);
+      set_ftime(arcn.name, arcn.sb.st_mtime, arcn.sb.st_mtime_nsec,
+                arcn.sb.st_atime, arcn.sb.st_atime_nsec, 0);
     }
 
     return false

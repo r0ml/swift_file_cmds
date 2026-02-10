@@ -78,18 +78,18 @@ extension pax {
     char buf[MAXPATHLEN];
     char *p;
 
-    if ((p = strrchr(arcn->name, '/')) == NULL)
+    if ((p = strrchr(arcn.name, '/')) == NULL)
         return 0;
     *p = '\0';
 
-    if (realpath(arcn->name, buf) == NULL) {
+    if (realpath(arcn.name, buf) == NULL) {
       int error;
       error = path_check(arcn, level + 1);
       *p = '/';
       if (error == 0)
           return 0;
       if (level == 0)
-          syswarn(1, 0, "Cannot resolve `%s'", arcn->name);
+          syswarn(1, 0, "Cannot resolve `%s'", arcn.name);
       return -1;
     }
     if (cwdpathlen == 1) {	/* We're in the root */
@@ -100,7 +100,7 @@ extension pax {
       *p = '/';
       syswarn(1, 0, "Attempt to write file `%s' that resolves into "
               "`%s/%s' outside current working directory `%s' ignored",
-              arcn->name, buf, p + 1, cwdpath);
+              arcn.name, buf, p + 1, cwdpath);
       return -1;
     }
     *p = '/';
@@ -181,7 +181,7 @@ extension pax {
        * skip to next archive format header using values calculated
        * by the format header read routine
        */
-      if (rd_skip(arcn->skip + arcn->pad) == 1) {
+      if (rd_skip(arcn.skip + arcn.pad) == 1) {
         break;
       }
     }
@@ -269,7 +269,7 @@ extension pax {
          * file is not selected. skip past any file data and
          * padding and go back for the next archive member
          */
-        (void)rd_skip(arcn->skip + arcn->pad);
+        (void)rd_skip(arcn.skip + arcn.pad);
         continue;
       }
 
@@ -283,20 +283,20 @@ extension pax {
        * file AFTER the name mod. In honesty the pax spec is probably
        * flawed in this respect.
        */
-      if ((uflag || Dflag) && ((lstat(arcn->name, &sb) == 0))) {
+      if ((uflag || Dflag) && ((lstat(arcn.name, &sb) == 0))) {
         if (uflag && Dflag) {
-          if ((arcn->sb.st_mtime <= sb.st_mtime) &&
-              (arcn->sb.st_ctime <= sb.st_ctime)) {
-            (void)rd_skip(arcn->skip + arcn->pad);
+          if ((arcn.sb.st_mtime <= sb.st_mtime) &&
+              (arcn.sb.st_ctime <= sb.st_ctime)) {
+            (void)rd_skip(arcn.skip + arcn.pad);
             continue;
           }
         } else if (Dflag) {
-          if (arcn->sb.st_ctime <= sb.st_ctime) {
-            (void)rd_skip(arcn->skip + arcn->pad);
+          if (arcn.sb.st_ctime <= sb.st_ctime) {
+            (void)rd_skip(arcn.skip + arcn.pad);
             continue;
           }
-        } else if (arcn->sb.st_mtime <= sb.st_mtime) {
-          (void)rd_skip(arcn->skip + arcn->pad);
+        } else if (arcn.sb.st_mtime <= sb.st_mtime) {
+          (void)rd_skip(arcn.skip + arcn.pad);
           continue;
         }
       }
@@ -312,7 +312,7 @@ extension pax {
          * a bad name mod, skip and purge name from link table
          */
         purg_lnk(arcn);
-        (void)rd_skip(arcn->skip + arcn->pad);
+        (void)rd_skip(arcn.skip + arcn.pad);
         continue;
       }
 
@@ -320,20 +320,20 @@ extension pax {
        * Non standard -Y and -Z flag. When the existing file is
        * same age or newer skip
        */
-      if ((Yflag || Zflag) && ((lstat(arcn->name, &sb) == 0))) {
+      if ((Yflag || Zflag) && ((lstat(arcn.name, &sb) == 0))) {
         if (Yflag && Zflag) {
-          if ((arcn->sb.st_mtime <= sb.st_mtime) &&
-              (arcn->sb.st_ctime <= sb.st_ctime)) {
-            (void)rd_skip(arcn->skip + arcn->pad);
+          if ((arcn.sb.st_mtime <= sb.st_mtime) &&
+              (arcn.sb.st_ctime <= sb.st_ctime)) {
+            (void)rd_skip(arcn.skip + arcn.pad);
             continue;
           }
         } else if (Yflag) {
-          if (arcn->sb.st_ctime <= sb.st_ctime) {
-            (void)rd_skip(arcn->skip + arcn->pad);
+          if (arcn.sb.st_ctime <= sb.st_ctime) {
+            (void)rd_skip(arcn.skip + arcn.pad);
             continue;
           }
-        } else if (arcn->sb.st_mtime <= sb.st_mtime) {
-          (void)rd_skip(arcn->skip + arcn->pad);
+        } else if (arcn.sb.st_mtime <= sb.st_mtime) {
+          (void)rd_skip(arcn.skip + arcn.pad);
           continue;
         }
       }
@@ -344,7 +344,7 @@ extension pax {
         }
         else {
 
-          (void)safe_print(arcn->name, listf);
+          (void)safe_print(arcn.name, listf);
 
           vfpart = 1;
         }
@@ -353,32 +353,32 @@ extension pax {
       /*
        * if required, chdir around.
        */
-      if ((arcn->pat != NULL) && (arcn->pat->chdname != NULL)) {
+      if ((arcn.pat != NULL) && (arcn.pat->chdname != NULL)) {
 
-        dochdir(arcn->pat->chdname);
+        dochdir(arcn.pat->chdname);
       }
       if (secure && path_check(arcn, 0) != 0) {
-        (void)rd_skip(arcn->skip + arcn->pad);
+        (void)rd_skip(arcn.skip + arcn.pad);
         continue;
       }
 
       /*
        * all ok, extract this member based on type
        */
-      if ((arcn->type != PAX_REG) && (arcn->type != PAX_CTG)) {
+      if ((arcn.type != PAX_REG) && (arcn.type != PAX_CTG)) {
         /*
          * process archive members that are not regular files.
          * throw out padding and any data that might follow the
          * header (as determined by the format).
          */
-        if ((arcn->type == PAX_HLK) || (arcn->type == PAX_HRG)) {
+        if ((arcn.type == PAX_HLK) || (arcn.type == PAX_HRG)) {
           res = lnk_creat(arcn);
         }
         else {
           res = node_creat(arcn);
         }
 
-        (void)rd_skip(arcn->skip + arcn->pad);
+        (void)rd_skip(arcn.skip + arcn.pad);
         if (res < 0) {
           purg_lnk(arcn);
         }
@@ -394,7 +394,7 @@ extension pax {
        * over the data and purge the name from hard link table
        */
       if ((fd = file_creat(arcn)) < 0) {
-        (void)rd_skip(arcn->skip + arcn->pad);
+        (void)rd_skip(arcn.skip + arcn.pad);
         purg_lnk(arcn);
         continue;
       }
@@ -409,15 +409,15 @@ extension pax {
         vfpart = 0;
       }
       if (!res) {
-        (void)rd_skip(cnt + arcn->pad);
+        (void)rd_skip(cnt + arcn.pad);
       }
 
-      if (!strncmp(basename(arcn->name), "._", 2)) {
+      if (!strncmp(basename(arcn.name), "._", 2)) {
         cle = alloca(sizeof(struct copyfile_list_entry_t));
-        cle->src = strdup(arcn->name);
+        cle->src = strdup(arcn.name);
 
         if (asprintf(&cle->dst, "%s/%s",
-                     dirname(arcn->name), basename(arcn->name) + 2) != -1) {
+                     dirname(arcn.name), basename(arcn.name) + 2) != -1) {
           LIST_INSERT_HEAD(&copyfile_list, cle, link);
         } else {
           free(cle->src);
@@ -427,7 +427,7 @@ extension pax {
       /*
        * if required, chdir around.
        */
-      if ((arcn->pat != NULL) && (arcn->pat->chdname != NULL)) {
+      if ((arcn.pat != NULL) && (arcn.pat->chdname != NULL)) {
 
         fdochdir(cwdfd);
 
@@ -543,9 +543,9 @@ extension pax {
        * synthesize ._ files for each node we encounter
        */
       if (getenv(COPYFILE_DISABLE_VAR) == NULL
-          && copyfile(arcn->name, NULL, NULL,
+          && copyfile(arcn.name, NULL, NULL,
                       COPYFILE_CHECK | COPYFILE_XATTR | COPYFILE_ACL)
-          && arcn->nlen + 2 < sizeof(arcn->name)) {
+          && arcn.nlen + 2 < sizeof(arcn.name)) {
         char *tmpdir = P_tmpdir, *TMPDIR;
         int fd_src, fd_dst;
 
@@ -558,18 +558,18 @@ extension pax {
           return;
         }
         memcpy(&arcn_copy, arcn, sizeof(ARCHD));
-        strncpy(arcn_copy_name, arcn->name, PAXPATHLEN+1);
+        strncpy(arcn_copy_name, arcn.name, PAXPATHLEN+1);
 
-        arcn->skip = 0;
-        arcn->pad = 0;
-        arcn->ln_nlen = 0;
-        arcn->ln_name[0] = '\0';
-        arcn->type = PAX_REG;
+        arcn.skip = 0;
+        arcn.pad = 0;
+        arcn.ln_nlen = 0;
+        arcn.ln_name[0] = '\0';
+        arcn.type = PAX_REG;
         fd_dst = mkstemp(md_fname);
         if (fd_dst >= 0) {
-          fd_src = open(arcn->name, O_RDONLY, 0);
+          fd_src = open(arcn.name, O_RDONLY, 0);
           if (fd_src < 0) {
-            syswarn(1, errno, "Unable to open %s for reading", arcn->name);
+            syswarn(1, errno, "Unable to open %s for reading", arcn.name);
             close(fd_dst);
             unlink(md_fname);
             free(md_fname);
@@ -579,7 +579,7 @@ extension pax {
           if(fcopyfile(fd_src, fd_dst, NULL,
                        COPYFILE_PACK | COPYFILE_XATTR | COPYFILE_ACL) < 0) {
             syswarn(1, errno,
-                    "Unable to preserve metadata on %s", arcn->name);
+                    "Unable to preserve metadata on %s", arcn.name);
             close(fd_src);
             close(fd_dst);
             unlink(md_fname);
@@ -588,31 +588,31 @@ extension pax {
             goto next;
           }
           close(fd_src);
-          fstat(fd_dst, &arcn->sb);
+          fstat(fd_dst, &arcn.sb);
           close(fd_dst);
         } else {
           syswarn(1, errno, "Unable to create temporary file %s", md_fname);
           free(md_fname);
           goto next;
         }
-        arcn->skip = arcn->sb.st_size;
+        arcn.skip = arcn.sb.st_size;
 
-        if (!strncmp(dirname(arcn->name), ".", 2)) {
-          snprintf(arcn->name, sizeof(arcn->name),
-                   "._%s", basename(arcn->name));
+        if (!strncmp(dirname(arcn.name), ".", 2)) {
+          snprintf(arcn.name, sizeof(arcn.name),
+                   "._%s", basename(arcn.name));
         } else {
-          snprintf(arcn->name, sizeof(arcn->name),
+          snprintf(arcn.name, sizeof(arcn.name),
                    "%s/._%s",
-                   dirname(arcn->name), basename(arcn->name));
+                   dirname(arcn.name), basename(arcn.name));
         }
-        arcn->nlen = strlen(arcn->name);
-        arcn->org_name = arcn->name;
+        arcn.nlen = strlen(arcn.name);
+        arcn.org_name = arcn.name;
         metadata = 1;
       } else if (metadata) {
       next:
         metadata = 0;
         memcpy(arcn, &arcn_copy, sizeof(ARCHD));
-        strncpy(arcn->name, arcn_copy_name, PAXPATHLEN+1);
+        strncpy(arcn.name, arcn_copy_name, PAXPATHLEN+1);
       }
 
       fd = -1;
@@ -627,8 +627,8 @@ extension pax {
         chk_lnk(arcn)
       }
 
-      if ((arcn->type == PAX_REG) || (arcn->type == PAX_HRG) ||
-          (arcn->type == PAX_CTG)) {
+      if ((arcn.type == PAX_REG) || (arcn.type == PAX_HRG) ||
+          (arcn.type == PAX_CTG)) {
         /*
          * we will have to read this file. by opening it now we
          * can avoid writing a header to the archive for a file
@@ -642,12 +642,12 @@ extension pax {
           free(md_fname);
           md_fname = NULL;
         } else {
-          fd = open(arcn->org_name, O_RDONLY, 0);
+          fd = open(arcn.org_name, O_RDONLY, 0);
         }
         if (fd < 0) {
 
           syswarn(1,errno, "Unable to open %s to read",
-                  arcn->org_name);
+                  arcn.org_name);
           purg_lnk(arcn);
           continue;
         }
@@ -682,7 +682,7 @@ extension pax {
         }
         else {
 
-          (void)safe_print(arcn->name, listf);
+          (void)safe_print(arcn.name, listf);
 
           vfpart = 1;
         }
@@ -733,7 +733,7 @@ extension pax {
        * pad as required, cnt is number of bytes not written
        */
       if (((cnt > 0) && (wr_skip(cnt) < 0)) ||
-          ((arcn->pad > 0) && (wr_skip(arcn->pad) < 0))) {
+          ((arcn.pad > 0) && (wr_skip(arcn.pad) < 0))) {
         break;
       }
 
@@ -854,7 +854,7 @@ extension pax {
        * check if this file meets user specified options.
        */
       if (sel_chk(arcn) != 0) {
-        if (rd_skip(arcn->skip + arcn->pad) == 1) {
+        if (rd_skip(arcn.skip + arcn.pad) == 1) {
           break;
         }
         continue;
@@ -869,7 +869,7 @@ extension pax {
           break;
         }
         if (res > 0) {
-          if (rd_skip(arcn->skip + arcn->pad) == 1) {
+          if (rd_skip(arcn.skip + arcn.pad) == 1) {
             break;
           }
           continue;
@@ -883,7 +883,7 @@ extension pax {
        * remapped to an unused device number.
        */
       if ((udev && (add_dev(arcn) < 0)) ||
-          (rd_skip(arcn->skip + arcn->pad) == 1)) {
+          (rd_skip(arcn.skip + arcn.pad) == 1)) {
         break;
       }
     }
@@ -1058,11 +1058,11 @@ extension pax {
          * create the destination name
          */
 
-        if (strlcpy(dest_pt, arcn->name + (*arcn->name == '/'),
+        if (strlcpy(dest_pt, arcn.name + (*arcn.name == '/'),
                     drem + 1) > drem) {
 
           paxwarn(1, "Destination pathname too long %s",
-                  arcn->name);
+                  arcn.name);
           continue;
         }
 
@@ -1074,15 +1074,15 @@ extension pax {
 
         if (res == 0) {
           if (uflag && Dflag) {
-            if ((arcn->sb.st_mtime<=sb.st_mtime) &&
-                (arcn->sb.st_ctime<=sb.st_ctime)) {
+            if ((arcn.sb.st_mtime<=sb.st_mtime) &&
+                (arcn.sb.st_ctime<=sb.st_ctime)) {
               continue;
             }
           } else if (Dflag) {
-            if (arcn->sb.st_ctime <= sb.st_ctime) {
+            if (arcn.sb.st_ctime <= sb.st_ctime) {
               continue;
             }
-          } else if (arcn->sb.st_mtime <= sb.st_mtime) {
+          } else if (arcn.sb.st_mtime <= sb.st_mtime) {
             continue;
           }
         }
@@ -1108,24 +1108,24 @@ extension pax {
        * Non standard -Y and -Z flag. When the existing file is
        * same age or newer skip
        */
-      if ((Yflag || Zflag) && ((lstat(arcn->name, &sb) == 0))) {
+      if ((Yflag || Zflag) && ((lstat(arcn.name, &sb) == 0))) {
         if (Yflag && Zflag) {
-          if ((arcn->sb.st_mtime <= sb.st_mtime) &&
-              (arcn->sb.st_ctime <= sb.st_ctime)) {
+          if ((arcn.sb.st_mtime <= sb.st_mtime) &&
+              (arcn.sb.st_ctime <= sb.st_ctime)) {
             continue;
           }
         } else if (Yflag) {
-          if (arcn->sb.st_ctime <= sb.st_ctime) {
+          if (arcn.sb.st_ctime <= sb.st_ctime) {
             continue;
           }
-        } else if (arcn->sb.st_mtime <= sb.st_mtime) {
+        } else if (arcn.sb.st_mtime <= sb.st_mtime) {
           continue;
         }
       }
 
       if (vflag) {
 
-        (void)safe_print(arcn->name, listf);
+        (void)safe_print(arcn.name, listf);
 
         vfpart = 1;
       }
@@ -1152,11 +1152,11 @@ extension pax {
       /*
        * have to create a new file
        */
-      if ((arcn->type != PAX_REG) && (arcn->type != PAX_CTG)) {
+      if ((arcn.type != PAX_REG) && (arcn.type != PAX_CTG)) {
         /*
          * create a link or special file
          */
-        if ((arcn->type == PAX_HLK) || (arcn->type == PAX_HRG)) {
+        if ((arcn.type == PAX_HLK) || (arcn.type == PAX_HRG)) {
           res = lnk_creat(arcn);
         }
         else {
@@ -1167,9 +1167,9 @@ extension pax {
         }
 
         if (res >= 0 &&
-            arcn->type == PAX_DIR &&
-            copyfile(arcn->org_name, arcn->name, NULL, COPYFILE_ACL | COPYFILE_XATTR) < 0) {
-          paxwarn(1, "Directory %s had metadata that could not be copied: %s", arcn->org_name, strerror(errno));
+            arcn.type == PAX_DIR &&
+            copyfile(arcn.org_name, arcn.name, NULL, COPYFILE_ACL | COPYFILE_XATTR) < 0) {
+          paxwarn(1, "Directory %s had metadata that could not be copied: %s", arcn.org_name, strerror(errno));
         }
 
         if (vflag && vfpart) {
@@ -1183,9 +1183,9 @@ extension pax {
        * have to copy a regular file to the destination directory.
        * first open source file and then create the destination file
        */
-      if ((fdsrc = open(arcn->org_name, O_RDONLY, 0)) < 0) {
+      if ((fdsrc = open(arcn.org_name, O_RDONLY, 0)) < 0) {
         syswarn(1, errno, "Unable to open %s to read",
-                arcn->org_name);
+                arcn.org_name);
         purg_lnk(arcn);
         continue;
       }
@@ -1203,7 +1203,7 @@ extension pax {
       /* do this before file close so that mtimes are correct regardless */
       if (getenv(COPYFILE_DISABLE_VAR) == NULL) {
         if (fcopyfile(fdsrc, fddest, NULL, COPYFILE_ACL | COPYFILE_XATTR) < 0) {
-          paxwarn(1, "File %s had metadata that could not be copied: %s", arcn->org_name,
+          paxwarn(1, "File %s had metadata that could not be copied: %s", arcn.org_name,
                   strerror(errno));
         }
       }

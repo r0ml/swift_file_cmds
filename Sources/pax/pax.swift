@@ -61,7 +61,7 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
    */
 
   let MAXBLK_POSIX = 32256  /* MAX blocksize supported as per POSIX */
-  let BLKMULT = 512  /* blocksize must be even mult of 512 bytes */
+  static let BLKMULT = 512  /* blocksize must be even mult of 512 bytes */
           /* Don't even think of changing this */
   let DEVBLK = 8192  /* default read blksize for devices */
   let PAXPATHLEN = 3072  /* maximum path length for pax. MUST be */
@@ -157,7 +157,7 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
           /* RECORD (so append knows how many bytes */
           /* to move back to rewrite the trailer) */
     func st_wr() -> Bool  /* initialize routine for write operations */
-    func wr(_ : ARCHD) -> Bool?  /* write archive header. Passed an ARCHD */
+    func wr(_ : ARCHD) -> Int  /* write archive header. Passed an ARCHD */
           /* filled with the specs on the next file to */
           /* archived. Returns a 1 if no file data is */
           /* is to be stored; 0 if file data is to be */
@@ -171,7 +171,7 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
           /* other format specific functions needed */
           /* at the end of an archive write */
     func trail_cpio(_ : ARCHD) -> Bool
-    func trail_tar(_ : [UInt8], _ : inout Int) -> Bool?
+    func trail_tar(_ : [UInt8], _ : Bool, _ : inout Int) -> Int
           /* returns 0 if a valid trailer, -1 if not */
           /* For formats which encode the trailer */
           /* outside of a valid header, a return value */
@@ -279,6 +279,9 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
 
       var flg : OptionFlags = []
       var tempfile : String = ""
+      var chdname : String?
+      
+      var args : [String] = []
     }
 
     class Runtime {
@@ -430,9 +433,11 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
      */
     do {
       options.cwdfd = try FileDescriptor.open(FilePath("."), .readOnly, options: .closeOnExec)
-    } catch(let e) {
-      syswarn(true, errno, "Can't open current working directory.")
+    } catch(let e as Errno) {
+      Tty.syswarn(true, e.rawValue, "Can't open current working directory.")
       exit(runtime.exit_val)
+    } catch(let e) {
+      Tty.paxwarn(true, "Can't open current working directory: \(e)" )
     }
 
     if updatepath() {
@@ -568,7 +573,7 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
         (sigaddset(&runtime.s_mask,SIGINT) < 0)||(sigaddset(&runtime.s_mask,SIGHUP) < 0) ||
         (sigaddset(&runtime.s_mask,SIGPIPE) < 0)||(sigaddset(&runtime.s_mask,SIGQUIT)<0) ||
         (sigaddset(&runtime.s_mask,SIGXCPU) < 0)||(sigaddset(&runtime.s_mask,SIGXFSZ)<0)) {
-      paxwarn(true, "Unable to set up signal mask")
+      Tty.paxwarn(true, "Unable to set up signal mask")
       return true
     }
 //    #pragma clang diagnostic pop
@@ -584,7 +589,7 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
         setup_sig(SIGINT,  &n_hand) ||
         setup_sig(SIGQUIT, &n_hand) ||
         setup_sig(SIGXCPU, &n_hand)) {
-      syswarn(true, errno, "Unable to set up signal handler")
+      Tty.syswarn(true, errno, "Unable to set up signal handler")
       return true
     } else {
       return false

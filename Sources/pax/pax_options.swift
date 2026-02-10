@@ -164,46 +164,45 @@ extension pax {
           /*
            * specify file characteristic options
            */
-          for (pt = optarg; *pt != '\0'; ++pt) {
-            switch(*pt) {
+          for pt in v {
+            switch pt {
               case "a":
                 /*
                  * do not preserve access time
                  */
-                patime = 0;
-                break;
+                options.patime = false
+
               case "e":
                 /*
                  * preserve user id, group id, file
                  * mode, access/modification times
                  */
-                pids = 1;
-                pmode = 1;
-                patime = 1;
-                pmtime = 1;
-                break;
+                options.pids = true
+                options.pmode = true
+                options.patime = true
+                options.pmtime = true
+
               case "m":
                 /*
                  * do not preserve modification time
                  */
-                pmtime = 0;
-                break;
+                options.pmtime = false
+
               case "o":
                 /*
                  * preserve uid/gid
                  */
-                pids = 1;
-                break;
+                options.pids = true
+
               case "p":
                 /*
                  * preserve file mode bits
                  */
-                pmode = 1;
-                break;
+                options.pmode = true
+
               default:
-                paxwarn(1, "Invalid -p string: %c", *pt);
-                pax_usage();
-                break;
+                Tty.paxwarn(true, "Invalid -p string: \(pt)")
+                throw CmdErr(1) // pax_usage()
             }
           }
           options.flg.insert(.PF)
@@ -257,20 +256,19 @@ extension pax {
           /*
            * specify an archive format on write
            */
-          tmp.name = optarg;
-          if ((frmt = (FSUB *)bsearch((void *)&tmp, (void *)fsub,
-                                      sizeof(fsub)/sizeof(FSUB), sizeof(FSUB), c_frmt)) != NULL) {
-            flg |= XF;
+          let vx = ["bcpio" : bcpio(), "cpio" : cpio(), "pax" : paxer(), "sv4cpio" : vcpio(),
+                        "sv4crc" : vcpio_crc(), "tar" : tar(), "ustar" : ustar()]
+          if let vv = vx[v] {
+            options.frmt = vv
+            options.flg.insert(.XF)
             break;
           }
-          paxwarn(1, "Unknown -x format: %s", optarg);
-          (void)fputs("pax: Known -x formats are:", stderr);
-          for (i = 0; i < (sizeof(fsub)/sizeof(FSUB)); ++i) {
-            (void)fprintf(stderr, " %s", fsub[i].name);
-          }
-          (void)fputs("\n\n", stderr);
-          pax_usage();
-          break;
+          Tty.paxwarn(true, "Unknown -x format: \(v)")
+          var se = FileDescriptor.standardError
+          let kk = vx.keys.sorted().joined(separator: " ")
+          print("pax: Known -x formats are: \(kk)\n", terminator: "", to: &se)
+          throw CmdErr(1)
+
         case "z":
           /*
            * use gzip.  Non standard option.
@@ -308,7 +306,7 @@ extension pax {
            * indicate a limit, "NONE" try forever
            */
           options.flg.insert(.CEF)
-          if (strcmp(NONE, optarg) == 0) {
+          if v == NONE {
             maxflt = -1;
           }
           else if ((maxflt = atoi(optarg)) < 0) {

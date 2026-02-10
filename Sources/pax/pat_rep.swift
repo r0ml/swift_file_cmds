@@ -281,8 +281,8 @@ extension pax {
   /*
    * pat_sel()
    *	the archive member which matches a pattern was selected. Mark the
-   *	pattern as having selected an archive member. arcn->pat points at the
-   *	pattern that was matched. arcn->pat is set in pat_match()
+   *	pattern as having selected an archive member. arcn.pat points at the
+   *	pattern that was matched. arcn.pat is set in pat_match()
    *
    *	NOTE: When the -c option is used, we are called when there was no match
    *	by pat_match() (that means we did match before the inverted sense of
@@ -290,7 +290,7 @@ extension pax {
    *	need to keep track of those patterns that cause an archive member to NOT
    *	be selected (it found an archive member with a specified pattern)
    * Return:
-   *	0 if the pattern pointed at by arcn->pat was tagged as creating a
+   *	0 if the pattern pointed at by arcn.pat was tagged as creating a
    *	match, -1 otherwise.
    */
   
@@ -304,7 +304,7 @@ extension pax {
     /*
      * if no patterns just return
      */
-    if ((pathead == NULL) || ((pt = arcn->pat) == NULL)) {
+    if ((pathead == NULL) || ((pt = arcn.pat) == NULL)) {
       return(0);
     }
     
@@ -328,13 +328,13 @@ extension pax {
       return(0);
     }
     
-    if (!dflag && ((pt->pend != NULL) || (arcn->type == PAX_DIR))) {
+    if (!dflag && ((pt->pend != NULL) || (arcn.type == PAX_DIR))) {
       /*
        * ok we matched a directory and we are allowing
        * subtree matches but because of the -n only its children will
        * match. This is tagged as a DIR_MTCH type.
        * WATCH IT, the code assumes that pt->pend points
-       * into arcn->name and arcn->name has not been modified.
+       * into arcn.name and arcn.name has not been modified.
        * If not we will have a big mess. Yup this is another kludge
        */
       
@@ -346,7 +346,7 @@ extension pax {
         *pt->pend = '\0';
       }
       
-      if ((pt->pstr = strdup(arcn->name)) == NULL) {
+      if ((pt->pstr = strdup(arcn.name)) == NULL) {
         paxwarn(1, "Pattern select out of memory");
         if (pt->pend != NULL) {
           *pt->pend = '/';
@@ -373,7 +373,7 @@ extension pax {
         pt->plen = len;
       }
       pt->flgs = DIR_MTCH | MTCH;
-      arcn->pat = pt;
+      arcn.pat = pt;
       return(0);
     }
     
@@ -387,7 +387,7 @@ extension pax {
      */
     pt = pathead;
     ppt = &pathead;
-    while ((pt != NULL) && (pt != arcn->pat)) {
+    while ((pt != NULL) && (pt != arcn.pat)) {
       ppt = &(pt->fow);
       pt = pt->fow;
     }
@@ -401,14 +401,14 @@ extension pax {
     }
     *ppt = pt->fow;
     free(pt);
-    arcn->pat = NULL;
+    arcn.pat = NULL;
     return(0);
   }
   
   /*
    * pat_match()
    *	see if this archive member matches any supplied pattern, if a match
-   *	is found, arcn->pat is set to point at the potential pattern. Later if
+   *	is found, arcn.pat is set to point at the potential pattern. Later if
    *	this archive member is "selected" we process and mark the pattern as
    *	one which matched a selected archive member (see pat_sel())
    * Return:
@@ -422,7 +422,7 @@ extension pax {
   {
     PATTERN *pt;
     
-    arcn->pat = NULL;
+    arcn.pat = NULL;
     
     /*
      * if there are no more patterns and we have -n (and not -c) we are
@@ -451,11 +451,11 @@ extension pax {
          * only match CHILDREN of that directory so we must use
          * an exact prefix match (no wildcards).
          */
-        if ((arcn->name[pt->plen] == '/') &&
-            (strncmp(pt->pstr, arcn->name, pt->plen) == 0)) {
+        if ((arcn.name[pt->plen] == '/') &&
+            (strncmp(pt->pstr, arcn.name, pt->plen) == 0)) {
           break;
         }
-      } else if (fn_match(pt->pstr, arcn->name, &pt->pend) == 0) {
+      } else if (fn_match(pt->pstr, arcn.name, &pt->pend) == 0) {
         break;
       }
       pt = pt->fow;
@@ -474,7 +474,7 @@ extension pax {
      * member. However we have to tag the pattern a being successful, (in a
      * match, not in selecting an archive member) so we call pat_sel() here.
      */
-    arcn->pat = pt;
+    arcn.pat = pt;
     if (!cflag) {
       return(0);
     }
@@ -482,7 +482,7 @@ extension pax {
     if (pat_sel(arcn) < 0) {
       return(-1);
     }
-    arcn->pat = NULL;
+    arcn.pat = NULL;
     return(1);
   }
   
@@ -769,27 +769,27 @@ extension pax {
      * Strip off leading '/' if appropriate.
      * Currently, this option is only set for the tar format.
      */
-    if (rmleadslash && arcn->name[0] == '/') {
-      if (arcn->name[1] == '\0') {
-        arcn->name[0] = '.';
+    if (rmleadslash && arcn.name[0] == '/') {
+      if (arcn.name[1] == '\0') {
+        arcn.name[0] = '.';
       } else {
-        (void)memmove(arcn->name, &arcn->name[1],
-                      strlen(arcn->name));
-        arcn->nlen--;
+        (void)memmove(arcn.name, &arcn.name[1],
+                      strlen(arcn.name));
+        arcn.nlen--;
       }
       if (rmleadslash < 2) {
         rmleadslash = 2;
         paxwarn(0, "Removing leading / from absolute path names in the archive");
       }
     }
-    if (rmleadslash && arcn->ln_name[0] == '/' &&
-        (arcn->type == PAX_HLK || arcn->type == PAX_HRG)) {
-      if (arcn->ln_name[1] == '\0') {
-        arcn->ln_name[0] = '.';
+    if (rmleadslash && arcn.ln_name[0] == '/' &&
+        (arcn.type == PAX_HLK || arcn.type == PAX_HRG)) {
+      if (arcn.ln_name[1] == '\0') {
+        arcn.ln_name[0] = '.';
       } else {
-        (void)memmove(arcn->ln_name, &arcn->ln_name[1],
-                      strlen(arcn->ln_name));
-        arcn->ln_nlen--;
+        (void)memmove(arcn.ln_name, &arcn.ln_name[1],
+                      strlen(arcn.ln_name));
+        arcn.ln_nlen--;
       }
       if (rmleadslash < 2) {
         rmleadslash = 2;
@@ -822,15 +822,15 @@ extension pax {
        * name if any.
        */
       
-      if ((res = rep_name(arcn->name, sizeof(arcn->name), &(arcn->nlen), 1)) != 0) {
+      if ((res = rep_name(arcn.name, sizeof(arcn.name), &(arcn.nlen), 1)) != 0) {
         
         return(res);
       }
       
-      if (((arcn->type == PAX_SLK) || (arcn->type == PAX_HLK) ||
-           (arcn->type == PAX_HRG)) &&
+      if (((arcn.type == PAX_SLK) || (arcn.type == PAX_HLK) ||
+           (arcn.type == PAX_HRG)) &&
           
-          ((res = rep_name(arcn->ln_name, sizeof(arcn->ln_name), &(arcn->ln_nlen), 0)) != 0)) {
+          ((res = rep_name(arcn.ln_name, sizeof(arcn.ln_name), &(arcn.ln_nlen), 0)) != 0)) {
         
         return(res);
       }
@@ -843,8 +843,8 @@ extension pax {
       if ((res = tty_rename(arcn)) != 0) {
         return(res);
       }
-      if ((arcn->type == PAX_SLK) || (arcn->type == PAX_HLK) ||
-          (arcn->type == PAX_HRG)) {
+      if ((arcn.type == PAX_SLK) || (arcn.type == PAX_HLK) ||
+          (arcn.type == PAX_HRG)) {
         arcn.ln_name = sub_name(arcn.ln_name)
       }
     }
@@ -913,11 +913,11 @@ extension pax {
      * in order to repair any links.
      */
     tty_prnt("Processing continues, name changed to: %s\n", tmpname);
-    res = add_name(arcn->name, arcn->nlen, tmpname);
+    res = add_name(arcn.name, arcn.nlen, tmpname);
     
-    arcn->nlen = strlcpy(arcn->name, tmpname, sizeof(arcn->name));
-    if (arcn->nlen >= sizeof(arcn->name)) {
-      arcn->nlen = sizeof(arcn->name) - 1; /* XXX truncate? */
+    arcn.nlen = strlcpy(arcn.name, tmpname, sizeof(arcn.name));
+    if (arcn.nlen >= sizeof(arcn.name)) {
+      arcn.nlen = sizeof(arcn.name) - 1; /* XXX truncate? */
     }
     
     if (res < 0) {
@@ -937,7 +937,7 @@ extension pax {
   int
   set_dest(ARCHD *arcn, char *dest_dir, int dir_len)
   {
-    if (fix_path(arcn->name, &(arcn->nlen), dest_dir, dir_len) < 0) {
+    if (fix_path(arcn.name, &(arcn.nlen), dest_dir, dir_len) < 0) {
       return(-1);
     }
     
@@ -946,11 +946,11 @@ extension pax {
      * if the name they point was moved (or will be moved). It is best to
      * leave them alone.
      */
-    if ((arcn->type != PAX_HLK) && (arcn->type != PAX_HRG)) {
+    if ((arcn.type != PAX_HLK) && (arcn.type != PAX_HRG)) {
       return(0);
     }
     
-    if (fix_path(arcn->ln_name, &(arcn->ln_nlen), dest_dir, dir_len) < 0) {
+    if (fix_path(arcn.ln_name, &(arcn.ln_nlen), dest_dir, dir_len) < 0) {
       return(-1);
     }
     return(0);
