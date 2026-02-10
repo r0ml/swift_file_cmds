@@ -114,7 +114,7 @@ struct Gen {
     /*
      * print file mode, link count, uid, gid and time
      */
-    if (strftime(f_date,DATELEN,timefrmt,localtime(&(sbp->st_mtime))) == 0) {
+    if (strftime(f_date,DATELEN,timefrmt,localtime(&(sbp.lastWrite))) == 0) {
       f_date[0] = '\0';
     }
 
@@ -189,7 +189,7 @@ struct Gen {
      * convert time to string, and print
      */
     if (strftime(f_date, DATELEN, timefrmt,
-                 localtime(&(arcn.sb.st_mtime))) == 0) {
+                 localtime(&(arcn.sb.lastWrite))) == 0) {
       f_date[0] = '\0';
     }
     let fmode = strmode(arcn.sb.filetype, arcn.sb.permissions)
@@ -238,7 +238,7 @@ struct Gen {
       size_t visbuflen = 4 * strlen(str) + 1;
       char *visbuf = malloc(visbuflen);
       if (visbuf == NULL) {
-        paxwarn(1, "Out of memory");
+        Tty.paxwarn(true, "Out of memory");
         return;
       }
       /*

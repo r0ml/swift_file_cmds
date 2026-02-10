@@ -257,7 +257,7 @@ extension pax {
     return;
   }
 
-  private mkpath(_ path : String) -> Bool  {
+  private mkpath(_ path : String) -> Result  {
     struct stat sb;
     char *slash;
     int done = 0;
@@ -273,19 +273,20 @@ extension pax {
 
       if (stat(path, &sb)) {
         if (errno != ENOENT || mkdir(path, 0777)) {
-          paxwarn(1, "%s", path);
-          return (-1);
+          Tty.paxwarn(true, "%s", path);
+          return .failed
         }
       } else if (!S_ISDIR(sb.st_mode)) {
-        syswarn(1, ENOTDIR, "%s", path);
-        return (-1);
+        Tty.syswarn(true, ENOTDIR, "%s", path);
+        return .failed
       }
 
-      if (!done)
-          *slash = '/';
+      if (!done) {
+        *slash = '/';
+      }
     }
 
-    return (0);
+    return .ok
   }
 
 
@@ -344,7 +345,7 @@ extension pax {
    *	0 if format in name=value format, -1 if -o is passed junk.
    */
 
-  func opt_add(_ str : String) -> Bool {
+  func opt_add(_ str : String) -> Result {
     OPLIST *opt;
     char *frpt;
     char *pt;
@@ -352,12 +353,12 @@ extension pax {
     char *lstr;
 
     if ((str == NULL) || (*str == '\0')) {
-      paxwarn(0, "Invalid option name");
-      return(-1);
+      Tty.paxwarn(0, "Invalid option name");
+      return .failed;
     }
     if ((lstr = strdup(str)) == NULL) {
-      paxwarn(0, "Unable to allocate space for option list");
-      return(-1);
+      Tty.paxwarn(0, "Unable to allocate space for option list");
+      return .failed;
     }
 
     frpt = lstr;
@@ -372,14 +373,14 @@ extension pax {
         *endpt = '\0';
       }
       if ((pt = strchr(frpt, '=')) == NULL) {
-        paxwarn(0, "Invalid options format");
+        Tty.paxwarn(0, "Invalid options format");
         free(lstr);
-        return(-1);
+        return .failed;
       }
       if ((opt = (OPLIST *)malloc(sizeof(OPLIST))) == NULL) {
-        paxwarn(0, "Unable to allocate space for option list");
+        Tty.paxwarn(0, "Unable to allocate space for option list");
         free(lstr);
-        return(-1);
+        return .failed;
       }
 
       *pt++ = '\0';
@@ -403,7 +404,7 @@ extension pax {
       optail = opt;
     }
 
-    return(0);
+    return .ok
   }
 
   /*
@@ -415,7 +416,7 @@ extension pax {
    *	0 if format in name=value format, -1 if -o is passed junk
    */
 
-  func pax_format_opt_add(_ str : String) -> Bool {
+  func pax_format_opt_add(_ str : String) -> Result {
     register OPLIST *opt;
     register char *frpt;
     register char *pt;
@@ -423,12 +424,12 @@ extension pax {
     register int separator;
 
     if ((str == NULL) || (*str == '\0')) {
-      paxwarn(0, "Invalid option name");
-      return(-1);
+      Tty.paxwarn(0, "Invalid option name");
+      return .failed;
     }
     if ((str = strdup(str)) == NULL) {
-      paxwarn(0, "Unable to allocate space for option list");
-      return(-1);
+      Tty.paxwarn(0, "Unable to allocate space for option list");
+      return .failed;
     }
     frpt = str;
 
@@ -453,9 +454,9 @@ extension pax {
         separator = SEP_NONE;
       }
       if ((opt = (OPLIST *)malloc(sizeof(OPLIST))) == NULL) {
-        paxwarn(0, "Unable to allocate space for option list");
+        Tty.paxwarn(0, "Unable to allocate space for option list");
         free(str);
-        return(-1);
+        return .failed;
       }
       opt->name = frpt;
       opt->value = pt;
@@ -474,7 +475,7 @@ extension pax {
       optail->fow = opt;
       optail = opt;
     }
-    return(0);
+    return .ok
   }
 
   /*
@@ -497,36 +498,41 @@ extension pax {
     off_t num, t;
 
     num = strtoq(val, &expr, 0);
-    if ((num == QUAD_MAX) || (num <= 0) || (expr == val))
-        return(0);
+    if ((num == QUAD_MAX) || (num <= 0) || (expr == val)) {
+      return(0);
+    }
 
     switch(*expr) {
       case 'b':
         t = num;
         num *= 512;
-        if (t > num)
-            return(0);
+        if (t > num) {
+          return(0);
+        }
         ++expr;
         break;
       case 'k':
         t = num;
         num *= 1024;
-        if (t > num)
-            return(0);
+        if (t > num) {
+          return(0);
+        }
         ++expr;
         break;
       case 'm':
         t = num;
         num *= 1048576;
-        if (t > num)
-            return(0);
+        if (t > num) {
+          return(0);
+        }
         ++expr;
         break;
       case 'w':
         t = num;
         num *= sizeof(int);
-        if (t > num)
-            return(0);
+        if (t > num) {
+          return(0);
+        }
         ++expr;
         break;
     }
@@ -538,8 +544,9 @@ extension pax {
       case 'x':
         t = num;
         num *= str_offt(expr + 1);
-        if (t > num)
-            return(0);
+        if (t > num) {
+          return(0);
+        }
         break;
       default:
         return(0);
@@ -557,8 +564,9 @@ extension pax {
       get_line_error = ferror(f) ? GETLINE_FILE_CORRUPT : 0;
       return(0);
     }
-    if (name[len-1] != '\n')
-        len++;
+    if (name[len-1] != '\n') {
+      len++;
+    }
     temp = malloc(len);
     if (!temp) {
       get_line_error = GETLINE_OUT_OF_MEM;
@@ -576,8 +584,8 @@ extension pax {
    *	0
    */
 
-  private func no_op() -> Bool  {
-    return false
+  private func no_op() -> Result  {
+    return .ok
   }
 
   /*

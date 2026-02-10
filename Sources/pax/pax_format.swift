@@ -231,14 +231,17 @@ class paxer : tar {
      */
     while (pt >= str) {
       *pt-- = '0' + (char)(val & 0x7);
-      if ((val = val >> 3) == (u_long)0)
-          break;
+      if ((val = val >> 3) == (u_long)0) {
+        break;
+      }
     }
 
-    while (pt >= str)
-            *pt-- = '0';
-    if (val != (u_long)0)
-        return(-1);
+    while (pt >= str) {
+      *pt-- = '0';
+    }
+    if (val != (u_long)0) {
+      return .failed;
+    }
     return(0);
   }
 
@@ -285,14 +288,17 @@ class paxer : tar {
      */
     while (pt >= str) {
       *pt-- = '0' + (char)(val & 0x7);
-      if ((val = val >> 3) == 0)
-          break;
+      if ((val = val >> 3) == 0) {
+        break;
+      }
     }
 
-    while (pt >= str)
-            *pt-- = '0';
-    if (val != (u_quad_t)0)
-        return(-1);
+    while (pt >= str) {
+      *pt-- = '0';
+    }
+    if (val != (u_quad_t)0) {
+      return .failed;
+    }
     return(0);
   }
 
@@ -366,7 +372,7 @@ class paxer : tar {
         case 'M':
         case 'L':
         default:
-          paxwarn(1, "Unimplemented listopt format: %c",*nextpercent);
+          Tty.paxwarn(true, "Unimplemented listopt format: %c",*nextpercent);
           break;
       }
       nextpercent++;
@@ -406,7 +412,7 @@ class paxer : tar {
         break;
       case PAX_INVALID_ACTION_UTF8:
       default:
-        paxwarn(1, "pax_invalid_action not implemented:%d", pax_invalid_action);
+        Tty.paxwarn(true, "pax_invalid_action not implemented:%d", pax_invalid_action);
     }
   }
 
@@ -424,7 +430,7 @@ class paxer : tar {
         break;
       case PAX_INVALID_ACTION_UTF8:
       default:
-        paxwarn(1, "pax_invalid_action not implemented:%d", pax_invalid_action);
+        Tty.paxwarn(true, "pax_invalid_action not implemented:%d", pax_invalid_action);
     }
   }
 
@@ -446,7 +452,7 @@ class paxer : tar {
         break;
       case PAX_INVALID_ACTION_UTF8:
       default:
-        paxwarn(1, "pax_invalid_action not implemented:%d", pax_invalid_action);
+        Tty.paxwarn(true, "pax_invalid_action not implemented:%d", pax_invalid_action);
         rc = -1;	/* do nothing? */
     }
     return rc;
@@ -491,7 +497,7 @@ class paxer : tar {
           switch (o_option_table[i].cmdline_action) {
             case O_OPTION_ACTION_INVALID:
               if (opt->separator != SEP_EQ) {
-                paxwarn(1,"-o %s= option requires '=' separator: option ignored",
+                Tty.paxwarn(true,"-o %s= option requires '=' separator: option ignored",
                         opt->name);
                 break;
               }
@@ -505,16 +511,16 @@ class paxer : tar {
                 } else if (strncasecmp(opt->value,"write",5) == 0) {
                   pax_invalid_action = PAX_INVALID_ACTION_WRITE;
                 } else {
-                  paxwarn(1,"Invalid action %s not recognized: option ignored",
+                  Tty.paxwarn(true,"Invalid action %s not recognized: option ignored",
                           opt->value);
                 }
               } else {
-                paxwarn(1,"Invalid action RHS not specified: option ignored");
+                Tty.paxwarn(true,"Invalid action RHS not specified: option ignored");
               }
               break;
             case O_OPTION_ACTION_DELETE:
               if (opt->separator != SEP_EQ) {
-                paxwarn(1,"-o %s= option requires '=' separator: option ignored",
+                Tty.paxwarn(true,"-o %s= option requires '=' separator: option ignored",
                         opt->name);
                 break;
               }
@@ -523,11 +529,11 @@ class paxer : tar {
               delete_keywords(opt->value);
               break;
             case O_OPTION_ACTION_STORE_HEADER2:
-              if(pax_read_or_list_mode) pids = 1;	/* Force -p o for these options */
+              if(pax_read_or_list_mode) { pids = 1; }	/* Force -p o for these options */
             case O_OPTION_ACTION_STORE_HEADER:
               if (o_option_table[i].g_value == NULL ||
                   o_option_table[i].x_value == NULL ) {
-                paxwarn(1,"-o option not implemented: %s=%s",
+                Tty.paxwarn(true,"-o option not implemented: %s=%s",
                         opt->name, opt->value);
               } else {
                 if (opt->separator == SEP_EQ) {
@@ -537,27 +543,27 @@ class paxer : tar {
                   *(o_option_table[i].x_value) = opt->value;
                   ext_header_entry       [ext_header_inx++] = i;
                 } else {        /* SEP_NONE */
-                  paxwarn(1,"-o %s option is missing value", opt->name);
+                  Tty.paxwarn(true,"-o %s option is missing value", opt->name);
                 }
               }
               break;
             case O_OPTION_ACTION_TIMES:
               if (opt->separator != SEP_NONE) {
-                paxwarn(1,"-o %s option takes no value: option ignored", opt->name);
+                Tty.paxwarn(true,"-o %s option takes no value: option ignored", opt->name);
                 break;
               }
               want_a_m_time_headers = 1;
               break;
             case O_OPTION_ACTION_LINKDATA:
               if (opt->separator != SEP_NONE) {
-                paxwarn(1,"-o %s option takes no value: option ignored", opt->name);
+                Tty.paxwarn(true,"-o %s option takes no value: option ignored", opt->name);
                 break;
               }
               want_linkdata = 1;
               break;
             case O_OPTION_ACTION_HEADER_NAME:
               if (opt->separator != SEP_EQ) {
-                paxwarn(1,"-o %s= option requires '=' separator: option ignored",
+                Tty.paxwarn(true,"-o %s= option requires '=' separator: option ignored",
                         opt->name);
                 break;
               }
@@ -566,7 +572,7 @@ class paxer : tar {
               break;
             case O_OPTION_ACTION_LISTOPT:
               if (opt->separator != SEP_EQ) {
-                paxwarn(1,"-o %s= option requires '=' separator: option ignored",
+                Tty.paxwarn(true,"-o %s= option requires '=' separator: option ignored",
                         opt->name);
                 break;
               }
@@ -574,7 +580,7 @@ class paxer : tar {
               break;
             case O_OPTION_ACTION_NOTIMPL:
             default:
-              paxwarn(1,"pax format -o option not yet implemented: %s=%s",
+              Tty.paxwarn(true,"pax format -o option not yet implemented: %s=%s",
                       opt->name, opt->value);
               break;
           }
@@ -582,7 +588,7 @@ class paxer : tar {
         }
       }
       if (got_option == -1) {
-        paxwarn(1,"pax format -o option not recognized: %s=%s",
+        Tty.paxwarn(true,"pax format -o option not recognized: %s=%s",
                 opt->name, opt->value);
       }
     }
@@ -604,12 +610,12 @@ class paxer : tar {
       int size, nbytes, inx;
       size = asc_ul(myhd->size, sizeof(myhd->size), OCT);
       if (size > sizeof(mybuf)) {
-        paxwarn(1,"extended header buffer overflow");
+        Tty.paxwarn(true,"extended header buffer overflow");
         exit(1);
       }
       nbytes = rd_wrbuf(mybuf, size);
       if (nbytes != size) {
-        paxwarn(1,"extended header data read failure: nbytes=%d, size=%d\n",
+        Tty.paxwarn(true,"extended header data read failure: nbytes=%d, size=%d\n",
                 nbytes, size);
         exit(1);
       }
@@ -623,29 +629,30 @@ class paxer : tar {
         int got_option = -1;
         int nentries = sscanf(&mybuf[inx],"%d ", &len);
         if (nentries != 1) {
-          paxwarn(1,"Extended header failure: length");
+          Tty.paxwarn(true,"Extended header failure: length");
           exit(1);
         }
         if (len < 0 || (inx+len-1 >= sizeof(mybuf))) {
-          paxwarn(1, "Extended header failure: invalid length (%d)", len);
+          Tty.paxwarn(true, "Extended header failure: invalid length (%d)", len);
           exit(1);
         }
         if (mybuf[inx+len-1] != '\n') {
-          paxwarn(1,"Extended header failure: missed newline");
+          Tty.paxwarn(true,"Extended header failure: missed newline");
           exit(1);
-        } else
+        } else {
           mybuf[inx+len-1] = '\0';
+        }
         name = strchr(&mybuf[inx],' ');
-        if (name) name++;
+        if (name) { name++; }
         else {
-          paxwarn(1,"Extended header failure: missing space");
+          Tty.paxwarn(true,"Extended header failure: missing space");
           exit(1);
         }
         str = strchr(name,'=');
         if (str) {
           *str++='\0'; /* end of name */
         } else {
-          paxwarn(1,"Extended header failure: missing RHS string");
+          Tty.paxwarn(true,"Extended header failure: missing RHS string");
           exit(1);
         }
         for (i = 0; i < sizeof(o_option_table)/sizeof(O_OPTION_TYPE); i++) {
@@ -657,7 +664,7 @@ class paxer : tar {
           }
         }
         if (got_option == -1) {
-          paxwarn(1,"Unrecognized header keyword: %s",name);
+          Tty.paxwarn(true,"Unrecognized header keyword: %s",name);
         } else {
           /* Determine precedence of -o and header attributes */
           int found_value = ATTRSRC_FROM_NOWHERE;
@@ -679,40 +686,42 @@ class paxer : tar {
               found_value = ATTRSRC_FROM_G_HEADER;
             }
           } else {
-            paxwarn(1,"Unsupported header type:%c",myhd->typeflag);
+            Tty.paxwarn(true,"Unsupported header type:%c",myhd->typeflag);
           }
           if (current_value) {
             /* Save this attribute value for use later */
             switch (o_option_table[got_option].header_action) {
               case O_OPTION_ACTION_IGNORE:
-                paxwarn(1,"ignoring header keyword: %s",name);
+                Tty.paxwarn(true,"ignoring header keyword: %s",name);
                 break;
               case O_OPTION_ACTION_STORE_HEADER2:
               case O_OPTION_ACTION_STORE_HEADER:
                 switch (found_value) {
                   case ATTRSRC_FROM_NOWHERE: /* shouldn't happen */
-                    paxwarn(1, "internal error: value from nowhere");
+                    Tty.paxwarn(true, "internal error: value from nowhere");
                     break;
                   case ATTRSRC_FROM_X_O_OPTION:
                   case ATTRSRC_FROM_G_O_OPTION:
                     break;
                   case ATTRSRC_FROM_X_HEADER:
                     current_value = strdup(current_value);
-                    if(*o_option_table[got_option].x_value_current)
-                        free(*o_option_table[got_option].x_value_current);
+                    if(*o_option_table[got_option].x_value_current) {
+                      free(*o_option_table[got_option].x_value_current);
+                    }
                     *o_option_table[got_option].x_value_current = current_value;
                     break;
                   case ATTRSRC_FROM_G_HEADER:
                     current_value = strdup(current_value);
-                    if(*o_option_table[got_option].g_value_current)
-                        free(*o_option_table[got_option].g_value_current);
+                    if(*o_option_table[got_option].g_value_current) {
+                      free(*o_option_table[got_option].g_value_current);
+                    }
                     *o_option_table[got_option].g_value_current = current_value;
                     break;
                 }
                 break;
               case O_OPTION_ACTION_ERROR:
               default:
-                paxwarn(1,"Unsupported extended header attribute: %s=%s",
+                Tty.paxwarn(true,"Unsupported extended header attribute: %s=%s",
                         name, str);
             }
           }
@@ -727,7 +736,7 @@ class paxer : tar {
       /* read next header */
       nbytes = rd_wrbuf(mybuf, frmt->hsz);
       if (nbytes != frmt->hsz) {
-        paxwarn(1,"extended header read failure: nbytes=%d, size=%d\n",
+        Tty.paxwarn(true,"extended header read failure: nbytes=%d, size=%d\n",
                 nbytes, frmt->hsz);
       }
       myhd = ((HD_USTAR *)mybuf);
@@ -785,7 +794,7 @@ class paxer : tar {
           strlcpy(arcn.name,current_value,sizeof(arcn.name));
         } else if (header_len >= 0) { // Skip negative values
           if (len > header_len) {
-            paxwarn(1," length of string from extended header bigger than header field:"
+            Tty.paxwarn(true," length of string from extended header bigger than header field:"
                     " THAT won't work!\n");
           } else {
             char * p = (char *) myhd;
@@ -803,7 +812,7 @@ class paxer : tar {
       }
     }
 
-    if (myhd==hd) return(path_replaced);
+    if (myhd==hd) { return(path_replaced); }
 
     /* must put new header into memory of original */
     memcpy(hd, myhd, sizeof(HD_USTAR));
@@ -824,8 +833,9 @@ class paxer : tar {
   {
     HD_USTAR *hd;
 
-    if (size < BLKMULT)
-        return(-1);
+    if (size < BLKMULT) {
+      return .failed;
+    }
     hd = (HD_USTAR *)blk;
 
     /*
@@ -834,19 +844,22 @@ class paxer : tar {
      * programs are fouled up and create archives missing the \0. Last we
      * check the checksum. If ok we have to assume it is a valid header.
      */
-    if (hd->name[0] == '\0')
-        return(-1);
-    if (strncmp(hd->magic, TMAGIC, TMAGLEN - 1) != 0)
-        return(-1);
-    if (asc_ul(hd->chksum,sizeof(hd->chksum),OCT) != pax_chksm(blk,BLKMULT))
-        return(-1);
+    if (hd->name[0] == '\0') {
+      return .failed;
+    }
+    if (strncmp(hd->magic, TMAGIC, TMAGLEN - 1) != 0) {
+      return .failed;
+    }
+    if (asc_ul(hd->chksum,sizeof(hd->chksum),OCT) != pax_chksm(blk,BLKMULT)) {
+      return .failed;
+    }
     if ((hd->typeflag != PAXXTYPE) && (hd->typeflag != PAXGTYPE)) {
       /* Not explicitly pax format, but at least ustar */
       if (act==LIST || act==EXTRACT) {
         /* Although insufficient evidence, call it pax format */
         return(0);
       }
-      return(-1);
+      return .failed;
     }
     pax_invalid_action = PAX_INVALID_ACTION_BYPASS; /* Default for pax format */
     return(0);
@@ -872,8 +885,9 @@ class paxer : tar {
     /*
      * we only get proper sized buffers
      */
-    if (pax_id(buf, BLKMULT) < 0)
-        return(-1);
+    if (pax_id(buf, BLKMULT) < 0) {
+      return .failed;
+    }
 
     memset(arcn, 0, sizeof(*arcn));
     arcn.org_name = arcn.name;
@@ -889,7 +903,7 @@ class paxer : tar {
        * max path so be careful.
        */
       if (arcn.nlen > sizeof(arcn.name)) {
-        paxwarn(1,"pathname from extended header info  doesn't fit! (len=%d)\n",
+        Tty.paxwarn(true,"pathname from extended header info  doesn't fit! (len=%d)\n",
                 arcn.nlen);
       }
     } else {
@@ -926,11 +940,11 @@ class paxer : tar {
     if (size_x_current) {
       sscanf(size_x_current, "%lld", &arcn.sb.st_size);
     }
-    arcn.sb.st_mtime = (time_t)asc_ul(hd->mtime, sizeof(hd->mtime), OCT);
+    arcn.sb.lastWrite = (time_t)asc_ul(hd->mtime, sizeof(hd->mtime), OCT);
     if (arcn.sb.st_atimespec.tv_sec == 0) { // Can be set from header
-      arcn.sb.st_atime = arcn.sb.st_mtime;
+      arcn.sb.st_atime = arcn.sb.lastWrite;
     }
-    arcn.sb.st_ctime = arcn.sb.st_mtime;
+    arcn.sb.st_ctime = arcn.sb.lastWrite;
 
     /*
      * If we can find the ascii names for gname and uname in the password
@@ -939,11 +953,13 @@ class paxer : tar {
      * the posix spec wants).
      */
     hd->gname[sizeof(hd->gname) - 1] = '\0';
-    if (gid_name(hd->gname, &(arcn.sb.st_gid)) < 0)
-        arcn.sb.st_gid = (gid_t)asc_ul(hd->gid, sizeof(hd->gid), OCT);
+    if (gid_name(hd->gname, &(arcn.sb.st_gid)) < 0) {
+      arcn.sb.st_gid = (gid_t)asc_ul(hd->gid, sizeof(hd->gid), OCT);
+    }
     hd->uname[sizeof(hd->uname) - 1] = '\0';
-    if (uid_name(hd->uname, &(arcn.sb.st_uid)) < 0)
-        arcn.sb.st_uid = (uid_t)asc_ul(hd->uid, sizeof(hd->uid), OCT);
+    if (uid_name(hd->uname, &(arcn.sb.st_uid)) < 0) {
+      arcn.sb.st_uid = (uid_t)asc_ul(hd->uid, sizeof(hd->uid), OCT);
+    }
 
     /*
      * set the defaults, these may be changed depending on the file type
@@ -970,8 +986,9 @@ class paxer : tar {
          * to the pathname for directories. This clearly violates
          * pax specs, but we will silently strip it off anyway.
          */
-        if (arcn.name[arcn.nlen - 1] == '/')
-            arcn.name[--arcn.nlen] = '\0';
+        if (arcn.name[arcn.nlen - 1] == '/') {
+          arcn.name[--arcn.nlen] = '\0';
+        }
         break;
       case BLKTYPE:
       case CHRTYPE:
@@ -1039,25 +1056,25 @@ class paxer : tar {
     int i;
     if (global_ext_header_inx) {
       for (i=0; i < global_ext_header_inx; i++) {
-        if (!o_option_table[global_ext_header_entry[i]].active) continue; /* deleted keywords */
+        if (!o_option_table[global_ext_header_entry[i]].active) { continue; } /* deleted keywords */
         if (strcmp(o_option_table[global_ext_header_entry[i]].name, "path")==0) {
           strlcpy(arcn.name,*(o_option_table[global_ext_header_entry[i]].g_value),
                   sizeof(arcn.name));
           arcn.nlen = strlen(*(o_option_table[global_ext_header_entry[i]].g_value));
         } else {	/* only handle path for now: others TBD */
-          paxwarn(1, "adjust arcn for global extended header options not implemented:%d", i);
+          Tty.paxwarn(true, "adjust arcn for global extended header options not implemented:%d", i);
         }
       }
     }
     if (ext_header_inx) {
       for (i=0; i < ext_header_inx; i++) {
-        if (!o_option_table[ext_header_entry[i]].active) continue; /* deleted keywords */
+        if (!o_option_table[ext_header_entry[i]].active) { continue; } /* deleted keywords */
         if (strcmp(o_option_table[ext_header_entry[i]].name, "path")==0) {
           strlcpy(arcn.name,*(o_option_table[ext_header_entry[i]].x_value),
                   sizeof(arcn.name));
           arcn.nlen = strlen(*(o_option_table[ext_header_entry[i]].x_value));
         } else {	/* only handle path for now: others TBD */
-          paxwarn(1, "adjust arcn for extended header options not implemented:%d", i);
+          Tty.paxwarn(true, "adjust arcn for extended header options not implemented:%d", i);
         }
       }
     }
@@ -1071,7 +1088,7 @@ class paxer : tar {
                               char * name, char * value)
   {
     if (total_len + len > sizeof(pax_eh_datablk)) {
-      paxwarn(1,"extended header buffer overflow for header type '%c': %d",
+      Tty.paxwarn(true,"extended header buffer overflow for header type '%c': %d",
               head_type, total_len+len);
     } else {
       sprintf(&pax_eh_datablk[total_len],"%d %s=%s\n", len, name, value);
@@ -1128,7 +1145,7 @@ class paxer : tar {
           pos += sprintf (&buf[pos],"%d",getpid());
           break;
         default:
-          paxwarn(1,"header format substitution failed: '%c'", *nextpercent);
+          Tty.paxwarn(true,"header format substitution failed: '%c'", *nextpercent);
           return strdup(header);
       }
       nextpercent++;
@@ -1161,9 +1178,10 @@ class paxer : tar {
 
     if (nfields == 0 && (header_name_requested == NULL)) {
       if (header_type==PAXXTYPE) {
-        if (!want_a_m_time_headers) return (0);
-      } else
+        if (!want_a_m_time_headers) { return (0); }
+      } else {
         return (0);
+      }
     }
 
     /* There might be no fields but a header with a specific name or
@@ -1182,12 +1200,12 @@ class paxer : tar {
     ul_oct((u_long)0444, hd->mode, sizeof(hd->mode), term_char);
     strncpy(hd->magic, TMAGIC, TMAGLEN);
     strncpy(hd->version, TVERSION, TVERSLEN);
-    ul_oct((u_long)arcn.sb.st_mtime,hd->mtime,sizeof(hd->mtime),term_char);
+    ul_oct((u_long)arcn.sb.lastWrite,hd->mtime,sizeof(hd->mtime),term_char);
 
     /* compute size of data */
     total_len = 0;
     for (i=0; i < nfields; i++) {
-      if (!o_option_table[table[i]].active) continue; /* deleted keywords */
+      if (!o_option_table[table[i]].active) { continue; } /* deleted keywords */
       name = o_option_table[table[i]].name;
       if (header_type == PAXXTYPE) {
         str = *(o_option_table[table[i]].x_value);
@@ -1195,16 +1213,16 @@ class paxer : tar {
         str = *(o_option_table[table[i]].g_value);
       }
       if (str==NULL) {
-        paxwarn(1,"Missing option value for %s", name);
+        Tty.paxwarn(true,"Missing option value for %s", name);
         continue;
       }
       len = strlen(str) + o_option_table[table[i]].len + 3;
-      if (len < 9) len++;
-      else if (len < 98)	len = len + 2;
-      else if (len < 997)	len = len + 3;
-      else if (len < 9996)	len = len + 4;
+      if (len < 9) { len++; }
+      else if (len < 98) {	len = len + 2; }
+      else if (len < 997)	{ len = len + 3; }
+      else if (len < 9996) { len = len + 4; }
       else {
-        paxwarn(1,"extended header data too long for header type '%c': %d",
+        Tty.paxwarn(true,"extended header data too long for header type '%c': %d",
                 header_type, len);
       }
       total_len = emit_extended_header_record(len, total_len,
@@ -1220,7 +1238,7 @@ class paxer : tar {
       total_len = emit_extended_header_record(len, total_len,
                                               header_type, "atime", &time_buffer[0]);
       memset(time_buffer,0,sizeof(time_buffer));
-      sprintf(&time_buffer[0],"%d",(int)arcn.sb.st_mtime);
+      sprintf(&time_buffer[0],"%d",(int)arcn.sb.lastWrite);
       /* 3 chars + strlen("mtime") + time + # chars in len */
       len = 3 + 5 + strlen(&time_buffer[0]) + 2;
       total_len = emit_extended_header_record(len, total_len,
@@ -1228,9 +1246,9 @@ class paxer : tar {
     }
 
     /* Check if all fields were deleted: might not need to generate anything */
-    if ((total_len==0) && (header_name_requested == NULL)) return (0);
+    if ((total_len==0) && (header_name_requested == NULL)) { return (0); }
 
-    if (header_type == PAXGTYPE) nglobal_headers++;
+    if (header_type == PAXGTYPE) { nglobal_headers++; }
     /* substitution of fields in header_name */
     header_name = substitute_percent(header_name, arcn.name);
     if (strlen(header_name) == sizeof(hd->name)) {	/* must account for name just fits in buffer */
@@ -1243,33 +1261,37 @@ class paxer : tar {
     header_name = NULL;
     records_size = (u_long)total_len;
     if (ul_oct(records_size, hd->size, sizeof(hd->size), term_char)) {
-      paxwarn(1,"extended header data too long for header type '%c'", header_type);
+      Tty.paxwarn(true,"extended header data too long for header type '%c'", header_type);
       return(1);
     }
 
     if (ul_oct(pax_chksm(hdblk, sizeof(HD_USTAR)), hd->chksum, sizeof(hd->chksum), term_char)) {
-      paxwarn(1,"extended header data checksum failed: header type '%c'", header_type);
+      Tty.paxwarn(true,"extended header data checksum failed: header type '%c'", header_type);
       return(1);
     }
 
     /* write out header */
-    if (wr_rdbuf(hdblk, sizeof(HD_USTAR)) < 0)
-        return(-1);
-    if (wr_skip((off_t)(BLKMULT - sizeof(HD_USTAR))) < 0)
-        return(-1);
+    if (wr_rdbuf(hdblk, sizeof(HD_USTAR)) < 0) {
+      return .failed;
+    }
+    if (wr_skip((off_t)(BLKMULT - sizeof(HD_USTAR))) < 0) {
+      return .failed;
+    }
     /* write out header data */
     if (total_len > 0) {
-      if (wr_rdbuf(pax_eh_datablk, total_len) < 0)
-          return(-1);
-      if (wr_skip((off_t)(BLKMULT - total_len)) < 0)
-          return(-1);
+      if (wr_rdbuf(pax_eh_datablk, total_len) < 0) {
+        return .failed;
+      }
+      if (wr_skip((off_t)(BLKMULT - total_len)) < 0) {
+        return .failed;
+      }
       /*
        printf("data written:\n%s",&pax_eh_datablk[0]);
        */
     }
 
     /*
-     paxwarn(0,"extended header and data written: header type '%c', #items: %d, %d characters",
+     Tty.paxwarn(0,"extended header and data written: header type '%c', #items: %d, %d characters",
      header_type, nfields, records_size);
      */
     return (0);
@@ -1304,7 +1326,7 @@ class paxer : tar {
      * check for those file system types pax cannot store
      */
     if (arcn.type == PAX_SCK) {
-      paxwarn(1, "Pax cannot archive a socket %s", arcn.org_name);
+      Tty.paxwarn(true, "Pax cannot archive a socket %s", arcn.org_name);
       return(1);
     }
 
@@ -1313,7 +1335,7 @@ class paxer : tar {
      */
     if (((arcn.type == PAX_SLK) || (arcn.type == PAX_HLK) ||
          (arcn.type == PAX_HRG)) && (arcn.ln_nlen > sizeof(hd->linkname))){
-      paxwarn(1, "Link name too long for pax %s", arcn.ln_name);
+      Tty.paxwarn(true, "Link name too long for pax %s", arcn.ln_name);
       /*
        * Conformance: test pax:285 wants error code to be non-zero, and
        * test tar:12 wants error code from pax to be 0
@@ -1326,7 +1348,7 @@ class paxer : tar {
      * pt != arcn.name, the name has to be split
      */
     if ((pt = name_split(arcn.name, arcn.nlen)) == NULL) {
-      paxwarn(1, "File name too long for pax %s", arcn.name);
+      Tty.paxwarn(true, "File name too long for pax %s", arcn.name);
       return(1);
     }
 
@@ -1374,52 +1396,60 @@ class paxer : tar {
     switch (arcn.type) {
       case PAX_DIR:
         hd->typeflag = DIRTYPE;
-        if (ul_oct((u_long)0L, hd->size, sizeof(hd->size), term_char))
-            goto out;
+        if (ul_oct((u_long)0L, hd->size, sizeof(hd->size), term_char)) {
+          goto out;
+        }
         break;
       case PAX_CHR:
       case PAX_BLK:
-        if (arcn.type == PAX_CHR)
-            hd->typeflag = CHRTYPE;
-        else
-        hd->typeflag = BLKTYPE;
+        if (arcn.type == .CHR) {
+          hd->typeflag = CHRTYPE;
+        }
+        else {
+          hd->typeflag = BLKTYPE;
+        }
         if (ul_oct((u_long)MAJOR(arcn.sb.st_rdev), hd->devmajor,
                    sizeof(hd->devmajor), term_char) ||
             ul_oct((u_long)MINOR(arcn.sb.st_rdev), hd->devminor,
                    sizeof(hd->devminor), term_char) ||
-            ul_oct((u_long)0L, hd->size, sizeof(hd->size), term_char))
-            goto out;
+            ul_oct((u_long)0L, hd->size, sizeof(hd->size), term_char)) {
+          goto out;
+        }
         break;
-      case PAX_FIF:
+      case .FIF:
         hd->typeflag = FIFOTYPE;
-        if (ul_oct((u_long)0L, hd->size, sizeof(hd->size), term_char))
-            goto out;
+        if (ul_oct((u_long)0L, hd->size, sizeof(hd->size), term_char)) {
+          goto out;
+        }
         break;
-      case PAX_SLK:
-      case PAX_HLK:
-      case PAX_HRG:
-        if (arcn.type == PAX_SLK)
-            hd->typeflag = SYMTYPE;
-        else
-        hd->typeflag = LNKTYPE;
+      case .SLK, .HLK, .HRG:
+        if (arcn.type == .SLK) {
+          hd->typeflag = SYMTYPE;
+        }
+        else {
+          hd->typeflag = LNKTYPE;
+        }
         if (strlen(arcn.ln_name) == sizeof(hd->linkname)) {	/* must account for name just fits in buffer */
           strncpy(hd->linkname, arcn.ln_name, sizeof(hd->linkname));
         } else {
           strlcpy(hd->linkname, arcn.ln_name, sizeof(hd->linkname));
         }
-        if (ul_oct((u_long)0L, hd->size, sizeof(hd->size), term_char))
-            goto out;
+        if (ul_oct((u_long)0L, hd->size, sizeof(hd->size), term_char)) {
+          goto out;
+        }
         break;
-      case PAX_REG:
-      case PAX_CTG:
+      case .REG, .CTG:
+        fallthrough
       default:
         /*
          * file data with this type, set the padding
          */
-        if (arcn.type == PAX_CTG)
-            hd->typeflag = CONTTYPE;
-        else
-        hd->typeflag = REGTYPE;
+        if (arcn.type == PAX_CTG) {
+          hd->typeflag = CONTTYPE;
+        }
+        else {
+          hd->typeflag = REGTYPE;
+        }
         arcn.pad = TAR_PAD(arcn.sb.st_size);
         if (uqd_oct((u_quad_t)arcn.sb.st_size, hd->size,
                     sizeof(hd->size), term_char)) {
@@ -1451,38 +1481,43 @@ class paxer : tar {
      */
     if (ul_oct((u_long)arcn.sb.st_uid, hd->uid, sizeof(hd->uid), term_char)) {
       if (uid_nobody == 0) {
-        if (uid_name("nobody", &uid_nobody) == -1)
-            goto out;
+        if (uid_name("nobody", &uid_nobody) == -1) {
+          goto out;
+        }
       }
       if (uid_warn != arcn.sb.st_uid) {
         uid_warn = arcn.sb.st_uid;
-        paxwarn(1,
+        Tty.paxwarn(true,
                 "Pax header field is too small for uid %lu, "
                 "using nobody", (u_long)arcn.sb.st_uid);
       }
-      if (ul_oct((u_long)uid_nobody, hd->uid, sizeof(hd->uid), term_char))
-          goto out;
+      if (ul_oct((u_long)uid_nobody, hd->uid, sizeof(hd->uid), term_char)) {
+        goto out;
+      }
     }
     if (ul_oct((u_long)arcn.sb.st_gid, hd->gid, sizeof(hd->gid), term_char)) {
       if (gid_nobody == 0) {
-        if (gid_name("nobody", &gid_nobody) == -1)
-            goto out;
+        if (gid_name("nobody", &gid_nobody) == -1) {
+          goto out;
+        }
       }
       if (gid_warn != arcn.sb.st_gid) {
         gid_warn = arcn.sb.st_gid;
-        paxwarn(1,
+        Tty.paxwarn(true,
                 "Pax header field is too small for gid %lu, "
                 "using nobody", (u_long)arcn.sb.st_gid);
       }
-      if (ul_oct((u_long)gid_nobody, hd->gid, sizeof(hd->gid), term_char))
-          goto out;
+      if (ul_oct((u_long)gid_nobody, hd->gid, sizeof(hd->gid), term_char)) {
+        goto out;
+      }
     }
     /* However, Unix conformance tests do not like MORE than 12 mode bits:
      remove all beyond (see definition of stat.st_mode structure)		*/
     mode12only = ((u_long)arcn.sb.st_mode) & 0x00000fff;
     if (ul_oct((u_long)mode12only, hd->mode, sizeof(hd->mode), term_char) ||
-        ul_oct((u_long)arcn.sb.st_mtime,hd->mtime,sizeof(hd->mtime),term_char))
-        goto out;
+        ul_oct((u_long)arcn.sb.lastWrite,hd->mtime,sizeof(hd->mtime),term_char)) {
+      goto out;
+    }
     strncpy(hd->uname, name_uid(arcn.sb.st_uid, 0), sizeof(hd->uname));
     strncpy(hd->gname, name_gid(arcn.sb.st_gid, 0), sizeof(hd->gname));
 
@@ -1492,21 +1527,25 @@ class paxer : tar {
      * needs to be written
      */
     if (ul_oct(pax_chksm(hdblk, sizeof(HD_USTAR)), hd->chksum,
-               sizeof(hd->chksum), term_char))
-        goto out;
-    if (wr_rdbuf(hdblk, sizeof(HD_USTAR)) < 0)
-        return(-1);
-    if (wr_skip((off_t)(BLKMULT - sizeof(HD_USTAR))) < 0)
-        return(-1);
-    if ((arcn.type == PAX_CTG) || (arcn.type == PAX_REG))
-        return(0);
+               sizeof(hd->chksum), term_char)) {
+      goto out;
+    }
+    if (wr_rdbuf(hdblk, sizeof(HD_USTAR)) < 0) {
+      return .failed;
+    }
+    if (wr_skip((off_t)(BLKMULT - sizeof(HD_USTAR))) < 0) {
+      return .failed;
+    }
+    if ((arcn.type == PAX_CTG) || (arcn.type == PAX_REG)) {
+      return(0);
+    }
     return(1);
 
   out:
     /*
      * header field is out of range
      */
-    paxwarn(1, "Pax header field is too small for %s", arcn.org_name);
+    Tty.paxwarn(true, "Pax header field is too small for %s", arcn.org_name);
     return(1);
   }
 
@@ -1577,19 +1616,22 @@ class paxer : tar {
     size_t nlen;
 
     if (*gnu_name) {
-      if ((nlen = strlcpy(buf, *gnu_name, len)) >= len)
-          nlen = len - 1;
+      if ((nlen = strlcpy(buf, *gnu_name, len)) >= len) {
+        nlen = len - 1;
+      }
       free(*gnu_name);
       *gnu_name = NULL;
     } else {
       if (name_len < len) {
         /* name may not be null terminated: it might be as big as the
          field,  so copy is limited to the max size of the header field */
-        if ((nlen = strlcpy(buf, name, name_len+1)) >= name_len+1)
-            nlen = name_len;
+        if ((nlen = strlcpy(buf, name, name_len+1)) >= name_len+1) {
+          nlen = name_len;
+        }
       } else {
-        if ((nlen = strlcpy(buf, name, len)) >= len)
-            nlen = len - 1;
+        if ((nlen = strlcpy(buf, name, len)) >= len) {
+          nlen = len - 1;
+        }
       }
     }
     return(nlen);

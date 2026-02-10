@@ -54,14 +54,12 @@ class vcpio : bcpio {
    *      0 if a valid header, -1 otherwise
    */
 
-  int
-  vcpio_id(char *blk, int size)
-  {
+  override func id( _ blk : [UInt8]) -> Result {
     if ((size < (int)sizeof(HD_VCPIO)) ||
         (strncmp(blk, AVMAGIC, sizeof(AVMAGIC) - 1) != 0)) {
-      return(-1);
+      return .failed;
     }
-    return(0);
+    return .ok
   }
 
   /*
@@ -72,9 +70,7 @@ class vcpio : bcpio {
    *  0 if a valid header, -1 otherwise.
    */
 
-  int
-  vcpio_rd(ARCHD *arcn, char *buf)
-  {
+  override func rd(_ buf : [UInt8]) -> ARCHD? {
     HD_VCPIO *hd;
     dev_t devminor;
     dev_t devmajor;
@@ -88,11 +84,11 @@ class vcpio : bcpio {
      */
     if (docrc) {
       if (crc_id(buf, sizeof(HD_VCPIO)) < 0) {
-        return(-1);
+        return .failed;
       }
     } else {
       if (vcpio_id(buf, sizeof(HD_VCPIO)) < 0) {
-        return(-1);
+        return .failed;
       }
     }
 
@@ -106,8 +102,8 @@ class vcpio : bcpio {
     arcn.sb.st_mode = (mode_t)asc_ul(hd->c_mode, sizeof(hd->c_mode), HEX);
     arcn.sb.st_uid = (uid_t)asc_ul(hd->c_uid, sizeof(hd->c_uid), HEX);
     arcn.sb.st_gid = (gid_t)asc_ul(hd->c_gid, sizeof(hd->c_gid), HEX);
-    arcn.sb.st_mtime = (time_t)asc_uqd(hd->c_mtime,sizeof(hd->c_mtime),HEX);
-    arcn.sb.st_ctime = arcn.sb.st_atime = arcn.sb.st_mtime;
+    arcn.sb.lastWrite = (time_t)asc_uqd(hd->c_mtime,sizeof(hd->c_mtime),HEX);
+    arcn.sb.st_ctime = arcn.sb.st_atime = arcn.sb.lastWrite;
     arcn.sb.st_size = (off_t)asc_uqd(hd->c_filesize,
                                       sizeof(hd->c_filesize), HEX);
     arcn.sb.st_nlink = (nlink_t)asc_ul(hd->c_nlink, sizeof(hd->c_nlink),
@@ -125,18 +121,18 @@ class vcpio : bcpio {
      * bogus
      */
     if ((nsz = (int)asc_ul(hd->c_namesize,sizeof(hd->c_namesize),HEX)) < 2) {
-      return(-1);
+      return .failed;
     }
     arcn.nlen = nsz - 1;
     if (rd_nm(arcn, nsz) < 0) {
-      return(-1);
+      return .failed;
     }
 
     /*
      * skip padding. header + filename is aligned to 4 byte boundaries
      */
     if (rd_skip((off_t)(VCPIO_PAD(sizeof(HD_VCPIO) + nsz))) < 0) {
-      return(-1);
+      return .failed;
     }
 
     /*
@@ -158,7 +154,7 @@ class vcpio : bcpio {
      */
     if ((rd_ln_nm(arcn) < 0) ||
         (rd_skip((off_t)(VCPIO_PAD(arcn.sb.st_size))) < 0)) {
-      return(-1);
+      return .failed;
     }
 
     /*
@@ -174,10 +170,8 @@ class vcpio : bcpio {
    *      size of trailer header in this format
    */
 
-  off_t
-  vcpio_endrd(void)
-  {
-    return((off_t)(sizeof(HD_VCPIO) + sizeof(TRAILER) +
+  override func end_rd() -> Result {
+    return .count(sizeof(HD_VCPIO) + sizeof(TRAILER) +
                    (VCPIO_PAD(sizeof(HD_VCPIO) + sizeof(TRAILER)))));
   }
 
@@ -190,9 +184,7 @@ class vcpio : bcpio {
    *  NO data to write after the header, -1 if archive write failed
    */
 
-  int
-  vcpio_wr(ARCHD *arcn)
-  {
+  override func wr(_ arcn : ARCHD) -> Result {
     HD_VCPIO *hd;
     unsigned int nsz;
     HD_VCPIO hdblk;
@@ -202,7 +194,7 @@ class vcpio : bcpio {
      * header
      */
     if (map_dev(arcn, (u_long)VCPIO_MASK, (u_long)VCPIO_MASK) < 0) {
-      return(-1);
+      return .failed;
     }
     nsz = arcn.nlen + 1;
     hd = &hdblk;
@@ -240,9 +232,9 @@ class vcpio : bcpio {
         arcn.pad = VCPIO_PAD(arcn.sb.st_size);
         if (uqd_asc((u_quad_t)arcn.sb.st_size, hd->c_filesize,
                     sizeof(hd->c_filesize), HEX)) {
-          paxwarn(1,"File is too large for sv4cpio format %s",
+          Tty.paxwarn(true,"File is too large for sv4cpio format %s",
                   arcn.org_name);
-          return(1);
+          return .partial
         }
         break;
       case PAX_SLK:
@@ -279,7 +271,7 @@ class vcpio : bcpio {
                HEX) ||
         ul_asc((u_long)arcn.sb.st_gid, hd->c_gid, sizeof(hd->c_gid),
                HEX) ||
-        ul_asc((u_long)arcn.sb.st_mtime, hd->c_mtime, sizeof(hd->c_mtime),
+        ul_asc((u_long)arcn.sb.lastWrite, hd->c_mtime, sizeof(hd->c_mtime),
                HEX) ||
         ul_asc((u_long)arcn.sb.st_nlink, hd->c_nlink, sizeof(hd->c_nlink),
                HEX) ||
@@ -301,8 +293,8 @@ class vcpio : bcpio {
     if ((wr_rdbuf((char *)&hdblk, (int)sizeof(HD_VCPIO)) < 0) ||
         (wr_rdbuf(arcn.name, (int)nsz) < 0)  ||
         (wr_skip((off_t)(VCPIO_PAD(sizeof(HD_VCPIO) + nsz))) < 0)) {
-      paxwarn(1,"Could not write sv4cpio header for %s",arcn.org_name);
-      return(-1);
+      Tty.paxwarn(true,"Could not write sv4cpio header for %s",arcn.org_name);
+      return .failed;
     }
 
     /*
@@ -310,14 +302,14 @@ class vcpio : bcpio {
      */
     if ((arcn.type == PAX_CTG) || (arcn.type == PAX_REG) ||
         (arcn.type == PAX_HRG)) {
-      return(0);
+      return .ok
     }
 
     /*
      * if we are not a link, tell the caller we are done, go to next file
      */
     if (arcn.type != PAX_SLK) {
-      return(1);
+      return .partial
     }
 
     /*
@@ -325,18 +317,18 @@ class vcpio : bcpio {
      */
     if ((wr_rdbuf(arcn.ln_name, arcn.ln_nlen) < 0) ||
         (wr_skip((off_t)(VCPIO_PAD(arcn.ln_nlen))) < 0)) {
-      paxwarn(1,"Could not write sv4cpio link name for %s",
+      Tty.paxwarn(true,"Could not write sv4cpio link name for %s",
               arcn.org_name);
-      return(-1);
+      return .failed;
     }
-    return(1);
+    return .partial
 
   out:
     /*
      * header field is out of range
      */
-    paxwarn(1,"Sv4cpio header field is too small for file %s",arcn.org_name);
-    return(1);
+    Tty.paxwarn(true,"Sv4cpio header field is too small for file %s",arcn.org_name);
+    return .partial
   }
 
   /*

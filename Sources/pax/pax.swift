@@ -39,6 +39,13 @@
 import CMigration
 import Darwin
 
+enum Result : Equatable {
+  case failed
+  case ok
+  case count(Int)
+  case partial
+}
+
 let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
         /* WARNING: increasing MAXBLK past 32256 */
         /* will violate posix spec. */
@@ -134,9 +141,9 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
     /* if not, trailers are assumed to be found */
     /* in invalid headers (i.e like tar) */
 
-    func id(_ : [UInt8]) -> Bool  /* checks if a buffer is a valid header */
+    func id(_ : [UInt8]) -> Result  /* checks if a buffer is a valid header */
           /* returns 1 if it is, o.w. returns a 0 */
-    func st_rd() -> Bool  /* initialize routine for read. so format */
+    func st_rd() -> Result  /* initialize routine for read. so format */
           /* can set up tables etc before it starts */
           /* reading an archive */
     func rd(_ : [UInt8]) -> ARCHD?
@@ -152,12 +159,12 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
           /* padding and the number of bytes of data */
           /* which follow the header. This info is */
           /* used skip to the next file header */
-    func end_rd() -> Int  /* read cleanup. Allows format to clean up */
+    func end_rd() -> Result  /* read cleanup. Allows format to clean up */
           /* and MUST RETURN THE LENGTH OF THE TRAILER */
           /* RECORD (so append knows how many bytes */
-          /* to move back to rewrite the trailer) */
-    func st_wr() -> Bool  /* initialize routine for write operations */
-    func wr(_ : ARCHD) -> Int  /* write archive header. Passed an ARCHD */
+          /* to move back to rewrite the trailer) */
+    func st_wr() -> Result  /* initialize routine for write operations */
+    func wr(_ : ARCHD) -> Result  /* write archive header. Passed an ARCHD */
           /* filled with the specs on the next file to */
           /* archived. Returns a 1 if no file data is */
           /* is to be stored; 0 if file data is to be */
@@ -167,22 +174,22 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
           /* the proper padding can be added after */
           /* file data. This routine must NEVER write */
           /* a flawed archive header. */
-    func end_wr() -> Bool  /* end write. write the trailer and do any */
+    func end_wr() -> Result  /* end write. write the trailer and do any */
           /* other format specific functions needed */
           /* at the end of an archive write */
-    func trail_cpio(_ : ARCHD) -> Bool
-    func trail_tar(_ : [UInt8], _ : Bool, _ : inout Int) -> Int
+    func trail_cpio(_ : ARCHD) -> Result
+    func trail_tar(_ : [UInt8], _ : Bool, _ : inout Int) -> Result
           /* returns 0 if a valid trailer, -1 if not */
           /* For formats which encode the trailer */
           /* outside of a valid header, a return value */
           /* of 1 indicates that the block passed to */
           /* it can never contain a valid header (skip */
           /* this block, no point in looking at it)  */
-    func rd_data(_ : ARCHD,_ : Int,_ : inout Int) -> Bool
+    func rd_data(_ : ARCHD,_ : Int,_ : inout Int) -> Result
           /* read/process file data from the archive */
-    func wr_data(_ : ARCHD,_ : Int, _ : inout Int) -> Bool
+    func wr_data(_ : ARCHD,_ : Int, _ : inout Int) -> Result
           /* write/process file data to the archive */
-    func other_options() -> Bool  /* process format specific options (-o) */
+    func other_options() -> Result  /* process format specific options (-o) */
   };
 
     enum Separator : Int {
@@ -440,7 +447,7 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
       Tty.paxwarn(true, "Can't open current working directory: \(e)" )
     }
 
-    if updatepath() {
+    if case .failed = updatepath() {
       exit(runtime.exit_val)
     }
 
@@ -462,7 +469,7 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
     doOptions()
 
 
-    if gen_init() {
+    if case .failed = gen_init() {
       exit(runtime.exit_val)
     }
     return options
@@ -503,11 +510,11 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
    *	set a signal to be caught, but only if it isn't being ignored already
    */
 
-  func setup_sig(_ sig : Int32, _ n_hand : inout sigaction) -> Bool {
+  func setup_sig(_ sig : Int32, _ n_hand : inout sigaction) -> Result {
     var o_hand = sigaction()
 
     if sigaction(sig, nil, &o_hand) < 0 {
-      return true
+      return .failed
     }
 
     // FIXME: put this back?
@@ -515,7 +522,7 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
 //      return false
 //    }
 
-    return 0 != sigaction(sig, &n_hand, nil)
+    return 0 != sigaction(sig, &n_hand, nil) ? .failed : .ok
   }
 
   /*
@@ -524,7 +531,7 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
    *	when dealing with a medium to large sized archives.
    */
 
-  func gen_init() -> Bool {
+  func gen_init() -> Result {
     var reslimit = rlimit()
 
     /*
@@ -574,7 +581,7 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
         (sigaddset(&runtime.s_mask,SIGPIPE) < 0)||(sigaddset(&runtime.s_mask,SIGQUIT)<0) ||
         (sigaddset(&runtime.s_mask,SIGXCPU) < 0)||(sigaddset(&runtime.s_mask,SIGXFSZ)<0)) {
       Tty.paxwarn(true, "Unable to set up signal mask")
-      return true
+      return .failed
     }
 //    #pragma clang diagnostic pop
 //    memset(&n_hand, 0, sizeof n_hand);
@@ -584,15 +591,11 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
     n_hand.sa_flags = 0;
     n_hand.__sigaction_u.__sa_handler = sig_cleanup;
 
-    if (setup_sig(SIGHUP,  &n_hand) ||
-        setup_sig(SIGTERM, &n_hand) ||
-        setup_sig(SIGINT,  &n_hand) ||
-        setup_sig(SIGQUIT, &n_hand) ||
-        setup_sig(SIGXCPU, &n_hand)) {
+    if ([SIGHUP, SIGTERM, SIGINT, SIGQUIT, SIGXCPU].map { setup_sig($0,  &n_hand) } ).contains(.failed) {
       Tty.syswarn(true, errno, "Unable to set up signal handler")
-      return true
+      return .failed
     } else {
-      return false
+      return .ok
     }
 
   }
@@ -626,7 +629,7 @@ extension pax {
     runtime.vfpart = true
 
     ar_io.ar_close()
-    tables.proc_dir()
+    tables.proc_dir(options)
     if options.tflag {
       tables.atdir_end()
     }

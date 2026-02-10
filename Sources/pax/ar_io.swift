@@ -80,7 +80,7 @@ class Ar_io {
    *	-1 on failure, 0 otherwise
    */
 
-  func ar_open(_ name : String) -> Bool {
+  func ar_open(_ name : String) -> Result {
     if let arfd {
       try? arfd.close()
     }
@@ -102,7 +102,7 @@ class Ar_io {
           arcname = stdn;
         } else if ((arfd = open(name, EXT_MODE, DMOD)) < 0) {
 
-          syswarn(1, errno, "Failed open to read on %s", name);
+          Tty.syswarn(true, errno, "Failed open to read on %s", name);
 
         }
         if (arfd != -1 && gzip_program != NULL) {
@@ -115,7 +115,7 @@ class Ar_io {
           arcname = stdo;
         } else if ((arfd = open(name, AR_MODE, DMOD)) < 0) {
 
-          syswarn(1, errno, "Failed open to write on %s", name);
+          Tty.syswarn(true, errno, "Failed open to write on %s", name);
 
         } else {
           can_unlnk = 1;
@@ -130,7 +130,7 @@ class Ar_io {
           arcname = stdo;
         } else if ((arfd = open(name, APP_MODE, DMOD)) < 0) {
 
-          syswarn(1, errno, "Failed open to read/write on %s",
+          Tty.syswarn(true, errno, "Failed open to read/write on %s",
 
                   name);
         }
@@ -141,16 +141,16 @@ class Ar_io {
          */
         arcname = none;
         lstrval = 1;
-        return(0);
+        return .ok
     }
     if (arfd < 0) {
-      return(-1);
+      return .failed
     }
 
     if (chdname != NULL) {
 
       if (dochdir(chdname) == -1) {
-        return(-1);
+        return .failed
       }
 
     }
@@ -158,18 +158,18 @@ class Ar_io {
      * set up is based on device type
      */
     guard let arsb = try? FileMetadata(for: arfd!) else  {
-      syswarn(false, errno, "Failed stat on \(arcname)")
+      Tty.syswarn(false, errno, "Failed stat on \(arcname)")
       try? arfd!.close()
       arfd = nil
       can_unlnk = 0;
-      return true
+      return .failed
     }
     if (S_ISDIR(arsb.st_mode)) {
-      paxwarn(false, "Cannot write an archive on top of a directory \(arcname)")
+      Tty.paxwarn(false, "Cannot write an archive on top of a directory \(arcname)")
       try? arfd!.close()
       arfd = nil
       can_unlnk = 0;
-      return true
+      return .failed
     }
 
     if arsb.filetype == .characterDevice {
@@ -197,7 +197,7 @@ class Ar_io {
     if act == .ARCHIVE {
       blksz = rdblksz = wrblksz;
       lstrval = 1;
-      return(0);
+      return .ok
     }
 
     /*
@@ -297,7 +297,7 @@ class Ar_io {
         break;
     }
     lstrval = 1;
-    return false
+    return .ok
   }
 
   /*
@@ -458,7 +458,7 @@ class Ar_io {
    *	0 if all ready to write, -1 otherwise
    */
 
-  func ar_set_wr() -> Bool {
+  func ar_set_wr() -> Result {
     off_t cpos;
 
     /*
@@ -471,7 +471,7 @@ class Ar_io {
      * Add any device dependent code as required here
      */
     if (artyp != .ISREG) {
-      return(0);
+      return .ok
     }
     /*
      * Ok we have an archive in a regular file. If we were rewriting a
@@ -480,10 +480,10 @@ class Ar_io {
      */
     if (((cpos = lseek(arfd, (off_t)0L, SEEK_CUR)) < 0) ||
         (ftruncate(arfd, cpos) < 0)) {
-      syswarn(1, errno, "Unable to truncate archive file");
-      return(-1);
+      Tty.syswarn(true, errno, "Unable to truncate archive file");
+      return .failed
     }
-    return(0);
+    return .ok
   }
 
   /*
@@ -495,18 +495,18 @@ class Ar_io {
    *	0 if we can append, -1 otherwise.
    */
 
-  func ar_app_ok() -> Bool {
+  func ar_app_ok() -> Result {
     if (artyp == .ISPIPE) {
-      paxwarn(true, "Cannot append to an archive obtained from a pipe.");
-      return true
+      Tty.paxwarn(true, "Cannot append to an archive obtained from a pipe.");
+      return .failed
     }
 
     if (!invld_rec) {
-      return false
+      return .ok
     }
-    paxwarn(true,"Cannot append, device record size %d does not support %s spec",
+    Tty.paxwarn(true,"Cannot append, device record size %d does not support %s spec",
             rdblksz, argv0);
-    return(-1);
+    return .failed
   }
 
   /*
@@ -584,10 +584,10 @@ class Ar_io {
      */
     lstrval = res;
     if (res < 0) {
-      syswarn(1, errno, "Failed read on archive volume %d", arvol);
+      Tty.syswarn(true, errno, "Failed read on archive volume %d", arvol);
     }
     else {
-      paxwarn(0, "End of archive volume %d reached", arvol);
+      Tty.paxwarn(0, "End of archive volume %d reached", arvol);
     }
     return(res);
   }
@@ -673,7 +673,7 @@ class Ar_io {
           break;
         }
         if (errno == EACCES) {
-          paxwarn(0, "Write failed, archive is write protected.");
+          Tty.paxwarn(0, "Write failed, archive is write protected.");
           res = lstrval = 0;
           return(0);
         }
@@ -713,21 +713,21 @@ class Ar_io {
      * must quit right away.
      */
     if (!wr_trail && (res <= 0)) {
-      paxwarn(1,"Unable to append, trailer re-write failed. Quitting.");
+      Tty.paxwarn(true,"Unable to append, trailer re-write failed. Quitting.");
       return(res);
     }
 
     if (res == 0) {
-      paxwarn(0, "End of archive volume %d reached", arvol);
+      Tty.paxwarn(0, "End of archive volume %d reached", arvol);
     }
     else if (res < 0) {
-      syswarn(1, errno, "Failed write to archive volume: %d", arvol);
+      Tty.syswarn(true, errno, "Failed write to archive volume: %d", arvol);
     }
     else if (!frmt->blkalgn || ((res % frmt->blkalgn) == 0)) {
-      paxwarn(0,"WARNING: partial archive write. Archive MAY BE FLAWED");
+      Tty.paxwarn(0,"WARNING: partial archive write. Archive MAY BE FLAWED");
     }
     else {
-      paxwarn(1,"WARNING: partial archive write. Archive IS FLAWED");
+      Tty.paxwarn(true,"WARNING: partial archive write. Archive IS FLAWED");
     }
     return(res);
   }
@@ -740,7 +740,7 @@ class Ar_io {
    *	0 when ok to try i/o again, -1 otherwise.
    */
 
-  func ar_rdsync() -> Bool {
+  func ar_rdsync() -> Result {
     long fsbz;
     off_t cpos;
     off_t mpos;
@@ -751,12 +751,12 @@ class Ar_io {
      * we need to go to the next volume not try a resync.
      */
     if ((done > 0) || (lstrval == 0)) {
-      return(-1);
+      return .failed
     }
 
     if ((act == APPND) || (act == ARCHIVE)) {
-      paxwarn(1, "Cannot allow updates to an archive with flaws.");
-      return(-1);
+      Tty.paxwarn(true, "Cannot allow updates to an archive with flaws.");
+      return .failed
     }
     if (io_ok) {
       did_io = 1;
@@ -792,11 +792,11 @@ class Ar_io {
         break;
     }
     if (lstrval <= 0) {
-      paxwarn(1, "Unable to recover from an archive read failure.");
-      return(-1);
+      Tty.paxwarn(true, "Unable to recover from an archive read failure.");
+      return .failed
     }
-    paxwarn(0, "Attempting to recover from an archive read failure.");
-    return(0);
+    Tty.paxwarn(0, "Attempting to recover from an archive read failure.");
+    return .ok
   }
 
   /*
@@ -855,9 +855,9 @@ class Ar_io {
         return(0);
       }
     }
-    syswarn(1, errno, "Forward positioning operation on archive failed");
+    Tty.syswarn(true, errno, "Forward positioning operation on archive failed");
     lstrval = -1;
-    return(-1);
+    return .failed;
   }
 
   /*
@@ -871,7 +871,7 @@ class Ar_io {
    *	0 if moved the requested distance, -1 on complete failure
    */
 
-  func ar_rev(_ sksz : off_t) -> Bool {
+  func ar_rev(_ sksz : off_t) -> Result {
     off_t cpos;
 
     /*
@@ -889,9 +889,9 @@ class Ar_io {
         /*
          * cannot go backwards on these critters
          */
-        paxwarn(1, "Reverse positioning on pipes is not supported.");
+        Tty.paxwarn(true, "Reverse positioning on pipes is not supported.");
         lstrval = -1;
-        return(-1);
+        return .failed;
       case ISREG:
       case ISBLK:
       case ISCHR:
@@ -908,10 +908,10 @@ class Ar_io {
          * First we figure out where we are in the archive.
          */
         if ((cpos = lseek(arfd, (off_t)0L, SEEK_CUR)) < 0) {
-          syswarn(1, errno,
+          Tty.syswarn(true, errno,
                   "Unable to obtain current archive byte offset");
           lstrval = -1;
-          return(-1);
+          return .failed;
         }
 
         /*
@@ -926,16 +926,16 @@ class Ar_io {
             /*
              * this should never happen
              */
-            paxwarn(1,"Reverse position on previous volume.");
+            Tty.paxwarn(true,"Reverse position on previous volume.");
             lstrval = -1;
-            return(-1);
+            return .failed;
           }
           cpos = (off_t)0L;
         }
         if (lseek(arfd, cpos, SEEK_SET) < 0) {
-          syswarn(1, errno, "Unable to seek archive backwards");
+          Tty.syswarn(true, errno, "Unable to seek archive backwards");
           lstrval = -1;
-          return(-1);
+          return .failed;
         }
         break;
 
@@ -954,7 +954,7 @@ class Ar_io {
    *	0 when ready to continue, -1 when all done
    */
 
-  func ar_next() -> Bool {
+  func ar_next() -> Result {
     static char *arcbuf;
     char buf[PAXPATHLEN+2];
     sigset_t o_mask;
@@ -965,17 +965,17 @@ class Ar_io {
      * also be called via a signal handler, so we must prevent a race.
      */
     if (sigprocmask(SIG_BLOCK, &s_mask, &o_mask) < 0) {
-      syswarn(0, errno, "Unable to set signal mask");
+      Tty.syswarn(false, errno, "Unable to set signal mask");
     }
     ar_close();
     if (sigprocmask(SIG_SETMASK, &o_mask, NULL) < 0) {
-      syswarn(0, errno, "Unable to restore signal mask");
+      Tty.syswarn(false, errno, "Unable to restore signal mask");
     }
 
     if (frmt == NULL || done || !wr_trail || Oflag || strcmp(NM_TAR, argv0) == 0 ||
         strcmp(NM_PAX, argv0) == 0) {
 
-      return(-1);
+      return .failed;
     }
 
     tty_prnt("\nATTENTION! %s archive volume change required.\n", argv0);
@@ -1015,7 +1015,7 @@ class Ar_io {
           lstrval = -1;
           tty_prnt("Quitting %s!\n", argv0);
           vfpart = 0;
-          return(-1);
+          return .failed;
         }
 
         if ((buf[0] == '\0') || (buf[1] != '\0')) {
@@ -1087,8 +1087,8 @@ class Ar_io {
         if ((arcbuf = strdup(buf)) == NULL) {
           done = 1;
           lstrval = -1;
-          paxwarn(0, "Cannot save archive name.");
-          return(-1);
+          Tty.paxwarn(0, "Cannot save archive name.");
+          return .failed;
         }
         arcname = arcbuf;
         break;

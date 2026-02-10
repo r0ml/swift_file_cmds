@@ -422,7 +422,7 @@ extension tar {
               fp = stdin;
             }
             else if ((fp = fopen(file, "r")) == NULL) {
-              paxwarn(1, "Unable to open file '%s' for read", file);
+              Tty.paxwarn(true, "Unable to open file '%s' for read", file);
               tar_usage();
             }
             while ((str = get_line(fp)) != NULL) {
@@ -434,7 +434,7 @@ extension tar {
               fclose(fp);
             }
             if (get_line_error) {
-              paxwarn(1, "Problem with file '%s'",
+              Tty.paxwarn(true, "Problem with file '%s'",
                       file);
               tar_usage();
             }
@@ -491,7 +491,7 @@ extension tar {
                 fp = stdin;
               }
               else if ((fp = fopen(file, "r")) == NULL) {
-                paxwarn(1, "Unable to open file '%s' for read", file);
+                Tty.paxwarn(true, "Unable to open file '%s' for read", file);
                 tar_usage();
               }
               while ((str = get_line(fp)) != NULL) {
@@ -504,7 +504,7 @@ extension tar {
                 fclose(fp);
               }
               if (get_line_error) {
-                paxwarn(1, "Problem with file '%s'", file);
+                Tty.paxwarn(true, "Problem with file '%s'", file);
                 tar_usage();
               }
             } else if (strcmp(*argv, "-C") == 0) {
@@ -531,7 +531,7 @@ extension tar {
         break;
 
     }
-    if (!fstdin && (options.arcname == nil) || options.arcname!.isEmpty)) {
+    if (!fstdin && (options.arcname == nil) || options.arcname!.isEmpty) {
       options.arcname = Environment["TAPE"]
       if options.arcname == nil || options.arcname!.isEmpty {
         options.arcname = _PATH_DEFTAPE;

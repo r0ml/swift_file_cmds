@@ -131,16 +131,16 @@ class tar : pax.FSUB {
   var inhead = false
 
   // no-op
-  func st_rd() -> Bool {
-    return false
+  func st_rd() -> Result {
+    return .ok
   }
 
   // no-op
-  func st_wr() -> Bool {
-    return false
+  func st_wr() -> Result {
+    return .ok
   }
   
-  func trail_cpio(_: ARCHD) -> Bool {
+  func trail_cpio(_: ARCHD) -> Result {
     fatalError("not used by tar")
   }
 
@@ -172,7 +172,7 @@ char *gnu_link_string;			/* GNU ././@LongLink hackery link */
  *	0 if ok, -1 otherwise (what wr_skip returns)
  */
 
-func end_wr() -> Bool {
+func end_wr() -> Result {
   return wr_skip(NULLCNT*pax.BLKMULT)
 }
 
@@ -183,8 +183,8 @@ func end_wr() -> Bool {
  *	size of trailer (2 * BLKMULT)
  */
 
-func end_rd() -> Int {
-  return NULLCNT*pax.BLKMULT
+func end_rd() -> Result {
+  return .count(NULLCNT*pax.BLKMULT)
 }
 
 /*
@@ -198,7 +198,7 @@ func end_rd() -> Int {
  *	could never contain a header.
  */
 
-  func trail_tar(_ buf : [UInt8], _ in_resync : Bool, _ cnt : inout Int) -> Int {
+  func trail_tar(_ buf : [UInt8], _ in_resync : Bool, _ cnt : inout Int) -> Result {
 
     /*
      * look for all zero, trailer is two consecutive blocks of zero
@@ -207,7 +207,7 @@ func end_rd() -> Int {
       /*
        * if not all zero it is not a trailer, but MIGHT be a header.
        */
-      return -1
+      return .failed
     }
 
     /*
@@ -222,10 +222,10 @@ func end_rd() -> Int {
     if !in_resync {
       cnt += 1
       if cnt >= NULLCNT {
-        return 0
+        return .ok
       }
     }
-    return 1
+    return .partial
   }
 
 /*
@@ -280,7 +280,7 @@ ul_oct(u_long val, char *str, int len, int term)
     *pt-- = "0";
   }
   if (val != (u_long)0) {
-    return(-1);
+    return .failed;
   }
 	return(0);
 }
@@ -337,7 +337,7 @@ uqd_oct(u_quad_t val, char *str, int len, int term)
     *pt-- = "0";
   }
   if (val != (u_quad_t)0) {
-    return(-1);
+    return .failed;
   }
 	return(0);
 }
@@ -394,12 +394,12 @@ tar_chksm(char *blk, int len)
  *	0 if a tar header, -1 otherwise
  */
 
-  func id(_ blk : [UInt8]) -> Bool {
+  func id(_ blk : [UInt8]) -> Result {
 //	HD_TAR *hd;
 //	HD_USTAR *uhd;
 
   if (size < BLKMULT) {
-    return(-1);
+    return .failed;
   }
     var blkx = blk
     // FIXME: this works in C -- but in Swift, the different sizes of HD_TAR and HD_USTAR will cause a crash
@@ -414,18 +414,18 @@ tar_chksm(char *blk, int len)
 	 * checksum. If this is ok we have to assume it is a valid header.
 	 */
     if (hd.name[0] == "\0") {
-    return true
+      return .failed
   }
     if (strncmp(uhd.magic, TMAGIC, TMAGLEN - 1) == 0) {
-    return true
+      return .failed
   }
     if (asc_ul(hd.chksum,sizeof(hd.chksum),OCT) != tar_chksm(blk,BLKMULT)) {
-    return true
+      return .failed
   }
 
 	Oflag = 1;
 
-	return false
+    return .ok
 }
 
 /*
@@ -435,30 +435,30 @@ tar_chksm(char *blk, int len)
  *	0 if ok -1 otherwise
  */
 
-func other_options() -> Bool {
+func other_options() -> Result {
 	OPLIST *opt;
 
 	while ((opt = opt_next()) != NULL) {
     if (strcmp(opt.name, TAR_OPTION) ||
         strcmp(opt.value, TAR_NODIR)) {
-			paxwarn(1, "Unknown tar format -o option/value pair %s=%s",
+			Tty.paxwarn(true, "Unknown tar format -o option/value pair %s=%s",
               opt.name, opt.value);
-			paxwarn(1,"%s=%s is the only supported tar format option",
+			Tty.paxwarn(true,"%s=%s is the only supported tar format option",
 			    TAR_OPTION, TAR_NODIR);
-			return(-1);
+			return .failed;
 		}
 
 		/*
 		 * we only support one option, and only when writing
 		 */
 		if ((act != APPND) && (act != ARCHIVE)) {
-			paxwarn(1, "%s=%s is only supported when writing.",
+			Tty.paxwarn(true, "%s=%s is only supported when writing.",
               opt.name, opt.value);
-			return(-1);
+			return .failed;
 		}
 		tar_nodir = 1;
 	}
-	return(0);
+  return .ok
 }
 
 
@@ -478,7 +478,7 @@ func other_options() -> Bool {
 	 * we only get proper sized buffers passed to us
 	 */
   if (tar_id(buf, BLKMULT) < 0) {
-    return(-1);
+    return .failed;
   }
 
 	memset(arcn, 0, sizeof(*arcn));
@@ -503,8 +503,8 @@ func other_options() -> Bool {
     arcn.sb.st_uid = (uid_t)asc_ul(hd.uid, sizeof(hd.uid), OCT);
     arcn.sb.st_gid = (gid_t)asc_ul(hd.gid, sizeof(hd.gid), OCT);
     arcn.sb.st_size = (off_t)asc_uqd(hd.size, sizeof(hd.size), OCT);
-    arcn.sb.st_mtime = (time_t)asc_uqd(hd.mtime, sizeof(hd.mtime), OCT);
-    arcn.sb.st_ctime = arcn.sb.st_atime = arcn.sb.st_mtime;
+    arcn.sb.lastWrite = (time_t)asc_uqd(hd.mtime, sizeof(hd.mtime), OCT);
+    arcn.sb.st_ctime = arcn.sb.st_atime = arcn.sb.lastWrite;
 
 	/*
 	 * have to look at the last character, it may be a "/" and that is used
@@ -614,7 +614,7 @@ func other_options() -> Bool {
  *	data to write after the header, -1 if archive write failed
  */
 
-  func wr(_ arcn : ARCHD) -> Int {
+  func wr(_ arcn : ARCHD) -> Result {
 /*	HD_TAR *hd;
 	int len;
 	HD_TAR hdblk;
@@ -629,7 +629,7 @@ func other_options() -> Bool {
 		 * user asked that dirs not be written to the archive
 		 */
       if (tar_nodir) {
-        return 1
+        return .partial
       }
 		break;
       case .CHR:
@@ -664,8 +664,8 @@ func other_options() -> Bool {
     ++len;
   }
     if (len >= (int)sizeof(hd.name)) {
-      paxwarn(1, "File name too long for tar %s", arcn.name);
-		return(1);
+      Tty.paxwarn(true, "File name too long for tar %s", arcn.name);
+      return .partial
 	}
 
 	/*
@@ -726,8 +726,8 @@ func other_options() -> Bool {
 
     if (uqd_oct((u_quad_t)arcn.sb.st_size, hd.size,
                 sizeof(hd.size), 1)) {
-      paxwarn(1,"File is too large for tar %s", arcn.org_name);
-			return(1);
+      Tty.paxwarn(true,"File is too large for tar %s", arcn.org_name);
+      return .partial
 		}
     arcn.pad = TAR_PAD(arcn.sb.st_size);
 	}
@@ -738,7 +738,7 @@ func other_options() -> Bool {
     if (ul_oct((u_long)arcn.sb.st_mode, hd.mode, sizeof(hd.mode), 0) ||
         ul_oct((u_long)arcn.sb.st_uid, hd.uid, sizeof(hd.uid), 0) ||
         ul_oct((u_long)arcn.sb.st_gid, hd.gid, sizeof(hd.gid), 0) ||
-        ul_oct((u_long)arcn.sb.st_mtime, hd.mtime, sizeof(hd.mtime), 1)) {
+        ul_oct((u_long)arcn.sb.lastWrite, hd.mtime, sizeof(hd.mtime), 1)) {
     goto out;
   }
 
@@ -752,22 +752,22 @@ func other_options() -> Bool {
     goto out;
   }
   if (wr_rdbuf((char *)&hdblk, sizeof(HD_TAR)) < 0) {
-    return(-1);
+    return .failed;
   }
   if (wr_skip((off_t)(BLKMULT - sizeof(HD_TAR))) < 0) {
-    return(-1);
+    return .failed;
   }
     if ((arcn.type == .CTG) || (arcn.type == .REG)) {
-    return(0);
+      return .ok
   }
-	return(1);
+    return .partial
 
     out:
 	/*
 	 * header field is out of range
 	 */
-    paxwarn(1, "Tar header field is too small for %s", arcn.org_name);
-	return(1);
+    Tty.paxwarn(true, "Tar header field is too small for %s", arcn.org_name);
+    return .partial
 }
 
 
@@ -856,19 +856,22 @@ func other_options() -> Bool {
 
         if (*gnu_name) {
           /* *gnu_name is NUL terminated */
-          if ((nlen = strlcpy(buf, *gnu_name, len)) >= len)
-              nlen = len - 1;
+          if ((nlen = strlcpy(buf, *gnu_name, len)) >= len) {
+            nlen = len - 1;
+          }
           free(*gnu_name);
           *gnu_name = NULL;
         } else {
           if (name_len < len) {
             /* name may not be null terminated: it might be as big as the
              field,  so copy is limited to the max size of the header field */
-            if ((nlen = strlcpy(buf, name, name_len+1)) >= name_len+1)
-                nlen = name_len;
+            if ((nlen = strlcpy(buf, name, name_len+1)) >= name_len+1) {
+              nlen = name_len;
+            }
           } else {
-            if ((nlen = strlcpy(buf, name, len)) >= len)
-                nlen = len - 1;
+            if ((nlen = strlcpy(buf, name, len)) >= len) {
+              nlen = len - 1;
+            }
           }
         }
         return(nlen);

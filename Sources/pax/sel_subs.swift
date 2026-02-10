@@ -57,14 +57,13 @@ extension pax {
    *	0 if this archive member should be processed, 1 if it should be skipped
    */
 
-  int
-  sel_chk(ARCHD *arcn)
-  {
+  func sel_chk(ARCHD *arcn) -> Bool {
     if (((usrtb != NULL) && usr_match(arcn)) ||
         ((grptb != NULL) && grp_match(arcn)) ||
-        ((trhead != NULL) && trng_match(arcn)))
-        return(1);
-    return(0);
+        ((trhead != NULL) && trng_match(arcn))) {
+      return true
+    }
+    return false
   }
 
   /*
@@ -82,9 +81,7 @@ extension pax {
    *	0 if added ok, -1 otherwise;
    */
 
-  int
-  usr_add(char *str)
-  {
+  func usr_add(char *str) -> Result {
     u_int indx;
     USRT *pt;
     struct passwd *pw;
@@ -93,12 +90,13 @@ extension pax {
     /*
      * create the table if it doesn't exist
      */
-    if ((str == NULL) || (*str == '\0'))
-        return(-1);
+    if ((str == NULL) || (*str == '\0')) {
+      return .failed;
+    }
     if ((usrtb == NULL) &&
         ((usrtb = (USRT **)calloc(USR_TB_SZ, sizeof(USRT *))) == NULL)) {
-      paxwarn(1, "Unable to allocate memory for user selection table");
-      return(-1);
+      Tty.paxwarn(true, "Unable to allocate memory for user selection table");
+      return .failed;
     }
 
     /*
@@ -108,15 +106,17 @@ extension pax {
       /*
        * it is a user name, \# escapes # as first char in user name
        */
-      if ((str[0] == '\\') && (str[1] == '#'))
-          ++str;
+      if ((str[0] == '\\') && (str[1] == '#')) {
+        ++str;
+      }
       if ((pw = getpwnam(str)) == NULL) {
-        paxwarn(1, "Unable to find uid for user: %s", str);
-        return(-1);
+        Tty.paxwarn(true, "Unable to find uid for user: %s", str);
+        return .failed;
       }
       uid = (uid_t)pw->pw_uid;
-    } else
+    } else {
       uid = (uid_t)strtoul(str+1, NULL, 10);
+    }
     endpwent();
 
     /*
@@ -125,8 +125,9 @@ extension pax {
     indx = ((unsigned)uid) % USR_TB_SZ;
     if ((pt = usrtb[indx]) != NULL) {
       while (pt != NULL) {
-        if (pt->uid == uid)
-            return(0);
+        if (pt->uid == uid) {
+          return(0);
+        }
         pt = pt->fow;
       }
     }
@@ -140,8 +141,8 @@ extension pax {
       usrtb[indx] = pt;
       return(0);
     }
-    paxwarn(1, "User selection table out of memory");
-    return(-1);
+    Tty.paxwarn(true, "User selection table out of memory");
+    return .failed;
   }
 
   /*
@@ -151,9 +152,7 @@ extension pax {
    *	0 if this archive member should be processed, 1 if it should be skipped
    */
 
-  static int
-  usr_match(ARCHD *arcn)
-  {
+  private func usr_match(_ arcn : ARCHD) -> Bool {
     USRT *pt;
 
     /*
@@ -161,15 +160,16 @@ extension pax {
      */
     pt = usrtb[((unsigned)arcn.sb.st_uid) % USR_TB_SZ];
     while (pt != NULL) {
-      if (pt->uid == arcn.sb.st_uid)
-          return(0);
+      if (pt->uid == arcn.sb.st_uid) {
+        return false
+      }
       pt = pt->fow;
     }
 
     /*
      * not found
      */
-    return(1);
+    return true
   }
 
   /*
@@ -179,9 +179,7 @@ extension pax {
    *	0 if added ok, -1 otherwise;
    */
 
-  int
-  grp_add(char *str)
-  {
+  func grp_add(_ str : String) -> Result {
     u_int indx;
     GRPT *pt;
     struct group *gr;
@@ -190,12 +188,13 @@ extension pax {
     /*
      * create the table if it doesn't exist
      */
-    if ((str == NULL) || (*str == '\0'))
-        return(-1);
+    if ((str == NULL) || (*str == '\0')) {
+      return .failed;
+    }
     if ((grptb == NULL) &&
         ((grptb = (GRPT **)calloc(GRP_TB_SZ, sizeof(GRPT *))) == NULL)) {
-      paxwarn(1, "Unable to allocate memory fo group selection table");
-      return(-1);
+      Tty.paxwarn(true, "Unable to allocate memory fo group selection table");
+      return .failed;
     }
 
     /*
@@ -205,15 +204,17 @@ extension pax {
       /*
        * it is a group name, \# escapes # as first char in group name
        */
-      if ((str[0] == '\\') && (str[1] == '#'))
-          ++str;
+      if ((str[0] == '\\') && (str[1] == '#')) {
+        ++str;
+      }
       if ((gr = getgrnam(str)) == NULL) {
-        paxwarn(1,"Cannot determine gid for group name: %s", str);
-        return(-1);
+        Tty.paxwarn(true,"Cannot determine gid for group name: %s", str);
+        return .failed;
       }
       gid = gr->gr_gid;
-    } else
+    } else {
       gid = (gid_t)strtoul(str+1, NULL, 10);
+    }
     endgrent();
 
     /*
@@ -222,8 +223,9 @@ extension pax {
     indx = ((unsigned)gid) % GRP_TB_SZ;
     if ((pt = grptb[indx]) != NULL) {
       while (pt != NULL) {
-        if (pt->gid == gid)
-            return(0);
+        if (pt->gid == gid) {
+          return .ok
+        }
         pt = pt->fow;
       }
     }
@@ -235,10 +237,10 @@ extension pax {
       pt->gid = gid;
       pt->fow = grptb[indx];
       grptb[indx] = pt;
-      return(0);
+      return .ok
     }
-    paxwarn(1, "Group selection table out of memory");
-    return(-1);
+    Tty.paxwarn(true, "Group selection table out of memory");
+    return .failed;
   }
 
   /*
@@ -258,8 +260,9 @@ extension pax {
      */
     pt = grptb[((unsigned)arcn.sb.st_gid) % GRP_TB_SZ];
     while (pt != NULL) {
-      if (pt->gid == arcn.sb.st_gid)
-          return(0);
+      if (pt->gid == arcn.sb.st_gid) {
+        return(0);
+      }
       pt = pt->fow;
     }
 
@@ -311,19 +314,21 @@ extension pax {
      * throw out the badly formed time ranges
      */
     if ((str == NULL) || (*str == '\0')) {
-      paxwarn(1, "Empty time range string");
-      return(-1);
+      Tty.paxwarn(true, "Empty time range string");
+      return .failed;
     }
 
     /*
      * locate optional flags suffix /{cm}.
      */
-    if ((flgpt = strrchr(str, '/')) != NULL)
-        *flgpt++ = '\0';
+    if ((flgpt = strrchr(str, '/')) != NULL) {
+      *flgpt++ = '\0';
+    }
 
     for (stpt = str; *stpt != '\0'; ++stpt) {
-      if ((*stpt >= '0') && (*stpt <= '9'))
-          continue;
+      if ((*stpt >= '0') && (*stpt <= '9')) {
+        continue;
+      }
       if ((*stpt == ',') && (up_pt == NULL)) {
         *stpt = '\0';
         up_pt = stpt + 1;
@@ -338,7 +343,7 @@ extension pax {
         ++dot;
         continue;
       }
-      paxwarn(1, "Improperly specified time range: %s", str);
+      Tty.paxwarn(true, "Improperly specified time range: %s", str);
       goto out;
     }
 
@@ -346,16 +351,17 @@ extension pax {
      * allocate space for the time range and store the limits
      */
     if ((pt = (TIME_RNG *)malloc(sizeof(TIME_RNG))) == NULL) {
-      paxwarn(1, "Unable to allocate memory for time range");
-      return(-1);
+      Tty.paxwarn(true, "Unable to allocate memory for time range");
+      return .failed;
     }
 
     /*
      * by default we only will check file mtime, but the user can specify
      * mtime, ctime (inode change time) or both.
      */
-    if ((flgpt == NULL) || (*flgpt == '\0'))
-        pt->flgs = CMPMTME;
+    if ((flgpt == NULL) || (*flgpt == '\0')) {
+      pt->flgs = CMPMTME;
+    }
     else {
       pt->flgs = 0;
       while (*flgpt != '\0') {
@@ -369,7 +375,7 @@ extension pax {
             pt->flgs |= CMPCTME;
             break;
           default:
-            paxwarn(1, "Bad option %c with time range %s",
+            Tty.paxwarn(true, "Bad option %c with time range %s",
                     *flgpt, str);
             free(pt);
             goto out;
@@ -387,7 +393,7 @@ extension pax {
        * add lower limit
        */
       if (str_sec(str, &(pt->low_time)) < 0) {
-        paxwarn(1, "Illegal lower time range %s", str);
+        Tty.paxwarn(true, "Illegal lower time range %s", str);
         free(pt);
         goto out;
       }
@@ -399,7 +405,7 @@ extension pax {
        * add upper limit
        */
       if (str_sec(up_pt, &(pt->high_time)) < 0) {
-        paxwarn(1, "Illegal upper time range %s", up_pt);
+        Tty.paxwarn(true, "Illegal upper time range %s", up_pt);
         free(pt);
         goto out;
       }
@@ -410,10 +416,10 @@ extension pax {
        */
       if (pt->flgs & HASLOW) {
         if (pt->low_time > pt->high_time) {
-          paxwarn(1, "Upper %s and lower %s time overlap",
+          Tty.paxwarn(true, "Upper %s and lower %s time overlap",
                   up_pt, str);
           free(pt);
-          return(-1);
+          return .failed;
         }
       }
     }
@@ -428,8 +434,8 @@ extension pax {
     return(0);
 
   out:
-    paxwarn(1, "Time range format is: [[[[[cc]yy]mm]dd]HH]MM[.SS][/[c][m]]");
-    return(-1);
+    Tty.paxwarn(true, "Time range format is: [[[[[cc]yy]mm]dd]HH]MM[.SS][/[c][m]]");
+    return .failed;
   }
 
   /*
@@ -457,10 +463,10 @@ extension pax {
            * time range
            */
           if (((pt->flgs & HASLOW) &&
-               (arcn.sb.st_mtime < pt->low_time) &&
+               (arcn.sb.lastWrite < pt->low_time) &&
                (arcn.sb.st_ctime < pt->low_time)) ||
               ((pt->flgs & HASHIGH) &&
-               (arcn.sb.st_mtime > pt->high_time) &&
+               (arcn.sb.lastWrite > pt->high_time) &&
                (arcn.sb.st_ctime > pt->high_time))) {
             pt = pt->fow;
             continue;
@@ -484,9 +490,9 @@ extension pax {
            * user wants only mtime checked for this time range
            */
           if (((pt->flgs & HASLOW) &&
-               (arcn.sb.st_mtime < pt->low_time)) ||
+               (arcn.sb.lastWrite < pt->low_time)) ||
               ((pt->flgs & HASHIGH) &&
-               (arcn.sb.st_mtime > pt->high_time))) {
+               (arcn.sb.lastWrite > pt->high_time))) {
             pt = pt->fow;
             continue;
           }
@@ -495,8 +501,9 @@ extension pax {
       break;
     }
 
-    if (pt == NULL)
-        return(1);
+    if (pt == NULL) {
+      return(1);
+    }
     return(0);
   }
 
@@ -508,9 +515,7 @@ extension pax {
    *	0 if converted ok, -1 otherwise
    */
 
-  static int
-  str_sec(const char *p, time_t *tval)
-  {
+  private str_sec(const char *p, time_t *tval) -> Result {
     struct tm *lt;
     const char *dot, *t;
     size_t len;
@@ -521,26 +526,30 @@ extension pax {
     len = strlen(p);
 
     for (t = p, dot = NULL; *t; ++t) {
-      if (isdigit((unsigned char)*t))
-          continue;
+      if (isdigit((unsigned char)*t)) {
+        continue;
+      }
       if (*t == '.' && dot == NULL) {
         dot = t;
         continue;
       }
-      return(-1);
+      return .failed;
     }
 
     lt = localtime(tval);
 
     if (dot != NULL) {			/* .SS */
-      if (strlen(++dot) != 2)
-          return(-1);
+      if (strlen(++dot) != 2) {
+        return .failed;
+      }
       lt->tm_sec = ATOI2(dot);
-      if (lt->tm_sec > 61)
-          return(-1);
+      if (lt->tm_sec > 61) {
+        return .failed;
+      }
       len -= 3;
-    } else
+    } else {
       lt->tm_sec = 0;
+    }
 
     switch (len) {
       case 12:				/* cc */
@@ -565,36 +574,36 @@ extension pax {
       case 8:					/* mm */
         lt->tm_mon = ATOI2(p);
         if ((lt->tm_mon > 12) || !lt->tm_mon){
-          return(-1);
+          return .failed;
         }
         --lt->tm_mon;			/* time struct is 0 - 11 */
         /* FALLTHROUGH */
       case 6:					/* dd */
         lt->tm_mday = ATOI2(p);
         if ((lt->tm_mday > 31) || !lt->tm_mday) {
-          return(-1);
+          return .failed;
         }
         /* FALLTHROUGH */
       case 4:					/* HH */
         lt->tm_hour = ATOI2(p);
         if (lt->tm_hour > 23) {
-          return(-1);
+          return .failed;
         }
         /* FALLTHROUGH */
       case 2:					/* MM */
         lt->tm_min = ATOI2(p);
         if (lt->tm_min > 59) {
-          return(-1);
+          return .failed;
         }
         break;
       default:
-        return(-1);
+        return .failed;
     }
 
     /* convert broken-down time to UTC clock time seconds */
     if ((*tval = mktime(lt)) == -1) {
-      return(-1);
+      return .failed;
     }
-    return(0);
+    return .ok
   }
 }

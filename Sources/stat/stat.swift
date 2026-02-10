@@ -727,7 +727,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
       case .st_atime:
         tsp = st.lastAccess
         fallthrough
-      case .st_mtime:
+      case .lastWrite:
         if (tsp == nil) {
           tsp = st.lastWrite
         }

@@ -83,7 +83,7 @@ extension pax {
            */
           options.flg.insert(.BF)
           if ((wrblksz = (int)str_offt(optarg)) <= 0) {
-            paxwarn(1, "Invalid block size %s", optarg);
+            Tty.paxwarn(true, "Invalid block size %s", optarg);
             pax_usage();
           }
 
@@ -281,11 +281,11 @@ extension pax {
            * single archive volume.
            */
           if ((wrlimit = str_offt(optarg)) <= 0) {
-            paxwarn(1, "Invalid write limit %s", optarg);
+            Tty.paxwarn(true, "Invalid write limit %s", optarg);
             pax_usage();
           }
           if (wrlimit % BLKMULT) {
-            paxwarn(1, "Write limit is not a %d byte multiple",
+            Tty.paxwarn(true, "Write limit is not a %d byte multiple",
                     BLKMULT);
             pax_usage();
           }
@@ -310,7 +310,7 @@ extension pax {
             maxflt = -1;
           }
           else if ((maxflt = atoi(optarg)) < 0) {
-            paxwarn(1, "Error count value must be positive");
+            Tty.paxwarn(true, "Error count value must be positive");
             pax_usage();
           }
           break;
@@ -493,7 +493,7 @@ extension pax {
 
       case .COPY:
         if (optind >= argc) {
-          paxwarn(0, "Destination directory was not supplied");
+          Tty.paxwarn(0, "Destination directory was not supplied");
           pax_usage();
         }
         --argc;

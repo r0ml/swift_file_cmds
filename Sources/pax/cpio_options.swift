@@ -40,7 +40,7 @@ import CMigration
 import Darwin
 
 
-extension pax {
+extension cpio {
 
   /*
    * cpio_options()
@@ -48,8 +48,8 @@ extension pax {
    *  the user specified a legal set of flags. If not, complain and exit
    */
 
-  func cpio_options() throws(CmdErr) -> CommandOptions {
-    var options = CommandOptions()
+  func cpio_options() throws(CmdErr) -> pax.CommandOptions {
+    var options = pax.CommandOptions()
 
 /*    int c;
     size_t i;
@@ -190,7 +190,7 @@ extension pax {
            * file with patterns to extract or list
            */
           if ((fp = fopen(optarg, "r")) == NULL) {
-            paxwarn(1, "Unable to open file '%s' for read", optarg);
+            Tty.paxwarn(true, "Unable to open file '%s' for read", optarg);
             cpio_usage();
           }
           while ((str = get_line(fp)) != NULL) {
@@ -198,7 +198,7 @@ extension pax {
           }
           fclose(fp);
           if (get_line_error) {
-            paxwarn(1, "Problem with file '%s'", optarg);
+            Tty.paxwarn(true, "Problem with file '%s'", optarg);
             cpio_usage();
           }
 
@@ -219,13 +219,13 @@ extension pax {
           /*
            * specify an archive format on write
            */
-          let fsubs = ["bcpio" : bcpio.self, "cpio" : cpio.self, "pax" : paxer.self, "sv4cpio" : vcpio.self, "sv4crc" : vcpio_crc.self, "tar" : tar.self, "ustar" : ustar.self]
+          let fsubs : [String : any pax.FSUB] = ["bcpio" : bcpio(), "cpio" : cpio(), "pax" : paxer(), "sv4cpio" : vcpio(), "sv4crc" : vcpio_crc(), "tar" : tar(), "ustar" : ustar()]
           if let frmt = fsubs[v] {
             options.frmt = frmt
             break
           }
 
-          paxwarn(true, "Unknown -H format: \(v)")
+          Tty.paxwarn(true, "Unknown -H format: \(v)")
           var se = FileDescriptor.standardError
           print("cpio: Known -H formats are:", terminator: "", to: &se)
           for (i = 0; i < (sizeof(fsub)/sizeof(FSUB)); ++i) {
@@ -255,11 +255,11 @@ extension pax {
           /*
            * process Version 6 cpio format
            */
-          options.frmt = &(fsub[F_OCPIO]);
+          options.frmt = bcpio() // &(fsub[F_OCPIO]);
           break;
         case "?":
         default:
-          cpio_usage();
+          throw CmdErr(1)
           break;
       }
       argc -= optind;
@@ -270,24 +270,28 @@ extension pax {
        */
       switch options.act {
         case .LIST, .EXTRACT:
-          while (*argv != NULL)
-                  if (pat_add(*argv++, NULL) < 0)
-                  cpio_usage();
+          while (*argv != NULL) {
+            if (pat_add(*argv++, NULL) < 0) {
+              throw CmdErr(1)
+            }
+          }
           break;
         case .COPY:
           if (*argv == NULL) {
-            paxwarn(0, "Destination directory was not supplied");
-            cpio_usage();
+            Tty.paxwarn(false, "Destination directory was not supplied");
+            throw CmdErr(1)
           }
           dirptr = *argv;
-          if (mkpath(dirptr) < 0)
-              cpio_usage();
+          if (mkpath(dirptr) < 0) {
+            throw CmdErr(1)
+          }
           --argc;
           ++argv;
           fallthrough
         case .ARCHIVE, .APPND:
-          if (*argv != NULL)
-              cpio_usage();
+          if (*argv != NULL) {
+            throw CmdErr(1)
+          }
           /*
            * no read errors allowed on updates/append operation!
            */
@@ -296,13 +300,12 @@ extension pax {
             ftree_add(str, 0);
           }
           if (get_line_error) {
-            paxwarn(1, "Problem while reading stdin");
-            cpio_usage();
+            Tty.paxwarn(true, "Problem while reading stdin");
+            throw CmdErr(1)
           }
           break;
         default:
-          cpio_usage();
-          break;
+          throw CmdErr(1)
       }
     }
   }

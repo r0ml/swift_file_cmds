@@ -82,30 +82,32 @@ extension pax {
      * archive that might be hard to read elsewhere. If all ok, we then
      * open the first archive volume
      */
-    if (!wrblksz)
-        wrblksz = frmt->bsz;
+    if (!wrblksz) {
+      wrblksz = frmt->bsz;
+    }
     if (wrblksz > MAXBLK) {
-      paxwarn(1, "Write block size of %d too large, maximum is: %d",
+      Tty.paxwarn(true, "Write block size of %d too large, maximum is: %d",
               wrblksz, MAXBLK);
-      return(-1);
+      return .failed;
     }
     if (wrblksz % BLKMULT) {
-      paxwarn(1, "Write block size of %d is not a %d byte multiple",
+      Tty.paxwarn(true, "Write block size of %d is not a %d byte multiple",
               wrblksz, BLKMULT);
-      return(-1);
+      return .failed;
     }
     if (wrblksz > MAXBLK_POSIX) {
-      paxwarn(0, "Write block size of %d larger than POSIX max %d, archive may not be portable",
+      Tty.paxwarn(0, "Write block size of %d larger than POSIX max %d, archive may not be portable",
               wrblksz, MAXBLK_POSIX);
-      return(-1);
+      return .failed;
     }
 
     /*
      * we only allow wrblksz to be used with all archive operations
      */
     blksz = rdblksz = wrblksz;
-    if ((ar_open(arcname) < 0) && (ar_next() < 0))
-        return(-1);
+    if ((ar_open(arcname) < 0) && (ar_next() < 0)) {
+      return .failed;
+    }
     wrcnt = 0;
     bufend = buf + wrblksz;
     bufpt = buf;
@@ -130,22 +132,23 @@ extension pax {
     buf = &(bufmem[BLKMULT]);
     if ((act == APPND) && wrblksz) {
       if (wrblksz > MAXBLK) {
-        paxwarn(1,"Write block size %d too large, maximum is: %d",
+        Tty.paxwarn(true,"Write block size %d too large, maximum is: %d",
                 wrblksz, MAXBLK);
-        return(-1);
+        return .failed;
       }
       if (wrblksz % BLKMULT) {
-        paxwarn(1, "Write block size %d is not a %d byte multiple",
+        Tty.paxwarn(true, "Write block size %d is not a %d byte multiple",
                 wrblksz, BLKMULT);
-        return(-1);
+        return .failed;
       }
     }
 
     /*
      * open the archive
      */
-    if ((ar_open(arcname) < 0) && (ar_next() < 0))
-        return(-1);
+    if ((ar_open(arcname) < 0) && (ar_next() < 0)) {
+      return .failed;
+    }
     bufend = buf + rdblksz;
     bufpt = bufend;
     rdcnt = 0;
@@ -194,31 +197,32 @@ extension pax {
    *	0 for success, -1 for failure
    */
 
-  int
-  appnd_start(off_t skcnt)
-  {
+  func appnd_start(off_t skcnt) -> Result {
     int res;
     off_t cnt;
 
     if (exit_val != 0) {
-      paxwarn(0, "Cannot append to an archive that may have flaws.");
-      return(-1);
+      Tty.paxwarn(0, "Cannot append to an archive that may have flaws.");
+      return .failed;
     }
     /*
      * if the user did not specify a write blocksize, inherit the size used
      * in the last archive volume read. (If a is set we still use rdblksz
      * until next volume, cannot shift sizes within a single volume).
      */
-    if (!wrblksz)
-        wrblksz = blksz = rdblksz;
-    else
+    if (!wrblksz) {
+      wrblksz = blksz = rdblksz;
+    }
+    else {
       blksz = rdblksz;
+    }
 
     /*
      * make sure that this volume allows appends
      */
-    if (ar_app_ok() < 0)
-        return(-1);
+    if (ar_app_ok() < 0) {
+      return .failed;
+    }
 
     /*
      * Calculate bytes to move back and move in front of record where we
@@ -227,10 +231,12 @@ extension pax {
      * travel skcnt + padding ROUNDED UP to blksize.
      */
     skcnt += bufend - bufpt;
-    if ((cnt = (skcnt/blksz) * blksz) < skcnt)
-        cnt += blksz;
-    if (ar_rev((off_t)cnt) < 0)
-        goto out;
+    if ((cnt = (skcnt/blksz) * blksz) < skcnt) {
+      cnt += blksz;
+    }
+    if (ar_rev((off_t)cnt) < 0) {
+      goto out;
+    }
 
     /*
      * We may have gone too far if there is valid data in the block we are
@@ -247,12 +253,14 @@ extension pax {
       bufpt = buf;
       bufend = buf + blksz;
       while (bufpt < bufend) {
-        if ((res = ar_read(bufpt, rdblksz)) <= 0)
-            goto out;
+        if ((res = ar_read(bufpt, rdblksz)) <= 0) {
+          goto out;
+        }
         bufpt += res;
       }
-      if (ar_rev((off_t)(bufpt - buf)) < 0)
-          goto out;
+      if (ar_rev((off_t)(bufpt - buf)) < 0) {
+        goto out;
+      }
       bufpt = buf + cnt;
       bufend = buf + blksz;
     } else {
@@ -272,14 +280,15 @@ extension pax {
      * that is handled in ar_set_wr(). From now on we operate under normal
      * ARCHIVE mode (write) conditions
      */
-    if (ar_set_wr() < 0)
-        return(-1);
+    if (ar_set_wr() < 0) {
+      return .failed;
+    }
     act = ARCHIVE;
-    return(0);
+    return .ok
 
   out:
-    paxwarn(1, "Unable to rewrite archive trailer, cannot append.");
-    return(-1);
+    Tty.paxwarn(true, "Unable to rewrite archive trailer, cannot append.");
+    return .failed;
   }
 
   /*
@@ -293,28 +302,31 @@ extension pax {
    *	0 on success, and -1 on failure
    */
 
-  func rd_sync() -> Bool {
+  func rd_sync() -> Result {
     int errcnt = 0;
     int res;
 
     /*
      * if the user says bail out on first fault, we are out of here...
      */
-    if (maxflt == 0)
-        return(-1);
+    if (maxflt == 0) {
+      return .failed;
+    }
     if (act == APPND) {
-      paxwarn(1, "Unable to append when there are archive read errors.");
-      return(-1);
+      Tty.paxwarn(true, "Unable to append when there are archive read errors.");
+      return .failed;
     }
 
     /*
      * poke at device and try to get past media error
      */
     if (ar_rdsync() < 0) {
-      if (ar_next() < 0)
-          return(-1);
-      else
+      if (ar_next() < 0) {
+        return .failed
+      }
+      else {
         rdcnt = 0;
+      }
     }
 
     for (;;) {
@@ -325,7 +337,7 @@ extension pax {
         bufpt = buf;
         bufend = buf + res;
         rdcnt += res;
-        return(0);
+        return .ok
       }
 
       /*
@@ -336,16 +348,19 @@ extension pax {
        * volume. remember the goal on reads is to get the most we
        * can extract out of the archive.
        */
-      if ((maxflt > 0) && (++errcnt > maxflt))
-          paxwarn(0,"Archive read error limit (%d) reached",maxflt);
-      else if (ar_rdsync() == 0)
-                continue;
-      if (ar_next() < 0)
-          break;
+      if ((maxflt > 0) && (++errcnt > maxflt)) {
+        Tty.paxwarn(0,"Archive read error limit (%d) reached",maxflt);
+      }
+      else if (ar_rdsync() == 0) {
+        continue;
+      }
+      if (ar_next() < 0) {
+        break;
+      }
       rdcnt = 0;
       errcnt = 0;
     }
-    return(-1);
+    return .failed;
   }
 
   /*
@@ -373,7 +388,7 @@ extension pax {
    *	0 if ok, -1 failure, and 1 when EOF on the archive volume was detected.
    */
 
-  func rd_skip(_ skcnt : Int) -> Int {
+  func rd_skip(_ skcnt : Int) -> Result {
     off_t res;
     off_t cnt;
     off_t skipped = 0;
@@ -384,8 +399,9 @@ extension pax {
      * move within the archive without doing the expensive reads on data we
      * do not want.
      */
-    if (skcnt == 0)
-        return(0);
+    if (skcnt == 0) {
+      return .ok
+    }
     res = MIN((bufend - bufpt), skcnt);
     bufpt += res;
     skcnt -= res;
@@ -393,8 +409,9 @@ extension pax {
     /*
      * if skcnt is now 0, then no additional i/o is needed
      */
-    if (skcnt == 0)
-        return(0);
+    if (skcnt == 0) {
+      return .ok
+    }
 
     /*
      * We have to read more, calculate complete and partial record reads
@@ -407,8 +424,9 @@ extension pax {
      * if the skip fails, we will have to resync. ar_fow will tell us
      * how much it can skip over. We will have to read the rest.
      */
-    if (ar_fow(cnt, &skipped) < 0)
-        return(-1);
+    if (ar_fow(cnt, &skipped) < 0) {
+      return .failed;
+    }
     res += cnt - skipped;
     rdcnt += skipped;
 
@@ -421,15 +439,17 @@ extension pax {
       /*
        * if the read fails, we will have to resync
        */
-      if ((cnt <= 0) && ((cnt = buf_fill()) < 0))
-          return(-1);
-      if (cnt == 0)
-          return(1);
+      if ((cnt <= 0) && ((cnt = buf_fill()) < 0)) {
+        return .failed;
+      }
+      if (cnt == 0) {
+        return .partial
+      }
       cnt = MIN(cnt, res);
       bufpt += cnt;
       res -= cnt;
     }
-    return(0);
+    return .ok
   }
 
   /*
@@ -459,7 +479,7 @@ extension pax {
    *	0 if buffer was filled ok, -1 o.w. (buffer flush failure)
    */
 
-  func wr_rdbuf(_ out : [UInt8], _ outcnt : Int) -> Bool {
+  func wr_rdbuf(_ out : [UInt8], _ outcnt : Int) -> Result {
     int cnt;
 
     /*
@@ -468,8 +488,9 @@ extension pax {
      */
     while (outcnt > 0) {
       cnt = bufend - bufpt;
-      if ((cnt <= 0) && ((cnt = buf_flush(blksz)) < 0))
-          return(-1);
+      if ((cnt <= 0) && ((cnt = buf_flush(blksz)) < 0)) {
+        return .failed;
+      }
       /*
        * only move what we have space for
        */
@@ -479,7 +500,7 @@ extension pax {
       out += cnt;
       outcnt -= cnt;
     }
-    return(0);
+    return .ok;
   }
 
   /*
@@ -493,7 +514,7 @@ extension pax {
    *	-1 is a read error
    */
 
-  func rd_wrbuf(_ inx : [UInt8], _ cpcnt : Int) -> Int  {
+  func rd_wrbuf(_ inx : [UInt8], _ cpcnt : Int) -> Result  {
     int res;
     int cnt;
     int incnt = cpcnt;
@@ -510,9 +531,10 @@ extension pax {
          * error occurred and has the best knowledge what to
          * do with it
          */
-        if ((res = cpcnt - incnt) > 0)
-            return(res);
-        return(cnt);
+        if ((res = cpcnt - incnt) > 0) {
+          return(res);
+        }
+        return .count(cnt)
       }
 
       /*
@@ -539,7 +561,7 @@ extension pax {
    *	0 if ok, -1 if there was a buf_flush failure
    */
 
-  func wr_skip(_ skcnt : off_t) -> Bool  {
+  func wr_skip(_ skcnt : Int) -> Result  {
     int cnt;
 
     /*
@@ -547,14 +569,15 @@ extension pax {
      */
     while (skcnt > 0L) {
       cnt = bufend - bufpt;
-      if ((cnt <= 0) && ((cnt = buf_flush(blksz)) < 0))
-          return(-1);
+      if ((cnt <= 0) && ((cnt = buf_flush(blksz)) < 0)) {
+        return .failed;
+      }
       cnt = MIN(cnt, skcnt);
       memset(bufpt, 0, cnt);
       bufpt += cnt;
       skcnt -= cnt;
     }
-    return(0);
+    return .ok
   }
 
   /*
@@ -592,7 +615,7 @@ extension pax {
         sz = sb.st_blksize;
       }
     } else {
-      syswarn(0,errno,"Unable to obtain block size for file %s",fnm);
+      Tty.syswarn(false,errno,"Unable to obtain block size for file %s",fnm);
     }
     rem = sz;
 
@@ -619,18 +642,18 @@ extension pax {
      * check to make sure the copy is valid.
      */
     if (res < 0) {
-      syswarn(1, errno, "Failed write during copy of %s to %s",
+      Tty.syswarn(true, errno, "Failed write during copy of %s to %s",
               arcn.org_name, arcn.name);
     }
     else if (cpcnt != arcn.sb.st_size) {
-      paxwarn(1, "File %s changed size during copy to %s",
+      Tty.paxwarn(true, "File %s changed size during copy to %s",
               arcn.org_name, arcn.name);
     }
     else if (fstat(fd1, &sb) < 0) {
-      syswarn(1, errno, "Failed stat of %s", arcn.org_name);
+      Tty.syswarn(true, errno, "Failed stat of %s", arcn.org_name);
     }
-    else if (arcn.sb.st_mtime != sb.st_mtime) {
-      paxwarn(1, "File %s was modified during copy to %s",
+    else if (arcn.sb.lastWrite != sb.lastWrite) {
+      Tty.paxwarn(true, "File %s was modified during copy to %s",
               arcn.org_name, arcn.name);
     }
 
@@ -691,7 +714,7 @@ extension pax {
       rdcnt = 0;
     }
     exit_val = 1;
-    return(-1);
+    return .failed;
   }
 
   /*
@@ -703,7 +726,7 @@ extension pax {
    *	0 if all is ok, -1 when a write error occurs.
    */
 
-  func buf_flush(_ bufcnt : Int) -> Bool  {
+  func buf_flush(_ bufcnt : Int) -> Result  {
     int cnt;
     int push = 0;
     int totcnt = 0;
@@ -715,11 +738,11 @@ extension pax {
      * at least one record. We always round limit UP to next blocksize.
      */
     if ((wrlimit > 0) && (wrcnt > wrlimit)) {
-      paxwarn(0, "User specified archive volume byte limit reached.");
+      Tty.paxwarn(0, "User specified archive volume byte limit reached.");
       if (ar_next() < 0) {
         wrcnt = 0;
         exit_val = 1;
-        return(-1);
+        return .failed;
       }
       wrcnt = 0;
 
@@ -734,7 +757,7 @@ extension pax {
        */
       bufend = buf + blksz;
       if (blksz > bufcnt) {
-        return(0);
+        return .ok
       }
       if (blksz < bufcnt) {
         push = bufcnt - blksz;
@@ -815,6 +838,6 @@ extension pax {
      * write failed, stop pax. we must not create a bad archive!
      */
     exit_val = 1;
-    return(-1);
+    return .failed;
   }
 }

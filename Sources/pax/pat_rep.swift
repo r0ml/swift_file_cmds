@@ -95,8 +95,8 @@ extension pax {
      * throw out the bad parameters
      */
     if ((str == NULL) || (*str == '\0')) {
-      paxwarn(1, "Empty replacement string");
-      return(-1);
+      Tty.paxwarn(true, "Empty replacement string");
+      return .failed;
     }
     
     /*
@@ -109,13 +109,14 @@ extension pax {
         pt1++;
         continue;
       }
-      if (*pt1 == *str)
-          break;
+      if (*pt1 == *str) {
+        break;
+      }
     }
     if (*pt1 == '\0') {
       
-      paxwarn(1, "Invalid replacement string %s", str);
-      return(-1);
+      Tty.paxwarn(true, "Invalid replacement string %s", str);
+      return .failed;
     }
     
     /*
@@ -123,16 +124,16 @@ extension pax {
      * and split out the regular expression and try to compile it
      */
     if ((rep = (REPLACE *)malloc(sizeof(REPLACE))) == NULL) {
-      paxwarn(1, "Unable to allocate memory for replacement string");
-      return(-1);
+      Tty.paxwarn(true, "Unable to allocate memory for replacement string");
+      return .failed;
     }
     
     *pt1 = '\0';
     if ((res = regcomp(&(rep->rcmp), str+1, 0)) != 0) {
       regerror(res, &(rep->rcmp), rebuf, sizeof(rebuf));
-      paxwarn(1, "%s while compiling regular expression %s", rebuf, str);
+      Tty.paxwarn(true, "%s while compiling regular expression %s", rebuf, str);
       free(rep);
-      return(-1);
+      return .failed;
     }
     
     /*
@@ -155,8 +156,8 @@ extension pax {
       
       regfree(&rep->rcmp);
       free(rep);
-      paxwarn(1, "Invalid replacement string %s", str);
-      return(-1);
+      Tty.paxwarn(true, "Invalid replacement string %s", str);
+      return .failed;
     }
     
     *pt2 = '\0';
@@ -181,8 +182,8 @@ extension pax {
           regfree(&rep->rcmp);
           free(rep);
           *pt1 = *str;
-          paxwarn(1, "Invalid replacement string option %s", str);
-          return(-1);
+          Tty.paxwarn(true, "Invalid replacement string option %s", str);
+          return .failed;
       }
       ++pt2;
     }
@@ -220,8 +221,8 @@ extension pax {
      * throw out the junk
      */
     if ((str == NULL) || (*str == '\0')) {
-      paxwarn(1, "Empty pattern string");
-      return(-1);
+      Tty.paxwarn(true, "Empty pattern string");
+      return .failed;
     }
     
     /*
@@ -230,8 +231,8 @@ extension pax {
      * node to the end of the pattern list
      */
     if ((pt = (PATTERN *)malloc(sizeof(PATTERN))) == NULL) {
-      paxwarn(1, "Unable to allocate memory for pattern string");
-      return(-1);
+      Tty.paxwarn(true, "Unable to allocate memory for pattern string");
+      return .failed;
     }
     
     pt->pstr = str;
@@ -271,7 +272,7 @@ extension pax {
         continue;
       }
       if (!wban) {
-        paxwarn(1, "WARNING! These patterns were not matched:");
+        Tty.paxwarn(true, "WARNING! These patterns were not matched:");
         ++wban;
       }
       (void)fprintf(stderr, "%s\n", pt->pstr);
@@ -347,12 +348,12 @@ extension pax {
       }
       
       if ((pt->pstr = strdup(arcn.name)) == NULL) {
-        paxwarn(1, "Pattern select out of memory");
+        Tty.paxwarn(true, "Pattern select out of memory");
         if (pt->pend != NULL) {
           *pt->pend = '/';
         }
         pt->pend = NULL;
-        return(-1);
+        return .failed;
       }
       
       /*
@@ -396,8 +397,8 @@ extension pax {
       /*
        * should never happen....
        */
-      paxwarn(1, "Pattern list inconsistent");
-      return(-1);
+      Tty.paxwarn(true, "Pattern list inconsistent");
+      return .failed;
     }
     *ppt = pt->fow;
     free(pt);
@@ -430,7 +431,7 @@ extension pax {
      */
     if (pathead == NULL) {
       if (nflag && !cflag) {
-        return(-1);
+        return .failed;
       }
       return(0);
     }
@@ -480,7 +481,7 @@ extension pax {
     }
     
     if (pat_sel(arcn) < 0) {
-      return(-1);
+      return .failed;
     }
     arcn.pat = NULL;
     return(1);
@@ -519,7 +520,7 @@ extension pax {
            * Check if it is a prefix match
            */
           if ((dflag == 1) || (*string != '/')) {
-            return(-1);
+            return .failed;
           }
           
           /*
@@ -665,7 +666,7 @@ extension pax {
     equiv_pat = strndup(pattern-pat_len, pat_len);
     
     if (equiv_pat == NULL) {
-      paxwarn(1, "Out of memory");
+      Tty.paxwarn(true, "Out of memory");
       return NULL;
     }
     
@@ -689,13 +690,13 @@ extension pax {
     
     if ((res = regcomp(&(preg), pattern, REG_EXTENDED)) != 0) {
       regerror(res, &(preg), rebuf, sizeof(rebuf));
-      paxwarn(1, "%s while compiling pattern %s", rebuf, pattern);
-      return(-1);
+      Tty.paxwarn(true, "%s while compiling pattern %s", rebuf, pattern);
+      return .failed;
     }
     
     if (regexec(&(preg), string, 1, &(pmatch), 0) != 0) {
       regfree(&(preg));
-      return(-1);
+      return .failed;
     }
     
     regfree(&(preg));
@@ -704,7 +705,7 @@ extension pax {
      * starting position of the match must be 0
      */
     if (pmatch.rm_so != 0) {
-      return(-1);
+      return .failed;
     }
     
     /*
@@ -779,7 +780,7 @@ extension pax {
       }
       if (rmleadslash < 2) {
         rmleadslash = 2;
-        paxwarn(0, "Removing leading / from absolute path names in the archive");
+        Tty.paxwarn(0, "Removing leading / from absolute path names in the archive");
       }
     }
     if (rmleadslash && arcn.ln_name[0] == '/' &&
@@ -793,7 +794,7 @@ extension pax {
       }
       if (rmleadslash < 2) {
         rmleadslash = 2;
-        paxwarn(0, "Removing leading / from absolute path names in the archive");
+        Tty.paxwarn(0, "Removing leading / from absolute path names in the archive");
       }
     }
     
@@ -882,7 +883,7 @@ extension pax {
       tty_prnt("or a \"return\" to skip this file.\n");
       tty_prnt("Input > ");
       if (tty_read(tmpname, sizeof(tmpname)) < 0) {
-        return(-1);
+        return .failed;
       }
       if (strcmp(tmpname, "..") == 0) {
         tty_prnt("Try again, illegal file name: ..\n");
@@ -921,7 +922,7 @@ extension pax {
     }
     
     if (res < 0) {
-      return(-1);
+      return .failed;
     }
     return(0);
   }
@@ -938,7 +939,7 @@ extension pax {
   set_dest(ARCHD *arcn, char *dest_dir, int dir_len)
   {
     if (fix_path(arcn.name, &(arcn.nlen), dest_dir, dir_len) < 0) {
-      return(-1);
+      return .failed;
     }
     
     /*
@@ -951,7 +952,7 @@ extension pax {
     }
     
     if (fix_path(arcn.ln_name, &(arcn.ln_nlen), dest_dir, dir_len) < 0) {
-      return(-1);
+      return .failed;
     }
     return(0);
   }
@@ -986,8 +987,8 @@ extension pax {
       --dest;
     }
     if ((len = dest - or_name) > PAXPATHLEN) {
-      paxwarn(1, "File name %s/%s, too long", dir_name, start);
-      return(-1);
+      Tty.paxwarn(true, "File name %s/%s, too long", dir_name, start);
+      return .failed;
     }
     *or_len = len;
     
@@ -1100,7 +1101,7 @@ extension pax {
             
             < 0) {
           if (prnt) {
-            paxwarn(1, "Replacement name error %s",
+            Tty.paxwarn(true, "Replacement name error %s",
                     name);
           }
           return(1);
@@ -1151,7 +1152,7 @@ extension pax {
       *outpt = '\0';
       if ((outpt == endpt) && (*inpt != '\0')) {
         if (prnt) {
-          paxwarn(1,"Replacement name too long %s >> %s",
+          Tty.paxwarn(true,"Replacement name too long %s >> %s",
                   name, nname);
         }
         return(1);
@@ -1219,8 +1220,9 @@ extension pax {
         /*
          * make sure there is a subexpression as specified
          */
-        if ((len = *spt++ - '0') > subexcnt)
-            return(-1);
+        if ((len = *spt++ - '0') > subexcnt) {
+          return .failed;
+        }
         pmpt = pm + len;
       } else {
         /*

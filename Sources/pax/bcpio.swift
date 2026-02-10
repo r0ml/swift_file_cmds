@@ -181,7 +181,7 @@ class bcpio : pax.FSUB {
   var blkalgn: Bool { get { false } set { } }
   var inhead: Bool { get { true } set { } }
 
-  func trail_tar(_: [UInt8], _: inout Int) -> Bool? {
+  func trail_tar(_: [UInt8], _: inout Int) -> Result {
     fatalError("only for tar")
   }
 
@@ -204,8 +204,9 @@ class bcpio : pax.FSUB {
    *      0 if ok -1 otherwise (the return values of lnk_start())
    */
 
-  func st_rd() -> Bool {  // was cpio_strd
+  func st_rd() -> Result {  // was cpio_strd
 //    return(lnk_start())
+    return .ok
   }
 
   /*
@@ -218,14 +219,14 @@ class bcpio : pax.FSUB {
    *	0 if a valid trailer, -1 if not a valid trailer,
    */
 
-  func trail_cpio(_ arcn : pax.ARCHD) -> Bool {
+  func trail_cpio(_ arcn : ARCHD) -> Result {
     /*
      * look for trailer id in file we are about to process
      */
     if arcn.name == TRAILER && arcn.sb.size == 0 {
-      return false
+      return .ok
     }
-    return true
+    return .failed
   }
 
   /*
@@ -235,7 +236,7 @@ class bcpio : pax.FSUB {
    *	0
    */
 
-  private func com_rd(_ arcn : inout ARCHD) -> Bool {
+  private func com_rd(_ arcn : inout ARCHD) -> Result {
     arcn.skip = 0
     arcn.pat = nil
     arcn.org_name = arcn.name
@@ -268,7 +269,7 @@ class bcpio : pax.FSUB {
     }
 
     tables.chk_lnk(arcn)
-    return false
+    return .ok
   }
 
   /*
@@ -278,7 +279,7 @@ class bcpio : pax.FSUB {
    *	result of the write of the trailer from the cpio specific write func
    */
 
-  func end_wr() -> Bool { // was cpio_endwr
+  func end_wr() -> Result { // was cpio_endwr
     ARCHD last;
 
     /*
@@ -289,7 +290,7 @@ class bcpio : pax.FSUB {
     last.type = PAX_REG;
     last.sb.st_nlink = 1;
     (void)strlcpy(last.name, TRAILER, sizeof(last.name));
-    return((*frmt->wr)(&last));
+    return options.frmt.wr(&last)
   }
 
   /*
@@ -299,13 +300,13 @@ class bcpio : pax.FSUB {
    *	0 if ok, -1 otherwise
    */
 
-  private func rd_nam(_ arcn : pax.ARCHD, _ nsz : Int) -> Bool  {
+  private func rd_nam(_ arcn : ARCHD, _ nsz : Int) -> Result  {
     /*
      * do not even try bogus values
      */
     if ((nsz == 0) || (nsz > (int)sizeof(arcn.name))) {
-      paxwarn(1, "Cpio file name length %d is out of range", nsz);
-      return(-1);
+      Tty.paxwarn(true, "Cpio file name length %d is out of range", nsz);
+      return .failed;
     }
 
     /*
@@ -313,10 +314,10 @@ class bcpio : pax.FSUB {
      */
     if ((rd_wrbuf(arcn.name,nsz) != nsz) || (arcn.name[nsz-1] != '\0') ||
         (arcn.name[0] == '\0')) {
-      paxwarn(1, "Cpio file name in header is corrupted");
-      return(-1);
+      Tty.paxwarn(true, "Cpio file name in header is corrupted");
+      return .failed;
     }
-    return(0);
+    return .ok
   }
 
   /*
@@ -327,15 +328,15 @@ class bcpio : pax.FSUB {
    *	0 if ok, -1 otherwise
    */
 
-  private func rd_ln_nm(_ arcn : pax.ARCHD) -> Bool {
+  private func rd_ln_nm(_ arcn : ARCHD) -> Result {
     /*
      * check the length specified for bogus values
      */
     if ((arcn.sb.st_size == 0) ||
         ((size_t)arcn.sb.st_size >= sizeof(arcn.ln_name))) {
-      paxwarn(1, "Cpio link name length is invalid: %ju",
+      Tty.paxwarn(true, "Cpio link name length is invalid: %ju",
               (uintmax_t)arcn.sb.st_size);
-      return(-1);
+      return .failed;
     }
 
     /*
@@ -343,8 +344,8 @@ class bcpio : pax.FSUB {
      */
     if (rd_wrbuf(arcn.ln_name, (int)arcn.sb.st_size) !=
         (int)arcn.sb.st_size) {
-      paxwarn(1, "Cpio link name read error");
-      return(-1);
+      Tty.paxwarn(true, "Cpio link name read error");
+      return .failed;
     }
     arcn.ln_nlen = arcn.sb.st_size;
     arcn.ln_name[arcn.ln_nlen] = '\0';
@@ -353,10 +354,10 @@ class bcpio : pax.FSUB {
      * watch out for those empty link names
      */
     if (arcn.ln_name[0] == '\0') {
-      paxwarn(1, "Cpio link name is corrupt");
-      return(-1);
+      Tty.paxwarn(true, "Cpio link name is corrupt");
+      return .failed;
     }
-    return(0);
+    return .ok
   }
 
 
@@ -367,7 +368,7 @@ class bcpio : pax.FSUB {
    *	0 if ok, -1 otherwise (what dev_start() returns)
    */
 
-  func st_wr() -> Bool { // was cpio_stwr
+  func st_wr() -> Result { // was cpio_stwr
     return(dev_start());
   }
 
@@ -386,24 +387,24 @@ class bcpio : pax.FSUB {
    *      0 if a valid header, -1 otherwise
    */
 
-  func id(_ blk : [UInt8]) -> Bool { // was bcpio_id
+  func id(_ blk : [UInt8]) -> Result { // was bcpio_id
     if (size < (int)sizeof(HD_BCPIO)) {
-      return(-1);
+      return .failed;
     }
 
     /*
      * check both normal and byte swapped magic cookies
      */
     if (((u_short)SHRT_EXT(blk)) == MAGIC) {
-      return(0);
+      return .ok
     }
     if (((u_short)RSHRT_EXT(blk)) == MAGIC) {
       if (!swp_head) {
         ++swp_head;
       }
-      return(0);
+      return .ok
     }
-    return(-1);
+    return .failed;
   }
 
   /*
@@ -425,7 +426,7 @@ class bcpio : pax.FSUB {
      * check the header
      */
     if (bcpio_id(buf, hsz) < 0) {
-      return(-1);
+      return .failed;
     }
 
     arcn.pad = 0
@@ -441,8 +442,8 @@ class bcpio : pax.FSUB {
       arcn.sb.st_gid = (gid_t)(RSHRT_EXT(hd->h_gid));
       arcn.sb.st_nlink = (nlink_t)(RSHRT_EXT(hd->h_nlink));
       arcn.sb.st_rdev = (dev_t)(RSHRT_EXT(hd->h_rdev));
-      arcn.sb.st_mtime = (time_t)(RSHRT_EXT(hd->h_mtime_1));
-      arcn.sb.st_mtime =  (arcn.sb.st_mtime << 16) |
+      arcn.sb.lastWrite = (time_t)(RSHRT_EXT(hd->h_mtime_1));
+      arcn.sb.lastWrite =  (arcn.sb.lastWrite << 16) |
       ((time_t)(RSHRT_EXT(hd->h_mtime_2)));
       arcn.sb.st_size = (off_t)(RSHRT_EXT(hd->h_filesize_1));
       arcn.sb.st_size = (arcn.sb.st_size << 16) |
@@ -456,33 +457,33 @@ class bcpio : pax.FSUB {
       arcn.sb.st_gid = (gid_t)(SHRT_EXT(hd->h_gid));
       arcn.sb.st_nlink = (nlink_t)(SHRT_EXT(hd->h_nlink));
       arcn.sb.st_rdev = (dev_t)(SHRT_EXT(hd->h_rdev));
-      arcn.sb.st_mtime = (time_t)(SHRT_EXT(hd->h_mtime_1));
-      arcn.sb.st_mtime =  (arcn.sb.st_mtime << 16) |
+      arcn.sb.lastWrite = (time_t)(SHRT_EXT(hd->h_mtime_1));
+      arcn.sb.lastWrite =  (arcn.sb.lastWrite << 16) |
       ((time_t)(SHRT_EXT(hd->h_mtime_2)));
       arcn.sb.st_size = (off_t)(SHRT_EXT(hd->h_filesize_1));
       arcn.sb.st_size = (arcn.sb.st_size << 16) |
       ((off_t)(SHRT_EXT(hd->h_filesize_2)));
       nsz = (int)(SHRT_EXT(hd->h_namesize));
     }
-    arcn.sb.st_ctime = arcn.sb.st_atime = arcn.sb.st_mtime;
+    arcn.sb.st_ctime = arcn.sb.st_atime = arcn.sb.lastWrite;
 
     /*
      * check the file name size, if bogus give up. otherwise read the file
      * name
      */
     if (nsz < 2) {
-      return(-1);
+      return .failed;
     }
     arcn.nlen = nsz - 1;
     if (rd_nm(arcn, nsz) < 0) {
-      return(-1);
+      return .failed;
     }
 
     /*
      * header + file name are aligned to 2 byte boundaries, skip if needed
      */
     if (rd_skip((off_t)(BCPIO_PAD(hsz + nsz))) < 0) {
-      return(-1);
+      return .failed;
     }
 
     /*
@@ -501,7 +502,7 @@ class bcpio : pax.FSUB {
 
     if ((rd_ln_nm(arcn) < 0) ||
         (rd_skip((off_t)(BCPIO_PAD(arcn.sb.st_size))) < 0)) {
-      return(-1);
+      return .failed;
     }
 
     /*
@@ -517,8 +518,8 @@ class bcpio : pax.FSUB {
    *      size of trailer header in this format
    */
 
-  func end_rd() -> Int { // was bcpio_endrd
-    return (hsz + sizeof(TRAILER) +
+  func end_rd() -> Result { // was bcpio_endrd
+    return .count(hsz + sizeof(TRAILER) +
                    (BCPIO_PAD(sizeof(HD_BCPIO) + sizeof(TRAILER))));
   }
 
@@ -533,7 +534,7 @@ class bcpio : pax.FSUB {
    *	data to write after the header, -1 if archive write failed
    */
 
-  func wr(_ arcn : pax.ARCHD) -> Bool? { // was bcpio_wr
+  func wr(_ arcn : ARCHD) -> Result { // was bcpio_wr
     HD_BCPIO *hd;
     int nsz;
     HD_BCPIO hdblk;
@@ -546,7 +547,7 @@ class bcpio : pax.FSUB {
      * header
      */
     if (map_dev(arcn, (u_long)BCPIO_MASK, (u_long)BCPIO_MASK) < 0) {
-      return(-1);
+      return .failed;
     }
 
     if ((arcn.type != PAX_BLK) && (arcn.type != PAX_CHR)) {
@@ -568,9 +569,9 @@ class bcpio : pax.FSUB {
         t_offt = (off_t)(SHRT_EXT(hd->h_filesize_1));
         t_offt = (t_offt<<16) | ((off_t)(SHRT_EXT(hd->h_filesize_2)));
         if (arcn.sb.st_size != t_offt) {
-          paxwarn(1,"File is too large for bcpio format %s",
+          Tty.paxwarn(true,"File is too large for bcpio format %s",
                   arcn.org_name);
-          return(1);
+          return .partial
         }
         break;
       case .SLK:
@@ -641,13 +642,13 @@ class bcpio : pax.FSUB {
     if (arcn.sb.st_rdev != (dev_t)(SHRT_EXT(hd->h_rdev))) {
       goto out;
     }
-    hd->h_mtime_1[0] = CHR_WR_0(arcn.sb.st_mtime);
-    hd->h_mtime_1[1] = CHR_WR_1(arcn.sb.st_mtime);
-    hd->h_mtime_2[0] = CHR_WR_2(arcn.sb.st_mtime);
-    hd->h_mtime_2[1] = CHR_WR_3(arcn.sb.st_mtime);
+    hd->h_mtime_1[0] = CHR_WR_0(arcn.sb.lastWrite);
+    hd->h_mtime_1[1] = CHR_WR_1(arcn.sb.lastWrite);
+    hd->h_mtime_2[0] = CHR_WR_2(arcn.sb.lastWrite);
+    hd->h_mtime_2[1] = CHR_WR_3(arcn.sb.lastWrite);
     t_timet = (time_t)(SHRT_EXT(hd->h_mtime_1));
     t_timet =  (t_timet << 16) | ((time_t)(SHRT_EXT(hd->h_mtime_2)));
-    if (arcn.sb.st_mtime != t_timet) {
+    if (arcn.sb.lastWrite != t_timet) {
       goto out;
     }
     nsz = arcn.nlen + 1;
@@ -663,8 +664,8 @@ class bcpio : pax.FSUB {
     if ((wr_rdbuf((char *)&hdblk, (int)sizeof(HD_BCPIO)) < 0) ||
         (wr_rdbuf(arcn.name, nsz) < 0) ||
         (wr_skip((off_t)(BCPIO_PAD(sizeof(HD_BCPIO) + nsz))) < 0)) {
-      paxwarn(1, "Could not write bcpio header for %s", arcn.org_name);
-      return(-1);
+      Tty.paxwarn(true, "Could not write bcpio header for %s", arcn.org_name);
+      return .failed;
     }
 
     /*
@@ -672,14 +673,14 @@ class bcpio : pax.FSUB {
      */
     if ((arcn.type == PAX_CTG) || (arcn.type == PAX_REG) ||
         (arcn.type == PAX_HRG)) {
-      return(0);
+      return .ok
     }
 
     /*
      * if we are not a link, tell the caller we are done, go to next file
      */
     if (arcn.type != PAX_SLK) {
-      return(1);
+      return .partial
     }
 
     /*
@@ -687,17 +688,17 @@ class bcpio : pax.FSUB {
      */
     if ((wr_rdbuf(arcn.ln_name, arcn.ln_nlen) < 0) ||
         (wr_skip((off_t)(BCPIO_PAD(arcn.ln_nlen))) < 0)) {
-      paxwarn(1,"Could not write bcpio link name for %s",arcn.org_name);
-      return(-1);
+      Tty.paxwarn(true,"Could not write bcpio link name for %s",arcn.org_name);
+      return .failed;
     }
-    return(1);
+    return .partial
 
   out:
     /*
      * header field is out of range
      */
-    paxwarn(1,"Bcpio header field is too small for file %s", arcn.org_name);
-    return(1);
+    Tty.paxwarn(true,"Bcpio header field is too small for file %s", arcn.org_name);
+    return .partial
   }
 
 
@@ -711,11 +712,12 @@ class bcpio : pax.FSUB {
    *  when the format does not support options.
    */
 
-  func other_options() -> Bool { // was bad_opt
+  func other_options() -> Result { // was bad_opt
     OPLIST *opt;
 
-    if (ophead == NULL)
-        return(0);
+    if (ophead == NULL) {
+      return .ok
+    }
     /*
      * print all we were given
      */
@@ -732,7 +734,7 @@ class bcpio : pax.FSUB {
     }
 
     pax_usage();
-    return(0);
+    return .ok
   }
 
 

@@ -92,7 +92,7 @@ extension ARCHD {
      * then we go to the expense to check and create the path to the file
      */
     if (unlnk_exist(arcn.name, arcn.type) != 0) {
-      return(-1);
+      return .failed;
     }
 
     path_to_open = arcn.name;
@@ -158,7 +158,7 @@ extension ARCHD {
       return;
     }
     if (close(fd) < 0) {
-      Tty.syswarn(0, errno, "Unable to close file descriptor on %s",
+      Tty.syswarn(false, errno, "Unable to close file descriptor on %s",
               arcn.name);
     }
 
@@ -188,7 +188,7 @@ extension ARCHD {
     }
     if (patime || pmtime) {
 
-      set_ftime(arcn.name, arcn.sb.st_mtime, arcn.sb.st_mtime_nsec,
+      set_ftime(arcn.name, arcn.sb.lastWrite, arcn.sb.st_mtime_nsec,
                 arcn.sb.st_atime, arcn.sb.st_atime_nsec, 0);
 
     }
@@ -202,7 +202,7 @@ extension ARCHD {
    *	0 if ok, -1 otherwise
    */
 
-  func lnk_creat() -> Bool {
+  func lnk_creat() -> Result {
     /*
      * we may be running as root, so we have to be sure that link target
      * is not a directory, so we lstat and check
@@ -213,12 +213,12 @@ extension ARCHD {
       sb = try FileMetadata(for: FilePath(self.ln_name), followSymlinks: false)
     } catch(let e) {
       Tty.syswarn(true, e.code, "Unable to link to \(ln_name) from \(name)")
-      return true
+      return .failed
     }
 
     if sb.filetype == .directory {
       Tty.paxwarn(true, "A hard link to the directory \(ln_name) is not allowed")
-      return true
+      return .failed
     }
 
     if sb.filetype == .symbolicLink {
@@ -229,9 +229,9 @@ extension ARCHD {
        * symlink to the target of the symlink
        */
       if ((res = readlink(arcn.ln_name, buff, sizeof(buff)-1)) < 0) {
-        syswarn(1,errno,"Unable to symlink to %s from %s", arcn.ln_name,
+        Tty.syswarn(true,errno,"Unable to symlink to %s from %s", arcn.ln_name,
                 arcn.name);
-        return(-1);
+        return .failed;
       }
       buff[res] = 0;
       res = symlink(buff, arcn.name);
@@ -251,19 +251,19 @@ extension ARCHD {
    *	0 if cross_lnk() ok, -1 for fatal flaw (like linking to self).
    */
 
-  func cross_lnk(_ arcn : ARCHD) -> Int {
+  func cross_lnk(_ arcn : ARCHD) -> Result {
     /*
      * try to make a link to original file (-l flag in copy mode). make sure
      * we do not try to link to directories in case we are running as root
      * (and it might succeed).
      */
-    if (arcn.type == PAX_DIR) {
-      return(1);
+    if (arcn.type == .DIR) {
+      return .partial
     }
 
     if (arcn.type == PAX_SLK) {	/* for Unix 03 conformance tests 202,203 */
       if (!Lflag) {
-        return(1);
+        return .partial
       }
     }
 
@@ -281,7 +281,7 @@ extension ARCHD {
    *	0 skip it file exists (-k) or may be the same as source file
    */
 
-  func chk_same(_ arcn : ARCHD) -> Int {
+  func chk_same(_ arcn : ARCHD) -> Result {
     struct stat sb;
 
     /*
@@ -289,21 +289,21 @@ extension ARCHD {
      * quietly
      */
     if (lstat(arcn.name, &sb) < 0) {
-      return(1);
+      return .partial
     }
     if (kflag) {
-      return(0);
+      return .ok
     }
 
     /*
      * better make sure the user does not have src == dest by mistake
      */
     if ((arcn.sb.st_dev == sb.st_dev) && (arcn.sb.st_ino == sb.st_ino)) {
-      paxwarn(1, "Unable to copy %s, file would overwrite itself",
+      Tty.paxwarn(true, "Unable to copy %s, file would overwrite itself",
               arcn.name);
-      return(0);
+      return .ok
     }
-    return(1);
+    return .partial
   }
 
   /*
@@ -318,7 +318,7 @@ extension ARCHD {
    *	allowed option). -1 an error occurred.
    */
 
-  private func mk_link(_ to : String, _ to_sb : FileMetadata, _ from : String, _ ign : Bool) -> Int {
+  private func mk_link(_ to : String, _ to_sb : FileMetadata, _ from : String, _ ign : Bool) -> Result {
     /*
      * if from file exists, it has to be unlinked to make the link. If the
      * file exists and -k is set, skip it quietly
@@ -326,7 +326,7 @@ extension ARCHD {
 
     if let sb = try? FileMetadata(for: FilePath(from) ) {
       if options.kflag {
-        return 0
+        return .ok
       }
 
       /*
@@ -335,7 +335,7 @@ extension ARCHD {
 
       if to_sb.device==sb.device && to_sb.inode == sb.inode {
         Tty.paxwarn(true, "Unable to link file \(to) to itself")
-        return -1
+        return .failed
       }
 
       /*
@@ -344,14 +344,14 @@ extension ARCHD {
       if sb.filetype == .directory {
         if (rmdir(from) < 0) {
           Tty.syswarn(true, errno, "Unable to remove \(from)")
-          return -1
+          return .failed
         }
       } else if (unlink(from) < 0) {
         if (!ign) {
           Tty.syswarn(true, errno, "Unable to remove \(from)")
-          return -1
+          return .failed
         }
-        return 1
+        return .partial
       }
     }
 
@@ -361,8 +361,9 @@ extension ARCHD {
      * try again)
      */
     while true {
-      if (link(to, from) == 0)
-          break;
+      if (link(to, from) == 0) {
+        break;
+      }
       oerrno = errno;
 
       if (!nodirs && chk_path(from, to_sb->st_uid, to_sb->st_gid, NULL) == 0) {
@@ -370,17 +371,17 @@ extension ARCHD {
         continue;
       }
       if (!ign) {
-        Tty.syswarn(1, oerrno, "Could not link to %s from %s", to,
+        Tty.syswarn(true, oerrno, "Could not link to %s from %s", to,
                 from);
-        return(-1);
+        return .failed;
       }
-      return(1);
+      return .partial
     }
 
     /*
      * all right the link was made
      */
-    return(0);
+    return .ok
   }
 
   /*
@@ -391,7 +392,7 @@ extension ARCHD {
    *	0 if ok, -1 otherwise
    */
 
-  func node_creat() -> Bool {
+  func node_creat() -> Result {
 /*    int res;
     int ign = 0;
     int oerrno;
@@ -433,7 +434,7 @@ extension ARCHD {
            * Skip sockets, operation has no meaning under BSD
            */
           Tty.paxwarn(false, "\(self.name) skipped. Sockets cannot be copied or extracted")
-          return true
+          return .failed
         case .SLK:
           res = symlink(arcn.ln_name, arcn.name);
 
@@ -444,7 +445,7 @@ extension ARCHD {
            * we should never get here
            */
           Tty.paxwarn(false, "\(self.name) has an unknown file type, skipping")
-          return true
+          return .failed
       }
 
       /*
@@ -461,7 +462,7 @@ extension ARCHD {
        */
       oerrno = errno;
       if ((ign = unlnk_exist(arcn.name, arcn.type)) < 0) {
-        return(-1);
+        return .failed;
       }
 
       if (++pass <= 1) {
@@ -472,7 +473,7 @@ extension ARCHD {
       if (nodirs || chk_path(arcn.name,arcn.sb.st_uid,arcn.sb.st_gid, NULL) < 0) {
 
         Tty.syswarn(true, oerrno, "Could not create: \(self.name)")
-        return true
+        return .failed
       }
     }
 
@@ -491,7 +492,7 @@ extension ARCHD {
      * symlinks are done now.
      */
     if self.type == .SLK {
-      return false
+      return .ok
     }
 
     /*
@@ -518,7 +519,7 @@ extension ARCHD {
        */
       if (access(arcn.name, R_OK | W_OK | X_OK) < 0) {
         if (lstat(arcn.name, &sb) < 0) {
-          syswarn(0, errno,"Could not access %s (stat)",
+          Tty.syswarn(false, errno,"Could not access %s (stat)",
                   arcn.name);
           set_pmode(arcn.name,file_mode | S_IRWXU);
         } else {
@@ -547,11 +548,11 @@ extension ARCHD {
 
     if (patime || pmtime) {
 
-      set_ftime(arcn.name, arcn.sb.st_mtime, arcn.sb.st_mtime_nsec,
+      set_ftime(arcn.name, arcn.sb.lastWrite, arcn.sb.st_mtime_nsec,
                 arcn.sb.st_atime, arcn.sb.st_atime_nsec, 0);
     }
 
-    return false
+    return .ok
   }
 
   /*
@@ -566,17 +567,17 @@ extension ARCHD {
    *	1 we found a directory and we were going to create a directory.
    */
 
-  func unlnk_exist(_ name : String, _ type : PAXType) {
+  func unlnk_exist(_ name : String, _ type : PAXType) -> Result {
     struct stat sb;
 
     /*
      * the file does not exist, or -k we are done
      */
     if (lstat(name, &sb) < 0) {
-      return(0);
+      return .ok
     }
     if (kflag) {
-      return(-1);
+      return .failed;
     }
 
     if (S_ISDIR(sb.st_mode)) {
@@ -586,22 +587,22 @@ extension ARCHD {
        */
       if (rmdir(name) < 0) {
         if (type == .DIR) {
-          return(1);
+          return .partial
         }
-        syswarn(1,errno,"Unable to remove directory %s", name);
-        return(-1);
+        Tty.syswarn(true,errno,"Unable to remove directory %s", name);
+        return .failed;
       }
-      return(0);
+      return .ok
     }
 
     /*
      * try to get rid of all non-directory type nodes
      */
     if (unlink(name) < 0) {
-      syswarn(1, errno, "Could not unlink %s", name);
-      return(-1);
+      Tty.syswarn(true, errno, "Could not unlink %s", name);
+      return .failed;
     }
-    return(0);
+    return .ok
   }
 
   /*
@@ -618,7 +619,7 @@ extension ARCHD {
    *	0 otherwise
    */
 
-  func chk_path(_ name : String, _ st_uid : UInt, _ st_gid : UInt, _ new_name : inout String) -> Bool {
+  func chk_path(_ name : String, _ st_uid : UInt, _ st_gid : UInt, _ new_name : inout String) -> Result {
     char *spt = name;
 
     int namelen = strlen(name);
@@ -774,7 +775,7 @@ extension ARCHD {
         }
 
       } else {
-        syswarn(0,errno,"Unable to obtain file stats %s", fnm);
+        Tty.syswarn(false,errno,"Unable to obtain file stats %s", fnm);
       }
     }
 
@@ -789,14 +790,14 @@ extension ARCHD {
       chdir(pax_invalid_action_write_cwd);
       if (setattrlist(pax_invalid_action_write_path, &ts_req, &set_ts,
                       sizeof(set_ts), FSOPT_NOFOLLOW) < 0) {
-        syswarn(1, errno, "Access/modification time set failed on: %s",
+        Tty.syswarn(true, errno, "Access/modification time set failed on: %s",
                 pax_invalid_action_write_path);
       }
       chdir(cwd);
       cleanup_pax_invalid_action();
     } else {
       if (setattrlist(fnm, &ts_req, &set_ts, sizeof(set_ts), FSOPT_NOFOLLOW) < 0) {
-        syswarn(1, errno, "Access/modification time set failed on: %s",
+        Tty.syswarn(true, errno, "Access/modification time set failed on: %s",
                 fnm);
       }
     }
@@ -811,7 +812,7 @@ extension ARCHD {
    *	0 when set, -1 on failure
    */
 
-  func set_ids(_ fnm : String, _ uid : UInt, _ gid : UInt) -> Bool {
+  func set_ids(_ fnm : String, _ uid : UInt, _ gid : UInt) -> Result {
     if (lchown(fnm, uid, gid) < 0) {
       /*
        * ignore EPERM unless in verbose mode or being run by root.
@@ -819,12 +820,12 @@ extension ARCHD {
        */
       if (strcmp(NM_PAX, argv0) == 0 || errno != EPERM || vflag ||
           geteuid() == 0) {
-        syswarn(1, errno, "Unable to set file uid/gid of %s",
+        Tty.syswarn(true, errno, "Unable to set file uid/gid of %s",
                 fnm);
       }
-      return(-1);
+      return .failed;
     }
-    return(0);
+    return .ok
   }
 
   /*
@@ -835,7 +836,7 @@ extension ARCHD {
   func set_pmode(_ fnm : String, _ mode : FilePermissions) {
     mode &= ABITS;
     if (lchmod(fnm, mode) < 0) {
-      syswarn(1, errno, "Could not set permissions on %s", fnm);
+      Tty.syswarn(true, errno, "Could not set permissions on %s", fnm);
     }
     return;
   }
@@ -888,7 +889,7 @@ extension ARCHD {
    *	number of bytes written, -1 on write (or lseek) error.
    */
 
-  func file_write(_ fd : FileDescriptor, _ str : String, _ cnt : Int, _ rem : inout Int, _ isempt : inout Bool, _ sz : Int, _ name : String) -> Int {
+  func file_write(_ fd : FileDescriptor, _ str : String, _ cnt : Int, _ rem : inout Int, _ isempt : inout Bool, _ sz : Int, _ name : String) -> Result {
 /*    char *pt;
     char *end;
     int wcnt;
@@ -938,9 +939,9 @@ extension ARCHD {
            * skip, buf is empty so far
            */
           if (lseek(fd, (off_t)wcnt, SEEK_CUR) < 0) {
-            syswarn(1,errno,"File seek on %s",
+            Tty.syswarn(true,errno,"File seek on %s",
                     name);
-            return(-1);
+            return .failed;
           }
           st = pt;
           continue;
@@ -972,8 +973,8 @@ extension ARCHD {
         }
         *strp = malloc(wcnt + 1);
         if (*strp == NULL) {
-          paxwarn(1, "Out of memory");
-          return(-1);
+          Tty.paxwarn(true, "Out of memory");
+          return .failed;
         }
         memcpy(*strp, st, wcnt);
         (*strp)[wcnt] = '\0';
@@ -981,12 +982,12 @@ extension ARCHD {
       } else
 
       if (write(fd, st, wcnt) != wcnt) {
-        syswarn(1, errno, "Failed write to file %s", name);
-        return(-1);
+        Tty.syswarn(true, errno, "Failed write to file %s", name);
+        return .failed;
       }
       st += wcnt;
     }
-    return(st - str);
+    return .count(st - str)
   }
 
   /*
@@ -1011,12 +1012,12 @@ extension ARCHD {
      * move back one byte and write a zero
      */
     if (lseek(fd, (off_t)-1, SEEK_CUR) < 0) {
-      syswarn(1, errno, "Failed seek on file %s", fname);
+      Tty.syswarn(true, errno, "Failed seek on file %s", fname);
       return;
     }
 
     if (write(fd, blnk, 1) < 0) {
-      syswarn(1, errno, "Failed write to file %s", fname);
+      Tty.syswarn(true, errno, "Failed write to file %s", fname);
     }
     return;
   }
@@ -1057,7 +1058,7 @@ extension ARCHD {
    *	0 if was able to calculate the crc, -1 otherwise
    */
 
-  mutating func set_crc(_ fd : FileDescriptor?) -> Bool {
+  mutating func set_crc(_ fd : FileDescriptor?) -> Result {
     /*
      int i;
      int res;
@@ -1073,7 +1074,7 @@ extension ARCHD {
        * hmm, no fd, should never happen. well no crc then.
        */
       self.crc = 0
-      return false
+      return .ok
     }
 
     var crc : UInt = 0
@@ -1100,19 +1101,19 @@ extension ARCHD {
       if cpcnt != self.sb.size {
         Tty.paxwarn(true, "File changed size \(org_name)")
       }
-      else if let sb = FileMetadata(for: fd) {
+      else if let sb = try? FileMetadata(for: fd) {
         if (self.sb.lastWrite != sb.lastWrite) {
           Tty.paxwarn(true, "File \(org_name) was modified during read")
         }
-        else if let _ = fd.seek(offset: 0, from: .start) {
+        else if let _ = try? fd.seek(offset: 0, from: .start) {
           self.crc = crc
-          return false
+          return .ok
         }
         Tty.syswarn(true, errno, "File rewind failed on: \(org_name)")
       } else {
         Tty.syswarn(true, errno, "Failed stat on \(org_name)")
-        return true
       }
+      return .failed
     }
   }
 }

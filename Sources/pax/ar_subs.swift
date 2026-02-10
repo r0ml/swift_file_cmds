@@ -51,60 +51,64 @@ extension pax {
   static char	cwdpath[MAXPATHLEN];	/* current working directory path */
   static size_t	cwdpathlen;		/* current working directory path len */
 
-  func updatepath() -> Bool {
+  func updatepath() -> Result {
     if (getcwd(cwdpath, sizeof(cwdpath)) == NULL) {
-      syswarn(1, errno, "Cannot get working directory");
-      return true
+      Tty.syswarn(true, errno, "Cannot get working directory");
+      return .failed
     }
     cwdpathlen = strlen(cwdpath);
-    return false
+    return .ok
   }
 
-  func fdochdir(_ fcwd : FileDescriptor) -> Bool {
+  func fdochdir(_ fcwd : FileDescriptor) -> Result {
     if (fchdir(fcwd) == -1) {
-      syswarn(1, errno, "Cannot chdir to `.'");
-      return -1;
+      Tty.syswarn(true, errno, "Cannot chdir to `.'");
+      return .failed
     }
     return updatepath();
   }
 
-  func dochdir(_ name : String) -> Bool {
-    if (chdir(name) == -1)
-        syswarn(1, errno, "Cannot chdir to `%s'", name);
+  func dochdir(_ name : String) -> Result {
+    if (chdir(name) == -1) {
+      Tty.syswarn(true, errno, "Cannot chdir to `%s'", name);
+    }
     return updatepath();
   }
 
-  private func path_check(_ arcn: ARCHD, _ level : Int) -> Bool {
+  private func path_check(_ arcn: ARCHD, _ level : Int) -> Result {
     char buf[MAXPATHLEN];
     char *p;
 
-    if ((p = strrchr(arcn.name, '/')) == NULL)
-        return 0;
+    if ((p = strrchr(arcn.name, '/')) == NULL) {
+      return .ok
+    }
     *p = '\0';
 
     if (realpath(arcn.name, buf) == NULL) {
       int error;
       error = path_check(arcn, level + 1);
       *p = '/';
-      if (error == 0)
-          return 0;
-      if (level == 0)
-          syswarn(1, 0, "Cannot resolve `%s'", arcn.name);
-      return -1;
+      if (error == 0) {
+        return .ok
+      }
+          if (level == 0) {
+        Tty.syswarn(true, 0, "Cannot resolve `%s'", arcn.name);
+      }
+      return .failed
     }
     if (cwdpathlen == 1) {	/* We're in the root */
       *p = '/';
-      return 0;
+      return .ok
     }
     if ((strncmp(buf, cwdpath, cwdpathlen) != 0) || (buf[cwdpathlen] != '\0' && buf[cwdpathlen] != '/')) {
       *p = '/';
-      syswarn(1, 0, "Attempt to write file `%s' that resolves into "
+      Tty.syswarn(true, 0, "Attempt to write file `%s' that resolves into "
               "`%s/%s' outside current working directory `%s' ignored",
               arcn.name, buf, p + 1, cwdpath);
-      return -1;
+      return .failed
     }
     *p = '/';
-    return 0;
+    return .ok
   }
 
   /*
@@ -285,7 +289,7 @@ extension pax {
        */
       if ((uflag || Dflag) && ((lstat(arcn.name, &sb) == 0))) {
         if (uflag && Dflag) {
-          if ((arcn.sb.st_mtime <= sb.st_mtime) &&
+          if ((arcn.sb.lastWrite <= sb.lastWrite) &&
               (arcn.sb.st_ctime <= sb.st_ctime)) {
             (void)rd_skip(arcn.skip + arcn.pad);
             continue;
@@ -295,7 +299,7 @@ extension pax {
             (void)rd_skip(arcn.skip + arcn.pad);
             continue;
           }
-        } else if (arcn.sb.st_mtime <= sb.st_mtime) {
+        } else if (arcn.sb.lastWrite <= sb.lastWrite) {
           (void)rd_skip(arcn.skip + arcn.pad);
           continue;
         }
@@ -322,7 +326,7 @@ extension pax {
        */
       if ((Yflag || Zflag) && ((lstat(arcn.name, &sb) == 0))) {
         if (Yflag && Zflag) {
-          if ((arcn.sb.st_mtime <= sb.st_mtime) &&
+          if ((arcn.sb.lastWrite <= sb.lastWrite) &&
               (arcn.sb.st_ctime <= sb.st_ctime)) {
             (void)rd_skip(arcn.skip + arcn.pad);
             continue;
@@ -332,7 +336,7 @@ extension pax {
             (void)rd_skip(arcn.skip + arcn.pad);
             continue;
           }
-        } else if (arcn.sb.st_mtime <= sb.st_mtime) {
+        } else if (arcn.sb.lastWrite <= sb.lastWrite) {
           (void)rd_skip(arcn.skip + arcn.pad);
           continue;
         }
@@ -439,7 +443,7 @@ extension pax {
       if(copyfile_disable || copyfile(cle->src, cle->dst, NULL,
                                       COPYFILE_UNPACK | COPYFILE_XATTR | COPYFILE_ACL)) {
         if (!copyfile_disable) {
-          syswarn(1, errno, "Unable to set metadata on %s", cle->dst);
+          Tty.syswarn(true, errno, "Unable to set metadata on %s", cle->dst);
         }
       } else {
         unlink(cle->src);
@@ -554,7 +558,7 @@ extension pax {
         }
         asprintf(&md_fname, "%s%s", tmpdir, "/pax-md-XXXXXX");
         if (!md_fname) {
-          syswarn(1, errno, "Unable to create temporary file name");
+          Tty.syswarn(true, errno, "Unable to create temporary file name");
           return;
         }
         memcpy(&arcn_copy, arcn, sizeof(ARCHD));
@@ -569,7 +573,7 @@ extension pax {
         if (fd_dst >= 0) {
           fd_src = open(arcn.name, O_RDONLY, 0);
           if (fd_src < 0) {
-            syswarn(1, errno, "Unable to open %s for reading", arcn.name);
+            Tty.syswarn(true, errno, "Unable to open %s for reading", arcn.name);
             close(fd_dst);
             unlink(md_fname);
             free(md_fname);
@@ -578,7 +582,7 @@ extension pax {
           }
           if(fcopyfile(fd_src, fd_dst, NULL,
                        COPYFILE_PACK | COPYFILE_XATTR | COPYFILE_ACL) < 0) {
-            syswarn(1, errno,
+            Tty.syswarn(true, errno,
                     "Unable to preserve metadata on %s", arcn.name);
             close(fd_src);
             close(fd_dst);
@@ -591,7 +595,7 @@ extension pax {
           fstat(fd_dst, &arcn.sb);
           close(fd_dst);
         } else {
-          syswarn(1, errno, "Unable to create temporary file %s", md_fname);
+          Tty.syswarn(true, errno, "Unable to create temporary file %s", md_fname);
           free(md_fname);
           goto next;
         }
@@ -646,7 +650,7 @@ extension pax {
         }
         if (fd < 0) {
 
-          syswarn(1,errno, "Unable to open %s to read",
+          Tty.syswarn(true,errno, "Unable to open %s to read",
                   arcn.org_name);
           purg_lnk(arcn);
           continue;
@@ -799,7 +803,7 @@ extension pax {
       return;
     }
     if ((orgfrmt != NULL) && (orgfrmt != frmt)) {
-      paxwarn(1, "Cannot mix current archive format %s with %s",
+      Tty.paxwarn(true, "Cannot mix current archive format %s with %s",
               frmt->name, orgfrmt->name);
       return;
     }
@@ -981,7 +985,7 @@ extension pax {
     dlen = strlcpy(dirbuf, dirptr, sizeof(dirbuf));
     if (dlen >= sizeof(dirbuf) ||
         (dlen == sizeof(dirbuf) - 1 && dirbuf[dlen - 1] != '/')) {
-      paxwarn(1, "directory name is too long %s", dirptr);
+      Tty.paxwarn(true, "directory name is too long %s", dirptr);
       return;
     }
 
@@ -994,12 +998,12 @@ extension pax {
     drem = PAXPATHLEN - dlen;
 
     if (stat(dirptr, &sb) < 0) {
-      syswarn(1, errno, "Cannot access destination directory %s",
+      Tty.syswarn(true, errno, "Cannot access destination directory %s",
               dirptr);
       return;
     }
     if (!S_ISDIR(sb.st_mode)) {
-      paxwarn(1, "Destination is not a directory %s", dirptr);
+      Tty.paxwarn(true, "Destination is not a directory %s", dirptr);
       return;
     }
 
@@ -1061,7 +1065,7 @@ extension pax {
         if (strlcpy(dest_pt, arcn.name + (*arcn.name == '/'),
                     drem + 1) > drem) {
 
-          paxwarn(1, "Destination pathname too long %s",
+          Tty.paxwarn(true, "Destination pathname too long %s",
                   arcn.name);
           continue;
         }
@@ -1074,7 +1078,7 @@ extension pax {
 
         if (res == 0) {
           if (uflag && Dflag) {
-            if ((arcn.sb.st_mtime<=sb.st_mtime) &&
+            if ((arcn.sb.lastWrite<=sb.lastWrite) &&
                 (arcn.sb.st_ctime<=sb.st_ctime)) {
               continue;
             }
@@ -1082,7 +1086,7 @@ extension pax {
             if (arcn.sb.st_ctime <= sb.st_ctime) {
               continue;
             }
-          } else if (arcn.sb.st_mtime <= sb.st_mtime) {
+          } else if (arcn.sb.lastWrite <= sb.lastWrite) {
             continue;
           }
         }
@@ -1110,7 +1114,7 @@ extension pax {
        */
       if ((Yflag || Zflag) && ((lstat(arcn.name, &sb) == 0))) {
         if (Yflag && Zflag) {
-          if ((arcn.sb.st_mtime <= sb.st_mtime) &&
+          if ((arcn.sb.lastWrite <= sb.lastWrite) &&
               (arcn.sb.st_ctime <= sb.st_ctime)) {
             continue;
           }
@@ -1118,7 +1122,7 @@ extension pax {
           if (arcn.sb.st_ctime <= sb.st_ctime) {
             continue;
           }
-        } else if (arcn.sb.st_mtime <= sb.st_mtime) {
+        } else if (arcn.sb.lastWrite <= sb.lastWrite) {
           continue;
         }
       }
@@ -1169,7 +1173,7 @@ extension pax {
         if (res >= 0 &&
             arcn.type == PAX_DIR &&
             copyfile(arcn.org_name, arcn.name, NULL, COPYFILE_ACL | COPYFILE_XATTR) < 0) {
-          paxwarn(1, "Directory %s had metadata that could not be copied: %s", arcn.org_name, strerror(errno));
+          Tty.paxwarn(true, "Directory %s had metadata that could not be copied: %s", arcn.org_name, strerror(errno));
         }
 
         if (vflag && vfpart) {
@@ -1184,7 +1188,7 @@ extension pax {
        * first open source file and then create the destination file
        */
       if ((fdsrc = open(arcn.org_name, O_RDONLY, 0)) < 0) {
-        syswarn(1, errno, "Unable to open %s to read",
+        Tty.syswarn(true, errno, "Unable to open %s to read",
                 arcn.org_name);
         purg_lnk(arcn);
         continue;
@@ -1203,7 +1207,7 @@ extension pax {
       /* do this before file close so that mtimes are correct regardless */
       if (getenv(COPYFILE_DISABLE_VAR) == NULL) {
         if (fcopyfile(fdsrc, fddest, NULL, COPYFILE_ACL | COPYFILE_XATTR) < 0) {
-          paxwarn(1, "File %s had metadata that could not be copied: %s", arcn.org_name,
+          Tty.paxwarn(true, "File %s had metadata that could not be copied: %s", arcn.org_name,
                   strerror(errno));
         }
       }
@@ -1247,7 +1251,7 @@ extension pax {
    *	the specs for rd_wrbuf() for more details)
    */
 
-  private func next_head(_ arcn : ARCHD) -> Bool {
+  private func next_head(_ arcn : ARCHD) -> Result {
     int ret;
     char *hdend;
     int res;
@@ -1271,8 +1275,9 @@ extension pax {
        * (frmt->hsz is the proper size)
        */
       for (;;) {
-        if ((ret = rd_wrbuf(hdend, res)) == res)
-            break;
+        if ((ret = rd_wrbuf(hdend, res)) == res) {
+          break;
+        }
 
         /*
          * If we read 0 bytes (EOF) from an archive when we
@@ -1281,8 +1286,9 @@ extension pax {
          * end marker.  It's just stupid to error out on
          * them, so exit gracefully.
          */
-        if (first && ret == 0)
-            return(-1);
+        if (first && ret == 0) {
+          return .failed
+        }
         first = 0;
 
         /*
@@ -1290,16 +1296,16 @@ extension pax {
          * storage device, better give the user the bad news.
          */
         if ((ret == 0) || (rd_sync() < 0)) {
-          paxwarn(1,"Premature end of file on archive read");
-          return(-1);
+          Tty.paxwarn(true,"Premature end of file on archive read");
+          return .failed
         }
         if (!in_resync) {
           if (act == APPND) {
-            paxwarn(1,
+            Tty.paxwarn(true,
                     "Archive I/O error, cannot continue");
-            return(-1);
+            return .failed
           }
-          paxwarn(1,"Archive I/O error. Trying to recover.");
+          Tty.paxwarn(true,"Archive I/O error. Trying to recover.");
           ++in_resync;
         }
 
@@ -1336,7 +1342,7 @@ extension pax {
            * valid trailer found, drain input as required
            */
           ar_drain();
-          return true
+          return .failed
         }
 
         if (ret == 1) {
@@ -1362,10 +1368,10 @@ extension pax {
        */
       if (!in_resync) {
         if (act == APPND) {
-          paxwarn(1,"Unable to append, archive header flaw");
-          return(-1);
+          Tty.paxwarn(true,"Unable to append, archive header flaw");
+          return .failed
         }
-        paxwarn(1,"Invalid header, starting valid header search.");
+        Tty.paxwarn(true,"Invalid header, starting valid header search.");
         ++in_resync;
       }
       memmove(hdbuf, hdbuf+1, shftsz);
@@ -1382,11 +1388,11 @@ extension pax {
        * valid trailer found, drain input as required
        */
       ar_io.ar_drain();
-      return true
+      return .failed
     }
 
     runtime.flcnt += 1
-    return false
+    return .ok
   }
 
   /*
@@ -1399,7 +1405,7 @@ extension pax {
    *	0 if archive found -1 otherwise
    */
 
-  private func get_arc() -> Bool {
+  private func get_arc() -> Result {
     let minhd = BLKMULT
     char *hdend;
     var notice = false
@@ -1409,10 +1415,11 @@ extension pax {
      * to read the archive.
      */
     for (i = 0; ford[i] >= 0; ++i) {
-      if (fsub[ford[i]].hsz < minhd)
-          minhd = fsub[ford[i]].hsz;
+      if (fsub[ford[i]].hsz < minhd) {
+        minhd = fsub[ford[i]].hsz;
+      }
     }
-    if (rd_start() < 0) { return true }
+    if (rd_start() < 0) { return .failed }
     var res = BLKMULT
     var hdsz = 0
     hdend = hdbuf;
@@ -1447,9 +1454,9 @@ extension pax {
         hdend = hdbuf;
         if !notice {
           if options.act == .APPND {
-            return true
+            return .failed
           }
-          paxwarn(true, "Cannot identify format. Searching...")
+          Tty.paxwarn(true, "Cannot identify format. Searching...")
           notice = true
         }
       }
@@ -1463,8 +1470,9 @@ extension pax {
        * important).
        */
       for (i = 0; ford[i] >= 0; ++i) {
-        if ((*fsub[ford[i]].id)(hdbuf, hdsz) < 0)
-            continue;
+        if ((*fsub[ford[i]].id)(hdbuf, hdsz) < 0) {
+          continue;
+        }
         frmt = &(fsub[ford[i]]);
         /*
          * yuck, to avoid slow special case code in the extract
@@ -1474,7 +1482,7 @@ extension pax {
          * adding all the special case code is far worse.
          */
         pback(hdbuf, hdsz);
-        return false
+        return .ok
       }
 
       /*
@@ -1483,9 +1491,9 @@ extension pax {
        */
       if (!notice) {
         if options.act == .APPND {
-          return true
+          return .failed
         }
-        paxwarn(true, "Cannot identify format. Searching...");
+        Tty.paxwarn(true, "Cannot identify format. Searching...");
         notice = true
       }
 
@@ -1510,7 +1518,7 @@ extension pax {
     /*
      * we cannot find a header, bow, apologize and quit
      */
-    paxwarn(true, "Sorry, unable to determine archive format.")
-    return true
+    Tty.paxwarn(true, "Sorry, unable to determine archive format.")
+    return .failed
   }
 }

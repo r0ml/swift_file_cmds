@@ -78,20 +78,22 @@ class Tty {
 
 func tty_read() -> String? {
 
-	if ((--len <= 0) || (ttyinf == NULL) || (fgets(str,len,ttyinf) == NULL))
-		return(-1);
+  if ((--len <= 0) || (ttyinf == NULL) || (fgets(str,len,ttyinf) == NULL)) {
+    return .failed;
+  }
 	*(str + len) = '\0';
 
 	/*
 	 * strip off that trailing newline
 	 */
-	if ((pt = strchr(str, '\n')) != NULL)
-		*pt = '\0';
+  if ((pt = strchr(str, '\n')) != NULL) {
+    *pt = '\0';
+  }
 	return(0);
 }
 
 /*
- * paxwarn()
+ * Tty.paxwarn()
  *	write a warning message to stderr. if "set" the exit value of pax
  *	will be non-zero.
  */
@@ -116,7 +118,7 @@ func tty_read() -> String? {
   }
 
     /*
-     * syswarn()
+     * Tty.syswarn()
      *	write a warning message to stderr. if "set" the exit value of pax
      *	will be non-zero.
      */

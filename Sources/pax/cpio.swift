@@ -55,14 +55,14 @@ class cpio : bcpio {
    *      0 if a valid header, -1 otherwise
    */
 
-  override func id(_ blk : [UInt8]) -> Bool { // was cpio_id
-    if blk.count < hsz { return true }
+  override func id(_ blk : [UInt8]) -> Result { // was cpio_id
+    if blk.count < hsz { return .failed }
     let b = Array(AMAGIC.utf8CString.dropLast())
     let a = blk.prefix(AMAGIC.count).map { CChar($0) }
     if a != b {
-      return true
+      return .failed
     }
-    return false
+    return .ok
   }
 
   /*
@@ -98,9 +98,9 @@ class cpio : bcpio {
     arcn.sb.st_nlink = (nlink_t)asc_ul(hd->c_nlink, sizeof(hd->c_nlink),
                                         OCT);
     arcn.sb.st_rdev = (dev_t)asc_ul(hd->c_rdev, sizeof(hd->c_rdev), OCT);
-    arcn.sb.st_mtime = (time_t)asc_uqd(hd->c_mtime, sizeof(hd->c_mtime),
+    arcn.sb.lastWrite = (time_t)asc_uqd(hd->c_mtime, sizeof(hd->c_mtime),
                                         OCT);
-    arcn.sb.st_ctime = arcn.sb.st_atime = arcn.sb.st_mtime;
+    arcn.sb.st_ctime = arcn.sb.st_atime = arcn.sb.lastWrite;
     arcn.sb.st_size = (off_t)asc_uqd(hd->c_filesize,sizeof(hd->c_filesize),
                                       OCT);
 
@@ -109,11 +109,11 @@ class cpio : bcpio {
      * follows header in the archive)
      */
     if ((nsz = (int)asc_ul(hd->c_namesize,sizeof(hd->c_namesize),OCT)) < 2) {
-      return(-1);
+      return .failed;
     }
     arcn.nlen = nsz - 1;
     if (rd_nm(arcn, nsz) < 0) {
-      return(-1);
+      return .failed;
     }
 
     if (((arcn.sb.st_mode&C_IFMT) != C_ISLNK)||(arcn.sb.st_size == 0)) {
@@ -130,7 +130,7 @@ class cpio : bcpio {
      * stored like file data.
      */
     if (rd_ln_nm(arcn) < 0) {
-      return(-1);
+      return .failed;
     }
 
     /*
@@ -159,7 +159,7 @@ class cpio : bcpio {
    *  data to write after the header, -1 if archive write failed
    */
 
-  override func wr(_ arcn: pax.ARCHD) -> Bool? { // was cpio_wr(ARCHD *arcn)
+  override func wr(_ arcn: ARCHD) -> Result { // was cpio_wr(ARCHD *arcn)
 
     HD_CPIO *hd;
     int nsz;
@@ -169,7 +169,7 @@ class cpio : bcpio {
      * check and repair truncated device and inode fields in the header
      */
     if (map_dev(arcn, CPIO_MASK, CPIO_MASK) < 0) {
-      return true
+      return .failed
     }
 
     arcn.pad = 0
@@ -186,11 +186,11 @@ class cpio : bcpio {
          */
         if (uqd_asc((u_quad_t)arcn.sb.st_size, hd.c_filesize,
                     sizeof(hd.c_filesize), OCT)) {
-          paxwarn(true,"File is too large for cpio format \(arcn.org_name)")
-          return nil
+          Tty.paxwarn(true,"File is too large for cpio format \(arcn.org_name)")
+          return .partial
         }
         break;
-      case PAX_SLK:
+      case .SLK:
         /*
          * set data size to hold link name
          */
@@ -228,7 +228,7 @@ class cpio : bcpio {
                OCT) ||
         ul_asc((u_long)arcn.sb.st_rdev, hd.c_rdev, sizeof(hd.c_rdev),
                OCT) ||
-        ul_asc((u_long)arcn.sb.st_mtime,hd.c_mtime,sizeof(hd.c_mtime),
+        ul_asc((u_long)arcn.sb.lastWrite,hd.c_mtime,sizeof(hd.c_mtime),
                OCT) ||
         ul_asc((u_long)nsz, hd.c_namesize, sizeof(hd.c_namesize), OCT)) {
       goto out;
@@ -239,8 +239,8 @@ class cpio : bcpio {
      */
     if ((wr_rdbuf((char *)&hdblk, hsz) < 0) ||
         (wr_rdbuf(arcn.name, nsz) < 0)) {
-      paxwarn(true, "Unable to write cpio header for %s", arcn.org_name);
-      return true
+      Tty.paxwarn(true, "Unable to write cpio header for %s", arcn.org_name);
+      return .failed
     }
 
     /*
@@ -248,10 +248,10 @@ class cpio : bcpio {
      * data, if we are link tell caller we are done, go to next file
      */
     if arcn.type == .CTG || arcn.type == .REG || arcn.type == .HRG {
-      return false
+      return .ok
     }
     if arcn.type != .SLK {
-      return nil
+      return .partial
     }
 
     /*
@@ -259,18 +259,18 @@ class cpio : bcpio {
      * next file as we are done.
      */
     if (wr_rdbuf(arcn.ln_name, arcn.ln_nlen) < 0) {
-      paxwarn(true,"Unable to write cpio link name for \(arcn.org_name)")
-      return true
+      Tty.paxwarn(true,"Unable to write cpio link name for \(arcn.org_name)")
+      return .failed
     }
-    return nil
+    return .partial
 
   out:
     /*
      * header field is out of range
      */
-    paxwarn(1, "Cpio header field is too small to store file %s",
+    Tty.paxwarn(true, "Cpio header field is too small to store file %s",
             arcn.org_name);
-    return(1);
+    return .partial
   }
 
 }

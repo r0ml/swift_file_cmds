@@ -60,7 +60,7 @@ extension pax.FSUB {
    *  we return a 0 but "left" is set to be the amount unwritten
    */
 
-  func rd_data(_ arcn : ARCHD, _ ofd : Int, _ left : inout Int) -> Bool {
+  func rd_data(_ arcn : ARCHD, _ ofd : Int, _ left : inout Int) -> Result {
     int cnt = 0;
     off_t size = arcn.sb.st_size;
     int res = 0;
@@ -83,7 +83,7 @@ extension pax.FSUB {
         sz = (int)sb.st_blksize;
       }
     } else {
-      syswarn(0,errno,"Unable to obtain block size for file %s",fnm);
+      Tty.syswarn(false,errno,"Unable to obtain block size for file %s",fnm);
     }
     rem = sz;
     *left = 0L;
@@ -137,7 +137,7 @@ extension pax.FSUB {
      * if we failed from archive read, we do not want to skip
      */
     if ((size > 0L) && (*left == 0L)) {
-      return(-1);
+      return .failed;
     }
 
     /*
@@ -147,7 +147,7 @@ extension pax.FSUB {
     if (docrc && (size == 0L) && (arcn.crc != crc)) {
       Tty.paxwarn(true,"Actual crc does not match expected crc \(arcn.name)")
     }
-    return false
+    return .ok
   }
 
 
@@ -169,7 +169,7 @@ extension pax.FSUB {
    *  0, but "left" is set to be greater than zero.
    */
 
-  func wr_data(_ arcn : ARCHD, _ ifd : Int, _ left : inout Int) -> Bool {
+  func wr_data(_ arcn : ARCHD, _ ifd : Int, _ left : inout Int) -> Result {
     int cnt;
     int res = 0;
     off_t size = arcn.sb.st_size;
@@ -182,11 +182,12 @@ extension pax.FSUB {
       cnt = bufend - bufpt;
       if ((cnt <= 0) && ((cnt = buf_flush(blksz)) < 0)) {
         *left = size;
-        return(-1);
+        return .failed;
       }
       cnt = MIN(cnt, size);
-      if ((res = read(ifd, bufpt, cnt)) <= 0)
-          break;
+      if ((res = read(ifd, bufpt, cnt)) <= 0) {
+        break;
+      }
       size -= res;
       bufpt += res;
     }
@@ -196,19 +197,19 @@ extension pax.FSUB {
      * or the file read failed.
      */
     if (res < 0) {
-      Tty.syswarn(1, errno, "Read fault on %s", arcn.org_name);
+      Tty.syswarn(true, errno, "Read fault on %s", arcn.org_name);
     }
     else if (size != 0L) {
-      Tty.paxwarn(1, "File changed size during read %s", arcn.org_name);
+      Tty.paxwarn(true, "File changed size during read %s", arcn.org_name);
     }
     else if (fstat(ifd, &sb) < 0) {
-      Tty.syswarn(1, errno, "Failed stat on %s", arcn.org_name);
+      Tty.syswarn(true, errno, "Failed stat on %s", arcn.org_name);
     }
-    else if (arcn.sb.st_mtime != sb.st_mtime) {
-      Tty.paxwarn(1, "File %s was modified during copy to archive",
+    else if (arcn.sb.lastWrite != sb.lastWrite) {
+      Tty.paxwarn(true, "File %s was modified during copy to archive",
               arcn.org_name);
     }
     *left = size;
-    return(0);
+    return .ok
   }
 }

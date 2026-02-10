@@ -55,8 +55,8 @@ class ustar : tar {
    *  0 if ok, -1 otherwise
    */
 
-  override func st_rd() -> Bool {
-    return false
+  override func st_rd() -> Result {
+    return .ok
   }
 
   /*
@@ -66,8 +66,8 @@ class ustar : tar {
    *  0 if ok, -1 otherwise
    */
 
-  override func st_wr() -> Bool {
-    return false
+  override func st_wr() -> Result {
+    return .ok
   }
 
   /*
@@ -78,11 +78,11 @@ class ustar : tar {
    *  0 if a ustar header, -1 otherwise
    */
 
-  override func id( _ blk : [UInt8]) -> Bool {
+  override func id( _ blk : [UInt8]) -> Result {
     HD_USTAR *hd;
 
     if (size < BLKMULT) {
-      return(-1);
+      return .failed;
     }
     hd = (HD_USTAR *)blk;
 
@@ -93,15 +93,15 @@ class ustar : tar {
      * check the checksum. If ok we have to assume it is a valid header.
      */
     if (hd->name[0] == '\0') {
-      return(-1);
+      return .failed;
     }
     if (strncmp(hd->magic, TMAGIC, TMAGLEN - 1) != 0) {
-      return(-1);
+      return .failed;
     }
     if (asc_ul(hd->chksum,sizeof(hd->chksum),OCT) != tar_chksm(blk,BLKMULT)) {
-      return(-1);
+      return .failed;
     }
-    return(0);
+    return .ok
   }
 
   /*
@@ -168,8 +168,8 @@ class ustar : tar {
     arcn.sb.st_mode = (mode_t)(asc_ul(hd->mode, sizeof(hd->mode), OCT) &
         0xfff);
     arcn.sb.st_size = (off_t)asc_uqd(hd->size, sizeof(hd->size), OCT);
-    arcn.sb.st_mtime = (time_t)asc_uqd(hd->mtime, sizeof(hd->mtime), OCT);
-    arcn.sb.st_ctime = arcn.sb.st_atime = arcn.sb.st_mtime;
+    arcn.sb.lastWrite = (time_t)asc_uqd(hd->mtime, sizeof(hd->mtime), OCT);
+    arcn.sb.st_ctime = arcn.sb.st_atime = arcn.sb.lastWrite;
 
     /*
      * If we can find the ascii names for gname and uname in the password
@@ -394,9 +394,9 @@ class ustar : tar {
          ul_oct((u_long)MINOR(arcn.sb.st_rdev), hd->devminor,
 
          sizeof(hd->devminor), term_char) ||
-         ul_oct((u_long)0L, hd->size, sizeof(hd->size), term_char))
-
-        goto out;
+            ul_oct((u_long)0L, hd->size, sizeof(hd->size), term_char)) {
+          goto out;
+        }
       break;
       case .FIF:
       hd->typeflag = FIFOTYPE;
@@ -442,7 +442,7 @@ class ustar : tar {
 
           sizeof(hd->size), term_char)) {
 
-        paxwarn(1,"File is too long for ustar %s",arcn.org_name);
+        Tty.paxwarn(true,"File is too long for ustar %s",arcn.org_name);
         return(1);
       }
       break;
@@ -464,7 +464,7 @@ class ustar : tar {
       }
       if (uid_warn != arcn.sb.st_uid) {
         uid_warn = arcn.sb.st_uid;
-        paxwarn(1,
+        Tty.paxwarn(true,
             "Ustar header field is too small for uid %lu, "
             "using nobody", (u_long)arcn.sb.st_uid);
       }
@@ -480,7 +480,7 @@ class ustar : tar {
       }
       if (gid_warn != arcn.sb.st_gid) {
         gid_warn = arcn.sb.st_gid;
-        paxwarn(1,
+        Tty.paxwarn(true,
             "Ustar header field is too small for gid %lu, "
             "using nobody", (u_long)arcn.sb.st_gid);
       }
@@ -492,7 +492,7 @@ class ustar : tar {
        remove all beyond (see definition of stat.st_mode structure)    */
     mode12only = ((u_long)arcn.sb.st_mode) & 0x00000fff;
     if (ul_oct((u_long)mode12only, hd->mode, sizeof(hd->mode), term_char) ||
-        ul_oct((u_long)arcn.sb.st_mtime,hd->mtime,sizeof(hd->mtime),term_char)) {
+        ul_oct((u_long)arcn.sb.lastWrite,hd->mtime,sizeof(hd->mtime),term_char)) {
 
       goto out;
     }
@@ -512,10 +512,10 @@ class ustar : tar {
       goto out;
     }
       if (wr_rdbuf((char *)&hdblk, sizeof(HD_USTAR)) < 0) {
-        return(-1);
+        return .failed;
       }
       if (wr_skip((off_t)(BLKMULT - sizeof(HD_USTAR))) < 0) {
-        return(-1);
+        return .failed;
       }
       if ((arcn.type == PAX_CTG) || (arcn.type == PAX_REG)) {
         return(0);

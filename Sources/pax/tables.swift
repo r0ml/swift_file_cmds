@@ -148,7 +148,7 @@ class Tables {
    */
 
   struct DLIST {
-    var trunc_bits : ino_t   /* truncation pattern for a specific map */
+    var trunc_bits : UInt   /* truncation pattern for a specific map */
     var dev : UInt          /* the new device id we use */
     // struct dlist *fow;
   }
@@ -250,8 +250,8 @@ class Tables {
    return false
    }
    if ((ltab = (HRDLNK **)calloc(L_TAB_SZ, sizeof(HRDLNK *))) == NULL) {
-   paxwarn(1, "Cannot allocate memory for hard link table");
-   return(-1);
+   Tty.paxwarn(true, "Cannot allocate memory for hard link table");
+   return .failed;
    }
    return(0);
    }
@@ -269,7 +269,7 @@ class Tables {
    *	if found returns 1; if not found returns 0; -1 on error
    */
 
-  func chk_lnk(_ arcn : inout pax.ARCHD) {
+  func chk_lnk(_ arcn : inout ARCHD) {
 
     /*
      * ignore those nodes that cannot have hard links
@@ -322,7 +322,7 @@ class Tables {
    *	we do not want to accidentally point another file at it later on.
    */
 
-  func purg_lnk(_ arcn : pax.ARCHD) {
+  func purg_lnk(_ arcn : ARCHD) {
     /*
      * do not bother to look if it could not be in the database
      */
@@ -382,7 +382,7 @@ class Tables {
    * changed to assume that the table can be in memory because we have virtual memory
    */
 
-  func chk_ftime(_ arcn : pax.ARCHD) -> Int {
+  func chk_ftime(_ arcn : ARCHD) -> Int {
     /*    FTM *pt;
      int namelen;
      u_int indx;
@@ -517,11 +517,11 @@ class Tables {
    *	0 if added ok, -1 otherwise
    */
 
-  func add_dev(_ arcn : pax.ARCHD) -> Bool {
+  func add_dev(_ arcn : ARCHD) -> Result {
     guard let _ = chk_dev(arcn.sb.device, true) else {
-      return true
+      return .failed
     }
-    return false
+    return .ok
   }
 
   /*
@@ -577,63 +577,63 @@ class Tables {
    *	0 if all ok, -1 otherwise.
    */
 
-  func map_dev(_ arcn : pax.ARCHD, _ dev_mask : UInt, _ ino_mask : UInt) -> Bool {
-    DEVT *pt;
-    DLIST *dpt;
-    static dev_t lastdev = 0;	/* next device number to try */
-    int trc_ino = 0;
-    int trc_dev = 0;
-    ino_t trunc_bits = 0;
-    ino_t nino;
+  func map_dev(_ arcn : inout ARCHD, _ dev_mask : UInt, _ ino_mask : UInt) -> Result {
+/*    DEVT *pt;
+ */
+//    var dpt : DLIST?
+
+//    static dev_t lastdev = 0;	/* next device number to try */
+
+    var trc_ino = false
+    var trc_dev = false
+
+    var trunc_bits = UInt(0)
 
     /*
      * check for device and inode truncation, and extract the truncated
      * bit pattern.
      */
-    if (arcn.sb.device & dev_mask != arcn.sb.device {
-      ++trc_dev;
+    if (arcn.sb.device & dev_mask) != arcn.sb.device {
+      trc_dev = true
     }
-        if ((nino = arcn.sb.st_ino & (ino_t)ino_mask) != arcn.sb.st_ino) {
-      ++trc_ino;
-      trunc_bits = arcn.sb.st_ino & (ino_t)(~ino_mask);
+    let nino = arcn.sb.inode & ino_mask
+        if nino != arcn.sb.inode {
+          trc_ino = true
+          trunc_bits = arcn.sb.inode & ~ino_mask
     }
 
         /*
          * see if this device is already being mapped, look up the device
          * then find the truncation bit pattern which applies
          */
-        if ((pt = chk_dev(arcn.sb.st_dev, 0)) != NULL) {
+    if let pt = chk_dev(arcn.sb.device, false) {
       /*
        * this device is already marked to be remapped
        */
-      for (dpt = pt->list; dpt != NULL; dpt = dpt->fow) {
-        if (dpt->trunc_bits == trunc_bits) {
-          break;
-        }
-      }
-
-      if dpt != nil {
+      if let dpx = pt.first(where: { $0.trunc_bits == trunc_bits }) {
         /*
          * we are being remapped for this device and pattern
          * change the device number to be stored and return
          */
-        arcn.sb.st_dev = dpt.dev
-        arcn.sb.st_ino = nino
-        return false
+        arcn.sb.device = dpx.dev
+        arcn.sb.inode = nino
+        return .ok
       }
     } else {
       /*
        * this device is not being remapped YET. if we do not have any
        * form of truncation, we do not need a remap
        */
-      if (!trc_ino && !trc_dev)
-          return(0);
+      if !trc_ino && !trc_dev {
+        return .ok
+      }
 
       /*
        * we have truncation, have to add this as a device to remap
        */
-      if ((pt = chk_dev(arcn.sb.st_dev, 1)) == NULL)
-          goto bad;
+      if ((pt = chk_dev(arcn.sb.device, true)) == NULL) {
+        goto bad;
+      }
 
       /*
        * if we just have a truncated inode, we have to make sure that
@@ -644,13 +644,9 @@ class Tables {
        * pattern of all 0's. So we add the mapping for all 0's to the
        * same device number.
        */
-      if (!trc_dev && (trunc_bits != 0)) {
-        if ((dpt = (DLIST *)malloc(sizeof(DLIST))) == NULL)
-            goto bad;
-        dpt->trunc_bits = 0;
-        dpt->dev = arcn.sb.st_dev;
-        dpt->fow = pt->list;
-        pt->list = dpt;
+      if !trc_dev && trunc_bits != 0 {
+        let dpt = DLIST(trunc_bits: 0, dev: arcn.sb.device)
+        dtab[arcn.sb.device] = dtab[arcn.sb.device]! + [dpt]
       }
     }
 
@@ -659,38 +655,39 @@ class Tables {
          * around on lastdev (so we do not get stuck looking forever!)
          */
         while (++lastdev > 0) {
-      if (chk_dev(lastdev, 0) != NULL)
-          continue;
+      if (chk_dev(lastdev, 0) != NULL) {
+        continue;
+      }
       /*
        * found an unused value. If we have reached truncation point
        * for this format we are hosed, so we give up. Otherwise we
        * mark it as being used.
        */
       if (((lastdev & ((dev_t)dev_mask)) != lastdev) ||
-          (chk_dev(lastdev, 1) == NULL))
-          goto bad;
+          (chk_dev(lastdev, 1) == NULL)) {
+        goto bad;
+      }
       break;
     }
 
-        if ((lastdev <= 0) || ((dpt = (DLIST *)malloc(sizeof(DLIST))) == NULL))
-        goto bad;
+        if lastdev <= 0  {
+      goto bad;
+    }
 
         /*
          * got a new device number, store it under this truncation pattern.
          * change the device number this file is being stored with.
          */
-        dpt->trunc_bits = trunc_bits;
-        dpt->dev = lastdev;
-        dpt->fow = pt->list;
-        pt->list = dpt;
-        arcn.sb.st_dev = lastdev;
-        arcn.sb.st_ino = nino;
-        return false
+    let dpt = DLIST(trunc_bits: trunc_bits, dev: lastdev)
+    dtab[arcn.sb.device] = dtab[arcn.sb.device]! + [dpt]
+        arcn.sb.device = lastdev
+        arcn.sb.inode = nino
+        return .ok
 
         bad:
-          paxwarn(true, "Unable to fix truncated inode/device field when storing \(arcn.name)")
-        paxwarn(false, "Archive may create improper hard links when extracted");
-        return false
+          Tty.paxwarn(true, "Unable to fix truncated inode/device field when storing \(arcn.name)")
+        Tty.paxwarn(false, "Archive may create improper hard links when extracted");
+        return .ok
   }
 
   /*
@@ -764,54 +761,17 @@ class Tables {
    *	0 if found, -1 if not found.
    */
 
-  func get_atdir(dev_t dev, ino_t ino, time_t *mtime, time_t *mtime_nsec,
-  time_t *atime, time_t *atime_nsec) -> Bool {
-    ATDIR *pt;
-    ATDIR **ppt;
-    u_int indx;
-
-    /*
-     * hash by inode and search the chain for an inode and device match
-     */
-    indx = ((unsigned)ino) % A_TAB_SZ;
-    if ((pt = atab[indx]) == NULL) {
-      return(-1);
+  func get_atdir(_ dev : UInt, _ ino : UInt, _ mtime : inout DateTime, _ atime : inout DateTime) -> Result {
+    guard let pt = atab[DevInode(dev: dev, ino: ino)] else {
+      return .failed;
     }
-
-    ppt = &(atab[indx]);
-    while (pt != NULL) {
-      if ((pt->ino == ino) && (pt->dev == dev)) {
-        break;
-      }
-      /*
-       * no match, go to next one
-       */
-      ppt = &(pt->fow);
-      pt = pt->fow;
-    }
-
-    /*
-     * return if we did not find it.
-     */
-    if (pt == NULL) {
-      return(-1);
-    }
-
     /*
      * found it. return the times and remove the entry from the table.
      */
-    *ppt = pt->fow;
-    *mtime = pt->mtime;
-
-    *mtime_nsec = pt->mtime_nsec;
-
-    *atime = pt->atime;
-
-    *atime_nsec = pt->atime_nsec;
-
-    free(pt->name);
-    free(pt);
-    return(0);
+    mtime = pt.mtime
+    atime = pt.atime
+    atab.removeValue(forKey: DevInode(dev: dev, ino: ino) )
+    return .ok
   }
 
   /*
@@ -855,7 +815,7 @@ class Tables {
 
     if (havechd && *name != '/') {
       if ((rp = realpath(name, realname)) == NULL) {
-        paxwarn(1, "Cannot canonicalize %s", name);
+        Tty.paxwarn(true, "Cannot canonicalize %s", name);
         return;
       }
       name = rp;
@@ -870,49 +830,35 @@ class Tables {
    *	by pax
    */
 
-  func proc_dir() {
-
-
-    DIRDATA *dblk;
-    long cnt;
+  func proc_dir(_ options: pax.CommandOptions) {
 
     /*
      * read backwards through the file and process each directory
      */
-
-    cnt = dircnt;
-    while (--cnt >= 0) {
+    for dblk in dirp.reversed() {
 
       /*
        * read the trailer, then the file name, if this fails
        * just give up.
        */
 
-      dblk = &dirp[cnt];
 
       /*
        * frc_mode set, make sure we set the file modes even if
        * the user didn't ask for it (see file_subs.c for more info)
        */
 
-      if (pmode || dblk->frc_mode) {
-        set_pmode(dblk->name, dblk->mode);
+      if options.pmode || dblk.frc_mode {
+        set_pmode(dblk.name, dblk.mode)
       }
 
-      if (patime || pmtime) {
+      if options.patime || options.pmtime {
 
-        set_ftime(dblk->name, dblk->mtime, dblk->mtime_nsec,
-                  dblk->atime, dblk->atime_nsec, 0);
+        set_ftime(dblk.name, dblk.mtime, dblk.atime, false)
       }
-      free(dblk->name);
-
     }
 
-
-    free(dirp);
-    dirp = NULL;
-    dircnt = 0;
-
+    dirp.removeAll()
   }
 
 }

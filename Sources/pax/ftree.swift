@@ -113,15 +113,15 @@ extension pax {
     }
 
     if ((fthead == NULL) && ((farray[0] = malloc(PAXPATHLEN+2)) == NULL)) {
-      paxwarn(1, "Unable to allocate memory for file name buffer");
-      return(-1);
+      Tty.paxwarn(true, "Unable to allocate memory for file name buffer");
+      return .failed;
     }
 
     if (ftree_arg() < 0) {
-      return(-1);
+      return .failed;
     }
     if (tflag && (atdir_start() < 0)) {
-      return(-1);
+      return .failed;
     }
     return(0);
   }
@@ -144,8 +144,8 @@ extension pax {
      * simple check for bad args
      */
     if ((str == NULL) || (*str == '\0')) {
-      paxwarn(0, "Invalid file name argument");
-      return(-1);
+      Tty.paxwarn(0, "Invalid file name argument");
+      return .failed;
     }
 
     /*
@@ -154,8 +154,8 @@ extension pax {
      * trailing / the user may pass us. (watch out for / by itself).
      */
     if ((ft = (FTREE *)malloc(sizeof(FTREE))) == NULL) {
-      paxwarn(0, "Unable to allocate memory for filename");
-      return(-1);
+      Tty.paxwarn(0, "Unable to allocate memory for filename");
+      return .failed;
     }
 
     if (((len = strlen(str) - 1) > 0) && (str[len] == '/')) {
@@ -252,7 +252,7 @@ extension pax {
         continue;
       }
       if (wban == 0) {
-        paxwarn(1,"WARNING! These file names were not selected:");
+        Tty.paxwarn(true,"WARNING! These file names were not selected:");
         ++wban;
       }
       (void)fprintf(stderr, "%s\n", ft->fname);
@@ -293,7 +293,7 @@ extension pax {
          */
 
         if (getpathname(farray[0], PAXPATHLEN+1) == NULL) {
-          return(-1);
+          return .failed;
         }
 
       } else {
@@ -304,22 +304,23 @@ extension pax {
           ftcur = fthead;
         }
         else if ((ftcur = ftcur->fow) == NULL) {
-          return(-1);
+          return .failed;
         }
         if (ftcur->chflg) {
           /* First fchdir() back... */
 
           if (fdochdir(cwdfd) == -1) {
-            return(-1);
+            return .failed;
           }
 
           if (dochdir(ftcur->fname) == -1) {
-            return(-1);
+            return .failed;
           }
 
           continue;
-        } else
+        } else {
           farray[0] = ftcur->fname;
+        }
       }
 
       /*
@@ -366,7 +367,7 @@ extension pax {
        */
       ftree_skip = 0;
       if (ftree_arg() < 0) {
-        return(-1);
+        return .failed;
       }
     }
 
@@ -377,7 +378,7 @@ extension pax {
       if ((ftent = fts_read(ftsp)) == NULL) {
 
         if (errno) {
-          syswarn(1, errno, "next_file");
+          Tty.syswarn(true, errno, "next_file");
         }
 
         /*
@@ -385,7 +386,7 @@ extension pax {
          * we are done
          */
         if (ftree_arg() < 0) {
-          return(-1);
+          return .failed;
         }
         continue;
       }
@@ -407,9 +408,10 @@ extension pax {
         case FTS_SLNONE:	/* was same as above cases except Unix
                            conformance requires this error check */
           if (Hflag || Lflag) {       /* -H or -L was specified */
-            if (ftent->fts_errno)
-                paxwarn(1, "%s: %s",
-                        ftent->fts_name, strerror(ftent->fts_errno));
+            if (ftent->fts_errno) {
+              Tty.paxwarn(true, "%s: %s",
+                          ftent->fts_name, strerror(ftent->fts_errno));
+            }
           }
           break;
 
@@ -426,9 +428,9 @@ extension pax {
 
                                    ftent->fts_statp->st_ino,
                                    &mtime, &mtime_nsec,
-                                   &atime, &atime_nsec) < 0))
-
-          continue;
+                                   &atime, &atime_nsec) < 0)) {
+            continue;
+          }
 
           set_ftime(ftent->fts_path, mtime, mtime_nsec,
                     atime, atime_nsec, 1);
@@ -438,19 +440,19 @@ extension pax {
           /*
            * fts claims a file system cycle
            */
-          paxwarn(1,"File system cycle found at %s",ftent->fts_path);
+          Tty.paxwarn(true,"File system cycle found at %s",ftent->fts_path);
           continue;
         case FTS_DNR:
-          syswarn(1, ftent->fts_errno,
+          Tty.syswarn(true, ftent->fts_errno,
                   "Unable to read directory %s", ftent->fts_path);
           continue;
         case FTS_ERR:
-          syswarn(1, ftent->fts_errno,
+          Tty.syswarn(true, ftent->fts_errno,
                   "File system traversal error");
           continue;
         case FTS_NS:
         case FTS_NSOK:
-          syswarn(1, ftent->fts_errno,
+          Tty.syswarn(true, ftent->fts_errno,
                   "Unable to access %s", ftent->fts_path);
           continue;
       }
@@ -482,7 +484,7 @@ extension pax {
             break;
           }
           add_atdir(ftent->fts_path, arcn.sb.st_dev,
-                    arcn.sb.st_ino, arcn.sb.st_mtime,
+                    arcn.sb.st_ino, arcn.sb.lastWrite,
 
                     arcn.sb.st_mtime_nsec, arcn.sb.st_atime,
                     arcn.sb.st_atime_nsec);
@@ -511,7 +513,7 @@ extension pax {
            */
           if ((cnt = readlink(ftent->fts_path, arcn.ln_name,
                               PAXPATHLEN - 1)) < 0) {
-            syswarn(1, errno, "Unable to read symlink %s",
+            Tty.syswarn(true, errno, "Unable to read symlink %s",
                     ftent->fts_path);
             continue;
           }
@@ -569,7 +571,7 @@ extension pax {
       for (bp = buf, ep = buf + buflen; bp < ep; bp++) {
         if ((ch = getchar()) == EOF) {
           if (bp != buf)
-              paxwarn(1, "Ignoring unterminated "
+              Tty.paxwarn(true, "Ignoring unterminated "
                       "pathname at EOF");
           return(NULL);
         }
@@ -592,7 +594,7 @@ extension pax {
     }
     while ((ch = getchar()) != term && ch != EOF)
     ;
-    paxwarn(1, "Ignoring too-long pathname: %s", buf);
+    Tty.paxwarn(true, "Ignoring too-long pathname: %s", buf);
     return(NULL);
   }
 

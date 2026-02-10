@@ -58,7 +58,7 @@ class vcpio_crc : vcpio {
   {
     if ((size < (int)sizeof(HD_VCPIO)) ||
         (strncmp(blk, AVCMAGIC, (int)sizeof(AVCMAGIC) - 1) != 0)) {
-      return(-1);
+      return .failed;
     }
     return(0);
   }
