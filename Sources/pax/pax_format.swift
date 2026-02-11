@@ -873,9 +873,7 @@ class paxer : tar {
    *	0
    */
 
-  int
-  pax_rd(ARCHD *arcn, char *buf)
-  {
+  func rd(_ buf : [UInt8]) -> ARCHD? {
     HD_USTAR *hd;
     int cnt = 0;
     int check_path;
@@ -889,7 +887,7 @@ class paxer : tar {
       return .failed;
     }
 
-    memset(arcn, 0, sizeof(*arcn));
+    var arcn = ARCHD()
     arcn.org_name = arcn.name;
     arcn.sb.st_nlink = 1;
     hd = (HD_USTAR *)buf;
@@ -935,16 +933,16 @@ class paxer : tar {
      */
     arcn.sb.st_mode = (mode_t)(asc_ul(hd->mode, sizeof(hd->mode), OCT) &
                                 0xfff);
-    arcn.sb.st_size = (off_t)asc_uqd(hd->size, sizeof(hd->size), OCT);
+    arcn.sb.size = (off_t)asc_uqd(hd->size, sizeof(hd->size), OCT);
     /* When we have extended header for size, prefer it over hd->size */
     if (size_x_current) {
-      sscanf(size_x_current, "%lld", &arcn.sb.st_size);
+      sscanf(size_x_current, "%lld", &arcn.sb.size);
     }
     arcn.sb.lastWrite = (time_t)asc_ul(hd->mtime, sizeof(hd->mtime), OCT);
     if (arcn.sb.st_atimespec.tv_sec == 0) { // Can be set from header
-      arcn.sb.st_atime = arcn.sb.lastWrite;
+      arcn.sb.lastAccess = arcn.sb.lastWrite
     }
-    arcn.sb.st_ctime = arcn.sb.lastWrite;
+    arcn.sb.ctime = arcn.sb.lastWrite;
 
     /*
      * If we can find the ascii names for gname and uname in the password
@@ -953,12 +951,12 @@ class paxer : tar {
      * the posix spec wants).
      */
     hd->gname[sizeof(hd->gname) - 1] = '\0';
-    if (gid_name(hd->gname, &(arcn.sb.st_gid)) < 0) {
-      arcn.sb.st_gid = (gid_t)asc_ul(hd->gid, sizeof(hd->gid), OCT);
+    if (gid_name(hd->gname, &(arcn.sb.groupId)) < 0) {
+      arcn.sb.groupId = (gid_t)asc_ul(hd->gid, sizeof(hd->gid), OCT);
     }
     hd->uname[sizeof(hd->uname) - 1] = '\0';
-    if (uid_name(hd->uname, &(arcn.sb.st_uid)) < 0) {
-      arcn.sb.st_uid = (uid_t)asc_ul(hd->uid, sizeof(hd->uid), OCT);
+    if (uid_name(hd->uname, &(arcn.sb.userId)) < 0) {
+      arcn.sb.userId = (uid_t)asc_ul(hd->uid, sizeof(hd->uid), OCT);
     }
 
     /*
@@ -966,20 +964,20 @@ class paxer : tar {
      */
     arcn.pad = 0;
     arcn.skip = 0;
-    arcn.sb.st_rdev = (dev_t)0;
+    arcn.sb.rawDevice = 0
 
     /*
      * set the mode and PAX type according to the typeflag in the header
      */
     switch (hd->typeflag) {
       case FIFOTYPE:
-        arcn.type = PAX_FIF;
-        arcn.sb.st_mode |= S_IFIFO;
+        arcn.type = .FIF
+        arcn.sb.filetype = .fifo
         break;
       case DIRTYPE:
         arcn.type = PAX_DIR;
-        arcn.sb.st_mode |= S_IFDIR;
-        arcn.sb.st_nlink = 2;
+        arcn.sb.filetype = .directory
+        arcn.sb.links = 2
 
         /*
          * Some programs that create pax archives append a '/'
@@ -996,11 +994,11 @@ class paxer : tar {
          * this type requires the rdev field to be set.
          */
         if (hd->typeflag == BLKTYPE) {
-          arcn.type = PAX_BLK;
-          arcn.sb.st_mode |= S_IFBLK;
+          arcn.type = .BLK;
+          arcn.sb.filetype = .blockDevice
         } else {
-          arcn.type = PAX_CHR;
-          arcn.sb.st_mode |= S_IFCHR;
+          arcn.type = .CHR;
+          arcn.sb.filetype = .characterDevice
         }
         devmajor = (dev_t)asc_ul(hd->devmajor,sizeof(hd->devmajor),OCT);
         devminor = (dev_t)asc_ul(hd->devminor,sizeof(hd->devminor),OCT);
@@ -1009,14 +1007,14 @@ class paxer : tar {
       case SYMTYPE:
       case LNKTYPE:
         if (hd->typeflag == SYMTYPE) {
-          arcn.type = PAX_SLK;
-          arcn.sb.st_mode |= S_IFLNK;
+          arcn.type = .SLK;
+          arcn.sb.filetype = .symbolicLink
         } else {
-          arcn.type = PAX_HLK;
+          arcn.type = .HLK
           /*
            * so printing looks better
            */
-          arcn.sb.st_mode |= S_IFREG;
+          arcn.sb.filetype = .regular
           arcn.sb.st_nlink = 2;
         }
         break;
@@ -1027,9 +1025,9 @@ class paxer : tar {
          * pax internals deal with it -- too ugly otherwise.
          */
         arcn.type =
-        hd->typeflag == LONGLINKTYPE ? PAX_GLL : PAX_GLF;
-        arcn.pad = TAR_PAD(arcn.sb.st_size);
-        arcn.skip = arcn.sb.st_size;
+        hd->typeflag == LONGLINKTYPE ? .GLL : .GLF
+        arcn.pad = TAR_PAD(arcn.sb.size);
+        arcn.skip = arcn.sb.size;
         break;
       case CONTTYPE:
       case AREGTYPE:
@@ -1039,10 +1037,10 @@ class paxer : tar {
          * these types have file data that follows. Set the skip and
          * pad fields.
          */
-        arcn.type = PAX_REG;
-        arcn.pad = TAR_PAD(arcn.sb.st_size);
-        arcn.skip = arcn.sb.st_size;
-        arcn.sb.st_mode |= S_IFREG;
+        arcn.type = pax.PAXType.REG
+        arcn.pad = TAR_PAD(arcn.sb.size);
+        arcn.skip = arcn.sb.size;
+        arcn.sb.filetype = .regular
         break;
     }
     return(0);

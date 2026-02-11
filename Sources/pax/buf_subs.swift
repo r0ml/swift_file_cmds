@@ -39,13 +39,13 @@
 import CMigration
 import Darwin
 
+let MINFBSZ = 512    /* default block size for hole detect */
+let MAXFLT = 10    /* default media read error limit */
+
 extension pax {
   /*
    * routines which implement archive and file buffering
    */
-
-  #define MINFBSZ		512		/* default block size for hole detect */
-  #define MAXFLT		10		/* default media read error limit */
 
   /*
    * Need to change bufmem to dynamic allocation when the upper
@@ -71,9 +71,7 @@ extension pax {
    *	0 if ok, -1 if the user specified write block size violates pax spec
    */
 
-  int
-  wr_start(void)
-  {
+  func wr_start() -> Result {
     buf = &(bufmem[BLKMULT]);
     /*
      * Check to make sure the write block size meets pax specs. If the user
@@ -96,7 +94,7 @@ extension pax {
       return .failed;
     }
     if (wrblksz > MAXBLK_POSIX) {
-      Tty.paxwarn(0, "Write block size of %d larger than POSIX max %d, archive may not be portable",
+      Tty.paxwarn(false, "Write block size of %d larger than POSIX max %d, archive may not be portable",
               wrblksz, MAXBLK_POSIX);
       return .failed;
     }
@@ -111,7 +109,7 @@ extension pax {
     wrcnt = 0;
     bufend = buf + wrblksz;
     bufpt = buf;
-    return(0);
+    return .ok
   }
 
   /*
@@ -121,9 +119,7 @@ extension pax {
    *	0 if ok, -1 otherwise
    */
 
-  int
-  rd_start(void)
-  {
+  func rd_start() -> Result {
     /*
      * leave space for the header pushback (see get_arc()). If we are
      * going to append and user specified a write block size, check it
@@ -152,7 +148,7 @@ extension pax {
     bufend = buf + rdblksz;
     bufpt = bufend;
     rdcnt = 0;
-    return(0);
+    return .ok
   }
 
   /*
@@ -197,7 +193,7 @@ extension pax {
    *	0 for success, -1 for failure
    */
 
-  func appnd_start(off_t skcnt) -> Result {
+  func appnd_start(_ skcnt : Int) -> Result {
     int res;
     off_t cnt;
 
@@ -283,7 +279,7 @@ extension pax {
     if (ar_set_wr() < 0) {
       return .failed;
     }
-    act = ARCHIVE;
+    act = .ARCHIVE;
     return .ok
 
   out:
@@ -312,7 +308,7 @@ extension pax {
     if (maxflt == 0) {
       return .failed;
     }
-    if (act == APPND) {
+    if (act == .APPND) {
       Tty.paxwarn(true, "Unable to append when there are archive read errors.");
       return .failed;
     }
@@ -588,21 +584,18 @@ extension pax {
    */
 
   func cp_file(_ arcn : ARCHD, _ fd1 : FileDescriptor, _ fd2 : FileDescriptor) {
-    int cnt;
-    off_t cpcnt = 0L;
-    int res = 0;
-    char *fnm = arcn.name;
-    int no_hole = 0;
-    int isem = 1;
-    int rem;
-    int sz = MINFBSZ;
-    struct stat sb;
+    var cpcnt = 0
+    var res = 0
+    let fnm = arcn.name
+    var no_hole = false
+    var isem = true
+    var sz = UInt(MINFBSZ)
 
     /*
      * check for holes in the source file. If none, we will use regular
      * write instead of file write.
      */
-    if (((off_t)(arcn.sb.st_blocks * BLKMULT)) >= arcn.sb.st_size) {
+    if (((off_t)(arcn.sb.blocks * BLKMULT)) >= arcn.sb.size) {
       ++no_hole;
     }
 
@@ -610,19 +603,19 @@ extension pax {
      * pass the blocksize of the file being written to the write routine,
      * if the size is zero, use the default MINFBSZ
      */
-    if (fstat(fd2, &sb) == 0) {
-      if (sb.st_blksize > 0) {
-        sz = sb.st_blksize;
+    if let sb = try? FileMetadata(for: fd2) {
+      if (sb.blockSize > 0) {
+        sz = sb.blockSize
       }
     } else {
-      Tty.syswarn(false,errno,"Unable to obtain block size for file %s",fnm);
+      Tty.syswarn(false,errno,"Unable to obtain block size for file \(fnm)")
     }
-    rem = sz;
+    var rem = sz
 
     /*
      * read the source file and copy to destination file until EOF
      */
-    for(;;) {
+    while true {
       if ((cnt = read(fd1, buf, blksz)) <= 0) {
         break;
       }
@@ -645,7 +638,7 @@ extension pax {
       Tty.syswarn(true, errno, "Failed write during copy of %s to %s",
               arcn.org_name, arcn.name);
     }
-    else if (cpcnt != arcn.sb.st_size) {
+    else if (cpcnt != arcn.sb.size) {
       Tty.paxwarn(true, "File %s changed size during copy to %s",
               arcn.org_name, arcn.name);
     }
@@ -663,7 +656,7 @@ extension pax {
      * written. just closing with the file offset moved forward may not put
      * a hole at the end of the file.
      */
-    if (!no_hole && isem && (arcn.sb.st_size > 0L)) {
+    if (!no_hole && isem && (arcn.sb.size > 0)) {
       file_flush(fd2, fnm, isem);
     }
     return;
@@ -686,7 +679,7 @@ extension pax {
       return(0);
     }
 
-    for(;;) {
+    while true {
       /*
        * try to fill the buffer. on error the next archive volume is
        * opened and we try again.
@@ -767,7 +760,7 @@ extension pax {
     /*
      * We have enough data to write at least one archive block
      */
-    for (;;) {
+    while true {
       /*
        * write a block and check if it all went out ok
        */

@@ -61,15 +61,14 @@ extension pax.FSUB {
    */
 
   func rd_data(_ arcn : ARCHD, _ ofd : Int, _ left : inout Int) -> Result {
-    int cnt = 0;
-    off_t size = arcn.sb.st_size;
-    int res = 0;
-    char *fnm = arcn.name;
-    int isem = 1;
-    int rem;
-    int sz = MINFBSZ;
-    struct stat sb;
-    u_long crc = 0L;
+    var cnt = 0;
+    var size = arcn.sb.size;
+    var res = 0;
+    var fnm = arcn.name
+    var isem = 1
+
+    var sz = MINFBSZ
+    var crc = UInt(0)
 
     /*
      * pass the blocksize of the file being written to the write routine,
@@ -79,8 +78,8 @@ extension pax.FSUB {
     if (ofd < 0) {
       sz = PAXPATHLEN + 1;    /* GNU tar long link/file */
     } else if (fstat(ofd, &sb) == 0) {
-      if (sb.st_blksize > 0) {
-        sz = (int)sb.st_blksize;
+      if (sb.blockSize > 0) {
+        sz = sb.blockSize;
       }
     } else {
       Tty.syswarn(false,errno,"Unable to obtain block size for file %s",fnm);
@@ -93,7 +92,7 @@ extension pax.FSUB {
      * to assume that we want to recover file holes as none of the archive
      * formats can record the location of file holes.
      */
-    while (size > 0L) {
+    while (size > 0) {
       cnt = bufend - bufpt;
       /*
        * if we get a read error, we do not want to skip, as we may
@@ -129,7 +128,7 @@ extension pax.FSUB {
      * written. just closing with the file offset moved forward may not put
      * a hole at the end of the file.
      */
-    if (isem && (arcn.sb.st_size > 0L)) {
+    if (isem && (arcn.sb.size > 0L)) {
       file_flush(ofd, fnm, isem);
     }
 
@@ -169,16 +168,14 @@ extension pax.FSUB {
    *  0, but "left" is set to be greater than zero.
    */
 
-  func wr_data(_ arcn : ARCHD, _ ifd : Int, _ left : inout Int) -> Result {
-    int cnt;
-    int res = 0;
-    off_t size = arcn.sb.st_size;
-    struct stat sb;
+  func wr_data(_ arcn : ARCHD, _ ifd : FileDescriptor, _ left : inout Int) -> Result {
+    var res = 0
+    var size = arcn.sb.size;
 
     /*
      * while there are more bytes to write
      */
-    while (size > 0L) {
+    while size > 0 {
       cnt = bufend - bufpt;
       if ((cnt <= 0) && ((cnt = buf_flush(blksz)) < 0)) {
         *left = size;
@@ -197,19 +194,20 @@ extension pax.FSUB {
      * or the file read failed.
      */
     if (res < 0) {
-      Tty.syswarn(true, errno, "Read fault on %s", arcn.org_name);
+      Tty.syswarn(true, errno, "Read fault on \(arcn.org_name)")
     }
-    else if (size != 0L) {
-      Tty.paxwarn(true, "File changed size during read %s", arcn.org_name);
+    else if (size != 0) {
+      Tty.paxwarn(true, "File changed size during read \(arcn.org_name)")
     }
-    else if (fstat(ifd, &sb) < 0) {
-      Tty.syswarn(true, errno, "Failed stat on %s", arcn.org_name);
+    else if let sb = try? FileMetadata(for: ifd) {
+      if (arcn.sb.lastWrite != sb.lastWrite) {
+        Tty.paxwarn(true, "File \(arcn.org_name) was modified during copy to archive")
+      }
+      *left = size;
+      return .ok
+    } else {
+      Tty.syswarn(true, errno, "Failed stat on \(arcn.org_name)")
     }
-    else if (arcn.sb.lastWrite != sb.lastWrite) {
-      Tty.paxwarn(true, "File %s was modified during copy to archive",
-              arcn.org_name);
-    }
-    *left = size;
     return .ok
   }
 }

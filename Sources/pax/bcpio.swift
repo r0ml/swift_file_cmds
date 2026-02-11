@@ -288,7 +288,7 @@ class bcpio : pax.FSUB {
     memset(&last, 0, sizeof(last));
     last.nlen = sizeof(TRAILER) - 1;
     last.type = PAX_REG;
-    last.sb.st_nlink = 1;
+    last.sb.links = 1
     (void)strlcpy(last.name, TRAILER, sizeof(last.name));
     return options.frmt.wr(&last)
   }
@@ -332,22 +332,20 @@ class bcpio : pax.FSUB {
     /*
      * check the length specified for bogus values
      */
-    if ((arcn.sb.st_size == 0) ||
-        ((size_t)arcn.sb.st_size >= sizeof(arcn.ln_name))) {
-      Tty.paxwarn(true, "Cpio link name length is invalid: %ju",
-              (uintmax_t)arcn.sb.st_size);
+    if ((arcn.sb.size == 0) ||
+        (arcn.sb.size >= arcn.ln_name.utf8.count)) {
+      Tty.paxwarn(true, "Cpio link name length is invalid: \(cFormat("%ju", arcn.sb.size))")
       return .failed;
     }
 
     /*
      * read in the link name and \0 terminate it
      */
-    if (rd_wrbuf(arcn.ln_name, (int)arcn.sb.st_size) !=
-        (int)arcn.sb.st_size) {
+    if (rd_wrbuf(arcn.ln_name, arcn.sb.size) != arcn.sb.size) {
       Tty.paxwarn(true, "Cpio link name read error");
       return .failed;
     }
-    arcn.ln_nlen = arcn.sb.st_size;
+    arcn.ln_nlen = arcn.sb.size;
     arcn.ln_name[arcn.ln_nlen] = '\0';
 
     /*
@@ -435,37 +433,36 @@ class bcpio : pax.FSUB {
       /*
        * header has swapped bytes on 16 bit boundaries
        */
-      arcn.sb.st_dev = (dev_t)(RSHRT_EXT(hd->h_dev));
-      arcn.sb.st_ino = (ino_t)(RSHRT_EXT(hd->h_ino));
+      arcn.sb.device = (dev_t)(RSHRT_EXT(hd->h_dev));
+      arcn.sb.inode = (ino_t)(RSHRT_EXT(hd->h_ino));
       arcn.sb.st_mode = (mode_t)(RSHRT_EXT(hd->h_mode));
-      arcn.sb.st_uid = (uid_t)(RSHRT_EXT(hd->h_uid));
-      arcn.sb.st_gid = (gid_t)(RSHRT_EXT(hd->h_gid));
-      arcn.sb.st_nlink = (nlink_t)(RSHRT_EXT(hd->h_nlink));
-      arcn.sb.st_rdev = (dev_t)(RSHRT_EXT(hd->h_rdev));
+      arcn.sb.userId = (uid_t)(RSHRT_EXT(hd->h_uid));
+      arcn.sb.groupId = (gid_t)(RSHRT_EXT(hd->h_gid));
+      arcn.sb.links = (nlink_t)(RSHRT_EXT(hd->h_nlink));
+      arcn.sb.rawDevice = (dev_t)(RSHRT_EXT(hd->h_rdev));
       arcn.sb.lastWrite = (time_t)(RSHRT_EXT(hd->h_mtime_1));
       arcn.sb.lastWrite =  (arcn.sb.lastWrite << 16) |
       ((time_t)(RSHRT_EXT(hd->h_mtime_2)));
-      arcn.sb.st_size = (off_t)(RSHRT_EXT(hd->h_filesize_1));
-      arcn.sb.st_size = (arcn.sb.st_size << 16) |
+      arcn.sb.size = (off_t)(RSHRT_EXT(hd->h_filesize_1));
+      arcn.sb.size = (arcn.sb.size << 16) |
       ((off_t)(RSHRT_EXT(hd->h_filesize_2)));
       nsz = (int)(RSHRT_EXT(hd->h_namesize));
     } else {
-      arcn.sb.st_dev = (dev_t)(SHRT_EXT(hd->h_dev));
-      arcn.sb.st_ino = (ino_t)(SHRT_EXT(hd->h_ino));
+      arcn.sb.device = (dev_t)(SHRT_EXT(hd->h_dev));
+      arcn.sb.inode = (ino_t)(SHRT_EXT(hd->h_ino));
       arcn.sb.st_mode = (mode_t)(SHRT_EXT(hd->h_mode));
-      arcn.sb.st_uid = (uid_t)(SHRT_EXT(hd->h_uid));
-      arcn.sb.st_gid = (gid_t)(SHRT_EXT(hd->h_gid));
-      arcn.sb.st_nlink = (nlink_t)(SHRT_EXT(hd->h_nlink));
-      arcn.sb.st_rdev = (dev_t)(SHRT_EXT(hd->h_rdev));
+      arcn.sb.userId = (uid_t)(SHRT_EXT(hd->h_uid));
+      arcn.sb.groupId = (gid_t)(SHRT_EXT(hd->h_gid));
+      arcn.sb.links = (nlink_t)(SHRT_EXT(hd->h_nlink));
+      arcn.sb.rawDevice = (dev_t)(SHRT_EXT(hd->h_rdev));
       arcn.sb.lastWrite = (time_t)(SHRT_EXT(hd->h_mtime_1));
       arcn.sb.lastWrite =  (arcn.sb.lastWrite << 16) |
       ((time_t)(SHRT_EXT(hd->h_mtime_2)));
-      arcn.sb.st_size = (off_t)(SHRT_EXT(hd->h_filesize_1));
-      arcn.sb.st_size = (arcn.sb.st_size << 16) |
-      ((off_t)(SHRT_EXT(hd->h_filesize_2)));
+      arcn.sb.size = (off_t)(SHRT_EXT(hd->h_filesize_1));
+      arcn.sb.size = (arcn.sb.size << 16) | ((off_t)(SHRT_EXT(hd->h_filesize_2)));
       nsz = (int)(SHRT_EXT(hd->h_namesize));
     }
-    arcn.sb.st_ctime = arcn.sb.st_atime = arcn.sb.lastWrite;
+    arcn.sb.ctime = arcn.sb.atime = arcn.sb.lastWrite;
 
     /*
      * check the file name size, if bogus give up. otherwise read the file
@@ -490,18 +487,18 @@ class bcpio : pax.FSUB {
      * if not a link (or a file with no data), calculate pad size (for
      * padding which follows the file data), clear the link name and return
      */
-    if (((arcn.sb.st_mode & C_IFMT) != C_ISLNK)||(arcn.sb.st_size == 0)){
+    if (((arcn.sb.st_mode & C_IFMT) != C_ISLNK)||(arcn.sb.size == 0)){
       /*
        * we have a valid header (not a link)
        */
       arcn.ln_nlen = 0;
       arcn.ln_name[0] = '\0';
-      arcn.pad = BCPIO_PAD(arcn.sb.st_size);
+      arcn.pad = BCPIO_PAD(arcn.sb.size);
       return(com_rd(arcn));
     }
 
     if ((rd_ln_nm(arcn) < 0) ||
-        (rd_skip((off_t)(BCPIO_PAD(arcn.sb.st_size))) < 0)) {
+        (rd_skip((off_t)(BCPIO_PAD(arcn.sb.size))) < 0)) {
       return .failed;
     }
 
@@ -551,7 +548,7 @@ class bcpio : pax.FSUB {
     }
 
     if ((arcn.type != PAX_BLK) && (arcn.type != PAX_CHR)) {
-      arcn.sb.st_rdev = 0;
+      arcn.sb.rawDevice = 0;
     }
     hd = &hdblk;
 
@@ -561,14 +558,14 @@ class bcpio : pax.FSUB {
          * caller will copy file data to the archive. tell him how
          * much to pad.
          */
-        arcn.pad = BCPIO_PAD(arcn.sb.st_size);
-        hd->h_filesize_1[0] = CHR_WR_0(arcn.sb.st_size);
-        hd->h_filesize_1[1] = CHR_WR_1(arcn.sb.st_size);
-        hd->h_filesize_2[0] = CHR_WR_2(arcn.sb.st_size);
-        hd->h_filesize_2[1] = CHR_WR_3(arcn.sb.st_size);
+        arcn.pad = BCPIO_PAD(arcn.sb.size);
+        hd->h_filesize_1[0] = CHR_WR_0(arcn.sb.size);
+        hd->h_filesize_1[1] = CHR_WR_1(arcn.sb.size);
+        hd->h_filesize_2[0] = CHR_WR_2(arcn.sb.size);
+        hd->h_filesize_2[1] = CHR_WR_3(arcn.sb.size);
         t_offt = (off_t)(SHRT_EXT(hd->h_filesize_1));
         t_offt = (t_offt<<16) | ((off_t)(SHRT_EXT(hd->h_filesize_2)));
-        if (arcn.sb.st_size != t_offt) {
+        if (arcn.sb.size != t_offt) {
           Tty.paxwarn(true,"File is too large for bcpio format %s",
                   arcn.org_name);
           return .partial
@@ -607,14 +604,14 @@ class bcpio : pax.FSUB {
      */
     hd->h_magic[0] = CHR_WR_2(MAGIC);
     hd->h_magic[1] = CHR_WR_3(MAGIC);
-    hd->h_dev[0] = CHR_WR_2(arcn.sb.st_dev);
-    hd->h_dev[1] = CHR_WR_3(arcn.sb.st_dev);
-    if (arcn.sb.st_dev != (dev_t)(SHRT_EXT(hd->h_dev))) {
+    hd->h_dev[0] = CHR_WR_2(arcn.sb.device);
+    hd->h_dev[1] = CHR_WR_3(arcn.sb.device);
+    if (arcn.sb.device != (dev_t)(SHRT_EXT(hd->h_dev))) {
       goto out;
     }
-    hd->h_ino[0] = CHR_WR_2(arcn.sb.st_ino);
-    hd->h_ino[1] = CHR_WR_3(arcn.sb.st_ino);
-    if (arcn.sb.st_ino != (ino_t)(SHRT_EXT(hd->h_ino))) {
+    hd->h_ino[0] = CHR_WR_2(arcn.sb.inode);
+    hd->h_ino[1] = CHR_WR_3(arcn.sb.inode);
+    if (arcn.sb.inode != (ino_t)(SHRT_EXT(hd->h_ino))) {
       goto out;
     }
     hd->h_mode[0] = CHR_WR_2(arcn.sb.st_mode);
@@ -622,24 +619,24 @@ class bcpio : pax.FSUB {
     if (arcn.sb.st_mode != (mode_t)(SHRT_EXT(hd->h_mode))) {
       goto out;
     }
-    hd->h_uid[0] = CHR_WR_2(arcn.sb.st_uid);
-    hd->h_uid[1] = CHR_WR_3(arcn.sb.st_uid);
-    if (arcn.sb.st_uid != (uid_t)(SHRT_EXT(hd->h_uid))) {
+    hd->h_uid[0] = CHR_WR_2(arcn.sb.userId);
+    hd->h_uid[1] = CHR_WR_3(arcn.sb.userId);
+    if (arcn.sb.userId != (uid_t)(SHRT_EXT(hd->h_uid))) {
       goto out;
     }
-    hd->h_gid[0] = CHR_WR_2(arcn.sb.st_gid);
-    hd->h_gid[1] = CHR_WR_3(arcn.sb.st_gid);
-    if (arcn.sb.st_gid != (gid_t)(SHRT_EXT(hd->h_gid))) {
+    hd->h_gid[0] = CHR_WR_2(arcn.sb.groupId);
+    hd->h_gid[1] = CHR_WR_3(arcn.sb.groupdId);
+    if (arcn.sb.groupId != (gid_t)(SHRT_EXT(hd->h_gid))) {
       goto out;
     }
-    hd->h_nlink[0] = CHR_WR_2(arcn.sb.st_nlink);
-    hd->h_nlink[1] = CHR_WR_3(arcn.sb.st_nlink);
-    if (arcn.sb.st_nlink != (nlink_t)(SHRT_EXT(hd->h_nlink))) {
+    hd->h_nlink[0] = CHR_WR_2(arcn.sb.links);
+    hd->h_nlink[1] = CHR_WR_3(arcn.sb.links);
+    if (arcn.sb.links != (nlink_t)(SHRT_EXT(hd->h_nlink))) {
       goto out;
     }
-    hd->h_rdev[0] = CHR_WR_2(arcn.sb.st_rdev);
-    hd->h_rdev[1] = CHR_WR_3(arcn.sb.st_rdev);
-    if (arcn.sb.st_rdev != (dev_t)(SHRT_EXT(hd->h_rdev))) {
+    hd->h_rdev[0] = CHR_WR_2(arcn.sb.rawDevice);
+    hd->h_rdev[1] = CHR_WR_3(arcn.sb.rawDevice);
+    if (arcn.sb.rawDevice != (dev_t)(SHRT_EXT(hd->h_rdev))) {
       goto out;
     }
     hd->h_mtime_1[0] = CHR_WR_0(arcn.sb.lastWrite);

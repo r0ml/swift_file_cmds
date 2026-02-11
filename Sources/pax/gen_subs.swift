@@ -119,9 +119,9 @@ struct Gen {
     }
 
     #define UT_NAMESIZE 8
-    (void)fprintf(fp, "%s%2u %-*.*s %-*.*s ", f_mode, sbp->st_nlink,
-                  NAME_WIDTH, UT_NAMESIZE, name_uid(sbp->st_uid, 1),
-                  NAME_WIDTH, UT_NAMESIZE, name_gid(sbp->st_gid, 1));
+    (void)fprintf(fp, "%s%2u %-*.*s %-*.*s ", f_mode, sbp.links,
+                  NAME_WIDTH, UT_NAMESIZE, name_uid(sbp.userId, 1),
+                  NAME_WIDTH, UT_NAMESIZE, name_gid(sbp.groupId, 1));
 
     /*
      * print device id's for devices, or sizes for other nodes

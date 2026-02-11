@@ -450,7 +450,7 @@ extension pax {
     }
     if (bflg) {
       printflg(flg);
-      pax_usage();
+      throw CmdErr(1) // pax_usage();
     }
 
     /*
@@ -487,14 +487,14 @@ extension pax {
       case .LIST, .EXTRACT:
         for (; optind < argc; optind++) {
           if (pat_add(argv[optind], NULL) < 0) {
-            pax_usage();
+            throw CmdErr(1) //  pax_usage();
           }
         }
 
       case .COPY:
         if (optind >= argc) {
           Tty.paxwarn(0, "Destination directory was not supplied");
-          pax_usage();
+          throw CmdErr(1) // pax_usage();
         }
         --argc;
         dirptr = argv[argc];
@@ -502,7 +502,7 @@ extension pax {
       case .ARCHIVE, .APPND:
         for (; optind < argc; optind++) {
           if (ftree_add(argv[optind], 0) < 0) {
-            pax_usage();
+            throw CmdErr(1) // pax_usage();
           }
         }
         /*

@@ -285,7 +285,7 @@ extension pax {
      * keep looping until we get a valid file tree to process. Stop when we
      * reach the end of the list (or get an eof on stdin)
      */
-    for(;;) {
+    while true {
       if (fthead == NULL) {
         /*
          * the user didn't supply any args, get the file trees
@@ -374,7 +374,7 @@ extension pax {
     /*
      * loop until we get a valid file to process
      */
-    for(;;) {
+    while true {
       if ((ftent = fts_read(ftsp)) == NULL) {
 
         if (errno) {

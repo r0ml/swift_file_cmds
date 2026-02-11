@@ -127,7 +127,7 @@ extension ARCHD {
         }
       }
       /* rc == 2 reserved for -o invalid_action=write */
-      if (nodirs || chk_path(path_to_open,arcn.sb.st_uid,arcn.sb.st_gid,
+      if (nodirs || chk_path(path_to_open,arcn.sb.userId,arcn.sb.groupId,
                              (rc==2) ? &new_path: NULL) < 0) {
         Tty.syswarn((pax_invalid_action==0), oerrno, "Unable to create %s", arcn.name);
         fd = -1;
@@ -168,7 +168,7 @@ extension ARCHD {
      * modification times.
      */
     if (pids) {
-      res = set_ids(arcn.name, arcn.sb.st_uid, arcn.sb.st_gid);
+      res = set_ids(arcn.name, arcn.sb.userId, arcn.sb.groupId);
     }
 
     else {
@@ -188,8 +188,7 @@ extension ARCHD {
     }
     if (patime || pmtime) {
 
-      set_ftime(arcn.name, arcn.sb.lastWrite, arcn.sb.st_mtime_nsec,
-                arcn.sb.st_atime, arcn.sb.st_atime_nsec, 0);
+      set_ftime(arcn.name, arcn.sb.lastWrite, arcn.sb.st_atime, false)
 
     }
   }
@@ -298,7 +297,7 @@ extension ARCHD {
     /*
      * better make sure the user does not have src == dest by mistake
      */
-    if ((arcn.sb.st_dev == sb.st_dev) && (arcn.sb.st_ino == sb.st_ino)) {
+    if ((arcn.sb.device == sb.device) && (arcn.sb.inode == sb.inode)) {
       Tty.paxwarn(true, "Unable to copy %s, file would overwrite itself",
               arcn.name);
       return .ok
@@ -366,7 +365,7 @@ extension ARCHD {
       }
       oerrno = errno;
 
-      if (!nodirs && chk_path(from, to_sb->st_uid, to_sb->st_gid, NULL) == 0) {
+      if (!nodirs && chk_path(from, to_sb.userId, to_sb.groupId, NULL) == 0) {
 
         continue;
       }
@@ -420,11 +419,11 @@ extension ARCHD {
 
         case .CHR:
           file_mode |= S_IFCHR;
-          res = mknod(arcn.name, file_mode, arcn.sb.st_rdev);
+          res = mknod(arcn.name, file_mode, arcn.sb.rawDevice);
 
         case .BLK:
           file_mode |= S_IFBLK;
-          res = mknod(arcn.name, file_mode, arcn.sb.st_rdev);
+          res = mknod(arcn.name, file_mode, arcn.sb.rawDevice);
 
         case .FIF:
           res = mkfifo(arcn.name, file_mode);
@@ -470,7 +469,7 @@ extension ARCHD {
       }
 
 
-      if (nodirs || chk_path(arcn.name,arcn.sb.st_uid,arcn.sb.st_gid, NULL) < 0) {
+      if (nodirs || chk_path(arcn.name,arcn.sb.userId,arcn.sb.groupId, NULL) < 0) {
 
         Tty.syswarn(true, oerrno, "Could not create: \(self.name)")
         return .failed
@@ -481,7 +480,7 @@ extension ARCHD {
      * we were able to create the node. set uid/gid, modes and times
      */
     if (pids) {
-      res = set_ids(arcn.name, arcn.sb.st_uid, arcn.sb.st_gid);
+      res = set_ids(arcn.name, arcn.sb.userId, arcn.sb.groupId);
     }
     else {
 
@@ -548,8 +547,7 @@ extension ARCHD {
 
     if (patime || pmtime) {
 
-      set_ftime(arcn.name, arcn.sb.lastWrite, arcn.sb.st_mtime_nsec,
-                arcn.sb.st_atime, arcn.sb.st_atime_nsec, 0);
+      set_ftime(arcn.name, arcn.sb.lastWrite, arcn.sb.lastAccess, false)
     }
 
     return .ok
@@ -634,7 +632,7 @@ extension ARCHD {
       ++spt;
     }
 
-    for(;;) {
+    while true {
       /*
        * work forward from the first / and check each part of the path
        */
@@ -684,7 +682,7 @@ extension ARCHD {
        */
       retval = 0;
       if (pids) {
-        (void)set_ids(name, st_uid, st_gid);
+        set_ids(name, st_uid, st_gid);
       }
 
       /*
@@ -737,32 +735,31 @@ extension ARCHD {
    *	not set request.
    */
 
-  func set_ftime(_ fnm : String, _ mtime : DateTime, _ atime : DateTime, _ frc : Bool) {
+  static func set_ftime(_ fnm : String, _ mtime : DateTime, _ atime : DateTime, _ frc : Bool) {
 
-    struct attrlist ts_req = {
-      .bitmapcount = ATTR_BIT_MAP_COUNT,
-      .commonattr = ATTR_CMN_MODTIME | ATTR_CMN_ACCTIME,
-    };
-    struct {
+    var ts_req : attrlist = attrlist()
+    ts_req.bitmapcount = UInt16(ATTR_BIT_MAP_COUNT)
+    ts_req.commonattr =  UInt32(ATTR_CMN_MODTIME | ATTR_CMN_ACCTIME)
+
+  /*    struct {
       struct timespec mtime;
       struct timespec atime;
     } set_ts;
-
     struct stat sb;
-
-    set_ts.atime.tv_sec = atime;
+*/
+  /*  set_ts.atime.tv_sec = atime;
     set_ts.atime.tv_nsec = atime_nsec;
     set_ts.mtime.tv_sec = mtime;
     set_ts.mtime.tv_nsec = mtime_nsec;
+*/
 
-    if (!frc && (!patime || !pmtime)) {
+  if (!frc && (!options.patime || !options.pmtime)) {
       /*
        * if we are not forcing, only set those times the user wants
        * set. We get the current values of the times if we need them.
        */
-      if (lstat(fnm, &sb) == 0) {
-        if (!patime)
-        {
+    if let sb = try? FileMetadata(for: FilePath(fnm), followSymlinks: false) {
+      if (!options.patime) {
           set_ts.atime.tv_sec = sb.st_atime_sec;
           set_ts.atime.tv_nsec = sb.st_atime_nsec;
         }
@@ -775,7 +772,7 @@ extension ARCHD {
         }
 
       } else {
-        Tty.syswarn(false,errno,"Unable to obtain file stats %s", fnm);
+        Tty.syswarn(false,errno,"Unable to obtain file stats \(fnm)")
       }
     }
 
@@ -818,10 +815,8 @@ extension ARCHD {
        * ignore EPERM unless in verbose mode or being run by root.
        * if running as pax, POSIX requires a warning.
        */
-      if (strcmp(NM_PAX, argv0) == 0 || errno != EPERM || vflag ||
-          geteuid() == 0) {
-        Tty.syswarn(true, errno, "Unable to set file uid/gid of %s",
-                fnm);
+      if (strcmp(NM_PAX, argv0) == 0 || errno != EPERM || vflag || geteuid() == 0) {
+        Tty.syswarn(true, errno, "Unable to set file uid/gid of \(fnm)")
       }
       return .failed;
     }
@@ -833,12 +828,12 @@ extension ARCHD {
    *	Set file access mode
    */
 
-  func set_pmode(_ fnm : String, _ mode : FilePermissions) {
-    mode &= ABITS;
-    if (lchmod(fnm, mode) < 0) {
-      Tty.syswarn(true, errno, "Could not set permissions on %s", fnm);
+  static func set_pmode(_ fnm : String, _ mode : FilePermissions) {
+    do {
+      try FilePath(fnm).setPermissions(mode)
+    } catch( let e) {
+      Tty.syswarn(true, e.code, "Could not set permissions on \(fnm)")
     }
-    return;
   }
 
   /*

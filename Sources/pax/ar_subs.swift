@@ -287,21 +287,23 @@ extension pax {
        * file AFTER the name mod. In honesty the pax spec is probably
        * flawed in this respect.
        */
-      if ((uflag || Dflag) && ((lstat(arcn.name, &sb) == 0))) {
-        if (uflag && Dflag) {
-          if ((arcn.sb.lastWrite <= sb.lastWrite) &&
-              (arcn.sb.st_ctime <= sb.st_ctime)) {
+      if (options.uflag || options.Dflag) {
+        if let sb = try? FileMetadata(for: FilePath(arcn.name)) {
+          if (options.uflag && options.Dflag) {
+            if ((arcn.sb.lastWrite <= sb.lastWrite) &&
+                (arcn.sb.ctime <= sb.ctime)) {
+              rd_skip(arcn.skip + arcn.pad);
+              continue;
+            }
+          } else if (Dflag) {
+            if (arcn.sb.ctime <= sb.ctime) {
+              (void)rd_skip(arcn.skip + arcn.pad);
+              continue;
+            }
+          } else if (arcn.sb.lastWrite <= sb.lastWrite) {
             (void)rd_skip(arcn.skip + arcn.pad);
             continue;
           }
-        } else if (Dflag) {
-          if (arcn.sb.st_ctime <= sb.st_ctime) {
-            (void)rd_skip(arcn.skip + arcn.pad);
-            continue;
-          }
-        } else if (arcn.sb.lastWrite <= sb.lastWrite) {
-          (void)rd_skip(arcn.skip + arcn.pad);
-          continue;
         }
       }
 
@@ -327,12 +329,12 @@ extension pax {
       if ((Yflag || Zflag) && ((lstat(arcn.name, &sb) == 0))) {
         if (Yflag && Zflag) {
           if ((arcn.sb.lastWrite <= sb.lastWrite) &&
-              (arcn.sb.st_ctime <= sb.st_ctime)) {
+              (arcn.sb.ctime <= sb.ctime)) {
             (void)rd_skip(arcn.skip + arcn.pad);
             continue;
           }
         } else if (Yflag) {
-          if (arcn.sb.st_ctime <= sb.st_ctime) {
+          if (arcn.sb.ctime <= sb.ctime) {
             (void)rd_skip(arcn.skip + arcn.pad);
             continue;
           }
@@ -599,7 +601,7 @@ extension pax {
           free(md_fname);
           goto next;
         }
-        arcn.skip = arcn.sb.st_size;
+        arcn.skip = arcn.sb.size;
 
         if (!strncmp(dirname(arcn.name), ".", 2)) {
           snprintf(arcn.name, sizeof(arcn.name),
@@ -997,12 +999,11 @@ extension pax {
 
     drem = PAXPATHLEN - dlen;
 
-    if (stat(dirptr, &sb) < 0) {
-      Tty.syswarn(true, errno, "Cannot access destination directory %s",
-              dirptr);
-      return;
+    guard let sb = try? FileMetadata(for: dirptr, followSymlinks: true) else {
+      Tty.syswarn(true, errno, "Cannot access destination directory \(dirptr)")
+      return
     }
-    if (!S_ISDIR(sb.st_mode)) {
+    if (! (sb.filetype == .directory) ) {
       Tty.paxwarn(true, "Destination is not a directory %s", dirptr);
       return;
     }
@@ -1079,11 +1080,11 @@ extension pax {
         if (res == 0) {
           if (uflag && Dflag) {
             if ((arcn.sb.lastWrite<=sb.lastWrite) &&
-                (arcn.sb.st_ctime<=sb.st_ctime)) {
+                (arcn.sb.ctime<=sb.ctime)) {
               continue;
             }
           } else if (Dflag) {
-            if (arcn.sb.st_ctime <= sb.st_ctime) {
+            if (arcn.sb.ctime <= sb.ctime) {
               continue;
             }
           } else if (arcn.sb.lastWrite <= sb.lastWrite) {
@@ -1115,11 +1116,11 @@ extension pax {
       if ((Yflag || Zflag) && ((lstat(arcn.name, &sb) == 0))) {
         if (Yflag && Zflag) {
           if ((arcn.sb.lastWrite <= sb.lastWrite) &&
-              (arcn.sb.st_ctime <= sb.st_ctime)) {
+              (arcn.sb.ctime <= sb.ctime)) {
             continue;
           }
         } else if (Yflag) {
-          if (arcn.sb.st_ctime <= sb.st_ctime) {
+          if (arcn.sb.ctime <= sb.ctime) {
             continue;
           }
         } else if (arcn.sb.lastWrite <= sb.lastWrite) {
@@ -1269,7 +1270,7 @@ extension pax {
     let hsz = options.frmt!.hsz
     hdend = hdbuf;
     shftsz = hsz - 1;
-    for(;;) {
+    while true {
       /*
        * keep looping until we get a contiguous FULL buffer
        * (frmt->hsz is the proper size)

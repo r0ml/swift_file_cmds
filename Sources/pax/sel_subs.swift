@@ -158,7 +158,7 @@ extension pax {
     /*
      * hash and look for it in the table
      */
-    pt = usrtb[((unsigned)arcn.sb.st_uid) % USR_TB_SZ];
+    pt = usrtb[((unsigned)arcn.sb.userId) % USR_TB_SZ];
     while (pt != NULL) {
       if (pt->uid == arcn.sb.st_uid) {
         return false

@@ -187,7 +187,7 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
           /* this block, no point in looking at it)  */
     func rd_data(_ : ARCHD,_ : Int,_ : inout Int) -> Result
           /* read/process file data from the archive */
-    func wr_data(_ : ARCHD,_ : Int, _ : inout Int) -> Result
+    func wr_data(_ : ARCHD,_ : FileDescriptor, _ : inout Int) -> Result
           /* write/process file data to the archive */
     func other_options() -> Result  /* process format specific options (-o) */
   };

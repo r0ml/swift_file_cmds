@@ -90,18 +90,18 @@ class cpio : bcpio {
      * ascii fields from the header
      */
     arcn.pad = 0
-    arcn.sb.st_dev = (dev_t)asc_ul(hd->c_dev, sizeof(hd->c_dev), OCT);
-    arcn.sb.st_ino = (ino_t)asc_ul(hd->c_ino, sizeof(hd->c_ino), OCT);
+    arcn.sb.device = (dev_t)asc_ul(hd->c_dev, sizeof(hd->c_dev), OCT);
+    arcn.sb.inode = (ino_t)asc_ul(hd->c_ino, sizeof(hd->c_ino), OCT);
     arcn.sb.st_mode = (mode_t)asc_ul(hd->c_mode, sizeof(hd->c_mode), OCT);
-    arcn.sb.st_uid = (uid_t)asc_ul(hd->c_uid, sizeof(hd->c_uid), OCT);
-    arcn.sb.st_gid = (gid_t)asc_ul(hd->c_gid, sizeof(hd->c_gid), OCT);
-    arcn.sb.st_nlink = (nlink_t)asc_ul(hd->c_nlink, sizeof(hd->c_nlink),
+    arcn.sb.userId = (uid_t)asc_ul(hd->c_uid, sizeof(hd->c_uid), OCT);
+    arcn.sb.groupId = (gid_t)asc_ul(hd->c_gid, sizeof(hd->c_gid), OCT);
+    arcn.sb.links = (nlink_t)asc_ul(hd->c_nlink, sizeof(hd->c_nlink),
                                         OCT);
-    arcn.sb.st_rdev = (dev_t)asc_ul(hd->c_rdev, sizeof(hd->c_rdev), OCT);
+    arcn.sb.rawDevice = (dev_t)asc_ul(hd->c_rdev, sizeof(hd->c_rdev), OCT);
     arcn.sb.lastWrite = (time_t)asc_uqd(hd->c_mtime, sizeof(hd->c_mtime),
                                         OCT);
-    arcn.sb.st_ctime = arcn.sb.st_atime = arcn.sb.lastWrite;
-    arcn.sb.st_size = (off_t)asc_uqd(hd->c_filesize,sizeof(hd->c_filesize),
+    arcn.sb.ctime = arcn.sb.lastAccess = arcn.sb.lastWrite;
+    arcn.sb.size = (off_t)asc_uqd(hd->c_filesize,sizeof(hd->c_filesize),
                                       OCT);
 
     /*
@@ -116,7 +116,7 @@ class cpio : bcpio {
       return .failed;
     }
 
-    if (((arcn.sb.st_mode&C_IFMT) != C_ISLNK)||(arcn.sb.st_size == 0)) {
+    if (((arcn.sb.st_mode&C_IFMT) != C_ISLNK)||(arcn.sb.size == 0)) {
       /*
        * no link name to read for this file
        */
@@ -176,7 +176,7 @@ class cpio : bcpio {
     nsz = arcn.nlen + 1
     hd = &hdblk;
     if arcn.type != .BLK && arcn.type != .CHR {
-      arcn.sb.st_rdev = 0
+      arcn.sb.rawDevice = 0
     }
 
     switch arcn.type {
@@ -184,7 +184,7 @@ class cpio : bcpio {
         /*
          * set data size for file data
          */
-        if (uqd_asc((u_quad_t)arcn.sb.st_size, hd.c_filesize,
+        if (uqd_asc((u_quad_t)arcn.sb.size, hd.c_filesize,
                     sizeof(hd.c_filesize), OCT)) {
           Tty.paxwarn(true,"File is too large for cpio format \(arcn.org_name)")
           return .partial
@@ -214,19 +214,19 @@ class cpio : bcpio {
      * copy the values to the header using octal ascii
      */
     if (ul_asc((u_long)MAGIC, hd.c_magic, sizeof(hd.c_magic), OCT) ||
-        ul_asc((u_long)arcn.sb.st_dev, hd.c_dev, sizeof(hd.c_dev),
+        ul_asc((u_long)arcn.sb.device, hd.c_dev, sizeof(hd.c_dev),
                OCT) ||
-        ul_asc((u_long)arcn.sb.st_ino, hd.c_ino, sizeof(hd.c_ino),
+        ul_asc((u_long)arcn.sb.inode, hd.c_ino, sizeof(hd.c_ino),
                OCT) ||
         ul_asc((u_long)arcn.sb.st_mode, hd.c_mode, sizeof(hd.c_mode),
                OCT) ||
-        ul_asc((u_long)arcn.sb.st_uid, hd.c_uid, sizeof(hd.c_uid),
+        ul_asc((u_long)arcn.sb.userId, hd.c_uid, sizeof(hd.c_uid),
                OCT) ||
-        ul_asc((u_long)arcn.sb.st_gid, hd.c_gid, sizeof(hd.c_gid),
+        ul_asc((u_long)arcn.sb.groupId, hd.c_gid, sizeof(hd.c_gid),
                OCT) ||
-        ul_asc((u_long)arcn.sb.st_nlink, hd.c_nlink, sizeof(hd.c_nlink),
+        ul_asc((u_long)arcn.sb.links, hd.c_nlink, sizeof(hd.c_nlink),
                OCT) ||
-        ul_asc((u_long)arcn.sb.st_rdev, hd.c_rdev, sizeof(hd.c_rdev),
+        ul_asc((u_long)arcn.sb.rawDevice, hd.c_rdev, sizeof(hd.c_rdev),
                OCT) ||
         ul_asc((u_long)arcn.sb.lastWrite,hd.c_mtime,sizeof(hd.c_mtime),
                OCT) ||

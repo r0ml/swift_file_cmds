@@ -484,7 +484,7 @@ func other_options() -> Result {
 	memset(arcn, 0, sizeof(*arcn));
 
     arcn.org_name = arcn.name;
-    arcn.sb.st_nlink = 1;
+    arcn.sb.links = 1
 
 	/*
 	 * copy out the name and values in the stat buffer
@@ -500,11 +500,11 @@ func other_options() -> Result {
 
     arcn.sb.st_mode = (mode_t)(asc_ul(hd.mode,sizeof(hd.mode),OCT) &
 	    0xfff);
-    arcn.sb.st_uid = (uid_t)asc_ul(hd.uid, sizeof(hd.uid), OCT);
-    arcn.sb.st_gid = (gid_t)asc_ul(hd.gid, sizeof(hd.gid), OCT);
-    arcn.sb.st_size = (off_t)asc_uqd(hd.size, sizeof(hd.size), OCT);
+    arcn.sb.userId = (uid_t)asc_ul(hd.uid, sizeof(hd.uid), OCT);
+    arcn.sb.groupId = (gid_t)asc_ul(hd.gid, sizeof(hd.gid), OCT);
+    arcn.sb.size = (off_t)asc_uqd(hd.size, sizeof(hd.size), OCT);
     arcn.sb.lastWrite = (time_t)asc_uqd(hd.mtime, sizeof(hd.mtime), OCT);
-    arcn.sb.st_ctime = arcn.sb.st_atime = arcn.sb.lastWrite;
+    arcn.sb.ctime = arcn.sb.lastAccess = arcn.sb.lastWrite;
 
 	/*
 	 * have to look at the last character, it may be a "/" and that is used
@@ -521,7 +521,7 @@ func other_options() -> Result {
 		 */
         arcn.type = .SLK
 
-        arcn.sb.st_mode |= S_IFLNK;
+        arcn.sb.filetype = .symbolicLink
 		break;
 	case LNKTYPE:
 		/*
@@ -724,20 +724,20 @@ func other_options() -> Result {
 		 */
     hd.linkflag = AREGTYPE;
 
-    if (uqd_oct((u_quad_t)arcn.sb.st_size, hd.size,
+    if (uqd_oct((u_quad_t)arcn.sb.size, hd.size,
                 sizeof(hd.size), 1)) {
       Tty.paxwarn(true,"File is too large for tar %s", arcn.org_name);
       return .partial
 		}
-    arcn.pad = TAR_PAD(arcn.sb.st_size);
+    arcn.pad = TAR_PAD(arcn.sb.size);
 	}
 
 	/*
 	 * copy those fields that are independent of the type
 	 */
     if (ul_oct((u_long)arcn.sb.st_mode, hd.mode, sizeof(hd.mode), 0) ||
-        ul_oct((u_long)arcn.sb.st_uid, hd.uid, sizeof(hd.uid), 0) ||
-        ul_oct((u_long)arcn.sb.st_gid, hd.gid, sizeof(hd.gid), 0) ||
+        ul_oct((u_long)arcn.sb.userid, hd.uid, sizeof(hd.uid), 0) ||
+        ul_oct((u_long)arcn.sb.groupId, hd.gid, sizeof(hd.gid), 0) ||
         ul_oct((u_long)arcn.sb.lastWrite, hd.mtime, sizeof(hd.mtime), 1)) {
     goto out;
   }

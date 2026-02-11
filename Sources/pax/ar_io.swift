@@ -164,11 +164,11 @@ class Ar_io {
       can_unlnk = 0;
       return .failed
     }
-    if (S_ISDIR(arsb.st_mode)) {
+    if .directory == arsb.filetype {
       Tty.paxwarn(false, "Cannot write an archive on top of a directory \(arcname)")
       try? arfd!.close()
       arfd = nil
-      can_unlnk = 0;
+      can_unlnk = false
       return .failed
     }
 
@@ -239,9 +239,9 @@ class Ar_io {
           break;
         }
 
-        if ((arsb.st_blksize > 0) && (arsb.st_blksize < MAXBLK) &&
-            ((arsb.st_blksize % BLKMULT) == 0)) {
-          rdblksz = arsb.st_blksize;
+        if ((arsb.blockSize > 0) && (arsb.blockSize < MAXBLK) &&
+            ((arsb.blockSize % BLKMULT) == 0)) {
+          rdblksz = arsb.blockSize;
         }
         else {
           rdblksz = DEVBLK;
@@ -249,7 +249,7 @@ class Ar_io {
         /*
          * For performance go for large reads when we can without harm
          */
-        if ((act == APPND) || (artyp == ISCHR)) {
+        if ((act == .APPND) || (artyp == .ISCHR)) {
           blksz = rdblksz;
         }
         else {
@@ -261,7 +261,7 @@ class Ar_io {
          * if the user specified wrblksz works, use it. Under appends
          * we must always keep blksz == rdblksz
          */
-        if ((act == APPND) && wrblksz && ((arsb.st_size%wrblksz)==0)){
+        if ((act == .APPND) && wrblksz && ((arsb.size % wrblksz)==0)){
           blksz = rdblksz = wrblksz;
           break;
         }
@@ -269,7 +269,7 @@ class Ar_io {
          * See if we can find the blocking factor from the file size
          */
         for (rdblksz = MAXBLK; rdblksz > 0; rdblksz -= BLKMULT) {
-          if ((arsb.st_size % rdblksz) == 0) {
+          if ((arsb.size % rdblksz) == 0) {
             break;
           }
         }
@@ -334,18 +334,21 @@ class Ar_io {
      * if nothing was written to the archive (and we created it), we remove
      * it
      */
-    if (can_unlnk && (fstat(arfd, &arsb) == 0) && (S_ISREG(arsb.st_mode)) &&
-        (arsb.st_size == 0)) {
-      (void)unlink(arcname);
-      can_unlnk = 0;
+    if can_unlnk {
+      if let arsb = try? FileMetadata(for: arfd),
+         .regular == arsb.filetype,
+         arsb.size == 0 {
+        unlink(arcname)
+        can_unlnk = false
+      }
     }
 
     /*
      * for a quick extract/list, pax frequently exits before the child
      * process is done
      */
-    if ((act == LIST || act == EXTRACT) && nflag && zpid > 0) {
-      kill(zpid, SIGINT);
+    if ((act == .LIST || act == .EXTRACT) && nflag && zpid > 0) {
+      kill(zpid, SIGINT)
     }
 
     (void)close(arfd);
@@ -771,7 +774,7 @@ class Ar_io {
          * try to step over the bad part of the device.
          */
         io_ok = 0;
-        if (((fsbz = arsb.st_blksize) <= 0) || (artyp != ISREG)) {
+        if (((fsbz = arsb.blockSize) <= 0) || (artyp != .ISREG)) {
           fsbz = BLKMULT;
         }
         if ((cpos = lseek(arfd, (off_t)0L, SEEK_CUR)) < 0) {
@@ -845,9 +848,9 @@ class Ar_io {
        * deal with the end of file (it will go to next volume by
        * itself)
        */
-      if ((mpos = cpos + sksz) > arsb.st_size) {
-        *skipped = arsb.st_size - cpos;
-        mpos = arsb.st_size;
+      if ((mpos = cpos + sksz) > arsb.size) {
+        *skipped = arsb.size - cpos;
+        mpos = arsb.size;
       } else {
         *skipped = sksz;
       }
@@ -882,7 +885,7 @@ class Ar_io {
     }
 
     switch(artyp) {
-      case ISPIPE:
+      case .ISPIPE:
         if (sksz <= 0) {
           break;
         }
@@ -892,9 +895,8 @@ class Ar_io {
         Tty.paxwarn(true, "Reverse positioning on pipes is not supported.");
         lstrval = -1;
         return .failed;
-      case ISREG:
-      case ISBLK:
-      case ISCHR:
+      case .ISREG, .ISBLK, .ISCHR:
+        fallthrough
       default:
         if (sksz <= 0) {
           break;

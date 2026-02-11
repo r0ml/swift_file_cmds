@@ -973,7 +973,7 @@
 				pax/tty_subs.swift,
 				pax/ustar.swift,
 				pax/vcpio_crc.swift,
-				pax/vcpio..swift,
+				pax/vcpio.swift,
 			);
 			target = E774012D2F02D87D00498517 /* pax */;
 		};

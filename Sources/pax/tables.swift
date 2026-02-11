@@ -56,6 +56,7 @@ class Tables {
    * time well spent.
    */
 
+  var lastdev = UInt(0)      /* next device number to try */
 
   /*
    * data structures and constants used by the different databases kept by pax
@@ -234,8 +235,10 @@ class Tables {
    * can be detected by the archive format.
    */
 
+  @MainActor static let shared = Tables.init()
 
-  init() {}
+
+  private init() {}
 
   /*
    * lnk_start
@@ -577,12 +580,12 @@ class Tables {
    *	0 if all ok, -1 otherwise.
    */
 
+
   func map_dev(_ arcn : inout ARCHD, _ dev_mask : UInt, _ ino_mask : UInt) -> Result {
 /*    DEVT *pt;
  */
 //    var dpt : DLIST?
 
-//    static dev_t lastdev = 0;	/* next device number to try */
 
     var trc_ino = false
     var trc_dev = false
@@ -631,8 +634,10 @@ class Tables {
       /*
        * we have truncation, have to add this as a device to remap
        */
-      if ((pt = chk_dev(arcn.sb.device, true)) == NULL) {
-        goto bad;
+      guard let pt = chk_dev(arcn.sb.device, true) else {
+        Tty.paxwarn(true, "Unable to fix truncated inode/device field when storing \(arcn.name)")
+        Tty.paxwarn(false, "Archive may create improper hard links when extracted");
+        return .ok
       }
 
       /*
@@ -654,38 +659,31 @@ class Tables {
          * look for a device number not being used. We must watch for wrap
          * around on lastdev (so we do not get stuck looking forever!)
          */
-        while (++lastdev > 0) {
-      if (chk_dev(lastdev, 0) != NULL) {
-        continue;
+    while true {
+      lastdev += 1
+      if let _ = chk_dev(lastdev, false) {
+        continue
       }
+    }
       /*
        * found an unused value. If we have reached truncation point
        * for this format we are hosed, so we give up. Otherwise we
        * mark it as being used.
        */
-      if (((lastdev & ((dev_t)dev_mask)) != lastdev) ||
-          (chk_dev(lastdev, 1) == NULL)) {
-        goto bad;
-      }
-      break;
+    if ((lastdev & dev_mask) == lastdev) && chk_dev(lastdev, true) != nil {
+
+      /*
+       * got a new device number, store it under this truncation pattern.
+       * change the device number this file is being stored with.
+       */
+      let dpt = DLIST(trunc_bits: trunc_bits, dev: lastdev)
+      dtab[arcn.sb.device] = dtab[arcn.sb.device]! + [dpt]
+      arcn.sb.device = lastdev
+      arcn.sb.inode = nino
+      return .ok
     }
-
-        if lastdev <= 0  {
-      goto bad;
-    }
-
-        /*
-         * got a new device number, store it under this truncation pattern.
-         * change the device number this file is being stored with.
-         */
-    let dpt = DLIST(trunc_bits: trunc_bits, dev: lastdev)
-    dtab[arcn.sb.device] = dtab[arcn.sb.device]! + [dpt]
-        arcn.sb.device = lastdev
-        arcn.sb.inode = nino
-        return .ok
-
-        bad:
-          Tty.paxwarn(true, "Unable to fix truncated inode/device field when storing \(arcn.name)")
+//        bad:
+        Tty.paxwarn(true, "Unable to fix truncated inode/device field when storing \(arcn.name)")
         Tty.paxwarn(false, "Archive may create improper hard links when extracted");
         return .ok
   }
@@ -722,7 +720,7 @@ class Tables {
      * chained there.
      */
     for var (k, v) in atab {
-      set_ftime(v.name, v.mtime, v.atime, 1)
+      ARCHD.set_ftime(v.name, v.mtime, v.atime, true)
     }
   }
 
@@ -849,12 +847,12 @@ class Tables {
        */
 
       if options.pmode || dblk.frc_mode {
-        set_pmode(dblk.name, dblk.mode)
+        ARCHD.set_pmode(dblk.name, dblk.mode)
       }
 
       if options.patime || options.pmtime {
 
-        set_ftime(dblk.name, dblk.mtime, dblk.atime, false)
+        ARCHD.set_ftime(dblk.name, dblk.mtime, dblk.atime, false)
       }
     }
 
