@@ -53,19 +53,8 @@ extension pax {
   static var pattail : PATTERN?		/* file pattern match list tail */
   static REPLACE *rephead = NULL;		/* replacement string list head */
   static REPLACE *reptail = NULL;		/* replacement string list tail */
-  
-  static int rep_name(char *, size_t, int *, int);
-  int tty_rename(ARCHD *);
-  
-  static int fix_path(char *, int *, char *, int);
-  static int fn_match(char *, char *, char **);
-  
-  static char* extract_equiv_pat(char *, char **);
-  static int regex_match(char *, char *, char **);
-  
-  static char * range_match(char *, int);
-  static int resub(regex_t *, regmatch_t *, char *, char *, char *, char *);
-  
+
+
   /*
    * rep_add()
    *	parses the -s replacement string; compiles the regular expression
@@ -82,28 +71,20 @@ extension pax {
    *	the list of replacement patterns; -1 otherwise.
    */
   
-  int
-  rep_add(char *str)
-  {
+  func rep_add(_ str : String) -> Result {
     char *pt1;
     char *pt2;
     REPLACE *rep;
     int res;
     char rebuf[BUFSIZ];
     
-    /*
-     * throw out the bad parameters
-     */
-    if ((str == NULL) || (*str == '\0')) {
-      Tty.paxwarn(true, "Empty replacement string");
-      return .failed;
+    // throw out the bad parameters
+    if str.isEmpty {
+      Tty.paxwarn(true, "Empty replacement string")
+      return .failed
     }
     
-    /*
-     * first character in the string specifies what the delimiter is for
-     * this expression
-     */
-    
+    // first character in the string specifies what the delimiter is for this expression
     for (pt1 = str+1; *pt1; pt1++) {
       if (*pt1 == '\\') {
         pt1++;

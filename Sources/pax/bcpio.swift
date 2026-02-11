@@ -172,7 +172,7 @@ let AVCMAGIC = "070702"  /* ascii string of above */
 
 
 
-class bcpio : pax.FSUB {
+class bcpio : FSUB {
   var name: String { get { "bcpio" } set { } }
   var bsz: UInt { get { 5120 } set { } }
   var hsz: Int { get { MemoryLayout<HD_BCPIO>.size } set { } }
@@ -709,11 +709,11 @@ class bcpio : pax.FSUB {
    *  when the format does not support options.
    */
 
-  func other_options() -> Result { // was bad_opt
+  func other_options() throws(CmdErr) { // was bad_opt
     OPLIST *opt;
 
     if (ophead == NULL) {
-      return .ok
+      return
     }
     /*
      * print all we were given
@@ -730,8 +730,7 @@ class bcpio : pax.FSUB {
       }
     }
 
-    pax_usage();
-    return .ok
+    throw CmdErr(1)  // pax_usage();
   }
 
 

@@ -98,7 +98,18 @@ extension pax {
 
     static let C0F = Self.init(rawValue:  0x40000000)  /* nonstandard extension */
 
+    static let allCases : [OptionFlags] = [.AF, .BF, .CF, .DF, .FF, .IF, .KF, .LF, .NF, .OF, .PF, .RF, .SF, .TF, .UF, .VF, .WF, .XF, .CBF, .CDF, .CEF, .CGF, .CHF, .CLF, .CPF, .CTF, .CUF, .CXF, .CYF, .CZF]
 
+    var myCases : [OptionFlags] { Self.allCases.filter { self.contains($0) } }
+
+    var flagString : String {
+      if let x = Self.allCases.firstIndex(of: self) {
+        "-\(Self.FLGCH[x])"
+      } else {
+        "-?"
+      }
+
+    }
   /*
    * ascii string indexed by bit position above (alter the above and you must
    * alter this string) used to tell the user what flags caused us to complain
@@ -106,7 +117,7 @@ extension pax {
   //  #ifndef __APPLE__
   //  #define FLGCH  "abcdfiklnoprstuvwxBDEGHLPTUXYZ"
   //  #else
-  static let FLGCH = "abcdfijklnoprstuvwxBDEGHLPTUXYZ0"
+  static let FLGCH = Array("abcdfijklnoprstuvwxBDEGHLPTUXYZ0")
   //  #endif /* __APPLE__*/
 
   /*
@@ -144,9 +155,9 @@ extension pax {
    * Routines which handle command line options
    */
 
-  static char flgch[] = FLGCH;	/* list of all possible flags */
-  static OPLIST *ophead = NULL;	/* head for format specific options -x */
-  static OPLIST *optail = NULL;	/* option tail */
+//  static char flgch[] = FLGCH;	/* list of all possible flags */
+//  static OPLIST *ophead = NULL;	/* head for format specific options -x */
+//  static OPLIST *optail = NULL;	/* option tail */
 
   /* errors from get_line */
   #define GETLINE_FILE_CORRUPT 1
@@ -231,60 +242,40 @@ extension pax {
    *	parser
    */
 
-  func doOptions() {
+  func setFrmt() {
 
     /*
      * Are we acting like pax, tar or cpio (based on argv[0])
      */
-    let argv0 = programName
 
-    if argv0 == NM_TAR {
-      myUsage = .tar
-      tar_options()
-      return
-    }
-    else if (strcmp(NM_CPIO, argv0) == 0) {
-      myUsage = .cpio
-      cpio_options()
-      return;
+    if programName == NM_TAR {
+      options.frmt = tar()
+//      myUsage = .tar
+//      try tar().doOptions(&options)
+    } else if programName == NM_CPIO {
+      options.frmt = cpio()
+//      cpio_options()
+//      return;
+    } else {
+      options.frmt = paxer()
     }
     /*
      * assume pax as the default
      */
-    argv0 = NM_PAX;
-    myUsage = .pax
-    pax_options()
-    return;
   }
 
-  private mkpath(_ path : String) -> Result  {
-    struct stat sb;
-    char *slash;
-    int done = 0;
-
-    slash = path;
-
-    while (!done) {
-      slash += strspn(slash, "/");
-      slash += strcspn(slash, "/");
-
-      done = (*slash == '\0');
-      *slash = '\0';
-
-      if (stat(path, &sb)) {
-        if (errno != ENOENT || mkdir(path, 0777)) {
-          Tty.paxwarn(true, "%s", path);
-          return .failed
-        }
-      } else if (!S_ISDIR(sb.st_mode)) {
-        Tty.syswarn(true, ENOTDIR, "%s", path);
+  // the CMigration `createDirectory` creates the intermediate directories -- and should be equivalent to the original mkpath
+  func mkpath(_ path : FilePath) -> Result  {
+    do {
+      try path.createDirectory(FilePermissions(rawValue: 0o0777))
+    } catch(let e) {
+      Tty.paxwarn(true, path.string)
+      return .failed
+    }
+    guard let sb = try? FileMetadata(for: path), sb.filetype == .directory else {
+      Tty.syswarn(true, ENOTDIR, path.string)
         return .failed
       }
-
-      if (!done) {
-        *slash = '/';
-      }
-    }
 
     return .ok
   }
@@ -296,16 +287,8 @@ extension pax {
    */
 
   private func printflg(_ flg : OptionFlags) {
-    int nxt;
-    int pos = 0;
-
-    (void)fprintf(stderr,"%s: Invalid combination of options:", argv0);
-    while ((nxt = ffs(flg)) != 0) {
-      flg = flg >> nxt;
-      pos += nxt;
-      (void)fprintf(stderr, " -%c", flgch[pos-1]);
-    }
-    (void)putc('\n', stderr);
+    var se = FileDescriptor.standardError
+    print("\(programName): Invalid combination of options: " + flg.myCases.map { $0.flagString }.joined(separator: " "), to: &se )
   }
 
   /*
@@ -314,29 +297,11 @@ extension pax {
    *	by the user
    */
 
-  private func c_frmt(_ a : any FSUB, _ b : any FSUB) -> Int {
+  private func c_frmt(_ a : any FSUB, _ b : any FSUB) -> Int {
     return(strcmp( a.name, b.name))
   }
 
-  /*
-   * opt_next()
-   *	called by format specific options routines to get each format specific
-   *	flag and value specified with -o
-   * Return:
-   *	pointer to next OPLIST entry or NULL (end of list).
-   */
-
-  OPLIST *
-  opt_next(void)
-  {
-    OPLIST *opt;
-
-    if ((opt = ophead) != NULL)
-        ophead = ophead->fow;
-    return(opt);
-  }
-
-  /*
+/*
    * opt_add()
    *	breaks the value supplied to -o into an option name and value. Options
    *	are given to -o in the form -o name-value,name=value
@@ -345,66 +310,25 @@ extension pax {
    *	0 if format in name=value format, -1 if -o is passed junk.
    */
 
-  func opt_add(_ str : String) -> Result {
-    OPLIST *opt;
-    char *frpt;
-    char *pt;
-    char *endpt;
-    char *lstr;
-
-    if ((str == NULL) || (*str == '\0')) {
-      Tty.paxwarn(0, "Invalid option name");
-      return .failed;
-    }
-    if ((lstr = strdup(str)) == NULL) {
-      Tty.paxwarn(0, "Unable to allocate space for option list");
-      return .failed;
+  func opt_add(_ str : String) -> (Result, [oplist]?) {
+    if str.isEmpty {
+      Tty.paxwarn(false, "Invalid option name")
+      return (.failed, nil)
     }
 
-    frpt = lstr;
+    let frpt = str.split(separator: ",") // array of name=value  strings
 
-    /*
-     * break into name and values pieces and stuff each one into a
-     * OPLIST structure. When we know the format, the format specific
-     * option function will go through this list
-     */
-    while ((frpt != NULL) && (*frpt != '\0')) {
-      if ((endpt = strchr(frpt, ',')) != NULL) {
-        *endpt = '\0';
+    var opls = [oplist]()
+    for z in frpt {
+      let k = z.split(separator: "=", maxSplits: 1)
+      if k.count != 2 {
+        Tty.paxwarn(false, "Invalid options format");
+        return (.failed, nil)
       }
-      if ((pt = strchr(frpt, '=')) == NULL) {
-        Tty.paxwarn(0, "Invalid options format");
-        free(lstr);
-        return .failed;
-      }
-      if ((opt = (OPLIST *)malloc(sizeof(OPLIST))) == NULL) {
-        Tty.paxwarn(0, "Unable to allocate space for option list");
-        free(lstr);
-        return .failed;
-      }
-
-      *pt++ = '\0';
-      opt->name = frpt;
-      opt->value = pt;
-
-      opt->separator = SEP_EQ;
-
-      opt->fow = NULL;
-      if (endpt != NULL) {
-        frpt = endpt + 1;
-      }
-      else {
-        frpt = NULL;
-      }
-      if (ophead == NULL) {
-        optail = ophead = opt;
-        continue;
-      }
-      optail->fow = opt;
-      optail = opt;
+      opls.append( oplist(name: String(k[0]), value: String(k[1]), separator: .equals) )
     }
-
-    return .ok
+//    opt->separator = SEP_EQ;
+    return (.ok, opls)
   }
 
   /*
@@ -416,66 +340,30 @@ extension pax {
    *	0 if format in name=value format, -1 if -o is passed junk
    */
 
-  func pax_format_opt_add(_ str : String) -> Result {
-    register OPLIST *opt;
-    register char *frpt;
-    register char *pt;
-    register char *endpt;
-    register int separator;
+  func pax_format_opt_add(_ str : String) -> (Result, [oplist]?) {
+    if str.isEmpty {
+      Tty.paxwarn(false, "Invalid option name")
+      return (.failed, nil)
+    }
 
-    if ((str == NULL) || (*str == '\0')) {
-      Tty.paxwarn(0, "Invalid option name");
-      return .failed;
-    }
-    if ((str = strdup(str)) == NULL) {
-      Tty.paxwarn(0, "Unable to allocate space for option list");
-      return .failed;
-    }
-    frpt = str;
+    let frpt = str.split(separator: ",") // array of name=alue strings
 
     /*
      * break into name and values pieces and stuff each one into a
      * OPLIST structure. When we know the format, the format specific
      * option function will go through this list
      */
-    while ((frpt != NULL) && (*frpt != '\0')) {
-      if ((endpt = strchr(frpt, ',')) != NULL) {
-        *endpt = '\0';
-      }
-      if ((pt = strstr(frpt, ":=")) != NULL) {
-        *pt++ = '\0';
-        pt++;	/* beyond the := */
-        separator = SEP_COLONEQ;
-      } else if ((pt = strchr(frpt, '=')) != NULL) {
-        *pt++ = '\0';
-        separator = SEP_EQ;
+    var opls=[oplist]()
+    for z in frpt {
+      if let x = z.firstRange(of: ":=") {
+        opls.append( oplist(name: String(z[..<x.lowerBound]), value: String(z[x.upperBound...]), separator: .colonEquals))
+      } else if let x = z.firstRange(of: "=") {
+        opls.append( oplist(name: String(z[..<x.lowerBound]), value: String(z[x.upperBound...]), separator: .equals))
       } else {
-        /* keyword with no value */
-        separator = SEP_NONE;
+        opls.append( oplist(name: String(z), value: "", separator: .none))
       }
-      if ((opt = (OPLIST *)malloc(sizeof(OPLIST))) == NULL) {
-        Tty.paxwarn(0, "Unable to allocate space for option list");
-        free(str);
-        return .failed;
-      }
-      opt->name = frpt;
-      opt->value = pt;
-      opt->separator = separator;
-      opt->fow = NULL;
-      if (endpt != NULL) {
-        frpt = endpt + 1;
-      }
-      else {
-        frpt = NULL;
-      }
-      if (ophead == NULL) {
-        optail = ophead = opt;
-        continue;
-      }
-      optail->fow = opt;
-      optail = opt;
     }
-    return .ok
+    return (.ok, opls)
   }
 
   /*
@@ -493,7 +381,7 @@ extension pax {
    *	0 for an error, a positive value o.w.
    */
 
-  private func str_offt(_ val : String) -> Int {
+  func str_offt(_ val : String) -> UInt? {
     char *expr;
     off_t num, t;
 
@@ -555,15 +443,13 @@ extension pax {
   }
 
   // FileDescriptor was FILE *
-  func get_line(_ f : FileDescriptor) -> String {
-    char *name, *temp;
-    size_t len;
-
-    name = fgetln(f, &len);
-    if (!name) {
+  func get_line(_ f : FileDescriptor) -> String? {
+    var len : UInt32 = 0
+    guard let name = fgetln(f, &len) else {
       get_line_error = ferror(f) ? GETLINE_FILE_CORRUPT : 0;
-      return(0);
+      return nil
     }
+
     if (name[len-1] != '\n') {
       len++;
     }
@@ -628,12 +514,6 @@ usage: cpio -o [-aABcLvVzZ] [-C bytes] [-H format] [-O archive]
                [-I archive] [-F archive] [pattern...] [< archive]
        cpio -p [-adlLmuvV] destination-directory < name-list
 """
-
-  enum usageType {
-    case pax
-    case tar
-    case cpio
-  }
 
   var usage : String {
     switch myUsage {

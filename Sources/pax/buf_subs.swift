@@ -42,7 +42,7 @@ import Darwin
 let MINFBSZ = 512    /* default block size for hole detect */
 let MAXFLT = 10    /* default media read error limit */
 
-extension pax {
+class Bufferer {
   /*
    * routines which implement archive and file buffering
    */
@@ -52,18 +52,26 @@ extension pax {
    * limit on blocking size is removed (though that will violate pax spec)
    * MAXBLK define and tests will also need to be updated.
    */
-  static char bufmem[MAXBLK+BLKMULT];	/* i/o buffer + pushback id space */
-  static char *buf;			/* normal start of i/o buffer */
-  static char *bufend;			/* end or last char in i/o buffer */
-  static char *bufpt;			/* read/write point in i/o buffer */
+  var iobuffer = Array<UInt8>(repeating: 0, count: BLKMULT+MAXBLK)  // i/o buffer + pushback id space
+//  static char *buf;			/* normal start of i/o buffer */
+//  static char *bufend;			/* end or last char in i/o buffer */
+  var bufpt = UInt(0) // static char *bufpt;			/* read/write point in i/o buffer */
 //  int blksz = MAXBLK;			/* block input/output size in bytes */
-//  int wrblksz;				/* user spec output size in bytes */
-  int maxflt = MAXFLT;			/* MAX consecutive media errors */
-  int rdblksz;				/* first read blksize (tapes only) */
-  off_t wrlimit;				/* # of bytes written per archive vol */
-  off_t wrcnt;				/* # of bytes written on current vol */
-  off_t rdcnt;				/* # of bytes read on current vol */
 
+  private var wrblksz : UInt				/* user spec output size in bytes */
+
+  let maxflt = MAXFLT;			/* MAX consecutive media errors */
+  var rdblksz = UInt(0)				/* first read blksize (tapes only) */
+  var wrlimit = UInt(0)				/* # of bytes written per archive vol */
+  var wrcnt = UInt(0)				/* # of bytes written on current vol */
+  var rdcnt = UInt(0)				/* # of bytes read on current vol */
+
+  var options : pax.CommandOptions
+
+  init(_ options : pax.CommandOptions) {
+    self.options = options
+    wr_start()
+  }
   /*
    * wr_start()
    *	set up the buffering system to operate in a write mode
@@ -81,7 +89,7 @@ extension pax {
      * open the first archive volume
      */
     if (!wrblksz) {
-      wrblksz = frmt->bsz;
+      wrblksz = options.frmt.bsz
     }
     if (wrblksz > MAXBLK) {
       Tty.paxwarn(true, "Write block size of %d too large, maximum is: %d",
@@ -198,7 +206,7 @@ extension pax {
     off_t cnt;
 
     if (exit_val != 0) {
-      Tty.paxwarn(0, "Cannot append to an archive that may have flaws.");
+      Tty.paxwarn(false, "Cannot append to an archive that may have flaws.")
       return .failed;
     }
     /*
@@ -395,7 +403,7 @@ extension pax {
      * move within the archive without doing the expensive reads on data we
      * do not want.
      */
-    if (skcnt == 0) {
+    if skcnt == 0 {
       return .ok
     }
     res = MIN((bufend - bufpt), skcnt);

@@ -38,7 +38,98 @@
 
 import CMigration
 
-extension pax.FSUB {
+// FIXME: is this really a protocol?
+/*
+* Format Specific Routine Table
+*
+* The format specific routine table allows new archive formats to be quickly
+* added. Overall pax operation is independent of the actual format used to
+* form the archive. Only those routines which deal directly with the archive
+* are tailored to the oddities of the specific format. All other routines are
+* independent of the archive format. Data flow in and out of the format
+* dependent routines pass pointers to ARCHD structure (described below).
+*/
+protocol FSUB {
+  var name : String { get set }  /* name of format, this is the name the user */
+  /* gives to -x option to select it. */
+  var bsz : UInt { get set }    /* default block size. used when the user */
+  /* does not specify a blocksize for writing */
+  /* Appends continue to with the blocksize */
+  /* the archive is currently using. */
+  var hsz : Int { get set }   /* Header size in bytes. this is the size of */
+  /* the smallest header this format supports. */
+  /* Headers are assumed to fit in a BLKMULT. */
+  /* If they are bigger, get_head() and */
+  /* get_arc() must be adjusted */
+  var udev : UInt { get set }   /* does append require unique dev/ino? some */
+  /* formats use the device and inode fields */
+  /* to specify hard links. when members in */
+  /* the archive have the same inode/dev they */
+  /* are assumed to be hard links. During */
+  /* append we may have to generate unique ids */
+  /* to avoid creating incorrect hard links */
+  var hlk : Bool { get set }    /* does archive store hard links info? if */
+  /* not, we do not bother to look for them */
+  /* during archive write operations */
+  var blkalgn : Bool { get set }    /* writes must be aligned to blkalgn boundary */
+  var inhead : Bool { get set }    /* is the trailer encoded in a valid header? */
+  /* if not, trailers are assumed to be found */
+  /* in invalid headers (i.e like tar) */
+
+  func id(_ : [UInt8]) -> Result  /* checks if a buffer is a valid header */
+  /* returns 1 if it is, o.w. returns a 0 */
+  func st_rd() -> Result  /* initialize routine for read. so format */
+  /* can set up tables etc before it starts */
+  /* reading an archive */
+  func rd(_ : [UInt8]) -> ARCHD?
+  /* read header routine. passed a pointer to */
+  /* ARCHD. It must extract the info from the */
+  /* format and store it in the ARCHD struct. */
+  /* This routine is expected to fill all the */
+  /* fields in the ARCHD (including stat buf) */
+  /* 0 is returned when a valid header is */
+  /* found. -1 when not valid. This routine */
+  /* set the skip and pad fields so the format */
+  /* independent routines know the amount of */
+  /* padding and the number of bytes of data */
+  /* which follow the header. This info is */
+  /* used skip to the next file header */
+  func end_rd() -> Result  /* read cleanup. Allows format to clean up */
+  /* and MUST RETURN THE LENGTH OF THE TRAILER */
+  /* RECORD (so append knows how many bytes */
+  /* to move back to rewrite the trailer) */
+  func st_wr() -> Result  /* initialize routine for write operations */
+  func wr(_ : ARCHD) -> Result  /* write archive header. Passed an ARCHD */
+  /* filled with the specs on the next file to */
+  /* archived. Returns a 1 if no file data is */
+  /* is to be stored; 0 if file data is to be */
+  /* added. A -1 is returned if a write */
+  /* operation to the archive failed. this */
+  /* function sets the skip and pad fields so */
+  /* the proper padding can be added after */
+  /* file data. This routine must NEVER write */
+  /* a flawed archive header. */
+  func end_wr() -> Result  /* end write. write the trailer and do any */
+  /* other format specific functions needed */
+  /* at the end of an archive write */
+  func trail_cpio(_ : ARCHD) -> Result
+  func trail_tar(_ : [UInt8], _ : Bool, _ : inout Int) -> Result
+  /* returns 0 if a valid trailer, -1 if not */
+  /* For formats which encode the trailer */
+  /* outside of a valid header, a return value */
+  /* of 1 indicates that the block passed to */
+  /* it can never contain a valid header (skip */
+  /* this block, no point in looking at it)  */
+  func rd_data(_ : ARCHD,_ : Int,_ : inout Int) -> Result
+  /* read/process file data from the archive */
+  func wr_data(_ : ARCHD,_ : FileDescriptor, _ : inout Int) -> Result
+  /* write/process file data to the archive */
+  func other_options() -> Result  /* process format specific options (-o) */
+  func doOptions(_ : inout pax.CommandOptions) throws(CmdErr)
+}
+
+
+extension FSUB {
   // Possibly promote to a superclass -- everybody seems to use this one
   /*
    * rd_wrfile()
@@ -61,7 +152,6 @@ extension pax.FSUB {
    */
 
   func rd_data(_ arcn : ARCHD, _ ofd : Int, _ left : inout Int) -> Result {
-    var cnt = 0;
     var size = arcn.sb.size;
     var res = 0;
     var fnm = arcn.name
@@ -82,10 +172,10 @@ extension pax.FSUB {
         sz = sb.blockSize;
       }
     } else {
-      Tty.syswarn(false,errno,"Unable to obtain block size for file %s",fnm);
+      Tty.syswarn(false,errno,"Unable to obtain block size for file \(fnm)")
     }
     rem = sz;
-    *left = 0L;
+    left = 0
 
     /*
      * Copy the archive to the file the number of bytes specified. We have
@@ -93,7 +183,7 @@ extension pax.FSUB {
      * formats can record the location of file holes.
      */
     while (size > 0) {
-      cnt = bufend - bufpt;
+      var cnt = bufend - bufpt;
       /*
        * if we get a read error, we do not want to skip, as we may
        * miss a header, so we do not set left, but if we get a write
@@ -108,7 +198,7 @@ extension pax.FSUB {
         break;
       }
 
-      if (docrc) {
+      if options.docrc {
         /*
          * update the actual crc value
          */
@@ -135,15 +225,15 @@ extension pax.FSUB {
     /*
      * if we failed from archive read, we do not want to skip
      */
-    if ((size > 0L) && (*left == 0L)) {
-      return .failed;
+    if size > 0 && left == 0 {
+      return .failed
     }
 
     /*
      * some formats record a crc on file data. If so, then we compare the
      * calculated crc to the crc stored in the archive
      */
-    if (docrc && (size == 0L) && (arcn.crc != crc)) {
+    if options.docrc && size == 0 && arcn.crc != crc {
       Tty.paxwarn(true,"Actual crc does not match expected crc \(arcn.name)")
     }
     return .ok
@@ -168,7 +258,7 @@ extension pax.FSUB {
    *  0, but "left" is set to be greater than zero.
    */
 
-  func wr_data(_ arcn : ARCHD, _ ifd : FileDescriptor, _ left : inout Int) -> Result {
+  func wr_data(_ arcn : ARCHD, _ ifd : FileDescriptor, _ left : inout UInt) -> Result {
     var res = 0
     var size = arcn.sb.size;
 
@@ -176,12 +266,13 @@ extension pax.FSUB {
      * while there are more bytes to write
      */
     while size > 0 {
-      cnt = bufend - bufpt;
-      if ((cnt <= 0) && ((cnt = buf_flush(blksz)) < 0)) {
+      var cnt = bufend - bufpt;
+      if (cnt <= 0 && ((cnt = buf_flush(blksz)) < 0)) {
         *left = size;
         return .failed;
       }
-      cnt = MIN(cnt, size);
+      cnt = min(cnt, size)
+
       if ((res = read(ifd, bufpt, cnt)) <= 0) {
         break;
       }
@@ -203,7 +294,7 @@ extension pax.FSUB {
       if (arcn.sb.lastWrite != sb.lastWrite) {
         Tty.paxwarn(true, "File \(arcn.org_name) was modified during copy to archive")
       }
-      *left = size;
+      left = size
       return .ok
     } else {
       Tty.syswarn(true, errno, "Failed stat on \(arcn.org_name)")

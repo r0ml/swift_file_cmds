@@ -940,8 +940,8 @@ extension pax {
     if ((uflag && (ftime_start() < 0)) || (wr_start() < 0)) {
       return;
     }
-    if ((*frmt->options)() < 0) {
-      return;
+    if case .failed = options.frmt!.other_options() {
+      return
     }
 
     wr_archive(&archd, 0);

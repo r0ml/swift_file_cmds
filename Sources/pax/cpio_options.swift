@@ -48,7 +48,7 @@ extension cpio {
    *  the user specified a legal set of flags. If not, complain and exit
    */
 
-  func cpio_options() throws(CmdErr) -> pax.CommandOptions {
+  func doOptions(_ options : inout pax.CommandOptions) throws(CmdErr) {
     var options = pax.CommandOptions()
 
 /*    int c;
@@ -66,6 +66,8 @@ extension cpio {
     options.dflag = true
     options.act = OpModes(rawValue: 0)!
     options.nodirs = true
+
+    myUsage = .cpio
 
     let opts = "abcdfiklmoprstuvzABC:E:F:H:I:LO:SZ6"
     let go = BSDGetopt(opts)
@@ -183,23 +185,24 @@ extension cpio {
            * set block size in bytes
            */
           // FIXME: throw error for invalid Int?
-          options.wrblksz = Int(v)
+          options.wrblksz = UInt(v)
 
         case "E":
           /*
            * file with patterns to extract or list
            */
-          if ((fp = fopen(optarg, "r")) == NULL) {
-            Tty.paxwarn(true, "Unable to open file '%s' for read", optarg);
-            cpio_usage();
+          guard var fp = try? FileStream(FilePath(v), mode: .readOnly) else {
+            Tty.paxwarn(true, "Unable to open file '\(v)' for read")
+            throw CmdErr(1)
           }
-          while ((str = get_line(fp)) != NULL) {
+
+          while let str = try? fp.readLine() {
             pat_add(str, NULL);
           }
-          fclose(fp);
+
           if (get_line_error) {
-            Tty.paxwarn(true, "Problem with file '%s'", optarg);
-            cpio_usage();
+            Tty.paxwarn(true, "Problem with file '\(v)'")
+            throw CmdErr(1)
           }
 
         case "F", "I", "O":
@@ -219,7 +222,7 @@ extension cpio {
           /*
            * specify an archive format on write
            */
-          let fsubs : [String : any pax.FSUB] = ["bcpio" : bcpio(), "cpio" : cpio(), "pax" : paxer(), "sv4cpio" : vcpio(), "sv4crc" : vcpio_crc(), "tar" : tar(), "ustar" : ustar()]
+          let fsubs : [String : any FSUB] = ["bcpio" : bcpio(), "cpio" : cpio(), "pax" : paxer(), "sv4cpio" : vcpio(), "sv4crc" : vcpio_crc(), "tar" : tar(), "ustar" : ustar()]
           if let frmt = fsubs[v] {
             options.frmt = frmt
             break
@@ -232,8 +235,8 @@ extension cpio {
             (void)fprintf(stderr, " %s", fsub[i].name);
           }
           (void)fputs("\n\n", stderr);
-          cpio_usage();
-          break;
+          throw CmdErr(1)
+
         case "L":
           /*
            * follow symbolic links

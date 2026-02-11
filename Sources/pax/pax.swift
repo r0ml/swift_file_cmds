@@ -49,6 +49,19 @@ enum Result : Equatable {
 let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
         /* WARNING: increasing MAXBLK past 32256 */
         /* will violate posix spec. */
+let MAXBLK_POSIX = 32256  /* MAX blocksize supported as per POSIX */
+let BLKMULT = 512  /* blocksize must be even mult of 512 bytes */
+        /* Don't even think of changing this */
+let DEVBLK = 8192  /* default read blksize for devices */
+let PAXPATHLEN = 3072  /* maximum path length for pax. MUST be */
+        /* longer than the system PATH_MAX */
+
+enum usageType {
+  case pax
+  case tar
+  case cpio
+}
+nonisolated(unsafe) var myUsage : usageType = .pax
 
 @main class pax : ShellCommand {
   required init() {
@@ -57,9 +70,8 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
   }
 
 
-  var myUsage : usageType = .tar
   let ar_io = Ar_io()
-  let tables = Tables()
+  let tables = Tables.shared
   let cache = Cache()
   let tty = Tty()
 
@@ -67,12 +79,6 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
    * BSD PAX global data structures and constants.
    */
 
-  let MAXBLK_POSIX = 32256  /* MAX blocksize supported as per POSIX */
-  static let BLKMULT = 512  /* blocksize must be even mult of 512 bytes */
-          /* Don't even think of changing this */
-  let DEVBLK = 8192  /* default read blksize for devices */
-  let PAXPATHLEN = 3072  /* maximum path length for pax. MUST be */
-          /* longer than the system PATH_MAX */
 
   /*
    * Pax modes of operation
@@ -102,95 +108,6 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
 //  typedef struct fsub FSUB;
 //  typedef struct oplist OPLIST;
 //  typedef struct pattern PATTERN;
-
-    // FIXME: is this really a protocol?
-  /*
-   * Format Specific Routine Table
-   *
-   * The format specific routine table allows new archive formats to be quickly
-   * added. Overall pax operation is independent of the actual format used to
-   * form the archive. Only those routines which deal directly with the archive
-   * are tailored to the oddities of the specific format. All other routines are
-   * independent of the archive format. Data flow in and out of the format
-   * dependent routines pass pointers to ARCHD structure (described below).
-   */
-  protocol FSUB {
-    var name : String { get set }  /* name of format, this is the name the user */
-    /* gives to -x option to select it. */
-    var bsz : UInt { get set }    /* default block size. used when the user */
-    /* does not specify a blocksize for writing */
-    /* Appends continue to with the blocksize */
-    /* the archive is currently using. */
-    var hsz : Int { get set }   /* Header size in bytes. this is the size of */
-    /* the smallest header this format supports. */
-    /* Headers are assumed to fit in a BLKMULT. */
-    /* If they are bigger, get_head() and */
-    /* get_arc() must be adjusted */
-    var udev : UInt { get set }   /* does append require unique dev/ino? some */
-    /* formats use the device and inode fields */
-    /* to specify hard links. when members in */
-    /* the archive have the same inode/dev they */
-    /* are assumed to be hard links. During */
-    /* append we may have to generate unique ids */
-    /* to avoid creating incorrect hard links */
-    var hlk : Bool { get set }    /* does archive store hard links info? if */
-    /* not, we do not bother to look for them */
-    /* during archive write operations */
-    var blkalgn : Bool { get set }    /* writes must be aligned to blkalgn boundary */
-    var inhead : Bool { get set }    /* is the trailer encoded in a valid header? */
-    /* if not, trailers are assumed to be found */
-    /* in invalid headers (i.e like tar) */
-
-    func id(_ : [UInt8]) -> Result  /* checks if a buffer is a valid header */
-          /* returns 1 if it is, o.w. returns a 0 */
-    func st_rd() -> Result  /* initialize routine for read. so format */
-          /* can set up tables etc before it starts */
-          /* reading an archive */
-    func rd(_ : [UInt8]) -> ARCHD?
-          /* read header routine. passed a pointer to */
-          /* ARCHD. It must extract the info from the */
-          /* format and store it in the ARCHD struct. */
-          /* This routine is expected to fill all the */
-          /* fields in the ARCHD (including stat buf) */
-          /* 0 is returned when a valid header is */
-          /* found. -1 when not valid. This routine */
-          /* set the skip and pad fields so the format */
-          /* independent routines know the amount of */
-          /* padding and the number of bytes of data */
-          /* which follow the header. This info is */
-          /* used skip to the next file header */
-    func end_rd() -> Result  /* read cleanup. Allows format to clean up */
-          /* and MUST RETURN THE LENGTH OF THE TRAILER */
-          /* RECORD (so append knows how many bytes */
-          /* to move back to rewrite the trailer) */
-    func st_wr() -> Result  /* initialize routine for write operations */
-    func wr(_ : ARCHD) -> Result  /* write archive header. Passed an ARCHD */
-          /* filled with the specs on the next file to */
-          /* archived. Returns a 1 if no file data is */
-          /* is to be stored; 0 if file data is to be */
-          /* added. A -1 is returned if a write */
-          /* operation to the archive failed. this */
-          /* function sets the skip and pad fields so */
-          /* the proper padding can be added after */
-          /* file data. This routine must NEVER write */
-          /* a flawed archive header. */
-    func end_wr() -> Result  /* end write. write the trailer and do any */
-          /* other format specific functions needed */
-          /* at the end of an archive write */
-    func trail_cpio(_ : ARCHD) -> Result
-    func trail_tar(_ : [UInt8], _ : Bool, _ : inout Int) -> Result
-          /* returns 0 if a valid trailer, -1 if not */
-          /* For formats which encode the trailer */
-          /* outside of a valid header, a return value */
-          /* of 1 indicates that the block passed to */
-          /* it can never contain a valid header (skip */
-          /* this block, no point in looking at it)  */
-    func rd_data(_ : ARCHD,_ : Int,_ : inout Int) -> Result
-          /* read/process file data from the archive */
-    func wr_data(_ : ARCHD,_ : FileDescriptor, _ : inout Int) -> Result
-          /* write/process file data to the archive */
-    func other_options() -> Result  /* process format specific options (-o) */
-  };
 
     enum Separator : Int {
       case none = 0
@@ -282,7 +199,7 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
       var arcname : String? = "???"
 
       var blksz = MAXBLK      /* block input/output size in bytes */
-      var wrblksz : Int?        /* user spec output size in bytes */
+      var wrblksz : UInt?        /* user spec output size in bytes */
 
       var flg : OptionFlags = []
       var tempfile : String = ""
@@ -466,8 +383,10 @@ let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
     /*
      * parse options, determine operational mode, general init
      */
-    doOptions()
-
+    if options.frmt == nil {
+      setFrmt()
+    }
+    try options.frmt!.doOptions(&options)
 
     if case .failed = gen_init() {
       exit(runtime.exit_val)

@@ -47,7 +47,7 @@ extension pax {
    */
 
 
-  func pax_options() throws(CmdErr) -> CommandOptions {
+  func pax_options(_ options : inout pax.CommandOptions) throws(CmdErr) {
     /*
      * process option flags
      */
@@ -56,7 +56,7 @@ extension pax {
         .init("insecure", .no_argument), //        0,  OPT_INSECURE },
       ]
 
-    var options = CommandOptions()
+    myUsage = .pax
 
     let go = BSDGetopt_long("0ab:cdf:ijklno:p:rs:tuvwx:zB:DE:G:HLOPT:U:XYZ", pax_longopts)
     while let (c, v) = try go.getopt_long() {
@@ -82,10 +82,11 @@ extension pax {
            * specify blocksize
            */
           options.flg.insert(.BF)
-          if ((wrblksz = (int)str_offt(optarg)) <= 0) {
-            Tty.paxwarn(true, "Invalid block size %s", optarg);
-            pax_usage();
+          guard let wb = str_offt(v), wb > 0 else {
+            Tty.paxwarn(true, "Invalid block size \(v)")
+            throw CmdErr(1)
           }
+          options.wrblksz = wb
 
         case "c":
           /*
@@ -156,8 +157,8 @@ extension pax {
            */
           options.flg.insert(.OF)
 
-          if (pax_format_opt_add(v) < 0) {
-            pax_usage();
+          if case .failed = pax_format_opt_add(v) {
+            throw CmdErr(1)
           }
 
         case "p":
@@ -202,7 +203,7 @@ extension pax {
 
               default:
                 Tty.paxwarn(true, "Invalid -p string: \(pt)")
-                throw CmdErr(1) // pax_usage()
+                throw CmdErr(1)
             }
           }
           options.flg.insert(.PF)
@@ -219,9 +220,8 @@ extension pax {
           /*
            * file name substitution name pattern
            */
-          if (rep_add(optarg) < 0) {
-            pax_usage();
-            break;
+          if (rep_add(v) < 0) {
+            throw CmdErr(1)
           }
           options.flg.insert(.SF)
 
@@ -256,7 +256,7 @@ extension pax {
           /*
            * specify an archive format on write
            */
-          let vx = ["bcpio" : bcpio(), "cpio" : cpio(), "pax" : paxer(), "sv4cpio" : vcpio(),
+          let vx : [String: any FSUB] = ["bcpio" : bcpio(), "cpio" : cpio(), "pax" : paxer(), "sv4cpio" : vcpio(),
                         "sv4crc" : vcpio_crc(), "tar" : tar(), "ustar" : ustar()]
           if let vv = vx[v] {
             options.frmt = vv
@@ -282,12 +282,12 @@ extension pax {
            */
           if ((wrlimit = str_offt(optarg)) <= 0) {
             Tty.paxwarn(true, "Invalid write limit %s", optarg);
-            pax_usage();
+            throw CmdErr(1)
           }
           if (wrlimit % BLKMULT) {
             Tty.paxwarn(true, "Write limit is not a %d byte multiple",
                     BLKMULT);
-            pax_usage();
+            throw CmdErr(1)
           }
           options.flg.insert(.CBF)
 
@@ -311,7 +311,7 @@ extension pax {
           }
           else if ((maxflt = atoi(optarg)) < 0) {
             Tty.paxwarn(true, "Error count value must be positive");
-            pax_usage();
+            throw CmdErr(1)
           }
           break;
         case "G":
@@ -320,8 +320,7 @@ extension pax {
            * archive by group (gid or name)
            */
           if (grp_add(optarg) < 0) {
-            pax_usage();
-            break;
+            throw CmdErr(1)
           }
           options.flg.insert(.CGF)
 
@@ -364,8 +363,7 @@ extension pax {
            * archive by modification time range (lower,upper)
            */
           if (trng_add(optarg) < 0) {
-            pax_usage();
-            break;
+            throw CmdErr(1)
           }
           options.flg.insert(.CTF)
 
@@ -375,8 +373,7 @@ extension pax {
            * archive by user (uid or name)
            */
           if (usr_add(optarg) < 0) {
-            pax_usage();
-            break;
+            throw CmdErr(1)
           }
           options.flg.insert(.CUF)
 
@@ -407,8 +404,7 @@ extension pax {
           options.secure = false
 
         default:
-          pax_usage();
-          break;
+          throw CmdErr(1)
       }
     }
 
@@ -446,11 +442,11 @@ extension pax {
       options.act = .COPY
       bflg = options.flg.containsAny(of: pax.BDCOPY)
     } else {
-      pax_usage();
+      throw CmdErr(1)
     }
     if (bflg) {
       printflg(flg);
-      throw CmdErr(1) // pax_usage();
+      throw CmdErr(1)
     }
 
     /*
@@ -487,14 +483,14 @@ extension pax {
       case .LIST, .EXTRACT:
         for (; optind < argc; optind++) {
           if (pat_add(argv[optind], NULL) < 0) {
-            throw CmdErr(1) //  pax_usage();
+            throw CmdErr(1)
           }
         }
 
       case .COPY:
         if (optind >= argc) {
           Tty.paxwarn(0, "Destination directory was not supplied");
-          throw CmdErr(1) // pax_usage();
+          throw CmdErr(1)
         }
         --argc;
         dirptr = argv[argc];
@@ -502,7 +498,7 @@ extension pax {
       case .ARCHIVE, .APPND:
         for (; optind < argc; optind++) {
           if (ftree_add(argv[optind], 0) < 0) {
-            throw CmdErr(1) // pax_usage();
+            throw CmdErr(1)
           }
         }
         /*
@@ -511,6 +507,5 @@ extension pax {
         maxflt = 0;
 
     }
-    return options
   }
 }

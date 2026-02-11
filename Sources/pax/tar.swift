@@ -39,7 +39,7 @@
 import CMigration
 import Darwin
 
-class tar : pax.FSUB {
+class tar : FSUB {
 
   /*
    * defines and data structures common to all tar formats
@@ -443,8 +443,7 @@ func other_options() -> Result {
         strcmp(opt.value, TAR_NODIR)) {
 			Tty.paxwarn(true, "Unknown tar format -o option/value pair %s=%s",
               opt.name, opt.value);
-			Tty.paxwarn(true,"%s=%s is the only supported tar format option",
-			    TAR_OPTION, TAR_NODIR);
+			Tty.paxwarn(true,"\(TAR_OPTION)=\(TAR_NODIR) is the only supported tar format option")
 			return .failed;
 		}
 

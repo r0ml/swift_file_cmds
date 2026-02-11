@@ -125,7 +125,7 @@ extension tar {
    *  the user specified a legal set of flags. If not, complain and exit
    */
 
-  func tar_options() throws(CmdErr) -> pax.CommandOptions {
+  func doOptions(_ options : inout pax.CommandOptions) throws(CmdErr) {
 /*    int fstdin = 0;
     int tar_Oflag = 0;
     int nincfiles = 0;
@@ -137,8 +137,8 @@ extension tar {
     struct incfile *incfiles = NULL;
 */
 
+    myUsage = .tar
     var incfiles = [(String, String)]()
-    var options = pax.CommandOptions()
 
     var tar_Oflag = false
     /*
@@ -370,7 +370,7 @@ extension tar {
     }
     else if (tar_Oflag) {
       Tty.paxwarn(true, "The -O/-o options are only valid when writing an archive")
-      throw CmdErr(1) // tar_usage();    /* only valid when writing */
+      throw CmdErr(1)    /* only valid when writing */
     }
 
     /*
@@ -380,7 +380,7 @@ extension tar {
       case .ARCHIVE, .APPND:
         if let chdname = options.chdname {  /* initial chdir() */
           if (ftree_add(chdname, 1) < 0) {
-            throw CmdErr(1) // tar_usage
+            throw CmdErr(1)
           }
         }
 
@@ -414,7 +414,7 @@ extension tar {
             /* Set directory if needed */
             if (dir) {
               if (ftree_add(dir, 1) < 0) {
-                tar_usage();
+                throw CmdErr(1)
               }
             }
 
@@ -423,11 +423,11 @@ extension tar {
             }
             else if ((fp = fopen(file, "r")) == NULL) {
               Tty.paxwarn(true, "Unable to open file '%s' for read", file);
-              tar_usage();
+              throw CmdErr(1)
             }
             while ((str = get_line(fp)) != NULL) {
               if (ftree_add(str, 0) < 0) {
-                tar_usage();
+                throw CmdErr(1)
               }
             }
             if (strcmp(file, "-") != 0) {
@@ -436,17 +436,17 @@ extension tar {
             if (get_line_error) {
               Tty.paxwarn(true, "Problem with file '%s'",
                       file);
-              tar_usage();
+              throw CmdErr(1)
             }
           } else if (strcmp(*argv, "-C") == 0) {
             if (*++argv == NULL) {
               break;
             }
             if (ftree_add(*argv++, 1) < 0) {
-              tar_usage();
+              throw CmdErr(1)
             }
           } else if (ftree_add(*argv++, 0) < 0) {
-            tar_usage();
+            throw CmdErr(1)
           }
         }
         /*
@@ -492,11 +492,11 @@ extension tar {
               }
               else if ((fp = fopen(file, "r")) == NULL) {
                 Tty.paxwarn(true, "Unable to open file '%s' for read", file);
-                tar_usage();
+                throw CmdErr(1)
               }
               while ((str = get_line(fp)) != NULL) {
                 if (pat_add(str, dir) < 0) {
-                  tar_usage();
+                  throw CmdErr(1)
                 }
                 sawpat = 1;
               }
@@ -505,7 +505,7 @@ extension tar {
               }
               if (get_line_error) {
                 Tty.paxwarn(true, "Problem with file '%s'", file);
-                tar_usage();
+                throw CmdErr(1)
               }
             } else if (strcmp(*argv, "-C") == 0) {
               if (*++argv == NULL) {
@@ -513,7 +513,7 @@ extension tar {
               }
               chdname = *argv++;
             } else if (pat_add(*argv++, chdname) < 0) {
-              throw CmdErr(1) // tar_usage();
+              throw CmdErr(1)
             }
             else {
               sawpat = 1;

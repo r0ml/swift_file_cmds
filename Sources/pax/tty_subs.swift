@@ -43,66 +43,66 @@ import Darwin
  * routines that deal with I/O to and from the user
  */
 class Tty {
-
+  
   @MainActor static var shared = Tty.init()
-
+  
   let DEVTTY	= "/dev/tty"          /* device for interactive i/o */
   var ttyfd : FileDescriptor?       	/* output pointing at control tty */
-
-/*
- * tty_init()
- *	try to open the controlling terminal (if any) for this process. if the
- *	open fails, future ops that require user input will get an EOF
- */
-
+  
+  /*
+   * tty_init()
+   *	try to open the controlling terminal (if any) for this process. if the
+   *	open fails, future ops that require user input will get an EOF
+   */
+  
   required init() {
     ttyfd = try? FileDescriptor.open(DEVTTY, .readWrite)
   }
-
-/*
- * tty_prnt()
- *	print a message using the specified format to the controlling tty
- *	if there is no controlling terminal, just return.
- */
+  
+  /*
+   * tty_prnt()
+   *	print a message using the specified format to the controlling tty
+   *	if there is no controlling terminal, just return.
+   */
   func tty_prnt(_ fmt : String) {
     if var fd = ttyfd { print(fmt, terminator: "", to: &fd) }
-}
-
-/*
- * tty_read()
- *	read a string from the controlling terminal if it is open into the
- *	supplied buffer
- * Return:
- *	0 if data was read, -1 otherwise.
- */
-
-func tty_read() -> String? {
-
-  if ((--len <= 0) || (ttyinf == NULL) || (fgets(str,len,ttyinf) == NULL)) {
-    return .failed;
   }
-	*(str + len) = '\0';
-
-	/*
-	 * strip off that trailing newline
-	 */
-  if ((pt = strchr(str, '\n')) != NULL) {
-    *pt = '\0';
+  
+  /*
+   * tty_read()
+   *	read a string from the controlling terminal if it is open into the
+   *	supplied buffer
+   * Return:
+   *	0 if data was read, -1 otherwise.
+   */
+  
+  func tty_read() -> String? {
+    
+    if ((--len <= 0) || (ttyinf == NULL) || (fgets(str,len,ttyinf) == NULL)) {
+      return .failed;
+    }
+    *(str + len) = '\0';
+    
+    /*
+     * strip off that trailing newline
+     */
+    if ((pt = strchr(str, '\n')) != NULL) {
+      *pt = '\0';
+    }
+    return(0);
   }
-	return(0);
-}
-
-/*
- * Tty.paxwarn()
- *	write a warning message to stderr. if "set" the exit value of pax
- *	will be non-zero.
- */
-
+  
+  /*
+   * Tty.paxwarn()
+   *	write a warning message to stderr. if "set" the exit value of pax
+   *	will be non-zero.
+   */
+  
   static func paxwarn(_ ex : Bool, _ fmt : String) {
     if ex && pax_invalid_action == 0 {
       runtime.exit_val = 1
     }
-
+    
     var se = FileDescriptor.standardError
     /*
      * when vflag we better ship out an extra \n to get this message on a
@@ -113,240 +113,40 @@ func tty_read() -> String? {
       print("", to: &se)
       runtime.vfpart = false
     }
-
+    
     print("\(programName): \(fmt)", to: &se)
   }
-
-    /*
-     * Tty.syswarn()
-     *	write a warning message to stderr. if "set" the exit value of pax
-     *	will be non-zero.
-     */
-
+  
+  /*
+   * Tty.syswarn()
+   *	write a warning message to stderr. if "set" the exit value of pax
+   *	will be non-zero.
+   */
+  
   static func syswarn(_ ex : Bool, _ errnum : any BinaryInteger, _ fmt : String) {
-      if ex {
-        runtime.exit_val = 1
-      }
-      /*
-       * when vflag we better ship out an extra \n to get this message on a
-       * line by itself
-       */
-        var se = FileDescriptor.standardError
-      if runtime.vflag && runtime.vfpart {
-
-        print("", to: &se)
-        runtime.vfpart = false
-      }
-      print("\(programName): \(fmt)", terminator: "", to: &se)
-
-      /*
-       * format and print the errno
-       */
-      if Int(errnum) > 0 {
-        let j = POSIXErrno(Int32(errnum)).localizedDescription
-        print(" <\(j)>", to: &se)
-      } else {
-        print("", to: &se)
-      }
+    if ex {
+      runtime.exit_val = 1
+    }
+    /*
+     * when vflag we better ship out an extra \n to get this message on a
+     * line by itself
+     */
+    var se = FileDescriptor.standardError
+    if runtime.vflag && runtime.vfpart {
+      
+      print("", to: &se)
+      runtime.vfpart = false
+    }
+    print("\(programName): \(fmt)", terminator: "", to: &se)
+    
+    /*
+     * format and print the errno
+     */
+    if Int(errnum) > 0 {
+      let j = POSIXErrno(Int32(errnum)).localizedDescription
+      print(" <\(j)>", to: &se)
+    } else {
+      print("", to: &se)
     }
   }
-
-
-extension FileDescriptor {
-  func readLine() -> String? {
-        return withUnsafeTemporaryAllocation(byteCount: 4096, alignment: 8) { tmp -> String? in
-          var buffer = [UInt8]()
-         while true {
-           guard let n = try? self.read(into: tmp) else {
-             return nil
-           }
-
-          if n == 0 {
-            // EOF
-            if buffer.isEmpty {
-              return nil
-            } else {
-              let line = buffer
-              buffer.removeAll()
-              return String(decoding: line, as: UTF8.self)
-            }
-          }
-
-          buffer.append(contentsOf: tmp[..<n])
-          if let newline = buffer.firstIndex(of: 0x0A) { // '\n'
-            let line = Array(buffer[..<newline])
-            buffer.removeFirst(newline + 1)
-            // FIXME: save the buffer
-            // at this point, there is some stuff left over in buffer which should be used for
-            // the next read
-            return String(decoding: line, as: UTF8.self)
-          }
-
-
-        }
-      }
-    }
-}
-
-
-
-import SystemPackage
-import Darwin
-
-/// A tiny stdio-like wrapper around a FileDescriptor.
-/// - Provides buffered reads (delimiter-based) and buffered writes.
-/// - No Foundation required.
-/// - Encoding is the caller's choice (bytes in / bytes out).
-struct FDStream {
-    enum Ownership { case borrowed, owned }
-    enum Mode { case read, write, readWrite }
-
-    var fd: FileDescriptor
-    let ownership: Ownership
-    let mode: Mode
-
-    // Read buffering
-    private var rbuf: [UInt8] = []
-    private var eof = false
-
-    // Write buffering
-    private var wbuf: [UInt8] = []
-    var writeBufferLimit: Int = 64 * 1024   // auto-flush threshold
-
-    init(_ fd: FileDescriptor, mode: Mode = .readWrite, ownership: Ownership = .borrowed) {
-        self.fd = fd
-        self.mode = mode
-        self.ownership = ownership
-    }
-
-    mutating func close() throws {
-        try flush()
-        if ownership == .owned {
-            try fd.close()
-        }
-    }
-
-    // MARK: - Reading
-
-    /// Read some bytes from the FD into the read buffer.
-    /// Returns number of bytes read (0 = EOF).
-    private mutating func fill(minimum: Int = 1) throws -> Int {
-        guard !eof else { return 0 }
-        var tmp = [UInt8](repeating: 0, count: max(4096, minimum))
-        let n = try fd.read(into: &tmp)
-        if n == 0 { eof = true; return 0 }
-        rbuf.append(contentsOf: tmp[..<n])
-        return n
-    }
-
-    /// Reads until `delimiter` is encountered.
-    /// - Parameters:
-    ///   - delimiter: byte delimiter (e.g. `0x0A` for '\n')
-    ///   - includeDelimiter: whether returned data includes delimiter
-    ///   - maxBytes: safety cap to prevent unbounded growth
-    /// - Returns: bytes read, or nil on EOF with no pending data.
-    mutating func readUntil(
-        _ delimiter: UInt8,
-        includeDelimiter: Bool = false,
-        maxBytes: Int = 8 * 1024 * 1024
-    ) throws -> [UInt8]? {
-        while true {
-            if let i = rbuf.firstIndex(of: delimiter) {
-                let end = includeDelimiter ? rbuf.index(after: i) : i
-                let out = Array(rbuf[..<end])
-                rbuf.removeFirst(includeDelimiter ? (i + 1) : (i + 1)) // always consume delimiter
-                return out
-            }
-
-            if eof {
-                if rbuf.isEmpty { return nil }
-                let out = rbuf
-                rbuf.removeAll(keepingCapacity: true)
-                return out
-            }
-
-            if rbuf.count >= maxBytes {
-                // Similar to a "line too long" protection; tune for your use.
-                throw Errno.valueTooLarge
-            }
-
-            _ = try fill()
-        }
-    }
-
-    /// `FILE*`-like `fgets`: reads a line terminated by '\n' (newline not included).
-    mutating func readLine(maxBytes: Int = 8 * 1024 * 1024) throws -> [UInt8]? {
-        return try readUntil(0x0A, includeDelimiter: false, maxBytes: maxBytes)
-    }
-
-    /// Read exactly `count` bytes unless EOF.
-    mutating func readBytes(_ count: Int) throws -> [UInt8]? {
-        guard count >= 0 else { throw Errno.invalidArgument }
-        while rbuf.count < count && !eof {
-            _ = try fill(minimum: count - rbuf.count)
-        }
-        if rbuf.isEmpty && eof { return nil }
-        let n = min(count, rbuf.count)
-        let out = Array(rbuf[..<n])
-        rbuf.removeFirst(n)
-        return out
-    }
-
-    // MARK: - Writing
-
-    /// Buffer bytes for output (auto-flush at `writeBufferLimit`).
-    mutating func write(_ bytes: [UInt8]) throws {
-        wbuf.append(contentsOf: bytes)
-        if wbuf.count >= writeBufferLimit {
-            try flush()
-        }
-    }
-
-    /// Convenience: write a single byte.
-    mutating func putc(_ byte: UInt8) throws {
-        wbuf.append(byte)
-        if wbuf.count >= writeBufferLimit {
-            try flush()
-        }
-    }
-
-    /// Write bytes + '\n' (like `fputs` + newline).
-    mutating func writeLine(_ bytes: [UInt8]) throws {
-        try write(bytes)
-        try putc(0x0A)
-    }
-
-    /// Flush buffered output (like `fflush`).
-    mutating func flush() throws {
-        guard !wbuf.isEmpty else { return }
-        var total = 0
-        while total < wbuf.count {
-            let n = try wbuf.withUnsafeBytes { raw -> Int in
-                let base = raw.baseAddress!.advanced(by: total)
-                return try fd.write(UnsafeRawBufferPointer(start: base, count: wbuf.count - total))
-            }
-            if n == 0 { throw Errno.ioError } // should not happen for regular fds
-            total += n
-        }
-        wbuf.removeAll(keepingCapacity: true)
-    }
-}
-
-// MARK: - Tiny helpers (no Foundation)
-
-extension FDStream {
-    /// UTF-8 decode without Foundation.
-    mutating func readLineUTF8(maxBytes: Int = 8 * 1024 * 1024) throws -> String? {
-        guard let b = try readLine(maxBytes: maxBytes) else { return nil }
-        return String(decoding: b, as: UTF8.self)
-    }
-
-    mutating func writeUTF8(_ s: String) throws {
-        try write(Array(s.utf8))
-    }
-
-    mutating func writeLineUTF8(_ s: String) throws {
-        try write(Array(s.utf8))
-        try putc(0x0A)
-    }
 }
