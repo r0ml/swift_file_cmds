@@ -39,7 +39,7 @@
 import CMigration
 import Darwin
 
-extension pax {
+extension paxer {
   /*
    * pax_options()
    *  look at the user specified flags. set globals as required and check if
@@ -47,7 +47,7 @@ extension pax {
    */
 
 
-  func pax_options(_ options : inout pax.CommandOptions) throws(CmdErr) {
+  func doOptions(_ options : inout pax.CommandOptions) throws(CmdErr) {
     /*
      * process option flags
      */
@@ -220,7 +220,7 @@ extension pax {
           /*
            * file name substitution name pattern
            */
-          if (rep_add(v) < 0) {
+          if case .failed = rep_add(v)  {
             throw CmdErr(1)
           }
           options.flg.insert(.SF)
@@ -243,7 +243,7 @@ extension pax {
           /*
            * verbose operation mode
            */
-          options.vflag = true
+          vflag += 1
           options.flg.insert(.VF)
 
         case "w":
@@ -256,8 +256,13 @@ extension pax {
           /*
            * specify an archive format on write
            */
-          let vx : [String: any FSUB] = ["bcpio" : bcpio(), "cpio" : cpio(), "pax" : paxer(), "sv4cpio" : vcpio(),
-                        "sv4crc" : vcpio_crc(), "tar" : tar(), "ustar" : ustar()]
+          let vx : [String: any FSUB] = [
+            // FIXME: PUT ME BACK
+//            "bcpio" : bcpio(), "cpio" : cpio(),
+            "pax" : paxer(),
+//            "sv4cpio" : vcpio(),
+//            "sv4crc" : vcpio_crc(), "tar" : tar(), "ustar" : ustar()
+          ]
           if let vv = vx[v] {
             options.frmt = vv
             options.flg.insert(.XF)
@@ -280,13 +285,12 @@ extension pax {
            * non-standard option on number of bytes written on a
            * single archive volume.
            */
-          if ((wrlimit = str_offt(optarg)) <= 0) {
-            Tty.paxwarn(true, "Invalid write limit %s", optarg);
+          guard let wrlimit = str_offt(v) else {
+            Tty.paxwarn(true, "Invalid write limit \(v)")
             throw CmdErr(1)
           }
-          if (wrlimit % BLKMULT) {
-            Tty.paxwarn(true, "Write limit is not a %d byte multiple",
-                    BLKMULT);
+          if (wrlimit % UInt(BLKMULT) ) != 0 {
+            Tty.paxwarn(true, "Write limit is not a \(BLKMULT) byte multiple")
             throw CmdErr(1)
           }
           options.flg.insert(.CBF)
@@ -319,7 +323,7 @@ extension pax {
            * non-standard option for selecting files within an
            * archive by group (gid or name)
            */
-          if (grp_add(optarg) < 0) {
+          if case .failed = Selector.shared.grp_add(v) {
             throw CmdErr(1)
           }
           options.flg.insert(.CGF)
@@ -332,7 +336,7 @@ extension pax {
           options.flg.insert(.CHF)
 
           options.Lflag = false  /* -H and -L are mutually exclusive  */
-          flg &= ~CLF;  /* only use the last one seen    */
+          options.flg.remove(.CLF)  /* only use the last one seen    */
 
         case "L":
           /*
@@ -342,7 +346,7 @@ extension pax {
           options.flg.insert(.CLF)
 
           options.Hflag = false  /* -H and -L are mutually exclusive  */
-          flg &= ~CHF;  /* only use the last one seen    */
+          options.flg.remove(.CHF)  /* only use the last one seen    */
 
         case "O":
           /*
@@ -362,7 +366,7 @@ extension pax {
            * non-standard option for selecting files within an
            * archive by modification time range (lower,upper)
            */
-          if (trng_add(optarg) < 0) {
+          if case .failed = Selector.shared.trng_add(v) {
             throw CmdErr(1)
           }
           options.flg.insert(.CTF)
@@ -372,7 +376,7 @@ extension pax {
            * non-standard option for selecting files within an
            * archive by user (uid or name)
            */
-          if (usr_add(optarg) < 0) {
+          if case .failed = Selector.shared.usr_add(v) {
             throw CmdErr(1)
           }
           options.flg.insert(.CUF)
@@ -408,6 +412,8 @@ extension pax {
       }
     }
 
+    options.args = go.remaining
+
     /*
      * Fix for POSIX.cmd/pax/pax.ex test 132: force -wu options to look
      * like -wua options were specified.
@@ -427,7 +433,7 @@ extension pax {
 
       options.pax_read_or_list_mode=true
 
-      options.listf = FileDescriptor.standardOutput
+      listf = FileDescriptor.standardOutput
       bflg = options.flg.containsAny(of: pax.BDLIST)
     } else if options.flg.ISEXTRACT() {
       options.act = .EXTRACT
@@ -445,17 +451,18 @@ extension pax {
       throw CmdErr(1)
     }
     if (bflg) {
-      printflg(flg);
+      printflg(options.flg)
       throw CmdErr(1)
     }
 
+    
     /*
      * if we are writing (ARCHIVE) we use the default format if the user
      * did not specify a format. when we write during an APPEND, we will
      * adopt the format of the existing archive if none was supplied.
      */
     if !options.flg.contains(.XF) && options.act == .ARCHIVE {
-      options.frmt = ustar.self //  &(fsub[DEFLT]);
+      options.frmt = ustar() //  &(fsub[DEFLT]);
     }
 
     /*
@@ -463,49 +470,55 @@ extension pax {
      * if -x pax was specified.
      */
     if !options.flg.contains(.XF) && options.act == .COPY {
-      options.frmt = paxer.self // &(fsub[F_PAX]);
+      options.frmt = self // &(fsub[F_PAX]);
     }
 
     /*
      * Initialize the global extended header template.
      */
-    tmp_name = getenv("TMPDIR");
-    if (tmp_name) {
-      asprintf(&header_name_g, "%s%s", tmp_name, "/GlobalHead.%p.%n");
-    } else {
-      header_name_g = "/tmp/GlobalHead.%p.%n";
-    }
+    let header_name_g = "\(Environment["TMPDIR"] ?? "/tmp")/GlobalHead.%p.%n"
 
     /*
      * process the args as they are interpreted by the operation mode
      */
     switch options.act {
       case .LIST, .EXTRACT:
-        for (; optind < argc; optind++) {
-          if (pat_add(argv[optind], NULL) < 0) {
+        for av in options.args {
+          if (pat_add(av, nil) < 0) {
             throw CmdErr(1)
           }
         }
 
       case .COPY:
-        if (optind >= argc) {
-          Tty.paxwarn(0, "Destination directory was not supplied");
+        if options.args.count == 0 {
+          Tty.paxwarn(false, "Destination directory was not supplied")
           throw CmdErr(1)
         }
-        --argc;
-        dirptr = argv[argc];
-          fallthrough
+        options.dirptr = options.args.removeLast()
+        fallthrough
+
       case .ARCHIVE, .APPND:
-        for (; optind < argc; optind++) {
-          if (ftree_add(argv[optind], 0) < 0) {
+        for av in options.args {
+          if (ftree_add(av, 0) < 0) {
             throw CmdErr(1)
           }
         }
         /*
          * no read errors allowed on updates/append operation!
          */
-        maxflt = 0;
+        maxflt = 0
 
     }
   }
+
+  /*
+   * printflg()
+   *  print out those invalid flag sets found to the user
+   */
+
+  private func printflg(_ flg : pax.OptionFlags) {
+    var se = FileDescriptor.standardError
+    print("\(programName): Invalid combination of options: " + flg.myCases.map { $0.flagString }.joined(separator: " "), to: &se )
+  }
+
 }

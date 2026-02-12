@@ -319,9 +319,9 @@ extension xinstall {
     /*
      * Preserve the timestamp of the source file if necessary.
      */
-    let tsb = (DateTime(cc.from_sb.lastWrite.timespec), DateTime(cc.from_sb.lastAccess.timespec) )
+    let tsb = (DateTime(cc.from_sb.lastModified.timespec), DateTime(cc.from_sb.lastAccessed.timespec) )
     if options.dopreserve && !cc.files_match && !cc.devnull {
-      try? to_name.setTimes(modified: cc.from_sb.lastWrite, accessed: cc.from_sb.lastAccess)
+      try? to_name.setTimes(modified: cc.from_sb.lastModified, accessed: cc.from_sb.lastAccessed)
     }
 
     guard let to_sb = try? FileMetadata(for: cc.to_fd) else {
@@ -585,7 +585,7 @@ extension xinstall {
          * Need to preserve target file times, though.
          */
         if to_sb.links != 1 {
-          try? tempfile.setTimes(modified: to_sb.lastWrite, accessed: to_sb.lastAccess )
+          try? tempfile.setTimes(modified: to_sb.lastModified, accessed: to_sb.lastAccessed )
         } else {
           files_match = true
           unlink(tempfile.string)

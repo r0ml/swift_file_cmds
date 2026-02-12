@@ -398,16 +398,16 @@ extension ls {
         printsize(Int(dp.s_size), sp.size)
       }
       if (options.f_accesstime) {
-        printtime(sp.lastAccess.secs)
+        printtime(sp.lastAccessed.secs)
       }
       else if (options.f_birthtime) {
-        printtime(sp.created.secs)
+        printtime(sp.whenCreated.secs)
       }
       else if (options.f_statustime) {
-        printtime(sp.lastModification.secs)
+        printtime(sp.lastChanged.secs)
       }
       else {
-        printtime(sp.lastWrite.secs)
+        printtime(sp.lastModified.secs)
       }
 
       if (options.f_color) {

@@ -39,12 +39,50 @@
 import CMigration
 import Darwin
 
-extension pax {
+class Selector {
 
-  static TIME_RNG *trhead = NULL;		/* time range list head */
-  static TIME_RNG *trtail = NULL;		/* time range list tail */
-  static USRT **usrtb = NULL;		/* user selection table */
-  static GRPT **grptb = NULL;		/* group selection table */
+  nonisolated(unsafe) static var shared = Selector()
+
+  /*
+   * data structure for storing uid/grp selects (-U, -G non standard options)
+   */
+
+  private init() { }
+
+  struct USRT {
+    var uid : uid_t
+  }
+
+  struct GRPT {
+    var gid : gid_t
+  }
+
+  /*
+   * data structure for storing user supplied time ranges (-T option)
+   */
+
+//  #define ATOI2(ar)  ((ar)[0] - '0') * 10 + ((ar)[1] - '0'); (ar) += 2;
+
+  struct TimeRangeFlags : OptionSet, Equatable {
+    var rawValue: UInt
+
+    static let HASLOW = Self(rawValue: 0x01)    /* has lower time limit */
+    static let HASHIGH = Self(rawValue: 0x02)    /* has higher time limit */
+    static let CMPMTME = Self(rawValue: 0x04)    /* compare file modification time */
+    static let CMPCTME = Self(rawValue: 0x08)    /* compare inode change time */
+    static let CMPBOTH : Self = [.CMPMTME, .CMPCTME]   /* compare inode and mod time */
+
+  }
+
+  struct TIME_RNG {
+    var low_time : DateTime  /* lower inclusive time limit */
+    var high_time : DateTime /* higher inclusive time limit */
+    var flgs : TimeRangeFlags   /* option flags */
+  }
+
+  var trhead : [TIME_RNG] = []		/* time range list */
+  var usrtb = Set<UInt>()         /* user selection table */
+  var grptb = Set<UInt>()         /* group selection table */
 
   /*
    * Routines for selection of archive members
@@ -57,13 +95,8 @@ extension pax {
    *	0 if this archive member should be processed, 1 if it should be skipped
    */
 
-  func sel_chk(ARCHD *arcn) -> Bool {
-    if (((usrtb != NULL) && usr_match(arcn)) ||
-        ((grptb != NULL) && grp_match(arcn)) ||
-        ((trhead != NULL) && trng_match(arcn))) {
-      return true
-    }
-    return false
+  func sel_chk(_ arcn : ARCHD) -> Bool {
+    return usr_match(arcn) || grp_match(arcn) || trng_match(arcn)
   }
 
   /*
@@ -81,68 +114,51 @@ extension pax {
    *	0 if added ok, -1 otherwise;
    */
 
-  func usr_add(char *str) -> Result {
-    u_int indx;
+  func usr_add(_ strx : String) -> Result {
+/*    u_int indx;
     USRT *pt;
     struct passwd *pw;
     uid_t uid;
-
+*/
     /*
      * create the table if it doesn't exist
      */
-    if ((str == NULL) || (*str == '\0')) {
-      return .failed;
-    }
-    if ((usrtb == NULL) &&
-        ((usrtb = (USRT **)calloc(USR_TB_SZ, sizeof(USRT *))) == NULL)) {
-      Tty.paxwarn(true, "Unable to allocate memory for user selection table");
+    if strx.isEmpty {
       return .failed;
     }
 
     /*
      * figure out user spec
      */
-    if (str[0] != '#') {
+    var str = strx
+    let uid : UInt
+    if str.first != "#" {
       /*
        * it is a user name, \# escapes # as first char in user name
        */
-      if ((str[0] == '\\') && (str[1] == '#')) {
-        ++str;
+      if str.hasPrefix("\\#") {
+        str.removeFirst()
       }
-      if ((pw = getpwnam(str)) == NULL) {
-        Tty.paxwarn(true, "Unable to find uid for user: %s", str);
-        return .failed;
+      guard let pw = getpwnam(str) else {
+        Tty.paxwarn(true, "Unable to find uid for user: \(str)")
+        return .failed
       }
-      uid = (uid_t)pw->pw_uid;
+      uid = UInt(pw.pointee.pw_uid)
     } else {
-      uid = (uid_t)strtoul(str+1, NULL, 10);
-    }
-    endpwent();
-
-    /*
-     * hash it and go down the hash chain (if any) looking for it
-     */
-    indx = ((unsigned)uid) % USR_TB_SZ;
-    if ((pt = usrtb[indx]) != NULL) {
-      while (pt != NULL) {
-        if (pt->uid == uid) {
-          return(0);
-        }
-        pt = pt->fow;
+      if let u = UInt(str.dropFirst(), radix: 10) {
+        uid = u
+      } else {
+        Tty.paxwarn(true, "Invalid user number: \(strx)")
+        return .failed
       }
-    }
 
-    /*
-     * uid is not yet in the table, add it to the front of the chain
-     */
-    if ((pt = (USRT *)malloc(sizeof(USRT))) != NULL) {
-      pt->uid = uid;
-      pt->fow = usrtb[indx];
-      usrtb[indx] = pt;
-      return(0);
+
     }
-    Tty.paxwarn(true, "User selection table out of memory");
-    return .failed;
+    Darwin.endpwent()
+
+    if usrtb.contains(uid) { return .ok }
+    usrtb.insert(uid)
+    return .ok
   }
 
   /*
@@ -153,23 +169,7 @@ extension pax {
    */
 
   private func usr_match(_ arcn : ARCHD) -> Bool {
-    USRT *pt;
-
-    /*
-     * hash and look for it in the table
-     */
-    pt = usrtb[((unsigned)arcn.sb.userId) % USR_TB_SZ];
-    while (pt != NULL) {
-      if (pt->uid == arcn.sb.st_uid) {
-        return false
-      }
-      pt = pt->fow;
-    }
-
-    /*
-     * not found
-     */
-    return true
+    return !usrtb.contains(arcn.sb.userId)
   }
 
   /*
@@ -179,68 +179,43 @@ extension pax {
    *	0 if added ok, -1 otherwise;
    */
 
-  func grp_add(_ str : String) -> Result {
-    u_int indx;
-    GRPT *pt;
-    struct group *gr;
-    gid_t gid;
-
-    /*
-     * create the table if it doesn't exist
-     */
-    if ((str == NULL) || (*str == '\0')) {
-      return .failed;
-    }
-    if ((grptb == NULL) &&
-        ((grptb = (GRPT **)calloc(GRP_TB_SZ, sizeof(GRPT *))) == NULL)) {
-      Tty.paxwarn(true, "Unable to allocate memory fo group selection table");
-      return .failed;
+  func grp_add(_ strx : String) -> Result {
+    if strx.isEmpty {
+      return .failed
     }
 
     /*
      * figure out user spec
      */
-    if (str[0] != '#') {
+    var str = strx
+    let gid : UInt
+    if str.first != "#" {
       /*
        * it is a group name, \# escapes # as first char in group name
        */
-      if ((str[0] == '\\') && (str[1] == '#')) {
-        ++str;
+      if str.hasPrefix("\\#") {
+        str.removeFirst()
       }
-      if ((gr = getgrnam(str)) == NULL) {
-        Tty.paxwarn(true,"Cannot determine gid for group name: %s", str);
-        return .failed;
+      guard let gr = getgrnam(str) else {
+        Tty.paxwarn(true,"Cannot determine gid for group name: \(str)")
+        return .failed
       }
-      gid = gr->gr_gid;
+      gid = UInt(gr.pointee.gr_gid)
     } else {
-      gid = (gid_t)strtoul(str+1, NULL, 10);
+      if let g = UInt(str.dropFirst(), radix: 10) {
+        gid = g
+      } else {
+        Tty.paxwarn(true, "Invalid group number: \(strx)")
+      }
     }
     endgrent();
 
     /*
      * hash it and go down the hash chain (if any) looking for it
      */
-    indx = ((unsigned)gid) % GRP_TB_SZ;
-    if ((pt = grptb[indx]) != NULL) {
-      while (pt != NULL) {
-        if (pt->gid == gid) {
-          return .ok
-        }
-        pt = pt->fow;
-      }
-    }
-
-    /*
-     * gid not in the table, add it to the front of the chain
-     */
-    if ((pt = (GRPT *)malloc(sizeof(GRPT))) != NULL) {
-      pt->gid = gid;
-      pt->fow = grptb[indx];
-      grptb[indx] = pt;
-      return .ok
-    }
-    Tty.paxwarn(true, "Group selection table out of memory");
-    return .failed;
+    if grptb.contains(gid) { return .ok }
+    grptb.insert(gid)
+    return .ok
   }
 
   /*
@@ -250,26 +225,8 @@ extension pax {
    *	0 if this archive member should be processed, 1 if it should be skipped
    */
 
-  static int
-  grp_match(ARCHD *arcn)
-  {
-    GRPT *pt;
-
-    /*
-     * hash and look for it in the table
-     */
-    pt = grptb[((unsigned)arcn.sb.st_gid) % GRP_TB_SZ];
-    while (pt != NULL) {
-      if (pt->gid == arcn.sb.st_gid) {
-        return(0);
-      }
-      pt = pt->fow;
-    }
-
-    /*
-     * not found
-     */
-    return(1);
+  func grp_match(_ arcn : ARCHD) -> Bool {
+    return !grptb.contains(arcn.sb.groupId)
   }
 
   /*
@@ -301,141 +258,119 @@ extension pax {
    *	0 if the time range was added to the list, -1 otherwise
    */
 
-  int
-  trng_add(char *str)
-  {
-    TIME_RNG *pt;
+  func trng_add(_ strx : String) -> Result {
+/*    TIME_RNG *pt;
     char *up_pt = NULL;
     char *stpt;
     char *flgpt;
     int dot = 0;
+*/
+
+    var res = Result.ok
 
     /*
      * throw out the badly formed time ranges
      */
-    if ((str == NULL) || (*str == '\0')) {
-      Tty.paxwarn(true, "Empty time range string");
-      return .failed;
+    if strx.isEmpty {
+      Tty.paxwarn(true, "Empty time range string")
+      return .failed
     }
 
     /*
      * locate optional flags suffix /{cm}.
      */
-    if ((flgpt = strrchr(str, '/')) != NULL) {
-      *flgpt++ = '\0';
+    let fx = strx.split(separator: "/", maxSplits: 1)
+    var flgpt : String? = nil
+    var str = strx
+    if fx.count == 2 {
+      flgpt = String(fx[1])
+      str = String(fx[0])
     }
 
-    for (stpt = str; *stpt != '\0'; ++stpt) {
-      if ((*stpt >= '0') && (*stpt <= '9')) {
-        continue;
+    defer {
+      if res == .failed {
+        Tty.paxwarn(true, "Time range format is: [[[[[cc]yy]mm]dd]HH]MM[.SS][/[c][m]]")
       }
-      if ((*stpt == ',') && (up_pt == NULL)) {
-        *stpt = '\0';
-        up_pt = stpt + 1;
-        dot = 0;
-        continue;
-      }
-
-      /*
-       * allow only one dot per range (secs)
-       */
-      if ((*stpt == '.') && (!dot)) {
-        ++dot;
-        continue;
-      }
-      Tty.paxwarn(true, "Improperly specified time range: %s", str);
-      goto out;
     }
 
-    /*
-     * allocate space for the time range and store the limits
-     */
-    if ((pt = (TIME_RNG *)malloc(sizeof(TIME_RNG))) == NULL) {
-      Tty.paxwarn(true, "Unable to allocate memory for time range");
-      return .failed;
+    let tsp = str.split(separator: ",", maxSplits: 1)
+    var up_pt = nil as String?
+    if tsp.count == 2 {
+      str = String(tsp[0])
+      up_pt = String(tsp[1])
     }
 
     /*
      * by default we only will check file mtime, but the user can specify
      * mtime, ctime (inode change time) or both.
      */
-    if ((flgpt == NULL) || (*flgpt == '\0')) {
-      pt->flgs = CMPMTME;
+
+    var flgs = TimeRangeFlags()
+    if flgpt == nil || flgpt!.isEmpty {
+      flgs = .CMPMTME
     }
     else {
-      pt->flgs = 0;
-      while (*flgpt != '\0') {
-        switch(*flgpt) {
-          case 'M':
-          case 'm':
-            pt->flgs |= CMPMTME;
-            break;
-          case 'C':
-          case 'c':
-            pt->flgs |= CMPCTME;
-            break;
+      flgs = []
+      for c in flgpt ?? "" {
+        switch c {
+          case "M", "m":
+            flgs.insert(.CMPMTME)
+          case "C", "c":
+            flgs.insert(.CMPCTME)
           default:
-            Tty.paxwarn(true, "Bad option %c with time range %s",
-                    *flgpt, str);
-            free(pt);
-            goto out;
+            Tty.paxwarn(true, "Bad option \(c) with time range \(str)")
+            res = .failed
+            return res
         }
-        ++flgpt;
       }
     }
 
     /*
      * start off with the current time
      */
-    pt->low_time = pt->high_time = time(NULL);
-    if (*str != '\0') {
+    var low_time = DateTime()
+    var high_time = DateTime()
+
+    if !str.isEmpty {
       /*
        * add lower limit
        */
-      if (str_sec(str, &(pt->low_time)) < 0) {
-        Tty.paxwarn(true, "Illegal lower time range %s", str);
-        free(pt);
-        goto out;
+      guard let lt = str_sec(str) else {
+        Tty.paxwarn(true, "Illegal lower time range \(str)")
+        res = .failed
+        return res
       }
-      pt->flgs |= HASLOW;
+      low_time = lt
+      flgs.insert(.HASLOW)
     }
 
-    if ((up_pt != NULL) && (*up_pt != '\0')) {
+    if let up_pt, !up_pt.isEmpty {
       /*
        * add upper limit
        */
-      if (str_sec(up_pt, &(pt->high_time)) < 0) {
-        Tty.paxwarn(true, "Illegal upper time range %s", up_pt);
-        free(pt);
-        goto out;
+      guard let ht = str_sec(up_pt) else {
+        Tty.paxwarn(true, "Illegal upper time range \(up_pt)")
+        res = .failed
+        return res
       }
-      pt->flgs |= HASHIGH;
+      high_time = ht
+      flgs.insert(.HASHIGH)
 
       /*
        * check that the upper and lower do not overlap
        */
-      if (pt->flgs & HASLOW) {
-        if (pt->low_time > pt->high_time) {
-          Tty.paxwarn(true, "Upper %s and lower %s time overlap",
-                  up_pt, str);
-          free(pt);
-          return .failed;
+      if flgs.contains(.HASLOW) {
+        if low_time > high_time {
+          Tty.paxwarn(true, "Upper \(up_pt) and lower \(str) time overlap")
+          res = .failed
+          return res
         }
       }
     }
 
-    pt->fow = NULL;
-    if (trhead == NULL) {
-      trtail = trhead = pt;
-      return(0);
-    }
-    trtail->fow = pt;
-    trtail = pt;
-    return(0);
-
-  out:
-    Tty.paxwarn(true, "Time range format is: [[[[[cc]yy]mm]dd]HH]MM[.SS][/[c][m]]");
-    return .failed;
+    let pt = TIME_RNG(low_time: low_time, high_time: high_time, flgs: flgs)
+    trhead.append(pt)
+    return res
   }
 
   /*
@@ -445,66 +380,55 @@ extension pax {
    *	0 if this archive member should be processed, 1 if it should be skipped
    */
 
-  static int
-  trng_match(ARCHD *arcn)
-  {
-    TIME_RNG *pt;
+  func trng_match(_ arcn : ARCHD) -> Bool {
 
     /*
      * have to search down the list one at a time looking for a match.
      * remember time range limits are inclusive.
      */
-    pt = trhead;
-    while (pt != NULL) {
-      switch(pt->flgs & CMPBOTH) {
-        case CMPBOTH:
+    for pt in trhead {
+      switch pt.flgs.intersection(.CMPBOTH) {
+        case .CMPBOTH:
           /*
            * user wants both mtime and ctime checked for this
            * time range
            */
-          if (((pt->flgs & HASLOW) &&
-               (arcn.sb.lastWrite < pt->low_time) &&
-               (arcn.sb.st_ctime < pt->low_time)) ||
-              ((pt->flgs & HASHIGH) &&
-               (arcn.sb.lastWrite > pt->high_time) &&
-               (arcn.sb.st_ctime > pt->high_time))) {
-            pt = pt->fow;
-            continue;
+          if ((pt.flgs.contains(.HASLOW) &&
+                (arcn.sb.lastModified < pt.low_time) &&
+                (arcn.sb.lastChanged < pt.low_time)) ||
+               ((pt.flgs.contains(.HASHIGH) &&
+                 (arcn.sb.lastModified > pt.high_time) &&
+                 (arcn.sb.lastChanged > pt.high_time)))) {
+            continue
           }
-          break;
-        case CMPCTME:
+
+        case .CMPCTME:
           /*
            * user wants only ctime checked for this time range
            */
-          if (((pt->flgs & HASLOW) &&
-               (arcn.sb.st_ctime < pt->low_time)) ||
-              ((pt->flgs & HASHIGH) &&
-               (arcn.sb.st_ctime > pt->high_time))) {
-            pt = pt->fow;
-            continue;
+          if ((pt.flgs.contains(.HASLOW) &&
+               (arcn.sb.lastChanged < pt.low_time)) ||
+              (pt.flgs.contains(.HASHIGH) &&
+               (arcn.sb.lastChanged > pt.high_time))) {
+            continue
           }
-          break;
-        case CMPMTME:
+
+        case .CMPMTME:
+          fallthrough
         default:
           /*
            * user wants only mtime checked for this time range
            */
-          if (((pt->flgs & HASLOW) &&
-               (arcn.sb.lastWrite < pt->low_time)) ||
-              ((pt->flgs & HASHIGH) &&
-               (arcn.sb.lastWrite > pt->high_time))) {
-            pt = pt->fow;
+          if ((pt.flgs.contains(.HASLOW) &&
+               (arcn.sb.lastModified < pt.low_time)) ||
+              (pt.flgs.contains(.HASHIGH) &&
+               (arcn.sb.lastModified > pt.high_time))) {
             continue;
           }
-          break;
       }
-      break;
+      return false
     }
-
-    if (pt == NULL) {
-      return(1);
-    }
-    return(0);
+    return true
   }
 
   /*
@@ -515,95 +439,98 @@ extension pax {
    *	0 if converted ok, -1 otherwise
    */
 
-  private str_sec(const char *p, time_t *tval) -> Result {
-    struct tm *lt;
+  private func str_sec(_ p : String) -> DateTime? {
+/*    struct tm *lt;
     const char *dot, *t;
     size_t len;
     int bigyear;
     int yearset;
+*/
+    var yearset = false
+    var len = p.count
 
-    yearset = 0;
-    len = strlen(p);
-
-    for (t = p, dot = NULL; *t; ++t) {
-      if (isdigit((unsigned char)*t)) {
-        continue;
-      }
-      if (*t == '.' && dot == NULL) {
-        dot = t;
-        continue;
-      }
-      return .failed;
-    }
-
-    lt = localtime(tval);
-
-    if (dot != NULL) {			/* .SS */
-      if (strlen(++dot) != 2) {
-        return .failed;
-      }
-      lt->tm_sec = ATOI2(dot);
-      if (lt->tm_sec > 61) {
-        return .failed;
-      }
-      len -= 3;
+    var predot : String
+    var postdot : String? = nil
+    let tt = p.split(separator: ".", maxSplits: 1)
+    if tt.count == 2 {
+      predot = String(tt[0])
+      postdot = String(tt[1])
     } else {
-      lt->tm_sec = 0;
+      predot = p
     }
 
-    switch (len) {
-      case 12:				/* cc */
-        bigyear = ATOI2(p);
+    var vv = DateTime().secs
+    var lt = localtime(&vv)!.pointee
 
-        lt->tm_year = (bigyear * 100) - TM_YEAR_BASE;
+    if let postdot {			/* .SS */
+      if postdot.count != 2 {
+        return nil
+      }
+      guard let ts = UInt(postdot), ts < 60 else {
+        return nil
+      }
+      lt.tm_sec = Int32(ts)
+    } else {
+      lt.tm_sec = 0
+    }
 
-        yearset = 1;
-        /* FALLTHROUGH */
+    let TM_YEAR_BASE = 1900
+    var p = Substring(predot)
+    switch predot.count {
+      case 12:       /* cc */
+        guard let bigyear = UInt(p.prefix(2)) else { return nil }
+        p = p.dropFirst(2)
+
+        lt.tm_year = Int32((Int(bigyear) * 100) - TM_YEAR_BASE)
+
+        yearset = true
+        fallthrough
       case 10:				/* yy */
-        if (yearset) {
-          lt->tm_year += ATOI2(p);
+        guard let t = UInt(p.prefix(2)) else { return nil }
+        p = p.dropFirst(2)
+        if yearset {
+          lt.tm_year += Int32(t)
         } else {
-          lt->tm_year = ATOI2(p);
+          lt.tm_year = Int32(t)
 
-          if (lt->tm_year < 69) {		/* hack for 2000 ;-} */
-            lt->tm_year += (2000 - TM_YEAR_BASE);
+          if (lt.tm_year < 69) {		// hack for 2000 ;-}
+            lt.tm_year += Int32(2000 - TM_YEAR_BASE)
           }
 
         }
-        /* FALLTHROUGH */
+        fallthrough
       case 8:					/* mm */
-        lt->tm_mon = ATOI2(p);
-        if ((lt->tm_mon > 12) || !lt->tm_mon){
-          return .failed;
-        }
-        --lt->tm_mon;			/* time struct is 0 - 11 */
-        /* FALLTHROUGH */
+        guard let t = UInt(p.prefix(2)) else { return nil }
+        p = p.dropFirst(2)
+        if t > 12 || t == 0 { return nil }
+        lt.tm_mon = Int32(t-1) // time struct is 0 - 11
+        fallthrough
       case 6:					/* dd */
-        lt->tm_mday = ATOI2(p);
-        if ((lt->tm_mday > 31) || !lt->tm_mday) {
-          return .failed;
-        }
-        /* FALLTHROUGH */
+        guard let t = UInt(p.prefix(2)) else { return nil }
+        p = p.dropFirst(2)
+        if t > 31 || t == 0 { return nil }
+        lt.tm_mday = Int32(t)
+        fallthrough
       case 4:					/* HH */
-        lt->tm_hour = ATOI2(p);
-        if (lt->tm_hour > 23) {
-          return .failed;
-        }
-        /* FALLTHROUGH */
+        guard let t = UInt(p.prefix(2)) else { return nil }
+        p = p.dropFirst(2)
+        if t > 23 { return nil }
+        lt.tm_hour = Int32(t)
+        fallthrough
       case 2:					/* MM */
-        lt->tm_min = ATOI2(p);
-        if (lt->tm_min > 59) {
-          return .failed;
-        }
-        break;
+        guard let t = UInt(p.prefix(2)) else { return nil }
+        p = p.dropFirst(2)
+        if t > 59 { return nil }
+        lt.tm_min = Int32(t)
       default:
-        return .failed;
+        return nil
     }
 
     /* convert broken-down time to UTC clock time seconds */
-    if ((*tval = mktime(lt)) == -1) {
-      return .failed;
+    let tval = Darwin.mktime(&lt)
+    if tval == -1 {
+      return nil
     }
-    return .ok
+    return DateTime(tval)
   }
 }

@@ -89,16 +89,16 @@ struct Comparer : Sendable {
   }
 
   func modcmp(_ a : FTSEntry, _ b : FTSEntry) -> ComparisonResult {
-    if b.statp.lastWrite.timespec.tv_sec > a.statp.lastWrite.timespec.tv_sec {
+    if b.statp.lastModified.timespec.tv_sec > a.statp.lastModified.timespec.tv_sec {
       return .orderedAscending
     }
-    if b.statp.lastWrite.timespec.tv_sec < a.statp.lastWrite.timespec.tv_sec  {
+    if b.statp.lastModified.timespec.tv_sec < a.statp.lastModified.timespec.tv_sec  {
       return .orderedDescending
     }
-    if b.statp.lastWrite.timespec.tv_nsec > a.statp.lastWrite.timespec.tv_nsec {
+    if b.statp.lastModified.timespec.tv_nsec > a.statp.lastModified.timespec.tv_nsec {
       return .orderedAscending
     }
-    if b.statp.lastWrite.timespec.tv_nsec < a.statp.lastWrite.timespec.tv_nsec {
+    if b.statp.lastModified.timespec.tv_nsec < a.statp.lastModified.timespec.tv_nsec {
       return .orderedDescending
     }
     if of_samesort {
@@ -114,16 +114,16 @@ struct Comparer : Sendable {
   }
 
   func acccmp(_ a : FTSEntry, _ b : FTSEntry) -> ComparisonResult {
-    if b.statp.lastAccess.timespec.tv_sec > a.statp.lastAccess.timespec.tv_sec {
+    if b.statp.lastAccessed.timespec.tv_sec > a.statp.lastAccessed.timespec.tv_sec {
       return .orderedAscending
     }
-    if b.statp.lastAccess.timespec.tv_sec < a.statp.lastAccess.timespec.tv_sec {
+    if b.statp.lastAccessed.timespec.tv_sec < a.statp.lastAccessed.timespec.tv_sec {
       return .orderedDescending
     }
-    if b.statp.lastAccess.timespec.tv_nsec > a.statp.lastAccess.timespec.tv_nsec {
+    if b.statp.lastAccessed.timespec.tv_nsec > a.statp.lastAccessed.timespec.tv_nsec {
       return .orderedAscending
     }
-    if b.statp.lastAccess.timespec.tv_nsec < a.statp.lastAccess.timespec.tv_nsec {
+    if b.statp.lastAccessed.timespec.tv_nsec < a.statp.lastAccessed.timespec.tv_nsec {
       return .orderedDescending
     }
     if of_samesort {
@@ -139,16 +139,16 @@ struct Comparer : Sendable {
   }
 
   func birthcmp(_ a : FTSEntry, _ b : FTSEntry) -> ComparisonResult {
-    if b.statp.created.timespec.tv_sec > a.statp.created.timespec.tv_sec {
+    if b.statp.whenCreated.timespec.tv_sec > a.statp.whenCreated.timespec.tv_sec {
       return .orderedAscending
     }
-    if b.statp.created.timespec.tv_sec < a.statp.created.timespec.tv_sec {
+    if b.statp.whenCreated.timespec.tv_sec < a.statp.whenCreated.timespec.tv_sec {
       return .orderedDescending
     }
-    if b.statp.created.timespec.tv_nsec > a.statp.created.timespec.tv_nsec {
+    if b.statp.whenCreated.timespec.tv_nsec > a.statp.whenCreated.timespec.tv_nsec {
       return .orderedAscending
     }
-    if b.statp.created.timespec.tv_nsec < a.statp.created.timespec.tv_nsec {
+    if b.statp.whenCreated.timespec.tv_nsec < a.statp.whenCreated.timespec.tv_nsec {
       return .orderedAscending
     }
     if of_samesort {
@@ -164,16 +164,16 @@ struct Comparer : Sendable {
   }
 
   func statcmp(_ a : FTSEntry, _ b : FTSEntry) -> ComparisonResult {
-    if b.statp.lastModification.timespec.tv_sec > a.statp.lastModification.timespec.tv_sec {
+    if b.statp.lastChanged.timespec.tv_sec > a.statp.lastChanged.timespec.tv_sec {
       return .orderedAscending
     }
-    if b.statp.lastModification.timespec.tv_sec < a.statp.lastModification.timespec.tv_sec {
+    if b.statp.lastChanged.timespec.tv_sec < a.statp.lastChanged.timespec.tv_sec {
       return .orderedDescending
     }
-    if b.statp.lastModification.timespec.tv_nsec > a.statp.lastModification.timespec.tv_nsec {
+    if b.statp.lastChanged.timespec.tv_nsec > a.statp.lastChanged.timespec.tv_nsec {
       return .orderedAscending
     }
-    if b.statp.lastModification.timespec.tv_nsec < a.statp.lastModification.timespec.tv_nsec {
+    if b.statp.lastChanged.timespec.tv_nsec < a.statp.lastChanged.timespec.tv_nsec {
       return .orderedDescending
     }
     if of_samesort {

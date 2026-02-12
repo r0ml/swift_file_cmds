@@ -102,8 +102,8 @@ class vcpio : bcpio {
     arcn.sb.st_mode = (mode_t)asc_ul(hd->c_mode, sizeof(hd->c_mode), HEX);
     arcn.sb.st_uid = (uid_t)asc_ul(hd->c_uid, sizeof(hd->c_uid), HEX);
     arcn.sb.st_gid = (gid_t)asc_ul(hd->c_gid, sizeof(hd->c_gid), HEX);
-    arcn.sb.lastWrite = (time_t)asc_uqd(hd->c_mtime,sizeof(hd->c_mtime),HEX);
-    arcn.sb.st_ctime = arcn.sb.st_atime = arcn.sb.lastWrite;
+    arcn.sb.lastModified = (time_t)asc_uqd(hd->c_mtime,sizeof(hd->c_mtime),HEX);
+    arcn.sb.st_ctime = arcn.sb.st_atime = arcn.sb.lastModified;
     arcn.sb.st_size = (off_t)asc_uqd(hd->c_filesize,
                                       sizeof(hd->c_filesize), HEX);
     arcn.sb.st_nlink = (nlink_t)asc_ul(hd->c_nlink, sizeof(hd->c_nlink),
@@ -271,7 +271,7 @@ class vcpio : bcpio {
                HEX) ||
         ul_asc((u_long)arcn.sb.st_gid, hd->c_gid, sizeof(hd->c_gid),
                HEX) ||
-        ul_asc((u_long)arcn.sb.lastWrite, hd->c_mtime, sizeof(hd->c_mtime),
+        ul_asc((u_long)arcn.sb.lastModified, hd->c_mtime, sizeof(hd->c_mtime),
                HEX) ||
         ul_asc((u_long)arcn.sb.st_nlink, hd->c_nlink, sizeof(hd->c_nlink),
                HEX) ||

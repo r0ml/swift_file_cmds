@@ -40,6 +40,7 @@ import CMigration
 import Darwin
 
 class Tables {
+  nonisolated(unsafe) static let shared = Tables.init()
 
   /*
    * Routines for controlling the contents of all the different databases pax
@@ -235,7 +236,6 @@ class Tables {
    * can be detected by the archive format.
    */
 
-  @MainActor static let shared = Tables.init()
 
 
   private init() {}
@@ -399,11 +399,11 @@ class Tables {
       /*
        * found the file, compare the times, save the newer
        */
-      if (arcn.sb.lastWrite > pt.mtime) {
+      if (arcn.sb.lastModified > pt.mtime) {
         /*
          * file is newer
          */
-        ftab[arcn.name]?.mtime = arcn.sb.lastWrite
+        ftab[arcn.name]?.mtime = arcn.sb.lastModified
         return 0
       }
       /*
@@ -415,7 +415,7 @@ class Tables {
     /*
      * not in table, add it
      */
-    ftab[arcn.name] = FTM(mtime: arcn.sb.lastWrite)
+    ftab[arcn.name] = FTM(mtime: arcn.sb.lastModified)
     return 0
   }
 
@@ -719,7 +719,7 @@ class Tables {
      * for each non-empty hash table entry reset all the directories
      * chained there.
      */
-    for var (k, v) in atab {
+    for (_, v) in atab {
       ARCHD.set_ftime(v.name, v.mtime, v.atime, true)
     }
   }
@@ -808,18 +808,17 @@ class Tables {
    *	pax spec)
    */
 
-  func add_dir(_ name : String, _ psb : FileMetadata, _ frc_mode : Bool) {
-    char realname[MAXPATHLEN], *rp;
-
-    if (havechd && *name != '/') {
-      if ((rp = realpath(name, realname)) == NULL) {
-        Tty.paxwarn(true, "Cannot canonicalize %s", name);
-        return;
+  func add_dir(_ namex : String, _ psb : FileMetadata, _ frc_mode : Bool) {
+    var name = namex
+    if (cwdfd != nil && name.first != "/") {
+      guard let rp = try? FilePath(name).realpath() else {
+        Tty.paxwarn(true, "Cannot canonicalize \(name)")
+        return
       }
-      name = rp;
+      name = rp.string
     }
 
-    dirp.append( DIRDATA(name: name, mode: psb.permissions, mtime: psb.lastWrite, atime: psb.lastAccess, frc_mode: frc_mode) )
+    dirp.append( DIRDATA(name: name, mode: psb.permissions, mtime: psb.lastModified, atime: psb.lastAccessed, frc_mode: frc_mode) )
   }
 
   /*

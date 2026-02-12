@@ -484,7 +484,7 @@ extension pax {
             break;
           }
           add_atdir(ftent->fts_path, arcn.sb.st_dev,
-                    arcn.sb.st_ino, arcn.sb.lastWrite,
+                    arcn.sb.st_ino, arcn.sb.lastModified,
 
                     arcn.sb.st_mtime_nsec, arcn.sb.st_atime,
                     arcn.sb.st_atime_nsec);

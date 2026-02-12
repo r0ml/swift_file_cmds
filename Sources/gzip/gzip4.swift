@@ -72,7 +72,7 @@ extension gzip {
     r.infile_total = in_size
 
     if options.lflag {
-      print_list(FileDescriptor.standardInput, in_size, r.infile!, isb.lastWrite)
+      print_list(FileDescriptor.standardInput, in_size, r.infile!, isb.lastModified)
       return
     }
 
@@ -181,7 +181,7 @@ extension gzip {
     if sb.filetype == .regular {
       r.infile = "(stdout)"
       r.infile_total = sb.size
-      mtime = sb.lastWrite
+      mtime = sb.lastModified
     } else {
       let systime = Darwin.time(nil)
       if (systime == -1) {

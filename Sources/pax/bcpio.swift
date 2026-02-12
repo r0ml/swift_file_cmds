@@ -440,8 +440,8 @@ class bcpio : FSUB {
       arcn.sb.groupId = (gid_t)(RSHRT_EXT(hd->h_gid));
       arcn.sb.links = (nlink_t)(RSHRT_EXT(hd->h_nlink));
       arcn.sb.rawDevice = (dev_t)(RSHRT_EXT(hd->h_rdev));
-      arcn.sb.lastWrite = (time_t)(RSHRT_EXT(hd->h_mtime_1));
-      arcn.sb.lastWrite =  (arcn.sb.lastWrite << 16) |
+      arcn.sb.lastModified = (time_t)(RSHRT_EXT(hd->h_mtime_1));
+      arcn.sb.lastModified =  (arcn.sb.lastModified << 16) |
       ((time_t)(RSHRT_EXT(hd->h_mtime_2)));
       arcn.sb.size = (off_t)(RSHRT_EXT(hd->h_filesize_1));
       arcn.sb.size = (arcn.sb.size << 16) |
@@ -455,14 +455,14 @@ class bcpio : FSUB {
       arcn.sb.groupId = (gid_t)(SHRT_EXT(hd->h_gid));
       arcn.sb.links = (nlink_t)(SHRT_EXT(hd->h_nlink));
       arcn.sb.rawDevice = (dev_t)(SHRT_EXT(hd->h_rdev));
-      arcn.sb.lastWrite = (time_t)(SHRT_EXT(hd->h_mtime_1));
-      arcn.sb.lastWrite =  (arcn.sb.lastWrite << 16) |
+      arcn.sb.lastModified = (time_t)(SHRT_EXT(hd->h_mtime_1));
+      arcn.sb.lastModified =  (arcn.sb.lastModified << 16) |
       ((time_t)(SHRT_EXT(hd->h_mtime_2)));
       arcn.sb.size = (off_t)(SHRT_EXT(hd->h_filesize_1));
       arcn.sb.size = (arcn.sb.size << 16) | ((off_t)(SHRT_EXT(hd->h_filesize_2)));
       nsz = (int)(SHRT_EXT(hd->h_namesize));
     }
-    arcn.sb.ctime = arcn.sb.atime = arcn.sb.lastWrite;
+    arcn.sb.ctime = arcn.sb.atime = arcn.sb.lastModified;
 
     /*
      * check the file name size, if bogus give up. otherwise read the file
@@ -639,13 +639,13 @@ class bcpio : FSUB {
     if (arcn.sb.rawDevice != (dev_t)(SHRT_EXT(hd->h_rdev))) {
       goto out;
     }
-    hd->h_mtime_1[0] = CHR_WR_0(arcn.sb.lastWrite);
-    hd->h_mtime_1[1] = CHR_WR_1(arcn.sb.lastWrite);
-    hd->h_mtime_2[0] = CHR_WR_2(arcn.sb.lastWrite);
-    hd->h_mtime_2[1] = CHR_WR_3(arcn.sb.lastWrite);
+    hd->h_mtime_1[0] = CHR_WR_0(arcn.sb.lastModified);
+    hd->h_mtime_1[1] = CHR_WR_1(arcn.sb.lastModified);
+    hd->h_mtime_2[0] = CHR_WR_2(arcn.sb.lastModified);
+    hd->h_mtime_2[1] = CHR_WR_3(arcn.sb.lastModified);
     t_timet = (time_t)(SHRT_EXT(hd->h_mtime_1));
     t_timet =  (t_timet << 16) | ((time_t)(SHRT_EXT(hd->h_mtime_2)));
-    if (arcn.sb.lastWrite != t_timet) {
+    if (arcn.sb.lastModified != t_timet) {
       goto out;
     }
     nsz = arcn.nlen + 1;

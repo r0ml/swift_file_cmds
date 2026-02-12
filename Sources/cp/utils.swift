@@ -477,7 +477,7 @@ extension cp {
 
     var fsmode = fs.permissions
 
-    var tspec : [timespec] = [fs.lastAccess.timespec, fs.lastWrite.timespec]
+    var tspec : [timespec] = [fs.lastAccessed.timespec, fs.lastModified.timespec]
     if 0 != (fdval ? Darwin.futimens(fd!.rawValue, &tspec) :
               utimensat(AT_FDCWD, target.string, &tspec, islink ? AT_SYMLINK_NOFOLLOW : 0)) {
       warn("utimensat: \(target)")

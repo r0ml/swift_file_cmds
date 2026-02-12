@@ -116,7 +116,7 @@ extension gzip {
       }
     }
 
-    guard let (size, in_size) = gz_compress(inx, out, file.basename, isb.lastWrite) else {
+    guard let (size, in_size) = gz_compress(inx, out, file.basename, isb.lastModified) else {
       return nil
     }
 
@@ -285,7 +285,7 @@ extension gzip {
         return nil
       }
       if !options.nflag, let timestamp {
-        isb.lastWrite = timestamp
+        isb.lastModified = timestamp
       }
       if !check_outfile(outfile) {
         return nil
@@ -429,7 +429,7 @@ extension gzip {
 
       default:
         if options.lflag {
-          print_list(fd, in_size, outfile, isb.lastWrite)
+          print_list(fd, in_size, outfile, isb.lastModified)
           if !options.tflag {
             return nil  /* XXX */
           }

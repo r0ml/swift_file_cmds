@@ -417,7 +417,7 @@ extension gzip {
       maybe_warn("couldn't fchmod: \(file)")
     }
 
-    let timesx = (sbp.lastAccess.timespec, sbp.lastWrite.timespec)
+    let timesx = (sbp.lastAccessed.timespec, sbp.lastModified.timespec)
     if (futimens(fd, timesx) < 0) {
       maybe_warn("couldn't futimens: \(file)")
     }

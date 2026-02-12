@@ -120,9 +120,9 @@ protocol FSUB {
   /* of 1 indicates that the block passed to */
   /* it can never contain a valid header (skip */
   /* this block, no point in looking at it)  */
-  func rd_data(_ : ARCHD,_ : Int,_ : inout Int) -> Result
+//  func rd_data(_ : ARCHD,_ : Int,_ : inout Int) -> Result
   /* read/process file data from the archive */
-  func wr_data(_ : ARCHD,_ : FileDescriptor, _ : inout Int) -> Result
+//  func wr_data(_ : ARCHD,_ : FileDescriptor, _ : inout Int) -> Result
   /* write/process file data to the archive */
   func other_options() -> Result  /* process format specific options (-o) */
   func doOptions(_ : inout pax.CommandOptions) throws(CmdErr)
@@ -291,7 +291,7 @@ extension FSUB {
       Tty.paxwarn(true, "File changed size during read \(arcn.org_name)")
     }
     else if let sb = try? FileMetadata(for: ifd) {
-      if (arcn.sb.lastWrite != sb.lastWrite) {
+      if (arcn.sb.lastModified != sb.lastModified) {
         Tty.paxwarn(true, "File \(arcn.org_name) was modified during copy to archive")
       }
       left = size
@@ -301,4 +301,145 @@ extension FSUB {
     }
     return .ok
   }
+
+  /*
+   * str_offt()
+   *  Convert an expression of the following forms to an off_t > 0.
+   *   1) A positive decimal number.
+   *  2) A positive decimal number followed by a b (mult by 512).
+   *  3) A positive decimal number followed by a k (mult by 1024).
+   *  4) A positive decimal number followed by a m (mult by 512).
+   *  5) A positive decimal number followed by a w (mult by sizeof int)
+   *  6) Two or more positive decimal numbers (with/without k,b or w).
+   *     separated by x (also * for backwards compatibility), specifying
+   *     the product of the indicated values.
+   * Return:
+   *  0 for an error, a positive value o.w.
+   */
+
+  func str_offt(_ val : String) -> UInt? {
+
+    let e = val.prefix { $0.isWholeNumber }
+    guard var num = UInt(e) else { return nil }
+
+    var expr = val.dropFirst(e.count)
+    if expr.isEmpty { return num }
+
+    switch expr.first {
+      case "b":
+        num *= 512
+        expr.removeFirst()
+      case "k":
+        num *= 1024
+        expr.removeFirst()
+      case "m":
+        num *= 1048576
+        expr.removeFirst()
+      case "w":
+        num *= UInt(MemoryLayout<Int32>.size)
+        expr.removeFirst()
+      default:
+        break
+    }
+
+    if expr.isEmpty { return num }
+    switch expr.first {
+      case "*", "x":
+        guard let n2 = str_offt(String(expr.dropFirst())) else {return nil }
+        num *= n2
+      default:
+        return nil
+    }
+    return num
+  }
+
+  /*
+   * ustar_strd()
+   *  initialization for ustar read
+   * Return:
+   *  0 if ok, -1 otherwise
+   */
+
+  func st_rd() -> Result {
+    return .ok
+  }
+
+  /*
+   * ustar_stwr()
+   *  initialization for ustar write
+   * Return:
+   *  0 if ok, -1 otherwise
+   */
+
+  func st_wr() -> Result {
+    return .ok
+  }
+
+  /*
+   * tar_endwr()
+   *  add the tar trailer of two null blocks
+   * Return:
+   *  0 if ok, -1 otherwise (what wr_skip returns)
+   */
+
+  func end_wr() -> Result {
+    return wr_skip(NULLCNT*BLKMULT)
+  }
+
+  /*
+   * tar_endrd()
+   *  no cleanup needed here, just return size of trailer (for append)
+   * Return:
+   *  size of trailer (2 * BLKMULT)
+   */
+
+  func end_rd() -> Result {
+    return .count(NULLCNT*BLKMULT)
+  }
+
+  func trail_cpio(_: ARCHD) -> Result {
+    fatalError("not used by tar")
+  }
+
+  /*
+   * tar_trail()
+   *  Called to determine if a header block is a valid trailer. We are passed
+   *  the block, the in_sync flag (which tells us we are in resync mode;
+   *  looking for a valid header), and cnt (which starts at zero) which is
+   *  used to count the number of empty blocks we have seen so far.
+   * Return:
+   *  0 if a valid trailer, -1 if not a valid trailer, or 1 if the block
+   *  could never contain a header.
+   */
+
+  func trail_tar(_ buf : [UInt8], _ in_resync : Bool, _ cnt : inout Int) -> Result {
+
+    /*
+     * look for all zero, trailer is two consecutive blocks of zero
+     */
+    if let i = (buf.firstIndex { $0 != 0 }) {
+      /*
+       * if not all zero it is not a trailer, but MIGHT be a header.
+       */
+      return .failed
+    }
+
+    /*
+     * When given a zero block, we must be careful!
+     * If we are not in resync mode, check for the trailer. Have to watch
+     * out that we do not mis-identify file data as the trailer, so we do
+     * NOT try to id a trailer during resync mode. During resync mode we
+     * might as well throw this block out since a valid header can NEVER be
+     * a block of all 0 (we must have a valid file name).
+     */
+
+    if !in_resync {
+      cnt += 1
+      if cnt >= NULLCNT {
+        return .ok
+      }
+    }
+    return .partial
+  }
+
 }

@@ -48,7 +48,8 @@ class Tty {
   
   let DEVTTY	= "/dev/tty"          /* device for interactive i/o */
   var ttyfd : FileDescriptor?       	/* output pointing at control tty */
-  
+  var ttyinf : FileStream?
+  var ttyout : FileStream?
   /*
    * tty_init()
    *	try to open the controlling terminal (if any) for this process. if the
@@ -56,7 +57,11 @@ class Tty {
    */
   
   required init() {
-    ttyfd = try? FileDescriptor.open(DEVTTY, .readWrite)
+    if let tfd = try? FileDescriptor.open(DEVTTY, .readWrite) {
+      ttyfd = tfd
+      ttyinf = FileStream(tfd)
+      ttyout = FileStream(tfd)
+    }
   }
   
   /*
@@ -70,26 +75,17 @@ class Tty {
   
   /*
    * tty_read()
-   *	read a string from the controlling terminal if it is open into the
-   *	supplied buffer
+   *	read a string from the controlling terminal if it is open
    * Return:
-   *	0 if data was read, -1 otherwise.
+   *	String if data was read, nil otherwise.
    */
   
   func tty_read() -> String? {
-    
-    if ((--len <= 0) || (ttyinf == NULL) || (fgets(str,len,ttyinf) == NULL)) {
-      return .failed;
+    guard var str = try? ttyinf?.readLineUTF8() else {
+      return nil
     }
-    *(str + len) = '\0';
-    
-    /*
-     * strip off that trailing newline
-     */
-    if ((pt = strchr(str, '\n')) != NULL) {
-      *pt = '\0';
-    }
-    return(0);
+    if str.last == "\n" { str.removeLast() } // strip off that trailing newline
+    return str
   }
   
   /*
@@ -99,8 +95,8 @@ class Tty {
    */
   
   static func paxwarn(_ ex : Bool, _ fmt : String) {
-    if ex && pax_invalid_action == 0 {
-      runtime.exit_val = 1
+    if ex && !pax_invalid_action {
+      exit_val = 1
     }
     
     var se = FileDescriptor.standardError
@@ -108,10 +104,10 @@ class Tty {
      * when vflag we better ship out an extra \n to get this message on a
      * line by itself
      */
-    if runtime.vflag && runtime.vfpart {
-      print("", to: &options.listf)
+    if vflag > 0 && vfpart {
+      print("", to: &listf)
       print("", to: &se)
-      runtime.vfpart = false
+      vfpart = false
     }
     
     print("\(programName): \(fmt)", to: &se)
@@ -125,17 +121,17 @@ class Tty {
   
   static func syswarn(_ ex : Bool, _ errnum : any BinaryInteger, _ fmt : String) {
     if ex {
-      runtime.exit_val = 1
+      exit_val = 1
     }
     /*
      * when vflag we better ship out an extra \n to get this message on a
      * line by itself
      */
     var se = FileDescriptor.standardError
-    if runtime.vflag && runtime.vfpart {
-      
+    if vflag > 0 && vfpart {
+
       print("", to: &se)
-      runtime.vfpart = false
+      vfpart = false
     }
     print("\(programName): \(fmt)", terminator: "", to: &se)
     

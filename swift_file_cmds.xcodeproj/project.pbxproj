@@ -949,31 +949,19 @@
 		E77406B52F0E0D4000498517 /* Exceptions for "Sources" folder in "pax" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				pax/ar_io.swift,
-				pax/ar_subs.swift,
 				pax/ARCHD.swift,
-				pax/bcpio.swift,
-				pax/buf_subs.swift,
 				pax/cache.swift,
-				pax/cpio_options.swift,
-				pax/cpio.swift,
-				pax/file_subs.swift,
 				pax/FSUB.swift,
-				pax/ftree.swift,
-				pax/gen_subs.swift,
+				pax/globals.swift,
 				pax/options.swift,
-				pax/pat_rep.swift,
-				pax/pax_format.swift,
 				pax/pax_options.swift,
 				pax/pax.swift,
+				pax/paxer.swift,
+				pax/paxer2.swift,
+				pax/paxer3.swift,
 				pax/sel_subs.swift,
 				pax/tables.swift,
-				pax/tar_options.swift,
-				pax/tar.swift,
 				pax/tty_subs.swift,
-				pax/ustar.swift,
-				pax/vcpio_crc.swift,
-				pax/vcpio.swift,
 			);
 			target = E774012D2F02D87D00498517 /* pax */;
 		};

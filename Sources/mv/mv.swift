@@ -451,7 +451,7 @@ let EXEC_FAILED : Int32 = 127
      #endif
      */
 
-    var ts = ( sbp.lastAccess.timespec, sbp.lastWrite.timespec )
+    var ts = ( sbp.lastAccessed.timespec, sbp.lastModified.timespec )
     if 0 != Darwin.futimens(to_fd.rawValue, &ts.0) {
       warn("\(to): set times")
     }

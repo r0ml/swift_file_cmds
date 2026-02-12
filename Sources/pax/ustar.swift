@@ -48,27 +48,6 @@ class ustar : tar {
    * Routines for POSIX ustar
    */
 
-  /*
-   * ustar_strd()
-   *  initialization for ustar read
-   * Return:
-   *  0 if ok, -1 otherwise
-   */
-
-  override func st_rd() -> Result {
-    return .ok
-  }
-
-  /*
-   * ustar_stwr()
-   *  initialization for ustar write
-   * Return:
-   *  0 if ok, -1 otherwise
-   */
-
-  override func st_wr() -> Result {
-    return .ok
-  }
 
   /*
    * ustar_id()
@@ -168,8 +147,8 @@ class ustar : tar {
     arcn.sb.st_mode = (mode_t)(asc_ul(hd->mode, sizeof(hd->mode), OCT) &
         0xfff);
     arcn.sb.st_size = (off_t)asc_uqd(hd->size, sizeof(hd->size), OCT);
-    arcn.sb.lastWrite = (time_t)asc_uqd(hd->mtime, sizeof(hd->mtime), OCT);
-    arcn.sb.st_ctime = arcn.sb.st_atime = arcn.sb.lastWrite;
+    arcn.sb.lastModified = (time_t)asc_uqd(hd->mtime, sizeof(hd->mtime), OCT);
+    arcn.sb.st_ctime = arcn.sb.st_atime = arcn.sb.lastModified;
 
     /*
      * If we can find the ascii names for gname and uname in the password
@@ -492,7 +471,7 @@ class ustar : tar {
        remove all beyond (see definition of stat.st_mode structure)    */
     mode12only = ((u_long)arcn.sb.st_mode) & 0x00000fff;
     if (ul_oct((u_long)mode12only, hd->mode, sizeof(hd->mode), term_char) ||
-        ul_oct((u_long)arcn.sb.lastWrite,hd->mtime,sizeof(hd->mtime),term_char)) {
+        ul_oct((u_long)arcn.sb.lastModified,hd->mtime,sizeof(hd->mtime),term_char)) {
 
       goto out;
     }

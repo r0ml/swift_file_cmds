@@ -40,16 +40,9 @@ import CMigration
 import Darwin
 
 
-let GZIP_CMD = "gzip"    /* command to run as gzip */
-let COMPRESS_CMD = "compress"  /* command to run as compress */
-let BZIP2_CMD = "bzip2"    /* command to run as bzip2 */
 
-
-let NM_TAR = "tar"
-let NM_CPIO = "cpio"
-let NM_PAX = "pax"
-
-let NONE = "none"
+fileprivate let GETLINE_FILE_CORRUPT = 1
+fileprivate let GETLINE_OUT_OF_MEM = 2
 
 extension pax {
 
@@ -159,12 +152,6 @@ extension pax {
 //  static OPLIST *ophead = NULL;	/* head for format specific options -x */
 //  static OPLIST *optail = NULL;	/* option tail */
 
-  /* errors from get_line */
-  #define GETLINE_FILE_CORRUPT 1
-  #define GETLINE_OUT_OF_MEM 2
-  static int get_line_error;
-
-  char *chdname;
 
   /*
    *	Format specific routine table - MUST BE IN SORTED ORDER BY NAME
@@ -232,11 +219,6 @@ extension pax {
 //  int ford[] = {F_PAX, F_TAR, F_OTAR, F_CPIO, F_SCPIO, F_ACPIO, F_OCPIO, -1 };
 
   /*
-   * Do we have -C anywhere?
-   */
-  int havechd = 0;
-
-  /*
    * options()
    *	figure out if we are pax, tar or cpio. Call the appropriate options
    *	parser
@@ -249,13 +231,11 @@ extension pax {
      */
 
     if programName == NM_TAR {
-      options.frmt = tar()
-//      myUsage = .tar
-//      try tar().doOptions(&options)
+      // FIXME: ADD ME BACK IN
+//      options.frmt = tar()
     } else if programName == NM_CPIO {
-      options.frmt = cpio()
-//      cpio_options()
-//      return;
+      // FIXME: ADD ME BACK IN
+//      options.frmt = cpio()
     } else {
       options.frmt = paxer()
     }
@@ -281,25 +261,6 @@ extension pax {
   }
 
 
-  /*
-   * printflg()
-   *	print out those invalid flag sets found to the user
-   */
-
-  private func printflg(_ flg : OptionFlags) {
-    var se = FileDescriptor.standardError
-    print("\(programName): Invalid combination of options: " + flg.myCases.map { $0.flagString }.joined(separator: " "), to: &se )
-  }
-
-  /*
-   * c_frmt()
-   *	comparison routine used by bsearch to find the format specified
-   *	by the user
-   */
-
-  private func c_frmt(_ a : any FSUB, _ b : any FSUB) -> Int {
-    return(strcmp( a.name, b.name))
-  }
 
 /*
    * opt_add()
@@ -366,102 +327,6 @@ extension pax {
     return (.ok, opls)
   }
 
-  /*
-   * str_offt()
-   *	Convert an expression of the following forms to an off_t > 0.
-   * 	1) A positive decimal number.
-   *	2) A positive decimal number followed by a b (mult by 512).
-   *	3) A positive decimal number followed by a k (mult by 1024).
-   *	4) A positive decimal number followed by a m (mult by 512).
-   *	5) A positive decimal number followed by a w (mult by sizeof int)
-   *	6) Two or more positive decimal numbers (with/without k,b or w).
-   *	   separated by x (also * for backwards compatibility), specifying
-   *	   the product of the indicated values.
-   * Return:
-   *	0 for an error, a positive value o.w.
-   */
-
-  func str_offt(_ val : String) -> UInt? {
-    char *expr;
-    off_t num, t;
-
-    num = strtoq(val, &expr, 0);
-    if ((num == QUAD_MAX) || (num <= 0) || (expr == val)) {
-      return(0);
-    }
-
-    switch(*expr) {
-      case 'b':
-        t = num;
-        num *= 512;
-        if (t > num) {
-          return(0);
-        }
-        ++expr;
-        break;
-      case 'k':
-        t = num;
-        num *= 1024;
-        if (t > num) {
-          return(0);
-        }
-        ++expr;
-        break;
-      case 'm':
-        t = num;
-        num *= 1048576;
-        if (t > num) {
-          return(0);
-        }
-        ++expr;
-        break;
-      case 'w':
-        t = num;
-        num *= sizeof(int);
-        if (t > num) {
-          return(0);
-        }
-        ++expr;
-        break;
-    }
-
-    switch(*expr) {
-      case '\0':
-        break;
-      case '*':
-      case 'x':
-        t = num;
-        num *= str_offt(expr + 1);
-        if (t > num) {
-          return(0);
-        }
-        break;
-      default:
-        return(0);
-    }
-    return(num);
-  }
-
-  // FileDescriptor was FILE *
-  func get_line(_ f : FileDescriptor) -> String? {
-    var len : UInt32 = 0
-    guard let name = fgetln(f, &len) else {
-      get_line_error = ferror(f) ? GETLINE_FILE_CORRUPT : 0;
-      return nil
-    }
-
-    if (name[len-1] != '\n') {
-      len++;
-    }
-    temp = malloc(len);
-    if (!temp) {
-      get_line_error = GETLINE_OUT_OF_MEM;
-      return(0);
-    }
-    memcpy(temp, name, len-1);
-    temp[len-1] = 0;
-    return(temp);
-  }
 
   /*
    * no_op()

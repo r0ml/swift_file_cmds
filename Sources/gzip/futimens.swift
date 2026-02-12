@@ -81,12 +81,12 @@ func futimens(_ fd : FileDescriptor, _ times : (Darwin.timespec, Darwin.timespec
         return -1
       }
       if times!.0.tv_nsec == UTIME_OMIT {
-        tv.0.tv_sec = sb.lastAccess.timespec.tv_sec
-        tv.0.tv_usec = Int32(sb.lastAccess.timespec.tv_nsec / 1000)
+        tv.0.tv_sec = sb.lastAccessed.timespec.tv_sec
+        tv.0.tv_usec = Int32(sb.lastAccessed.timespec.tv_nsec / 1000)
 			}
       if times!.1.tv_nsec == UTIME_OMIT {
-        tv.1.tv_sec = sb.lastWrite.timespec.tv_sec
-        tv.1.tv_usec = Int32(sb.lastWrite.timespec.tv_nsec / 1000)
+        tv.1.tv_sec = sb.lastModified.timespec.tv_sec
+        tv.1.tv_usec = Int32(sb.lastModified.timespec.tv_nsec / 1000)
 			}
 		}
     if times!.0.tv_nsec == UTIME_NOW ||

@@ -148,7 +148,7 @@ extension cpio {
            * list contents of archive
            */
           options.act = .LIST
-          options.listf = FileDescriptor.standardOutput
+          listf = FileDescriptor.standardOutput
 
         case "u":
           /*
@@ -299,8 +299,8 @@ extension cpio {
            * no read errors allowed on updates/append operation!
            */
           maxflt = 0;
-          while ((str = get_line(stdin)) != NULL) {
-            ftree_add(str, 0);
+          for try await str in FileDescriptor.standardInput.bytes.lines {
+            ftree_add(str, 0)
           }
           if (get_line_error) {
             Tty.paxwarn(true, "Problem while reading stdin");

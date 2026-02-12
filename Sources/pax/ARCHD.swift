@@ -63,6 +63,12 @@ import CMigration
             /* data following the header. */
     var crc : UInt      /* file crc */
     var type : PAXType   /* type of file node */
+
+    let options : pax.CommandOptions
+
+    init(_ o : pax.CommandOptions) {
+      options = o
+    }
   }
 
 let FILEBLK = 10240  /* default read blksize for files */

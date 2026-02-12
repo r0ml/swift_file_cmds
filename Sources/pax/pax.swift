@@ -46,15 +46,6 @@ enum Result : Equatable {
   case partial
 }
 
-let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
-        /* WARNING: increasing MAXBLK past 32256 */
-        /* will violate posix spec. */
-let MAXBLK_POSIX = 32256  /* MAX blocksize supported as per POSIX */
-let BLKMULT = 512  /* blocksize must be even mult of 512 bytes */
-        /* Don't even think of changing this */
-let DEVBLK = 8192  /* default read blksize for devices */
-let PAXPATHLEN = 3072  /* maximum path length for pax. MUST be */
-        /* longer than the system PATH_MAX */
 
 enum usageType {
   case pax
@@ -67,13 +58,9 @@ nonisolated(unsafe) var myUsage : usageType = .pax
   required init() {
     // FIXME: is this even legal?
     withUnsafePointer(to: self) { paxInstance = $0 }
+
   }
 
-
-  let ar_io = Ar_io()
-  let tables = Tables.shared
-  let cache = Cache()
-  let tty = Tty()
 
   /*
    * BSD PAX global data structures and constants.
@@ -162,7 +149,6 @@ nonisolated(unsafe) var myUsage : usageType = .pax
       var act = OpModes.LIST		/* read/write/append/copy */
       var frmt : FSUB?       		/* archive format type */
       var cflag : Bool = false			/* match all EXCEPT pattern/file */
-      var cwdfd : FileDescriptor!			/* starting cwd */
       var dflag : Bool = false			/* directory member match only  */
       var iflag : Bool = false /* interactive file/archive rename */
       var kflag : Bool = false /* do not overwrite existing files */
@@ -193,7 +179,6 @@ nonisolated(unsafe) var myUsage : usageType = .pax
       var dirptr : String!		/* destination dir in a copy */
       var argv0 : [String] = []  /* root of argv[0] */
 
-      var listf = FileDescriptor.standardError       /* file pointer to print file list to */
 
       var gzip_program : String? = "gzip"
       var arcname : String? = "???"
@@ -203,13 +188,11 @@ nonisolated(unsafe) var myUsage : usageType = .pax
 
       var flg : OptionFlags = []
       var tempfile : String = ""
-      var chdname : String?
       
       var args : [String] = []
     }
 
     class Runtime {
-      var exit_val : Int32 = 0   /* exit value */
       var s_mask = sigset_t()   /* signal mask for cleanup critical sect */
       var tempfile : String!    /* tempfile to use for mkstemp(3) */
       var tempbase : String!		/* basename of tempfile to use for mkstemp(3) */
@@ -217,9 +200,7 @@ nonisolated(unsafe) var myUsage : usageType = .pax
       var flcnt : UInt = 0      /* number of files processed */
 
       // set by sig
-      var vflag : Bool = false  /* produce verbose output */
-      var vfpart = false      /* is partial verbose output in progress */
-    }
+     }
   /*
    *	PAX - Portable Archive Interchange
    *
@@ -356,16 +337,16 @@ nonisolated(unsafe) var myUsage : usageType = .pax
      * Keep a reference to cwd, so we can always come back home.
      */
     do {
-      options.cwdfd = try FileDescriptor.open(FilePath("."), .readOnly, options: .closeOnExec)
+      cwdfd = try FileDescriptor.open(FilePath("."), .readOnly, options: .closeOnExec)
     } catch(let e as Errno) {
       Tty.syswarn(true, e.rawValue, "Can't open current working directory.")
-      exit(runtime.exit_val)
+      exit(exit_val)
     } catch(let e) {
       Tty.paxwarn(true, "Can't open current working directory: \(e)" )
     }
 
     if case .failed = updatepath() {
-      exit(runtime.exit_val)
+      exit(exit_val)
     }
 
     /*
@@ -389,7 +370,7 @@ nonisolated(unsafe) var myUsage : usageType = .pax
     try options.frmt!.doOptions(&options)
 
     if case .failed = gen_init() {
-      exit(runtime.exit_val)
+      exit(exit_val)
     }
     return options
   }
@@ -417,11 +398,11 @@ nonisolated(unsafe) var myUsage : usageType = .pax
         list()
     }
 
-//    if runtime.exit_val == 0 && (ferror(stdout) != 0 || fflush(stdout) != 0) {
+//    if exit_val == 0 && (ferror(stdout) != 0 || fflush(stdout) != 0) {
 //      err(1, "stdout");
 //    }
 
-    exit(runtime.exit_val)
+    exit(exit_val)
   }
 
   /*
@@ -544,8 +525,8 @@ func sig_cleanup(_ which_sig : Int32) {
 
 extension pax {
   func doSigCleanup(_ which_sig : Int32) {
-    runtime.vflag = true
-    runtime.vfpart = true
+    vflag = 1
+    vfpart = true
 
     ar_io.ar_close()
     tables.proc_dir(options)

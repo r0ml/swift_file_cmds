@@ -287,8 +287,7 @@ extension tar {
           break
         case "C":
 
-          havechd++;
-          options.chdname = v
+          chdname = v
 
         case "H":
           /*
@@ -297,7 +296,7 @@ extension tar {
           options.Hflag = true
 
         case "I":
-          incfiles.append( (options.chdname, v) )
+          incfiles.append( (chdname, v) )
 
         case "L":
           /*
@@ -350,10 +349,10 @@ extension tar {
 
     /* Traditional tar behaviour (pax uses stderr unless in list mode) */
     if (fstdin == 1 && options.act == .ARCHIVE) {
-      options.listf = FileDescriptor.standardError
+      listf = FileDescriptor.standardError
     }
     else {
-      options.listf = FileDescriptor.standardOutput
+      listf = FileDescriptor.standardOutput
     }
 
     /* Traditional tar behaviour (pax wants to read file list from stdin) */
@@ -378,7 +377,7 @@ extension tar {
      */
     switch options.act {
       case .ARCHIVE, .APPND:
-        if let chdname = options.chdname {  /* initial chdir() */
+        if let chdname {  /* initial chdir() */
           if (ftree_add(chdname, 1) < 0) {
             throw CmdErr(1)
           }
@@ -425,7 +424,7 @@ extension tar {
               Tty.paxwarn(true, "Unable to open file '%s' for read", file);
               throw CmdErr(1)
             }
-            while ((str = get_line(fp)) != NULL) {
+            for try await str in fp.bytes.lines {
               if (ftree_add(str, 0) < 0) {
                 throw CmdErr(1)
               }
@@ -494,7 +493,7 @@ extension tar {
                 Tty.paxwarn(true, "Unable to open file '%s' for read", file);
                 throw CmdErr(1)
               }
-              while ((str = get_line(fp)) != NULL) {
+              while for try await str in fp.bytes.lines {
                 if (pat_add(str, dir) < 0) {
                   throw CmdErr(1)
                 }

@@ -360,7 +360,7 @@ import Darwin
   func setfile(_ name : FilePath, _ fsx : FileMetadata) {
 
     var fs = fsx
-    var tspec : (timespec, timespec) = (fs.lastAccess.timespec, fs.lastWrite.timespec)
+    var tspec : (timespec, timespec) = (fs.lastAccessed.timespec, fs.lastModified.timespec)
 
     if 0 != utimensat(AT_FDCWD, name.string, &tspec.0, 0) {
       warn("utimensat: \(name)")

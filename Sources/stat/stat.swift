@@ -725,22 +725,22 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
           ofmt = .UNSIGNED
         }
       case .st_atime:
-        tsp = st.lastAccess
+        tsp = st.lastAccessed
         fallthrough
-      case .lastWrite:
+      case .st_mtime:
         if (tsp == nil) {
-          tsp = st.lastWrite
+          tsp = st.lastModified
         }
         fallthrough
       case .st_ctime:
         if (tsp == nil) {
-          tsp = st.lastModification
+          tsp = st.lastChanged
         }
         fallthrough
 // #if HAVE_STRUCT_STAT_ST_BIRTHTIME
       case .st_btime:
         if (tsp == nil) {
-          tsp = st.created
+          tsp = st.whenCreated
         }
 // #endif /* HAVE_STRUCT_STAT_ST_BIRTHTIME */
 //        small = (sizeof(ts.tv_sec) == 4);

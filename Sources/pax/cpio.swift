@@ -98,9 +98,9 @@ class cpio : bcpio {
     arcn.sb.links = (nlink_t)asc_ul(hd->c_nlink, sizeof(hd->c_nlink),
                                         OCT);
     arcn.sb.rawDevice = (dev_t)asc_ul(hd->c_rdev, sizeof(hd->c_rdev), OCT);
-    arcn.sb.lastWrite = (time_t)asc_uqd(hd->c_mtime, sizeof(hd->c_mtime),
+    arcn.sb.lastModified = (time_t)asc_uqd(hd->c_mtime, sizeof(hd->c_mtime),
                                         OCT);
-    arcn.sb.ctime = arcn.sb.lastAccess = arcn.sb.lastWrite;
+    arcn.sb.ctime = arcn.sb.lastAccessed = arcn.sb.lastModified;
     arcn.sb.size = (off_t)asc_uqd(hd->c_filesize,sizeof(hd->c_filesize),
                                       OCT);
 
@@ -228,7 +228,7 @@ class cpio : bcpio {
                OCT) ||
         ul_asc((u_long)arcn.sb.rawDevice, hd.c_rdev, sizeof(hd.c_rdev),
                OCT) ||
-        ul_asc((u_long)arcn.sb.lastWrite,hd.c_mtime,sizeof(hd.c_mtime),
+        ul_asc((u_long)arcn.sb.lastModified,hd.c_mtime,sizeof(hd.c_mtime),
                OCT) ||
         ul_asc((u_long)nsz, hd.c_namesize, sizeof(hd.c_namesize), OCT)) {
       goto out;

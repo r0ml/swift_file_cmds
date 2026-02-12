@@ -104,7 +104,7 @@ struct Gen {
     /*
      * time format based on age compared to the time pax was started.
      */
-    if ((sbp.lastWrite + SIXMONTHS) <= now || sbp.lastWrite > now) {
+    if ((sbp.lastModified + SIXMONTHS) <= now || sbp.lastModified > now) {
       timefrmt = d_first ? OLDFRMTD : OLDFRMTM
     }
     else {
@@ -114,7 +114,7 @@ struct Gen {
     /*
      * print file mode, link count, uid, gid and time
      */
-    if (strftime(f_date,DATELEN,timefrmt,localtime(&(sbp.lastWrite))) == 0) {
+    if (strftime(f_date,DATELEN,timefrmt,localtime(&(sbp.lastModified))) == 0) {
       f_date[0] = '\0';
     }
 
@@ -178,7 +178,7 @@ struct Gen {
     }
 
     var timefrmt : String
-    if (arcn.sb.lastWrite + SIXMONTHS) <= DateTime(Darwin.time(nil)) {
+    if (arcn.sb.lastModified + SIXMONTHS) <= DateTime(Darwin.time(nil)) {
       timefrmt = d_first ? OLDFRMTD : OLDFRMTM;
     }
     else {
@@ -189,7 +189,7 @@ struct Gen {
      * convert time to string, and print
      */
     if (strftime(f_date, DATELEN, timefrmt,
-                 localtime(&(arcn.sb.lastWrite))) == 0) {
+                 localtime(&(arcn.sb.lastModified))) == 0) {
       f_date[0] = '\0';
     }
     let fmode = strmode(arcn.sb.filetype, arcn.sb.permissions)
