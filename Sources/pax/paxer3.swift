@@ -62,9 +62,9 @@ extension paxer {
     /* There might be no fields but a header with a specific name or
      times might be wanted */
 
-    term_char = 1;
-    memset(hdblk, 0, sizeof(hdblk));
-    hd = (HD_USTAR *)hdblk;
+    let term_char = 1
+    var hd = HD_USTAR()
+
     memset(pax_eh_datablk, 0, sizeof(pax_eh_datablk));
 
     /* generate header */
@@ -72,7 +72,7 @@ extension paxer {
 
     /* These fields appear to be necessary to be able to treat extended headers
      like files in older versions of pax */
-    ul_oct((u_long)0444, hd->mode, sizeof(hd->mode), term_char);
+    ul_oct(0o0444, hd->mode, sizeof(hd->mode), term_char);
     strncpy(hd->magic, TMAGIC, TMAGLEN);
     strncpy(hd->version, TVERSION, TVERSLEN);
     ul_oct((u_long)arcn.sb.lastModified,hd->mtime,sizeof(hd->mtime),term_char);
@@ -188,13 +188,13 @@ extension paxer {
     char *pt;
     char hdblk[sizeof(HD_USTAR)];
     mode_t mode12only;
-    int term_char=3;  /* orignal setting */
     term_char=1;    /* To pass conformance tests 274, 301 */
     const char *size_header_name = "size";
     char size_value[100];
     bzero(size_value, sizeof(size_value));
 */
-
+    var term_char = 3 // original setting
+    
     /*
      * check for those file system types pax cannot store
      */
@@ -203,11 +203,13 @@ extension paxer {
       return .partial
     }
 
+        var hd = HD_USTAR()
+
     /*
      * check the length of the linkname
      */
     if (((arcn.type == .SLK) || (arcn.type == .HLK) ||
-         (arcn.type == .HRG)) && (arcn.ln_name.count > sizeof(hd->linkname))){
+         (arcn.type == .HRG)) && (arcn.ln_name.count > MemoryLayout.size(ofValue: hd.linkname))) {
       Tty.paxwarn(true, "Link name too long for pax \(arcn.ln_name)")
       /*
        * Conformance: test pax:285 wants error code to be non-zero, and
@@ -220,22 +222,22 @@ extension paxer {
      * split the path name into prefix and name fields (if needed). if
      * pt != arcn.name, the name has to be split
      */
-    if ((pt = name_split(arcn.name)) == NULL) {
+    let (nam, pt) = name_split(arcn.name)
+    guard let nam else {
       Tty.paxwarn(true, "File name too long for pax \(arcn.name)")
       return .partial
     }
 
     generate_pax_ext_header_and_data(arcn, global_ext_header_inx, &global_ext_header_entry[0],
-                                     PAXGTYPE, header_name_g, header_name_g_requested);
+                                     .PAXGTYPE, header_name_g, header_name_g_requested);
     generate_pax_ext_header_and_data(arcn, ext_header_inx, &ext_header_entry[0],
-                                     PAXXTYPE, header_name_x, header_name_x_requested);
+                                     .PAXXTYPE, header_name_x, header_name_x_requested);
 
     /*
      * zero out the header so we don't have to worry about zero fill below
      */
-    memset(hdblk, 0, sizeof(hdblk));
-    hd = (HD_USTAR *)hdblk;
-    arcn.pad = 0L;
+
+    arcn.pad = 0
     /* To pass conformance tests 274/301, always set these fields to "zero" */
     ul_oct(0, hd->devmajor, sizeof(hd->devmajor), term_char);
     ul_oct(0, hd->devminor, sizeof(hd->devminor), term_char);
@@ -275,10 +277,10 @@ extension paxer {
         break;
       case .CHR, .BLK:
         if (arcn.type == .CHR) {
-          hd->typeflag = CHRTYPE;
+          hd.typeflag = TarFileType.CHRTYPE.rawValue.asciiValue!
         }
         else {
-          hd->typeflag = BLKTYPE;
+          hd.typeflag = TarFileType.BLKTYPE.rawValue.asciiValue!
         }
         if (ul_oct((u_long)MAJOR(arcn.sb.st_rdev), hd->devmajor,
                    sizeof(hd->devmajor), term_char) ||
@@ -289,17 +291,17 @@ extension paxer {
         }
         break;
       case .FIF:
-        hd->typeflag = FIFOTYPE;
+        hd.typeflag = TarFileType.FIFOTYPE.rawValue.asciiValue!
         if (ul_oct((u_long)0L, hd->size, sizeof(hd->size), term_char)) {
           goto out;
         }
         break;
       case .SLK, .HLK, .HRG:
         if (arcn.type == .SLK) {
-          hd->typeflag = SYMTYPE;
+          hd.typeflag = TarFileType.SYMTYPE.rawValue.asciiValue!
         }
         else {
-          hd->typeflag = LNKTYPE;
+          hd.typeflag = TarFileType.LNKTYPE.rawValue.asciiValue!
         }
         if (strlen(arcn.ln_name) == sizeof(hd->linkname)) {  /* must account for name just fits in buffer */
           strncpy(hd->linkname, arcn.ln_name, sizeof(hd->linkname));
@@ -317,10 +319,10 @@ extension paxer {
          * file data with this type, set the padding
          */
         if (arcn.type == .CTG) {
-          hd->typeflag = CONTTYPE;
+          hd.typeflag = TarFileType.CONTTYPE.rawValue.asciiValue!
         }
         else {
-          hd->typeflag = REGTYPE;
+          hd.typeflag = TarFileType.REGTYPE.rawValue.asciiValue!
         }
         arcn.pad = TAR_PAD(arcn.sb.st_size);
         if (uqd_oct((u_quad_t)arcn.sb.st_size, hd->size,
@@ -339,13 +341,14 @@ extension paxer {
             }
           }
           generate_pax_ext_header_and_data(arcn, ext_header_inx, &ext_header_entry[0],
-                                           PAXXTYPE, header_name_x, header_name_x_requested);
+                                           .PAXXTYPE, header_name_x, header_name_x_requested);
         }
         break;
     }
 
-    strncpy(hd->magic, TMAGIC, TMAGLEN);
-    strncpy(hd->version, TVERSION, TVERSLEN);
+    // WARNING: hd.magic needs to be the same size (or larger) than TMAGIC
+    withUnsafeMutableBytes(of: &hd.magic) { $0.copyBytes(from: TMAGIC.utf8) }     // strncpy(&hd.magic, TMAGIC, Int(TMAGLEN))
+    withUnsafeMutableBytes(of: &hd.version) { $0.copyBytes(from: TVERSION.utf8) } //  strncpy(&hd.version, TVERSION, Int(TVERSLEN))
 
     /*
      * set the remaining fields. Some versions want all 16 bits of mode

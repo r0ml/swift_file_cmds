@@ -58,8 +58,6 @@ let TRAILER = "TRAILER!!!"  /* name in last archive record */
 #define C_IFMT    0170000    /* type of file */
 */
 
-typealias C6 = (CChar, CChar, CChar, CChar, CChar, CChar)
-typealias C11 = (CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar)
 /*
  * Data Interchange Format - Extended cpio header format - POSIX 1003.1-1990
  */
@@ -135,7 +133,6 @@ struct HD_BCPIO {
 #define BCPIO_MASK  0xffff      /* mask for dev/ino fields */
 // #endif /* _PAX_ */
 
-typealias C8 = (CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar)
 /*
  * System VR4 cpio header structure (with/without file data crc)
  */

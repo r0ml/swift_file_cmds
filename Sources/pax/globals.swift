@@ -66,6 +66,37 @@ let NONE = "none"
 let TNMSZ = 100    /* size of name field */
 let TPFSZ =  155
 
+typealias C6 = (CChar, CChar, CChar, CChar, CChar, CChar)
+typealias C8 = (CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar)
+typealias C11 = (CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar)
+typealias C12 = (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8 )
+typealias C32 = (
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8
+)
+
+typealias C100 = (
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8
+)
+
+typealias C155 = (
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+  UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8
+)
 
 enum TarFileType : Character {
   case REGTYPE =    "0"    /* Regular File */
@@ -88,6 +119,33 @@ enum TarFileType : Character {
   case LONGNAMETYPE =  "L"    /* Long File */
 }
 
+struct HD_USTAR {
+  var name : C100    /* name of entry */
+  var mode : C8       /* mode */
+  var uid : C8       /* uid */
+  var gid : C8      /* gid */
+  var size : C12      /* size */
+  var mtime : C12      /* modification time */
+  var chksum : C8    /* checksum */
+  var typeflag : UInt8     /* type of file. */
+  var linkname : C100      /* linked to name */
+  var magic : C6           /* magic cookie */
+  var version : (UInt8, UInt8)  /* version */
+  var uname : C32      /* ascii owner name */
+  var gname : C32      /* ascii group name */
+  var devmajor : C8    /* major device number */
+  var devminor : C8    /* minor device number */
+  var prefix : C155    /* linked to name */
+
+  init() {
+    let a = UnsafeMutablePointer<HD_USTAR>.allocate(capacity: 1)
+    self = a.pointee
+  }
+}
+
+enum OctalTerminator : Int {
+  case _0, _1, _2, _3
+}
 
 
 // FIXME: put me back

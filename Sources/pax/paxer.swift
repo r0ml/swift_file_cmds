@@ -64,14 +64,17 @@ class paxer : FSUB {
    * 'diff' it to that file to see how much of the -x pax format has been implemented.
    */
 
-  char pax_eh_datablk[4*1024];
-  int pax_read_or_list_mode = 0;
-  int want_a_m_time_headers = 0;
-  int want_linkdata = 0;
+  var pax_eh_datablk = Array<UInt8>(repeating: 0, count: 4*1024)
+  var pax_read_or_list_mode = 0
+  var want_a_m_time_headers = false
+  var want_linkdata = false
 
-  char *	pax_invalid_action_write_path = NULL;
-  char *	pax_invalid_action_write_cwd = NULL;
+  /*
+  var pax_invalid_action_write_path : String? = nil
+  var ax_invalid_action_write_cwd : String? = nil
+   */
 
+/*
   char
   *path_g,	*path_x,	*path_g_current,	*path_x_current,
   *uname_g,	*uname_x,	*uname_g_current,	*uname_x_current,
@@ -84,229 +87,126 @@ class paxer : FSUB {
   *mtime_g,	*mtime_x,	*mtime_g_current,	*mtime_x_current,
   *size_g,	*size_x,	*size_g_current,	*size_x_current,
   *uid_g,		*uid_x,		*uid_g_current,		*uid_x_current;
+*/
 
-  char	*header_name_g_requested = NULL,
-  *header_name_x_requested = NULL;
+  /*
+  var header_name_g_requested : String? = nil
+  var header_name_x_requested : String? = nil
+   */
 
-  char	*header_name_g = "/tmp/GlobalHead.%p.%n",
-  *header_name_x = "%d/PaxHeaders.%p/%f";
+  var header_name_g = "/tmp/GlobalHead.%p.%n"
+  var header_name_x = "%d/PaxHeaders.%p/%f"
 
   int	nglobal_headers = 0;
+
   char	*pax_list_opt_format;
 
-  #define O_OPTION_ACTION_NOTIMPL		0
-  #define O_OPTION_ACTION_INVALID		1
-  #define O_OPTION_ACTION_DELETE		2
-  #define O_OPTION_ACTION_STORE_HEADER	3
-  #define O_OPTION_ACTION_TIMES		4
-  #define O_OPTION_ACTION_HEADER_NAME	5
-  #define O_OPTION_ACTION_LISTOPT		6
-  #define O_OPTION_ACTION_LINKDATA	7
 
-  #define O_OPTION_ACTION_IGNORE		8
-  #define O_OPTION_ACTION_ERROR		9
-  #define O_OPTION_ACTION_STORE_HEADER2	10
+  enum O_OptionAction : Int {
+    case NOTIMPL = 0
+    case INVALID = 1
+    case DELETE = 2
+    case STORE_HEADER = 3
+    case TIMES = 4
+    case HEADER_NAME = 5
+    case LISTOPT = 6
+    case LINKDATA = 7
 
-  #define ATTRSRC_FROM_NOWHERE		0
-  #define ATTRSRC_FROM_X_O_OPTION		1
-  #define ATTRSRC_FROM_G_O_OPTION		2
-  #define ATTRSRC_FROM_X_HEADER		3
-  #define ATTRSRC_FROM_G_HEADER		4
+    case IGNORE = 8
+    case ERROR = 9
+    case STORE_HEADER2 = 10
+  }
 
-  #define KW_PATH_CASE	0
-  #define KW_SKIP_CASE	-1
-  #define KW_ATIME_CASE	-2
+  enum AttrSource : Int {
+    case NOWHERE = 0
+    case X_O_OPTION =	1
+    case G_O_OPTION =	2
+    case X_HEADER =	3
+    case G_HEADER =	4
+  }
 
-  typedef struct {
-    char *	name;
-    int	len;
-    int	active;			/* 1 means active, 0 means deleted via -o delete=		*/
-    int	cmdline_action;
-    int	header_action;
+  enum KW : Int {
+    case PATH_CASE = 0
+    case SKIP_CASE = -1
+    case ATIME_CASE = -2
+  }
+
+  struct O_OPTION_TYPE {
+    var name : String
+    var active : Bool			/* 1 means active, 0 means deleted via -o delete=		*/
+    var cmdline_action : O_OptionAction
+    var header_action : O_OptionAction
     /* next 2 entries only used by store_header actions						*/
-    char **	g_value;		/* -o keyword= value						*/
-    char **	x_value;		/* -o keyword:= value						*/
-    char **	g_value_current;	/* keyword= value found in Global extended header		*/
-    char **	x_value_current;	/* keyword= value found in extended header			*/
-    int	header_inx;		/* starting index of header field this keyword represents	*/
-    int	header_len;		/* length of header field this keyword represents		*/
+//    var g_value : [String]		/* -o keyword= value						*/
+//    var x_value : [String]		/* -o keyword:= value						*/
+//    var g_value_current : [String]	/* keyword= value found in Global extended header		*/
+//    var x_value_current : [String]	/* keyword= value found in extended header			*/
+    var header_inx : Int		/* starting index of header field this keyword represents	*/
+    var header_len : Int    /* length of header field this keyword represents		*/
     /* If negative, special cases line path=			*/
-  } O_OPTION_TYPE;
+  }
 
-  O_OPTION_TYPE o_option_table[] = {
-    { "atime",	5,	1,	O_OPTION_ACTION_STORE_HEADER, O_OPTION_ACTION_STORE_HEADER,
-      &atime_g,	&atime_x,	&atime_g_current,	&atime_x_current,	0,	KW_ATIME_CASE	},
-    { "charset",	7,	1,	O_OPTION_ACTION_STORE_HEADER, O_OPTION_ACTION_IGNORE,
-      &charset_g,	&charset_x,	&charset_g_current,	&charset_x_current,	0,	KW_SKIP_CASE	},
-    { "comment",	7,	1,	O_OPTION_ACTION_STORE_HEADER, O_OPTION_ACTION_IGNORE,
-      &comment_g,	&comment_x,	&comment_g_current,	&comment_x_current,	0,	KW_SKIP_CASE	},
-    { "gid",	3,	1,	O_OPTION_ACTION_STORE_HEADER2, O_OPTION_ACTION_STORE_HEADER2,
-      &gid_g,		&gid_x,		&gid_g_current,		&gid_x_current	,	116,	8		},
-    { "gname",	5,	1,	O_OPTION_ACTION_STORE_HEADER2, O_OPTION_ACTION_STORE_HEADER2,
-      &gname_g,	&gname_x,	&gname_g_current,	&gname_x_current,	297,	32		},
-    { "linkpath",	8,	1,	O_OPTION_ACTION_STORE_HEADER, O_OPTION_ACTION_STORE_HEADER,
-      &linkpath_g,	&linkpath_x,	&linkpath_g_current,	&linkpath_x_current,	0,	KW_SKIP_CASE	},
-    { "mtime",	5,	1,	O_OPTION_ACTION_STORE_HEADER, O_OPTION_ACTION_STORE_HEADER,
-      &mtime_g,	&mtime_x,	&mtime_g_current,	&mtime_x_current,	136,	KW_SKIP_CASE	},
-    { "path",	4,	1,	O_OPTION_ACTION_STORE_HEADER, O_OPTION_ACTION_STORE_HEADER,
-      &path_g,	&path_x,	&path_g_current,	&path_x_current,	0,	KW_PATH_CASE	},
-    { "size",	4,	1,	O_OPTION_ACTION_STORE_HEADER, O_OPTION_ACTION_STORE_HEADER,
-      &size_g,	&size_x,	&size_g_current,	&size_x_current,	124,	KW_SKIP_CASE	},
-    { "uid",	3,	1,	O_OPTION_ACTION_STORE_HEADER2, O_OPTION_ACTION_STORE_HEADER2,
-      &uid_g,		&uid_x,		&uid_g_current,		&uid_x_current,		108,	8		},
-    { "uname",	5,	1,	O_OPTION_ACTION_STORE_HEADER2, O_OPTION_ACTION_STORE_HEADER2,
-      &uname_g,	&uname_x,	&uname_g_current,	&uname_x_current,	265,	32		},
+  var o_option_table : [O_OPTION_TYPE] = [
+    .init(name:"atime",	active: true,	cmdline_action: .STORE_HEADER, header_action: .STORE_HEADER, header_inx: 0,  header_len: KW.ATIME_CASE.rawValue),
+//          &atime_g,	&atime_x,	&atime_g_current,	&atime_x_current,
+    .init(name: "charset", active: true, cmdline_action: .STORE_HEADER, header_action: .IGNORE, header_inx: 0, header_len: KW.SKIP_CASE.rawValue),
+//      &charset_g,	&charset_x,	&charset_g_current,	&charset_x_current,
+    .init(name: "comment",	active: true, cmdline_action: .STORE_HEADER, header_action: .IGNORE, header_inx: 0, header_len: KW.SKIP_CASE.rawValue),
+//      &comment_g,	&comment_x,	&comment_g_current,	&comment_x_current,
+    .init(name: "gid", active: true, cmdline_action: .STORE_HEADER2, header_action: .STORE_HEADER2, header_inx: 116, header_len: 8),
+//      &gid_g,		&gid_x,		&gid_g_current,		&gid_x_current
+    .init(name: "gname",	active: true,	cmdline_action: .STORE_HEADER2, header_action: .STORE_HEADER2, header_inx: 297, header_len: 32),
+//      &gname_g,	&gname_x,	&gname_g_current,	&gname_x_current,
+    .init(name: "linkpath",	active: true,	cmdline_action: .STORE_HEADER, header_action: .STORE_HEADER, header_inx: 0, header_len: KW.SKIP_CASE.rawValue),
+//      &linkpath_g,	&linkpath_x,	&linkpath_g_current,	&linkpath_x_current,
+    .init(name: "mtime",	active: true,	cmdline_action: .STORE_HEADER, header_action: .STORE_HEADER, header_inx: 136, header_len: KW.SKIP_CASE.rawValue),
+//      &mtime_g,	&mtime_x,	&mtime_g_current,	&mtime_x_current,
+    .init(name: "path",	active: true,	cmdline_action: .STORE_HEADER, header_action: .STORE_HEADER, header_inx: 0, header_len: KW.PATH_CASE.rawValue),
+//      &path_g,	&path_x,	&path_g_current,	&path_x_current,
+    .init(name: "size",	active: true,	cmdline_action: .STORE_HEADER, header_action: .STORE_HEADER, header_inx: 124, header_len: KW.SKIP_CASE.rawValue),
+//      &size_g,	&size_x,	&size_g_current,	&size_x_current,
+    .init(name: "uid",	active: true,	cmdline_action: .STORE_HEADER2, header_action: .STORE_HEADER2, header_inx: 108, header_len: 8),
+//      &uid_g,		&uid_x,		&uid_g_current,		&uid_x_current,
+    .init(name: "uname",	active: true, cmdline_action: .STORE_HEADER2, header_action: .STORE_HEADER2, header_inx: 265, header_len: 32),
+//      &uname_g,	&uname_x,	&uname_g_current,	&uname_x_current,
 
-    { "exthdr.name",  11,	1,	O_OPTION_ACTION_HEADER_NAME,	O_OPTION_ACTION_ERROR,
-      &header_name_x, &header_name_x_requested,	NULL,	NULL,	0,	KW_SKIP_CASE	},
-    { "globexthdr.name", 15, 1,	O_OPTION_ACTION_HEADER_NAME,	O_OPTION_ACTION_ERROR,
-      &header_name_g, &header_name_g_requested,	NULL,	NULL,	0,	KW_SKIP_CASE	},
+      .init(name: "exthdr.name", active: true,	cmdline_action: .HEADER_NAME,	header_action: .ERROR, header_inx: 0, header_len: KW.SKIP_CASE.rawValue),
+//      &header_name_x, &header_name_x_requested,	NULL,	NULL,
+    .init(name: "globexthdr.name", active:true, cmdline_action: .HEADER_NAME,	header_action: .ERROR, header_inx: 0, header_len: KW.SKIP_CASE.rawValue),
+//      &header_name_g, &header_name_g_requested,	NULL,	NULL,
 
-    { "delete",	6,	1,	O_OPTION_ACTION_DELETE,	 O_OPTION_ACTION_ERROR,
-      NULL,		NULL,		NULL,			NULL,	0,	KW_SKIP_CASE	},
-    { "invalid",	7,	1,	O_OPTION_ACTION_INVALID,	 O_OPTION_ACTION_ERROR,
-      NULL,		NULL,		NULL,			NULL,	0,	KW_SKIP_CASE	},
-    { "linkdata",	8,	1,	O_OPTION_ACTION_LINKDATA,	 O_OPTION_ACTION_ERROR,
-      NULL,		NULL,		NULL,			NULL,	0,	KW_SKIP_CASE	}, /* Test 241 */
-    { "listopt",	7,	1,	O_OPTION_ACTION_LISTOPT,	 O_OPTION_ACTION_ERROR,
-      &pax_list_opt_format, NULL,	NULL,			NULL,	0,	KW_SKIP_CASE	}, /* Test 242 */
+      .init(name: "delete", active: true,	cmdline_action: .DELETE, header_action: .ERROR, header_inx: 0, header_len: KW.SKIP_CASE.rawValue),
+//      NULL,		NULL,		NULL,			NULL,
+    .init(name: "invalid",	active: true,	cmdline_action: .INVALID,	header_action: .ERROR, header_inx: 0, header_len: KW.SKIP_CASE.rawValue),
+//      NULL,		NULL,		NULL,			NULL,
+    .init(name: "linkdata",	active: true, cmdline_action: .LINKDATA,	header_action: .ERROR, header_inx: 0, header_len: KW.SKIP_CASE.rawValue), // Test 241
+//    NULL,		NULL,		NULL,			NULL,
+      .init(name: "listopt", active: true,	cmdline_action: .LISTOPT,	header_action: .ERROR, header_inx: 0, header_len: KW.SKIP_CASE.rawValue), // Test 242
+//      &pax_list_opt_format, NULL,	NULL,			NULL,
     /* Note: listopt is supposed to apply for all formats, not just -x pax only	*/
-    { "times",	5,	1,	O_OPTION_ACTION_TIMES,	 O_OPTION_ACTION_ERROR,
-      NULL,		NULL,		NULL,			NULL,	0,	KW_SKIP_CASE	},
-  };
+      .init(name: "times", active: true, cmdline_action: .TIMES, header_action: .ERROR, header_inx: 0, header_len: KW.SKIP_CASE.rawValue),
+ //     NULL,		NULL,		NULL,			NULL,
+  ]
 
-  int ext_header_inx,
-  global_ext_header_inx;
+  var ext_header_inx : Int = 0
+  var global_ext_header_inx : Int = 0
 
   /* Make these tables big enough to handle lots of -o options, not just one per table entry */
-  int ext_header_entry       [4*sizeof(o_option_table)/sizeof(O_OPTION_TYPE)],
-  global_ext_header_entry[4*sizeof(o_option_table)/sizeof(O_OPTION_TYPE)];
+  var ext_header_entry : [Int] = []      // [4*sizeof(o_option_table)/sizeof(O_OPTION_TYPE)],
+  var global_ext_header_entry : [Int] = [] // [4*sizeof(o_option_table)/sizeof(O_OPTION_TYPE)];
 
   /*
    * Routines for reading, writing and header identify of various versions of pax
    */
-  static uid_t uid_nobody;
-  static uid_t uid_warn;
-  static gid_t gid_nobody;
-  static gid_t gid_warn;
+  var uid_nobody: UInt       // static uid_t uid_nobody;
+  var uid_warn : UInt        // static uid_t uid_warn;
+  var gid_nobody : UInt      // static gid_t gid_nobody;
+  var gid_warn : UInt        // static gid_t gid_warn;
 
   /*
    * Routines common to all versions of pax
    */
 
-  /*
-   * ul_oct()
-   *	convert an unsigned long to an octal string. many oddball field
-   *	termination characters are used by the various versions of tar in the
-   *	different fields. term selects which kind to use. str is '0' padded
-   *	at the front to len. we are unable to use only one format as many old
-   *	tar readers are very cranky about this.
-   * Return:
-   *	0 if the number fit into the string, -1 otherwise
-   */
-
-  static int
-  ul_oct(u_long val, char *str, int len, int term)
-  {
-    char *pt;
-
-    /*
-     * term selects the appropriate character(s) for the end of the string
-     */
-    pt = str + len - 1;
-    switch (term) {
-      case 3:
-        *pt-- = '\0';
-        break;
-      case 2:
-        *pt-- = ' ';
-        *pt-- = '\0';
-        break;
-      case 1:
-        *pt-- = ' ';
-        break;
-      case 0:
-      default:
-        *pt-- = '\0';
-        *pt-- = ' ';
-        break;
-    }
-
-    /*
-     * convert and blank pad if there is space
-     */
-    while (pt >= str) {
-      *pt-- = '0' + (char)(val & 0x7);
-      if ((val = val >> 3) == (u_long)0) {
-        break;
-      }
-    }
-
-    while (pt >= str) {
-      *pt-- = '0';
-    }
-    if (val != (u_long)0) {
-      return .failed;
-    }
-    return(0);
-  }
-
-  /*
-   * uqd_oct()
-   *	convert an u_quad_t to an octal string. one of many oddball field
-   *	termination characters are used by the various versions of tar in the
-   *	different fields. term selects which kind to use. str is '0' padded
-   *	at the front to len. we are unable to use only one format as many old
-   *	tar readers are very cranky about this.
-   * Return:
-   *	0 if the number fit into the string, -1 otherwise
-   */
-
-  static int
-  uqd_oct(u_quad_t val, char *str, int len, int term)
-  {
-    char *pt;
-
-    /*
-     * term selects the appropriate character(s) for the end of the string
-     */
-    pt = str + len - 1;
-    switch (term) {
-      case 3:
-        *pt-- = '\0';
-        break;
-      case 2:
-        *pt-- = ' ';
-        *pt-- = '\0';
-        break;
-      case 1:
-        *pt-- = ' ';
-        break;
-      case 0:
-      default:
-        *pt-- = '\0';
-        *pt-- = ' ';
-        break;
-    }
-
-    /*
-     * convert and blank pad if there is space
-     */
-    while (pt >= str) {
-      *pt-- = '0' + (char)(val & 0x7);
-      if ((val = val >> 3) == 0) {
-        break;
-      }
-    }
-
-    while (pt >= str) {
-      *pt-- = '0';
-    }
-    if (val != (u_quad_t)0) {
-      return .failed;
-    }
-    return(0);
-  }
 
   /*
    * pax_chksm()
@@ -318,9 +218,7 @@ class paxer : FSUB {
    *	unsigned long checksum
    */
 
-  static u_long
-  pax_chksm(char *blk, int len)
-  {
+  func pax_chksm(_ blk : [UInt8]) -> UInt {
     char *stop;
     char *pt;
     u_long chksm = BLNKSUM;	/* initial value is checksum field sum */
@@ -346,9 +244,7 @@ class paxer : FSUB {
     return(chksm);
   }
 
-  void
-  pax_format_list_output(ARCHD *arcn, time_t now, FILE *fp, int term)
-  {
+  func pax_format_list_output(_ arcn : ARCHD, _ now : DateTime, _ fp : FileDescriptor, _ term : Character) {
     /* parse specified listopt format */
     char *nextpercent, *nextchar;
     char buf[4*1024];
@@ -402,9 +298,7 @@ class paxer : FSUB {
     return;
   }
 
-  void
-  cleanup_pax_invalid_action(void)
-  {
+  func cleanup_pax_invalid_action() {
     switch (pax_invalid_action) {
       case PAX_INVALID_ACTION_BYPASS:
       case PAX_INVALID_ACTION_RENAME:
@@ -422,9 +316,7 @@ class paxer : FSUB {
     }
   }
 
-  void
-  record_pax_invalid_action_results(ARCHD * arcn, char * fixed_path)
-  {
+  func record_pax_invalid_action_results(_ arcn : ARCHD, _ fixed_path : String) {
     switch (pax_invalid_action) {
       case PAX_INVALID_ACTION_BYPASS:
       case PAX_INVALID_ACTION_RENAME:
@@ -440,9 +332,7 @@ class paxer : FSUB {
     }
   }
 
-  int
-  perform_pax_invalid_action(ARCHD * arcn, int err)
-  {
+  func perform_pax_invalid_action(_ arcn : ARCHD, _ err : Int) -> Int {
     int rc = 0;
     switch (pax_invalid_action) {
       case PAX_INVALID_ACTION_BYPASS:
@@ -464,9 +354,7 @@ class paxer : FSUB {
     return rc;
   }
 
-  static void
-  delete_keywords(char * pattern)
-  {
+  func delete_keywords(_ pattern : String) {
     int i;
     /* loop over all keywords, marking any matched as deleted */
     for (i = 0; i < sizeof(o_option_table)/sizeof(O_OPTION_TYPE); i++) {
