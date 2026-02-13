@@ -96,27 +96,9 @@ nonisolated(unsafe) var myUsage : usageType = .pax
 //  typedef struct oplist OPLIST;
 //  typedef struct pattern PATTERN;
 
-    enum Separator : Int {
-      case none = 0
-      case equals = 1
-      case colonEquals = 2
-    }
-  /*
-   * Format Specific Options List
-   *
-   * Used to pass format options to the format options handler
-   */
-  struct oplist {
-    var name : String    /* option variable name e.g. name= */
-    var value : String   /* value for option variable */
-//    struct oplist  *fow;    /* next option */
-    var separator : Separator  /* 2 means := separator; 1 means = separator
-               0 means no separator */
-  }
-
-  let SEP_COLONEQ = 2
-  let SEP_EQ = 1
-  let SEP_NONE = 0
+//  let SEP_COLONEQ = 2
+//  let SEP_EQ = 1
+//  let SEP_NONE = 0
 
   /*
    * General Macros

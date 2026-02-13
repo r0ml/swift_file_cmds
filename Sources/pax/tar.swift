@@ -41,13 +41,7 @@ import Darwin
 
 class tar : FSUB {
 
-  /*
-   * defines and data structures common to all tar formats
-   */
-  let CHK_LEN = 8    /* length of checksum field */
-
-  let CHK_OFFSET = 148 /* start of checksum field */
-  let BLNKSUM = 256    /* sum of checksum field using " " */
+ 
 
   /*
    * Values used in typeflag field in all tar formats

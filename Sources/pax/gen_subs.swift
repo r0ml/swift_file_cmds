@@ -38,6 +38,7 @@
 
 import CMigration
 import Darwin
+import VIS
 
 struct Gen {
 
@@ -58,7 +59,7 @@ struct Gen {
 
   static let NAME_WIDTH = 8
 
-  static let d_first = -1
+  static let d_first = nl_langinfo(D_MD_ORDER).pointee == "d".first!.asciiValue!
 
   /*
    * ls_list()
@@ -77,24 +78,21 @@ struct Gen {
     /*
      * if not verbose, just print the file name
      */
-    if (!vflag) {
+    if vflag == 0 {
       if (zeroflag) {
-        fputs(arcn.name, terminator: term, fp)
+        print(arcn.name, terminator: term, to: &fp)
       }
       else {
-        safe_print(arcn.name, terminator: term, fp)
+        safe_print(arcn.name, terminator: term, to: &fp)
       }
       return
     }
 
-    if (pax_list_opt_format) {
+    if pax_list_opt_format {
       pax_format_list_output(arcn, now, fp, term);
       return;
     }
 
-    if (d_first < 0) {
-      d_first = (*nl_langinfo(D_MD_ORDER) == 'd');
-    }
     /*
      * user wants long mode
      */
@@ -104,7 +102,8 @@ struct Gen {
     /*
      * time format based on age compared to the time pax was started.
      */
-    if ((sbp.lastModified + SIXMONTHS) <= now || sbp.lastModified > now) {
+    let timefrmt : String
+    if (sbp.lastModified + SIXMONTHS) <= now || sbp.lastModified > now {
       timefrmt = d_first ? OLDFRMTD : OLDFRMTM
     }
     else {
@@ -118,10 +117,10 @@ struct Gen {
       f_date[0] = '\0';
     }
 
-    #define UT_NAMESIZE 8
-    (void)fprintf(fp, "%s%2u %-*.*s %-*.*s ", f_mode, sbp.links,
+    let UT_NAMESIZE = 8
+    print( "%s%2u %-*.*s %-*.*s ", f_mode, sbp.links,
                   NAME_WIDTH, UT_NAMESIZE, name_uid(sbp.userId, 1),
-                  NAME_WIDTH, UT_NAMESIZE, name_gid(sbp.groupId, 1));
+           NAME_WIDTH, UT_NAMESIZE, name_gid(sbp.groupId, 1), to: &fp);
 
     /*
      * print device id's for devices, or sizes for other nodes
@@ -173,10 +172,6 @@ struct Gen {
 //    char f_mode[MODELEN];
 //    const char *timefrmt;
 
-    if (d_first < 0) {
-      d_first = (*nl_langinfo(D_MD_ORDER) == 'd');
-    }
-
     var timefrmt : String
     if (arcn.sb.lastModified + SIXMONTHS) <= DateTime(Darwin.time(nil)) {
       timefrmt = d_first ? OLDFRMTD : OLDFRMTM;
@@ -226,7 +221,7 @@ struct Gen {
   }
 */
 
-  static func safe_print(_ str : String, _ fp : FileDescriptor) {
+  static func safe_print(_ str : String, terminator term: String, to fp : inout FileDescriptor) {
     /*
      * if printing to a tty, use strvis(3) to print special characters.
      */
@@ -235,21 +230,19 @@ struct Gen {
        * The size of visbuf must be four times the number
        * of bytes encoded from str (plus one for the NUL).
        */
-      size_t visbuflen = 4 * strlen(str) + 1;
-      char *visbuf = malloc(visbuflen);
-      if (visbuf == NULL) {
-        Tty.paxwarn(true, "Out of memory");
-        return;
+      let visbuflen = 4 * str.utf8.count + 1
+
+      let visbuf = withUnsafeTemporaryAllocation(byteCount: visbuflen, alignment: 8) { visbuf in
+        /*
+         * using strvis(3) instead of vis(3) to account for multibyte
+         * characters
+         */
+        strnvis(visbuf.baseAddress!, visbuf.count, str, VIS_CSTYLE)
+        return String(decoding: visbuf, as: UTF8.self)
       }
-      /*
-       * using strvis(3) instead of vis(3) to account for multibyte
-       * characters
-       */
-      (void)strnvis(visbuf, visbuflen, str, VIS_CSTYLE);
-      print(visbuf, terminator: "", to: &fp)
-      free(visbuf);
+      print(visbuf, terminator: term, to: &fp)
     } else {
-      print(str, terminator: "", to: &fp)
+      print(str, terminator: term, to: &fp)
     }
   }
 
@@ -286,5 +279,52 @@ struct Gen {
      * WARNING str is not '\0' terminated by this routine
      */
     return b
+  }
+
+  func pax_format_list_output(_ arcn : ARCHD, _ now : DateTime, _ fp : FileDescriptor, _ term : Character) {
+    /* parse specified listopt format */
+ /*   char *nextpercent, *nextchar;
+    char buf[4*1024];
+    int pos, cpylen;
+    char *fname;
+*/
+
+    guard let pax_list_opt_format, var nextpercent = pax_list_opt_format.firstIndex(of: "%") else {
+      /* Strange case: no specifiers? */
+      safe_print(pax_list_opt_format, fp)
+      putc(term, fp);
+      flush(fp);
+      return
+    }
+//    pos = nextpercent-pax_list_opt_format;
+    var buf = pax_list_opt_format[pax_list_opt_format.startIndex..<nextpercent]
+    while true {
+      nextpercent = pax_list_opt_format.index(after: nextpercent)
+      switch pax_list_opt_format[nextpercent] {
+        case "F":
+          buf += arcn.name
+        case "D", "T", "M", "L":
+          fallthrough
+        default:
+          Tty.paxwarn(true, "Unimplemented listopt format: \(pax_list_opt_format[nextpercent])")
+      }
+      nextpercent++;
+      if (*nextpercent=='\0') {
+        break;
+      }
+      nextchar = nextpercent;
+      nextpercent = strchr(nextpercent,'%');
+      if (nextpercent==NULL) {
+        cpylen = strlen(nextchar);
+      } else {
+        cpylen = nextpercent - nextchar;
+      }
+      memcpy(&buf[pos],nextchar, cpylen);
+      pos += cpylen;
+    }
+    safe_print(&buf[0], fp);
+    (void)putc(term, fp);
+    (void)fflush(fp);
+    return;
   }
 }

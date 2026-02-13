@@ -66,6 +66,15 @@ let NONE = "none"
 let TNMSZ = 100    /* size of name field */
 let TPFSZ =  155
 
+/*
+ * defines and data structures common to all tar formats
+ */
+let CHK_LEN = 8    /* length of checksum field */
+let CHK_OFFSET = 148 /* start of checksum field */
+let BLNKSUM = 256    /* sum of checksum field using " " */
+
+
+
 typealias C6 = (CChar, CChar, CChar, CChar, CChar, CChar)
 typealias C8 = (CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar)
 typealias C11 = (CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar)
@@ -147,13 +156,41 @@ enum OctalTerminator : Int {
   case _0, _1, _2, _3
 }
 
+enum PAX_INVALID_ACTION : Int {
+  case BYPASS = 1
+  case RENAME = 2
+  case UTF8 = 3
+  case WRITE = 4
+}
+
+
+enum Separator : Int {
+  case none = 0
+  case equals = 1
+  case colonEquals = 2
+}
+
+/*
+ * Format Specific Options List
+ *
+ * Used to pass format options to the format options handler
+ */
+struct oplist {
+  var name : String    /* option variable name e.g. name= */
+  var value : String?   /* value for option variable */
+//    struct oplist  *fow;    /* next option */
+  var separator : Separator  /* 2 means := separator; 1 means = separator
+             0 means no separator */
+}
+
 
 // FIXME: put me back
 // nonisolated(unsafe) let ar_io = Ar_io()
 nonisolated(unsafe) let cache = Cache()
 nonisolated(unsafe) let tty = Tty()
 
-nonisolated(unsafe) var pax_invalid_action = false
+nonisolated(unsafe) var pax_invalid_action : PAX_INVALID_ACTION? 
+
 nonisolated(unsafe) var exit_val : Int32 = 0   /* exit value */
 nonisolated(unsafe) var vflag : Int = 0  /* produce verbose output */
 nonisolated(unsafe) var vfpart = false      /* is partial verbose output in progress */
@@ -164,3 +201,4 @@ nonisolated(unsafe) var programName : String = "pax"
 nonisolated(unsafe) var chdname : String?
 
 
+nonisolated(unsafe) var ophead : [oplist] = []

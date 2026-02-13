@@ -952,6 +952,7 @@
 				pax/ARCHD.swift,
 				pax/cache.swift,
 				pax/FSUB.swift,
+				pax/gen_subs.swift,
 				pax/globals.swift,
 				pax/options.swift,
 				pax/pax_options.swift,
@@ -4269,6 +4270,7 @@
 		E77401332F02D87D00498517 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				HEADER_SEARCH_PATHS = Vendors;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Debug;
@@ -4276,6 +4278,7 @@
 		E77401342F02D87D00498517 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				HEADER_SEARCH_PATHS = Vendors;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Release;

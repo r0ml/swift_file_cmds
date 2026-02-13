@@ -97,9 +97,9 @@ class paxer : FSUB {
   var header_name_g = "/tmp/GlobalHead.%p.%n"
   var header_name_x = "%d/PaxHeaders.%p/%f"
 
-  int	nglobal_headers = 0;
+  var	nglobal_headers = 0
 
-  char	*pax_list_opt_format;
+  var pax_list_opt_format : String?
 
 
   enum O_OptionAction : Int {
@@ -198,10 +198,10 @@ class paxer : FSUB {
   /*
    * Routines for reading, writing and header identify of various versions of pax
    */
-  var uid_nobody: UInt       // static uid_t uid_nobody;
-  var uid_warn : UInt        // static uid_t uid_warn;
-  var gid_nobody : UInt      // static gid_t gid_nobody;
-  var gid_warn : UInt        // static gid_t gid_warn;
+  var uid_nobody: UInt?       // static uid_t uid_nobody;
+  var uid_warn : UInt?        // static uid_t uid_warn;
+  var gid_nobody : UInt?      // static gid_t gid_nobody;
+  var gid_warn : UInt?        // static gid_t gid_warn;
 
   /*
    * Routines common to all versions of pax
@@ -219,17 +219,12 @@ class paxer : FSUB {
    */
 
   func pax_chksm(_ blk : [UInt8]) -> UInt {
-    char *stop;
-    char *pt;
-    u_long chksm = BLNKSUM;	/* initial value is checksum field sum */
+    var chksm = UInt(BLNKSUM)	/* initial value is checksum field sum */
 
     /*
      * add the part of the block before the checksum field
      */
-    pt = blk;
-    stop = blk + CHK_OFFSET;
-    while (pt < stop)
-            chksm += (u_long)(*pt++ & 0xff);
+    for pt in 0..<CHK_OFFSET { chksm += UInt(blk[pt]) }
     /*
      * move past the checksum field and keep going, spec counts the
      * checksum field as the sum of 8 blanks (which is pre-computed as
@@ -237,130 +232,73 @@ class paxer : FSUB {
      * ASSUMED: len is greater than CHK_OFFSET. (len is where our 0 padding
      * starts, no point in summing zero's)
      */
-    pt += CHK_LEN;
-    stop = blk + len;
-    while (pt < stop)
-            chksm += (u_long)(*pt++ & 0xff);
-    return(chksm);
-  }
-
-  func pax_format_list_output(_ arcn : ARCHD, _ now : DateTime, _ fp : FileDescriptor, _ term : Character) {
-    /* parse specified listopt format */
-    char *nextpercent, *nextchar;
-    char buf[4*1024];
-    int pos, cpylen;
-    char *fname;
-
-    nextpercent = strchr(pax_list_opt_format,'%');
-    if (nextpercent==NULL) {
-      /* Strange case: no specifiers? */
-      safe_print(pax_list_opt_format, fp);
-      (void)putc(term, fp);
-      (void)fflush(fp);
-      return;
-    }
-    pos = nextpercent-pax_list_opt_format;
-    memcpy(buf,pax_list_opt_format, pos);
-    while (nextpercent++) {
-      switch (*nextpercent) {
-        case 'F':
-          fname = arcn.name;
-          cpylen = strlen(fname);
-          memcpy(&buf[pos],fname,cpylen);
-          pos+= cpylen;
-          break;
-        case 'D':
-        case 'T':
-        case 'M':
-        case 'L':
-        default:
-          Tty.paxwarn(true, "Unimplemented listopt format: %c",*nextpercent);
-          break;
-      }
-      nextpercent++;
-      if (*nextpercent=='\0') {
-        break;
-      }
-      nextchar = nextpercent;
-      nextpercent = strchr(nextpercent,'%');
-      if (nextpercent==NULL) {
-        cpylen = strlen(nextchar);
-      } else {
-        cpylen = nextpercent - nextchar;
-      }
-      memcpy(&buf[pos],nextchar, cpylen);
-      pos += cpylen;
-    }
-    buf[pos]='\0';
-    safe_print(&buf[0], fp);
-    (void)putc(term, fp);
-    (void)fflush(fp);
-    return;
+    for pt in (CHK_OFFSET + CHK_LEN) ..< blk.count { chksm += UInt(blk[pt]) }
+    return chksm
   }
 
   func cleanup_pax_invalid_action() {
-    switch (pax_invalid_action) {
-      case PAX_INVALID_ACTION_BYPASS:
-      case PAX_INVALID_ACTION_RENAME:
-        break;
-      case PAX_INVALID_ACTION_WRITE:
+    switch pax_invalid_action {
+      case .BYPASS, .RENAME:
+        break
+      case .WRITE:
         pax_invalid_action_write_path = NULL;
         if (pax_invalid_action_write_cwd) {
           free(pax_invalid_action_write_cwd);
           pax_invalid_action_write_cwd = NULL;
         }
         break;
-      case PAX_INVALID_ACTION_UTF8:
+      case .UTF8:
+        fallthrough
       default:
-        Tty.paxwarn(true, "pax_invalid_action not implemented:%d", pax_invalid_action);
+        Tty.paxwarn(true, "pax_invalid_action not implemented:\(pax_invalid_action.rawValue)")
     }
   }
 
   func record_pax_invalid_action_results(_ arcn : ARCHD, _ fixed_path : String) {
     switch (pax_invalid_action) {
-      case PAX_INVALID_ACTION_BYPASS:
-      case PAX_INVALID_ACTION_RENAME:
-        break;
-      case PAX_INVALID_ACTION_WRITE:
+      case .BYPASS, .RENAME:
+        break
+      case .WRITE:
         pax_invalid_action_write_path = fixed_path;
         pax_invalid_action_write_cwd  = strdup(arcn.name);
         pax_invalid_action_write_cwd[fixed_path-arcn.name-1] = '\0';
         break;
-      case PAX_INVALID_ACTION_UTF8:
+      case .UTF8:
+        fallthrough
       default:
-        Tty.paxwarn(true, "pax_invalid_action not implemented:%d", pax_invalid_action);
+        Tty.paxwarn(true, "pax_invalid_action not implemented:\(pax_invalid_action.rawValue)")
     }
   }
 
   func perform_pax_invalid_action(_ arcn : ARCHD, _ err : Int) -> Int {
-    int rc = 0;
+    var rc = 0
     switch (pax_invalid_action) {
-      case PAX_INVALID_ACTION_BYPASS:
+      case .BYPASS:
         rc = -1;
         break;
-      case PAX_INVALID_ACTION_RENAME:
-        rc = tty_rename(arcn);
+      case .RENAME:
+        rc = Tty.tty_rename(arcn);
         break;
-      case PAX_INVALID_ACTION_WRITE:
+      case .WRITE:
         pax_invalid_action_write_path = NULL;
         pax_invalid_action_write_cwd = NULL;
         rc = 2;
         break;
-      case PAX_INVALID_ACTION_UTF8:
+      case .UTF8:
+        fallthrough
       default:
-        Tty.paxwarn(true, "pax_invalid_action not implemented:%d", pax_invalid_action);
+        Tty.paxwarn(true, "pax_invalid_action not implemented:\(pax_invalid_action.rawValue)")
         rc = -1;	/* do nothing? */
     }
-    return rc;
+    return rc
   }
 
   func delete_keywords(_ pattern : String) {
-    int i;
     /* loop over all keywords, marking any matched as deleted */
-    for (i = 0; i < sizeof(o_option_table)/sizeof(O_OPTION_TYPE); i++) {
-      if (fnmatch(pattern, o_option_table[i].name, 0) == 0) {
+    for i in 0..<o_option_table.count {
+      if o_option_table[i].name == pattern {
         /* Found option: mark deleted */
-        o_option_table[i].active = 0;
+        o_option_table[i].active = false
       }
     }
   }
@@ -373,107 +311,99 @@ class paxer : FSUB {
    */
 
   func other_options() -> Result {
-    OPLIST *opt;
-    int got_option = 0;
+     var got_option = 0;
 
-    while ((opt = opt_next()) != NULL) {
+    for opt in ophead {
       int i;
       got_option = -1;
       pax_invalid_action = PAX_INVALID_ACTION_BYPASS; /* Default for pax format */
       /* look up opt->name */
-      for (i = 0; i < sizeof(o_option_table)/sizeof(O_OPTION_TYPE); i++) {
-        if (strncasecmp(opt->name, o_option_table[i].name, o_option_table[i].len) == 0) {
+      for i in 0..<o_option_table.count {
+        if opt.name == o_option_table[i].name {
           /* Found option: see if already set */
           /* Save it away */
           got_option = 1;
-          switch (o_option_table[i].cmdline_action) {
-            case O_OPTION_ACTION_INVALID:
-              if (opt->separator != SEP_EQ) {
-                Tty.paxwarn(true,"-o %s= option requires '=' separator: option ignored",
-                        opt->name);
+          switch o_option_table[i].cmdline_action {
+            case .INVALID:
+              if (opt.separator != .equals) {
+                Tty.paxwarn(true,"-o \(opt.name)= option requires '=' separator: option ignored")
                 break;
               }
-              if (opt->value) {
-                if (strncasecmp(opt->value,"bypass",6) == 0) {
-                  pax_invalid_action = PAX_INVALID_ACTION_BYPASS;
-                } else if (strncasecmp(opt->value,"rename",6) == 0) {
-                  pax_invalid_action = PAX_INVALID_ACTION_RENAME;
-                } else if (strncasecmp(opt->value,"UTF-8",5) == 0) {
-                  pax_invalid_action = PAX_INVALID_ACTION_UTF8;
-                } else if (strncasecmp(opt->value,"write",5) == 0) {
-                  pax_invalid_action = PAX_INVALID_ACTION_WRITE;
+              if let v = opt.value?.lowercased() {
+                if v == "bypass" {
+                  pax_invalid_action = .BYPASS;
+                } else if v == "rename" {
+                  pax_invalid_action = .RENAME;
+                } else if v == "utf-8" {
+                  pax_invalid_action = .UTF8;
+                } else if v == "write" {
+                  pax_invalid_action = .WRITE;
                 } else {
-                  Tty.paxwarn(true,"Invalid action %s not recognized: option ignored",
-                          opt->value);
+                  Tty.paxwarn(true,"Invalid action \(v) not recognized: option ignored")
                 }
               } else {
                 Tty.paxwarn(true,"Invalid action RHS not specified: option ignored");
               }
               break;
-            case O_OPTION_ACTION_DELETE:
-              if (opt->separator != SEP_EQ) {
-                Tty.paxwarn(true,"-o %s= option requires '=' separator: option ignored",
-                        opt->name);
-                break;
+            case .DELETE:
+              if opt.separator != .equals {
+                Tty.paxwarn(true,"-o \(opt.name)= option requires '=' separator: option ignored")
+                break
               }
               /* Mark all matches as deleted */
               /* can have multiple -o delete= patterns */
-              delete_keywords(opt->value);
+              delete_keywords(opt.value)
               break;
-            case O_OPTION_ACTION_STORE_HEADER2:
-              if(pax_read_or_list_mode) { pids = 1; }	/* Force -p o for these options */
-            case O_OPTION_ACTION_STORE_HEADER:
+            case .STORE_HEADER2:
+              if (pax_read_or_list_mode) { pids = 1; }	/* Force -p o for these options */
+            case .STORE_HEADER:
               if (o_option_table[i].g_value == NULL ||
                   o_option_table[i].x_value == NULL ) {
-                Tty.paxwarn(true,"-o option not implemented: %s=%s",
-                        opt->name, opt->value);
+                Tty.paxwarn(true,"-o option not implemented: \(opt.name)=\(opt.value ?? "")")
               } else {
-                if (opt->separator == SEP_EQ) {
-                  *(o_option_table[i].g_value) = opt->value;
+                if opt.separator == .equals {
+                  *(o_option_table[i].g_value) = opt.value
                   global_ext_header_entry[global_ext_header_inx++] = i;
-                } else if (opt->separator == SEP_COLONEQ ) {
-                  *(o_option_table[i].x_value) = opt->value;
+                } else if opt.separator == .colonEquals ) {
+                  *(o_option_table[i].x_value) = opt.value
                   ext_header_entry       [ext_header_inx++] = i;
                 } else {        /* SEP_NONE */
-                  Tty.paxwarn(true,"-o %s option is missing value", opt->name);
+                  Tty.paxwarn(true,"-o \(opt.name) option is missing value")
                 }
               }
               break;
-            case O_OPTION_ACTION_TIMES:
-              if (opt->separator != SEP_NONE) {
-                Tty.paxwarn(true,"-o %s option takes no value: option ignored", opt->name);
+            case .TIMES:
+              if opt.separator != .none {
+                Tty.paxwarn(true,"-o \(opt.name) option takes no value: option ignored")
                 break;
               }
               want_a_m_time_headers = 1;
               break;
-            case O_OPTION_ACTION_LINKDATA:
-              if (opt->separator != SEP_NONE) {
-                Tty.paxwarn(true,"-o %s option takes no value: option ignored", opt->name);
+            case .LINKDATA:
+              if opt.separator != .none {
+                Tty.paxwarn(true,"-o \(opt.name) option takes no value: option ignored")
                 break;
               }
               want_linkdata = 1;
               break;
-            case O_OPTION_ACTION_HEADER_NAME:
-              if (opt->separator != SEP_EQ) {
-                Tty.paxwarn(true,"-o %s= option requires '=' separator: option ignored",
-                        opt->name);
+            case .HEADER_NAME:
+              if opt.separator != .equals {
+                Tty.paxwarn(true,"-o \(opt.name)= option requires '=' separator: option ignored")
                 break;
               }
-              *(o_option_table[i].g_value) = opt->value;
-              *(o_option_table[i].x_value) = "YES";
+              *(o_option_table[i].g_value) = opt.value
+              *(o_option_table[i].x_value) = "YES"
               break;
-            case O_OPTION_ACTION_LISTOPT:
-              if (opt->separator != SEP_EQ) {
-                Tty.paxwarn(true,"-o %s= option requires '=' separator: option ignored",
-                        opt->name);
+            case .LISTOPT:
+              if opt.separator != .equals {
+                Tty.paxwarn(true,"-o \(opt.name)= option requires '=' separator: option ignored")
                 break;
               }
               *(o_option_table[i].g_value) = opt->value;
               break;
-            case O_OPTION_ACTION_NOTIMPL:
+            case .NOTIMPL:
             default:
-              Tty.paxwarn(true,"pax format -o option not yet implemented: %s=%s",
-                      opt->name, opt->value);
+              Tty.paxwarn(true,"pax format -o option not yet implemented: \(opt.name)=\(opt.value ?? "")")
               break;
           }
           break;
@@ -484,7 +414,7 @@ class paxer : FSUB {
                 opt->name, opt->value);
       }
     }
-    return(0);
+    return .ok
   }
 
 
