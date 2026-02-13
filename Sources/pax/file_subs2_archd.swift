@@ -167,7 +167,7 @@ func chk_path(_ name : String, _ st_uid : UInt, _ st_gid : UInt, _ new_name : in
      * and create the node again.
      */
     retval = 0;
-    if (pids) {
+    if pids {
       set_ids(name, st_uid, st_gid);
     }
 
@@ -209,84 +209,6 @@ func chk_path(_ name : String, _ st_uid : UInt, _ st_gid : UInt, _ new_name : in
   return(retval);
 }
 
-/*
- * set_ftime()
- *  Set the access time and modification time for a named file. If frc is
- *  non-zero we force these times to be set even if the user did not
- *  request access and/or modification time preservation (this is also
- *  used by -t to reset access times).
- *  When frc is zero, only those times the user has asked for are set, the
- *  other ones are left alone. We do not assume the un-documented feature
- *  of many lutimes() implementations that consider a 0 time value as a do
- *  not set request.
- */
-
-static func set_ftime(_ fnm : String, _ mtime : DateTime, _ atime : DateTime, _ frc : Bool) {
-
-  var ts_req : attrlist = attrlist()
-  ts_req.bitmapcount = UInt16(ATTR_BIT_MAP_COUNT)
-  ts_req.commonattr =  UInt32(ATTR_CMN_MODTIME | ATTR_CMN_ACCTIME)
-
-/*    struct {
-    struct timespec mtime;
-    struct timespec atime;
-  } set_ts;
-  struct stat sb;
-*/
-/*  set_ts.atime.tv_sec = atime;
-  set_ts.atime.tv_nsec = atime_nsec;
-  set_ts.mtime.tv_sec = mtime;
-  set_ts.mtime.tv_nsec = mtime_nsec;
-*/
-
-if (!frc && (!options.patime || !options.pmtime)) {
-    /*
-     * if we are not forcing, only set those times the user wants
-     * set. We get the current values of the times if we need them.
-     */
-  if let sb = try? FileMetadata(for: FilePath(fnm), followSymlinks: false) {
-    if (!options.patime) {
-        set_ts.atime.tv_sec = sb.st_atime_sec;
-        set_ts.atime.tv_nsec = sb.st_atime_nsec;
-      }
-
-      if (!pmtime)
-
-      {
-        set_ts.mtime.tv_sec = sb.st_mtime_sec;
-        set_ts.mtime.tv_nsec = sb.st_mtime_nsec;
-      }
-
-    } else {
-      Tty.syswarn(false,errno,"Unable to obtain file stats \(fnm)")
-    }
-  }
-
-  /*
-   * set the times
-   */
-
-  if (pax_invalid_action_write_cwd) {
-    char cwd_buff[MAXPATHLEN];
-    char * cwd;
-    cwd = getcwd(&cwd_buff[0],MAXPATHLEN);
-    chdir(pax_invalid_action_write_cwd);
-    if (setattrlist(pax_invalid_action_write_path, &ts_req, &set_ts,
-                    sizeof(set_ts), FSOPT_NOFOLLOW) < 0) {
-      Tty.syswarn(true, errno, "Access/modification time set failed on: %s",
-              pax_invalid_action_write_path);
-    }
-    chdir(cwd);
-    cleanup_pax_invalid_action();
-  } else {
-    if (setattrlist(fnm, &ts_req, &set_ts, sizeof(set_ts), FSOPT_NOFOLLOW) < 0) {
-      Tty.syswarn(true, errno, "Access/modification time set failed on: %s",
-              fnm);
-    }
-  }
-
-  return;
-}
 
 /*
  * set_ids()
@@ -309,18 +231,6 @@ func set_ids(_ fnm : String, _ uid : UInt, _ gid : UInt) -> Result {
   return .ok
 }
 
-/*
- * set_pmode()
- *  Set file access mode
- */
-
-static func set_pmode(_ fnm : String, _ mode : FilePermissions) {
-  do {
-    try FilePath(fnm).setPermissions(mode)
-  } catch( let e) {
-    Tty.syswarn(true, e.code, "Could not set permissions on \(fnm)")
-  }
-}
 
 /*
  * file_write()

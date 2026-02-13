@@ -178,7 +178,7 @@ extension tar {
            * preserve uid/gid and file mode, regardless of umask
            */
           options.pmode = true
-          options.pids = true
+          pids = true
 
         case "q":
           /*

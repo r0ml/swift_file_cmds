@@ -40,7 +40,7 @@ import Foundation
 
 // FIXME: was tar
 class paxer : FSUB {
-  
+
   var name = "pax"
   var bsz = UInt(5120)
   var hsz = BLKMULT
@@ -48,12 +48,12 @@ class paxer : FSUB {
   var hlk = false
   var blkalgn = true
   var inhead = false
-
+  
   // paxer.init("pax", 5120, BLKMULT, 0, 1, BLKMULT, 0),
   // pax_id, ustar_strd, pax_rd, tar_endrd, ustar_stwr, pax_wr, tar_endwr, NULL,  tar_trail, rd_wrfile, wr_rdfile, pax_opt},
-
+  
   // id,     st_rd,      rd,     end_rd,    st_wr,      wr,     end_wr,    trail_cpio,  trail_tar, rd_wrfile, wr_rdfile, other_options
-
+  
   /*
    * This file implements the -x pax format support; it is incomplete.
    * Known missing features include:
@@ -65,43 +65,41 @@ class paxer : FSUB {
    */
 
   var pax_eh_datablk = Array<UInt8>(repeating: 0, count: 4*1024)
-  var pax_read_or_list_mode = 0
+//  var pax_read_or_list_mode = false
   var want_a_m_time_headers = false
-  var want_linkdata = false
-
+   
   /*
-  var pax_invalid_action_write_path : String? = nil
-  var ax_invalid_action_write_cwd : String? = nil
+   var ax_invalid_action_write_cwd : String? = nil
    */
-
-/*
-  char
-  *path_g,	*path_x,	*path_g_current,	*path_x_current,
-  *uname_g,	*uname_x,	*uname_g_current,	*uname_x_current,
-  *gname_g,	*gname_x,	*gname_g_current,	*gname_x_current,
-  *comment_g,	*comment_x,	*comment_g_current,	*comment_x_current,
-  *charset_g,	*charset_x,	*charset_g_current,	*charset_x_current,
-  *atime_g,	*atime_x,	*atime_g_current,	*atime_x_current,
-  *gid_g,		*gid_x,		*gid_g_current,		*gid_x_current,
-  *linkpath_g,	*linkpath_x,	*linkpath_g_current,	*linkpath_x_current,
-  *mtime_g,	*mtime_x,	*mtime_g_current,	*mtime_x_current,
-  *size_g,	*size_x,	*size_g_current,	*size_x_current,
-  *uid_g,		*uid_x,		*uid_g_current,		*uid_x_current;
-*/
-
+  
   /*
-  var header_name_g_requested : String? = nil
-  var header_name_x_requested : String? = nil
+   char
+   *path_g,	*path_x,	*path_g_current,	*path_x_current,
+   *uname_g,	*uname_x,	*uname_g_current,	*uname_x_current,
+   *gname_g,	*gname_x,	*gname_g_current,	*gname_x_current,
+   *comment_g,	*comment_x,	*comment_g_current,	*comment_x_current,
+   *charset_g,	*charset_x,	*charset_g_current,	*charset_x_current,
+   *atime_g,	*atime_x,	*atime_g_current,	*atime_x_current,
+   *gid_g,		*gid_x,		*gid_g_current,		*gid_x_current,
+   *linkpath_g,	*linkpath_x,	*linkpath_g_current,	*linkpath_x_current,
+   *mtime_g,	*mtime_x,	*mtime_g_current,	*mtime_x_current,
+   *size_g,	*size_x,	*size_g_current,	*size_x_current,
+   *uid_g,		*uid_x,		*uid_g_current,		*uid_x_current;
    */
-
+  
+  /*
+   var header_name_g_requested : String? = nil
+   var header_name_x_requested : String? = nil
+   */
+  
   var header_name_g = "/tmp/GlobalHead.%p.%n"
   var header_name_x = "%d/PaxHeaders.%p/%f"
-
+  
   var	nglobal_headers = 0
-
+  
   var pax_list_opt_format : String?
-
-
+  
+  
   enum O_OptionAction : Int {
     case NOTIMPL = 0
     case INVALID = 1
@@ -111,12 +109,12 @@ class paxer : FSUB {
     case HEADER_NAME = 5
     case LISTOPT = 6
     case LINKDATA = 7
-
+    
     case IGNORE = 8
     case ERROR = 9
     case STORE_HEADER2 = 10
   }
-
+  
   enum AttrSource : Int {
     case NOWHERE = 0
     case X_O_OPTION =	1
@@ -124,77 +122,77 @@ class paxer : FSUB {
     case X_HEADER =	3
     case G_HEADER =	4
   }
-
+  
   enum KW : Int {
     case PATH_CASE = 0
     case SKIP_CASE = -1
     case ATIME_CASE = -2
   }
-
+  
   struct O_OPTION_TYPE {
     var name : String
     var active : Bool			/* 1 means active, 0 means deleted via -o delete=		*/
     var cmdline_action : O_OptionAction
     var header_action : O_OptionAction
     /* next 2 entries only used by store_header actions						*/
-//    var g_value : [String]		/* -o keyword= value						*/
-//    var x_value : [String]		/* -o keyword:= value						*/
-//    var g_value_current : [String]	/* keyword= value found in Global extended header		*/
-//    var x_value_current : [String]	/* keyword= value found in extended header			*/
+    var g_value : String?     	/* -o keyword= value						*/
+    var x_value : String?       /* -o keyword:= value						*/
+    //    var g_value_current : [String]	/* keyword= value found in Global extended header		*/
+    //    var x_value_current : [String]	/* keyword= value found in extended header			*/
     var header_inx : Int		/* starting index of header field this keyword represents	*/
     var header_len : Int    /* length of header field this keyword represents		*/
     /* If negative, special cases line path=			*/
   }
-
+  
   var o_option_table : [O_OPTION_TYPE] = [
     .init(name:"atime",	active: true,	cmdline_action: .STORE_HEADER, header_action: .STORE_HEADER, header_inx: 0,  header_len: KW.ATIME_CASE.rawValue),
-//          &atime_g,	&atime_x,	&atime_g_current,	&atime_x_current,
+    //          &atime_g,	&atime_x,	&atime_g_current,	&atime_x_current,
     .init(name: "charset", active: true, cmdline_action: .STORE_HEADER, header_action: .IGNORE, header_inx: 0, header_len: KW.SKIP_CASE.rawValue),
-//      &charset_g,	&charset_x,	&charset_g_current,	&charset_x_current,
+    //      &charset_g,	&charset_x,	&charset_g_current,	&charset_x_current,
     .init(name: "comment",	active: true, cmdline_action: .STORE_HEADER, header_action: .IGNORE, header_inx: 0, header_len: KW.SKIP_CASE.rawValue),
-//      &comment_g,	&comment_x,	&comment_g_current,	&comment_x_current,
+    //      &comment_g,	&comment_x,	&comment_g_current,	&comment_x_current,
     .init(name: "gid", active: true, cmdline_action: .STORE_HEADER2, header_action: .STORE_HEADER2, header_inx: 116, header_len: 8),
-//      &gid_g,		&gid_x,		&gid_g_current,		&gid_x_current
+    //      &gid_g,		&gid_x,		&gid_g_current,		&gid_x_current
     .init(name: "gname",	active: true,	cmdline_action: .STORE_HEADER2, header_action: .STORE_HEADER2, header_inx: 297, header_len: 32),
-//      &gname_g,	&gname_x,	&gname_g_current,	&gname_x_current,
+    //      &gname_g,	&gname_x,	&gname_g_current,	&gname_x_current,
     .init(name: "linkpath",	active: true,	cmdline_action: .STORE_HEADER, header_action: .STORE_HEADER, header_inx: 0, header_len: KW.SKIP_CASE.rawValue),
-//      &linkpath_g,	&linkpath_x,	&linkpath_g_current,	&linkpath_x_current,
+    //      &linkpath_g,	&linkpath_x,	&linkpath_g_current,	&linkpath_x_current,
     .init(name: "mtime",	active: true,	cmdline_action: .STORE_HEADER, header_action: .STORE_HEADER, header_inx: 136, header_len: KW.SKIP_CASE.rawValue),
-//      &mtime_g,	&mtime_x,	&mtime_g_current,	&mtime_x_current,
+    //      &mtime_g,	&mtime_x,	&mtime_g_current,	&mtime_x_current,
     .init(name: "path",	active: true,	cmdline_action: .STORE_HEADER, header_action: .STORE_HEADER, header_inx: 0, header_len: KW.PATH_CASE.rawValue),
-//      &path_g,	&path_x,	&path_g_current,	&path_x_current,
+    //      &path_g,	&path_x,	&path_g_current,	&path_x_current,
     .init(name: "size",	active: true,	cmdline_action: .STORE_HEADER, header_action: .STORE_HEADER, header_inx: 124, header_len: KW.SKIP_CASE.rawValue),
-//      &size_g,	&size_x,	&size_g_current,	&size_x_current,
+    //      &size_g,	&size_x,	&size_g_current,	&size_x_current,
     .init(name: "uid",	active: true,	cmdline_action: .STORE_HEADER2, header_action: .STORE_HEADER2, header_inx: 108, header_len: 8),
-//      &uid_g,		&uid_x,		&uid_g_current,		&uid_x_current,
+    //      &uid_g,		&uid_x,		&uid_g_current,		&uid_x_current,
     .init(name: "uname",	active: true, cmdline_action: .STORE_HEADER2, header_action: .STORE_HEADER2, header_inx: 265, header_len: 32),
-//      &uname_g,	&uname_x,	&uname_g_current,	&uname_x_current,
-
+    //      &uname_g,	&uname_x,	&uname_g_current,	&uname_x_current,
+    
       .init(name: "exthdr.name", active: true,	cmdline_action: .HEADER_NAME,	header_action: .ERROR, header_inx: 0, header_len: KW.SKIP_CASE.rawValue),
-//      &header_name_x, &header_name_x_requested,	NULL,	NULL,
+    //      &header_name_x, &header_name_x_requested,	NULL,	NULL,
     .init(name: "globexthdr.name", active:true, cmdline_action: .HEADER_NAME,	header_action: .ERROR, header_inx: 0, header_len: KW.SKIP_CASE.rawValue),
-//      &header_name_g, &header_name_g_requested,	NULL,	NULL,
-
+    //      &header_name_g, &header_name_g_requested,	NULL,	NULL,
+    
       .init(name: "delete", active: true,	cmdline_action: .DELETE, header_action: .ERROR, header_inx: 0, header_len: KW.SKIP_CASE.rawValue),
-//      NULL,		NULL,		NULL,			NULL,
+    //      NULL,		NULL,		NULL,			NULL,
     .init(name: "invalid",	active: true,	cmdline_action: .INVALID,	header_action: .ERROR, header_inx: 0, header_len: KW.SKIP_CASE.rawValue),
-//      NULL,		NULL,		NULL,			NULL,
+    //      NULL,		NULL,		NULL,			NULL,
     .init(name: "linkdata",	active: true, cmdline_action: .LINKDATA,	header_action: .ERROR, header_inx: 0, header_len: KW.SKIP_CASE.rawValue), // Test 241
-//    NULL,		NULL,		NULL,			NULL,
+    //    NULL,		NULL,		NULL,			NULL,
       .init(name: "listopt", active: true,	cmdline_action: .LISTOPT,	header_action: .ERROR, header_inx: 0, header_len: KW.SKIP_CASE.rawValue), // Test 242
-//      &pax_list_opt_format, NULL,	NULL,			NULL,
+    //      &pax_list_opt_format, NULL,	NULL,			NULL,
     /* Note: listopt is supposed to apply for all formats, not just -x pax only	*/
       .init(name: "times", active: true, cmdline_action: .TIMES, header_action: .ERROR, header_inx: 0, header_len: KW.SKIP_CASE.rawValue),
- //     NULL,		NULL,		NULL,			NULL,
+    //     NULL,		NULL,		NULL,			NULL,
   ]
-
+  
   var ext_header_inx : Int = 0
   var global_ext_header_inx : Int = 0
-
+  
   /* Make these tables big enough to handle lots of -o options, not just one per table entry */
   var ext_header_entry : [Int] = []      // [4*sizeof(o_option_table)/sizeof(O_OPTION_TYPE)],
   var global_ext_header_entry : [Int] = [] // [4*sizeof(o_option_table)/sizeof(O_OPTION_TYPE)];
-
+  
   /*
    * Routines for reading, writing and header identify of various versions of pax
    */
@@ -202,12 +200,12 @@ class paxer : FSUB {
   var uid_warn : UInt?        // static uid_t uid_warn;
   var gid_nobody : UInt?      // static gid_t gid_nobody;
   var gid_warn : UInt?        // static gid_t gid_warn;
-
+  
   /*
    * Routines common to all versions of pax
    */
-
-
+  
+  
   /*
    * pax_chksm()
    *	calculate the checksum for a pax block counting the checksum field as
@@ -217,10 +215,10 @@ class paxer : FSUB {
    * Return:
    *	unsigned long checksum
    */
-
+  
   func pax_chksm(_ blk : [UInt8]) -> UInt {
     var chksm = UInt(BLNKSUM)	/* initial value is checksum field sum */
-
+    
     /*
      * add the part of the block before the checksum field
      */
@@ -235,33 +233,16 @@ class paxer : FSUB {
     for pt in (CHK_OFFSET + CHK_LEN) ..< blk.count { chksm += UInt(blk[pt]) }
     return chksm
   }
-
-  func cleanup_pax_invalid_action() {
-    switch pax_invalid_action {
-      case .BYPASS, .RENAME:
-        break
-      case .WRITE:
-        pax_invalid_action_write_path = NULL;
-        if (pax_invalid_action_write_cwd) {
-          free(pax_invalid_action_write_cwd);
-          pax_invalid_action_write_cwd = NULL;
-        }
-        break;
-      case .UTF8:
-        fallthrough
-      default:
-        Tty.paxwarn(true, "pax_invalid_action not implemented:\(pax_invalid_action.rawValue)")
-    }
-  }
+  
 
   func record_pax_invalid_action_results(_ arcn : ARCHD, _ fixed_path : String) {
     switch (pax_invalid_action) {
       case .BYPASS, .RENAME:
         break
       case .WRITE:
-        pax_invalid_action_write_path = fixed_path;
-        pax_invalid_action_write_cwd  = strdup(arcn.name);
-        pax_invalid_action_write_cwd[fixed_path-arcn.name-1] = '\0';
+        pax_invalid_action_write_path = fixed_path
+        pax_invalid_action_write_cwd  = String(arcn.name.dropLast(fixed_path.count))
+//        pax_invalid_action_write_cwd[fixed_path-arcn.name-1] = "\0"
         break;
       case .UTF8:
         fallthrough
@@ -269,30 +250,27 @@ class paxer : FSUB {
         Tty.paxwarn(true, "pax_invalid_action not implemented:\(pax_invalid_action.rawValue)")
     }
   }
-
-  func perform_pax_invalid_action(_ arcn : ARCHD, _ err : Int) -> Int {
-    var rc = 0
-    switch (pax_invalid_action) {
+  
+  func perform_pax_invalid_action(_ arcn : inout ARCHD, _ err : Int) -> Result {
+    var rc = Result.ok
+    switch pax_invalid_action {
       case .BYPASS:
-        rc = -1;
-        break;
+        rc = .failed
       case .RENAME:
-        rc = Tty.tty_rename(arcn);
-        break;
+        rc = Tty.tty_rename(&arcn)
       case .WRITE:
-        pax_invalid_action_write_path = NULL;
-        pax_invalid_action_write_cwd = NULL;
-        rc = 2;
-        break;
+        pax_invalid_action_write_path = nil
+        pax_invalid_action_write_cwd = nil
+        rc = .weird
       case .UTF8:
         fallthrough
       default:
         Tty.paxwarn(true, "pax_invalid_action not implemented:\(pax_invalid_action.rawValue)")
-        rc = -1;	/* do nothing? */
+        rc = .failed	/* do nothing? */
     }
     return rc
   }
-
+  
   func delete_keywords(_ pattern : String) {
     /* loop over all keywords, marking any matched as deleted */
     for i in 0..<o_option_table.count {
@@ -302,21 +280,20 @@ class paxer : FSUB {
       }
     }
   }
-
+  
   /*
    * pax_opt()
    *	handle pax format specific -o options
    * Return:
    *	0 if ok -1 otherwise
    */
-
+  
   func other_options() -> Result {
-     var got_option = 0;
-
+    var got_option = 0;
+    
     for opt in ophead {
-      int i;
-      got_option = -1;
-      pax_invalid_action = PAX_INVALID_ACTION_BYPASS; /* Default for pax format */
+      var got_option = -1;
+      pax_invalid_action = .BYPASS; /* Default for pax format */
       /* look up opt->name */
       for i in 0..<o_option_table.count {
         if opt.name == o_option_table[i].name {
@@ -327,9 +304,7 @@ class paxer : FSUB {
             case .INVALID:
               if (opt.separator != .equals) {
                 Tty.paxwarn(true,"-o \(opt.name)= option requires '=' separator: option ignored")
-                break;
-              }
-              if let v = opt.value?.lowercased() {
+              } else if let v = opt.value?.lowercased() {
                 if v == "bypass" {
                   pax_invalid_action = .BYPASS;
                 } else if v == "rename" {
@@ -344,7 +319,6 @@ class paxer : FSUB {
               } else {
                 Tty.paxwarn(true,"Invalid action RHS not specified: option ignored");
               }
-              break;
             case .DELETE:
               if opt.separator != .equals {
                 Tty.paxwarn(true,"-o \(opt.name)= option requires '=' separator: option ignored")
@@ -352,70 +326,65 @@ class paxer : FSUB {
               }
               /* Mark all matches as deleted */
               /* can have multiple -o delete= patterns */
-              delete_keywords(opt.value)
-              break;
+              delete_keywords(opt.value ?? "")
             case .STORE_HEADER2:
-              if (pax_read_or_list_mode) { pids = 1; }	/* Force -p o for these options */
+              if pax_read_or_list_mode { pids = true }	/* Force -p o for these options */
             case .STORE_HEADER:
-              if (o_option_table[i].g_value == NULL ||
-                  o_option_table[i].x_value == NULL ) {
+              if o_option_table[i].g_value == nil || o_option_table[i].x_value == nil {
                 Tty.paxwarn(true,"-o option not implemented: \(opt.name)=\(opt.value ?? "")")
               } else {
                 if opt.separator == .equals {
-                  *(o_option_table[i].g_value) = opt.value
-                  global_ext_header_entry[global_ext_header_inx++] = i;
-                } else if opt.separator == .colonEquals ) {
-                  *(o_option_table[i].x_value) = opt.value
-                  ext_header_entry       [ext_header_inx++] = i;
+                  o_option_table[i].g_value = opt.value
+                  global_ext_header_entry[global_ext_header_inx] = i;
+                  global_ext_header_inx += 1
+                } else if opt.separator == .colonEquals {
+                  o_option_table[i].x_value = opt.value
+                  ext_header_entry       [ext_header_inx] = i;
+                  ext_header_inx += 1
                 } else {        /* SEP_NONE */
                   Tty.paxwarn(true,"-o \(opt.name) option is missing value")
                 }
               }
-              break;
             case .TIMES:
               if opt.separator != .none {
                 Tty.paxwarn(true,"-o \(opt.name) option takes no value: option ignored")
-                break;
+              } else {
+                want_a_m_time_headers = true
               }
-              want_a_m_time_headers = 1;
-              break;
             case .LINKDATA:
               if opt.separator != .none {
                 Tty.paxwarn(true,"-o \(opt.name) option takes no value: option ignored")
-                break;
+              } else {
+                want_linkdata = true
               }
-              want_linkdata = 1;
-              break;
             case .HEADER_NAME:
               if opt.separator != .equals {
                 Tty.paxwarn(true,"-o \(opt.name)= option requires '=' separator: option ignored")
-                break;
+              } else {
+                o_option_table[i].g_value = opt.value
+                o_option_table[i].x_value = "YES"
               }
-              *(o_option_table[i].g_value) = opt.value
-              *(o_option_table[i].x_value) = "YES"
-              break;
             case .LISTOPT:
               if opt.separator != .equals {
                 Tty.paxwarn(true,"-o \(opt.name)= option requires '=' separator: option ignored")
-                break;
+              } else {
+                o_option_table[i].g_value = opt.value
               }
-              *(o_option_table[i].g_value) = opt->value;
-              break;
             case .NOTIMPL:
+              fallthrough
             default:
               Tty.paxwarn(true,"pax format -o option not yet implemented: \(opt.name)=\(opt.value ?? "")")
-              break;
           }
           break;
         }
       }
       if (got_option == -1) {
-        Tty.paxwarn(true,"pax format -o option not recognized: %s=%s",
-                opt->name, opt->value);
+        Tty.paxwarn(true,"pax format -o option not recognized: \(opt.name)=\(opt.value ?? "")")
       }
     }
     return .ok
   }
+  
 
 
 }

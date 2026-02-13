@@ -42,8 +42,9 @@ import Darwin
 enum Result : Equatable {
   case failed
   case ok
-  case count(Int)
   case partial
+  case weird
+  case count(Int)
 }
 
 
@@ -148,11 +149,8 @@ nonisolated(unsafe) var myUsage : usageType = .pax
 
       var zeroflag : Bool = false /* use \0 as pathname terminator */
 
-      var patime = true		/* preserve file access time */
-      var pmtime = true 		/* preserve file modification times */
       var nodirs : Bool = false /* do not create directories as needed */
       var pmode : Bool = false /* preserve file mode bits */
-      var pids : Bool = false /* preserve file uid/gid */
       var rmleadslash = false	/* remove leading '/' from pathnames */
 
       var secure = true 		/* don't extract names that contain .. */

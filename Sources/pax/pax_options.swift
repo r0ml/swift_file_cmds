@@ -178,22 +178,22 @@ extension paxer {
                  * preserve user id, group id, file
                  * mode, access/modification times
                  */
-                options.pids = true
+                pids = true
                 options.pmode = true
-                options.patime = true
-                options.pmtime = true
+                patime = true
+                pmtime = true
 
               case "m":
                 /*
                  * do not preserve modification time
                  */
-                options.pmtime = false
+                pmtime = false
 
               case "o":
                 /*
                  * preserve uid/gid
                  */
-                options.pids = true
+                pids = true
 
               case "p":
                 /*
@@ -213,7 +213,7 @@ extension paxer {
            * read the archive
            */
 
-          options.pax_read_or_list_mode=true
+          pax_read_or_list_mode=true
           options.flg.insert(.RF)
 
         case "s":
@@ -431,7 +431,7 @@ extension paxer {
     if options.flg.ISLIST() {
       options.act = .LIST
 
-      options.pax_read_or_list_mode=true
+      pax_read_or_list_mode=true
 
       listf = FileDescriptor.standardOutput
       bflg = options.flg.containsAny(of: pax.BDLIST)

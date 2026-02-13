@@ -952,7 +952,6 @@
 				pax/ARCHD.swift,
 				pax/cache.swift,
 				pax/FSUB.swift,
-				pax/gen_subs.swift,
 				pax/globals.swift,
 				pax/options.swift,
 				pax/pax_options.swift,

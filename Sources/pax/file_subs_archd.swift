@@ -479,7 +479,7 @@ extension ARCHD {
     /*
      * we were able to create the node. set uid/gid, modes and times
      */
-    if (pids) {
+    if pids {
       res = set_ids(arcn.name, arcn.sb.userId, arcn.sb.groupId);
     }
     else {

@@ -44,8 +44,8 @@ import Darwin
  */
 class Tty {
   
-  @MainActor static var shared = Tty.init()
-  
+  nonisolated(unsafe) static var shared = Tty.init()
+
   let DEVTTY	= "/dev/tty"          /* device for interactive i/o */
   var ttyfd : FileDescriptor?       	/* output pointing at control tty */
   var ttyinf : FileStream?
@@ -72,7 +72,11 @@ class Tty {
   func tty_prnt(_ fmt : String) {
     if var fd = ttyfd { print(fmt, terminator: "", to: &fd) }
   }
-  
+
+
+  static func tty_read() -> String? {
+    return shared.tty_read()
+  }
   /*
    * tty_read()
    *	read a string from the controlling terminal if it is open
@@ -95,7 +99,7 @@ class Tty {
    */
   
   static func paxwarn(_ ex : Bool, _ fmt : String) {
-    if ex && !pax_invalid_action {
+    if ex && pax_invalid_action == .UNSET {
       exit_val = 1
     }
     
@@ -145,4 +149,117 @@ class Tty {
       print("", to: &se)
     }
   }
+
+  static func tty_prnt(_ s : String) {
+    shared.tty_prnt(s)
+  }
+
+
+  static func tty_rename(_ arcn : inout ARCHD) -> Result {
+    return shared.tty_rename(&arcn)
+  }
+
+  /*
+   * tty_rename()
+   *  Prompt the user for a replacement file name. A "." keeps the old name,
+   *  a empty line skips the file, and an EOF on reading the tty, will cause
+   *  pax to stop processing and exit. Otherwise the file name input, replaces
+   *  the old one.
+   * Return:
+   *  0 process this file, 1 skip this file, -1 we need to exit pax
+   */
+
+  // FIXME: perhaps this should be a method on ARCHD
+  func tty_rename(_ arcn : inout ARCHD) -> Result {
+    /*
+     * prompt user for the replacement name for a file, keep trying until
+     * we get some reasonable input. Archives may have more than one file
+     * on them with the same name (from updates etc). We print verbose info
+     * on the file so the user knows what is up.
+     */
+    tty_prnt("\nATTENTION: \(programName) interactive file rename operation.\n")
+
+    var tmpname : String
+    while true {
+      ls_tty(arcn);
+      tty_prnt("Input new name, or a \".\" to keep the old name, ");
+      tty_prnt("or a \"return\" to skip this file.\n");
+      tty_prnt("Input > ");
+      guard let tp = tty_read() else {
+        return .failed
+      }
+      if tp == ".." {
+        tty_prnt("Try again, illegal file name: ..\n");
+        continue
+      }
+      if tp.utf8.count > PAXPATHLEN {
+        tty_prnt("Try again, file name too long\n")
+        continue
+      }
+      tmpname = tp
+      break
+    }
+
+    /*
+     * empty file name, skips this file. a "." leaves it alone
+     */
+    if tmpname.isEmpty {
+      tty_prnt("Skipping file.\n")
+      return .partial
+    }
+    if tmpname == "." {
+      tty_prnt("Processing continues, name unchanged.\n")
+      return .ok
+    }
+
+    /*
+     * ok the name changed. We may run into links that point at this
+     * file later. we have to remember where the user sent the file
+     * in order to repair any links.
+     */
+    tty_prnt("Processing continues, name changed to: \(tmpname)\n")
+    tables.add_name(arcn.name, tmpname)
+    arcn.name = tmpname
+    return .ok
+  }
+
+
+  /*
+   * tty_ls()
+   *   print a short summary of file to tty.
+   */
+
+  // FIXME: perhaps this should be a method on ARCHD
+  func ls_tty(_ arcn : ARCHD) {
+//    char f_date[DATELEN];
+//    char f_mode[MODELEN];
+//    const char *timefrmt;
+
+    var timefrmt : String
+    if (arcn.sb.lastModified + SIXMONTHS) <= DateTime(Darwin.time(nil)) {
+      timefrmt = d_first ? OLDFRMTD : OLDFRMTM;
+    }
+    else {
+      timefrmt = d_first ? CURFRMTD : CURFRMTM;
+    }
+
+
+    // FIXME: promote this strftime stuff to CMigration
+    /*
+     * convert time to string, and print
+     */
+    var tt = arcn.sb.lastModified.secs
+    var tmx = tm()
+    localtime_r(&tt, &tmx)
+
+    let f_date = withUnsafeTemporaryAllocation(byteCount: DATELEN, alignment: 8) {
+      let n = Darwin.strftime($0.baseAddress, $0.count, timefrmt, &tmx)
+      if n == 0 { return ""}
+      else { return String(decoding: $0, as: UTF8.self) }
+    }
+    let f_mode = strmode(arcn.sb.filetype, arcn.sb.permissions)
+    tty_prnt("\(f_mode)\(f_date) \(arcn.name)")
+    return;
+  }
+
 }

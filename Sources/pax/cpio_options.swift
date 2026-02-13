@@ -59,7 +59,7 @@ extension cpio {
 */
 
     options.kflag = true
-    options.pids = true
+    pids = true
     options.pmode = true
     options.pmtime = false
     options.arcname = nil
@@ -160,7 +160,7 @@ extension cpio {
           /*
            * verbose operation mode
            */
-          options.vflag = true
+          vflag += 1
 
         case "z":
           /*

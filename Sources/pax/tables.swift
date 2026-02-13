@@ -451,7 +451,7 @@ class Tables {
    *	0 if added, -1 otherwise
    */
 
-  func add_name(_ oname : String, _ nname : String) -> Bool {
+  func add_name(_ oname : String, _ nname : String) {
     ntab[oname]=nname
   }
 
@@ -720,7 +720,7 @@ class Tables {
      * chained there.
      */
     for (_, v) in atab {
-      ARCHD.set_ftime(v.name, v.mtime, v.atime, true)
+      set_ftime(v.name, v.mtime, v.atime, true)
     }
   }
 
@@ -846,16 +846,17 @@ class Tables {
        */
 
       if options.pmode || dblk.frc_mode {
-        ARCHD.set_pmode(dblk.name, dblk.mode)
+        set_pmode(dblk.name, dblk.mode)
       }
 
-      if options.patime || options.pmtime {
+      if patime || pmtime {
 
-        ARCHD.set_ftime(dblk.name, dblk.mtime, dblk.atime, false)
+        set_ftime(dblk.name, dblk.mtime, dblk.atime, false)
       }
     }
 
     dirp.removeAll()
   }
+
 
 }

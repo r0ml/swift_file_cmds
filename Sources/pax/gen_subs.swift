@@ -46,20 +46,9 @@ struct Gen {
    * a collection of general purpose subroutines used by pax
    */
 
-  /*
-   * constants used by ls_list() when printing out archive members
-   */
-  static let MODELEN = 20
-  static let DATELEN = 64
-  static let SIXMONTHS =	 ((365 / 2) * 86400)
-  static let CURFRMTM =	"%b %e %H:%M"
-  static let OLDFRMTM =	"%b %e  %Y"
-  static let CURFRMTD =	"%e %b %H:%M"
-  static let OLDFRMTD =	"%e %b  %Y"
 
   static let NAME_WIDTH = 8
 
-  static let d_first = nl_langinfo(D_MD_ORDER).pointee == "d".first!.asciiValue!
 
   /*
    * ls_list()
@@ -159,36 +148,6 @@ struct Gen {
     (void)putc(term, fp);
 
     (void)fflush(fp);
-    return;
-  }
-
-  /*
-   * tty_ls()
-   * 	print a short summary of file to tty.
-   */
-
-  static func ls_tty(_ arcn : ARCHD) {
-//    char f_date[DATELEN];
-//    char f_mode[MODELEN];
-//    const char *timefrmt;
-
-    var timefrmt : String
-    if (arcn.sb.lastModified + SIXMONTHS) <= DateTime(Darwin.time(nil)) {
-      timefrmt = d_first ? OLDFRMTD : OLDFRMTM;
-    }
-    else {
-      timefrmt = d_first ? CURFRMTD : CURFRMTM;
-    }
-
-    /*
-     * convert time to string, and print
-     */
-    if (strftime(f_date, DATELEN, timefrmt,
-                 localtime(&(arcn.sb.lastModified))) == 0) {
-      f_date[0] = '\0';
-    }
-    let fmode = strmode(arcn.sb.filetype, arcn.sb.permissions)
-    Tty.prnt("\(f_mode)\(f_date) \(arcn.name)")
     return;
   }
 

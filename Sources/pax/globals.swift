@@ -37,6 +37,7 @@
  */
 
 import CMigration
+import Darwin
 
 let  MAXBLK = 64512  /* MAX blocksize supported (posix SPEC) */
         /* WARNING: increasing MAXBLK past 32256 */
@@ -73,7 +74,19 @@ let CHK_LEN = 8    /* length of checksum field */
 let CHK_OFFSET = 148 /* start of checksum field */
 let BLNKSUM = 256    /* sum of checksum field using " " */
 
+let SIXMONTHS =   ((365 / 2) * 86400)
+/*
+ * constants used by ls_list() when printing out archive members
+ */
+let MODELEN = 20
+let DATELEN = 64
+let CURFRMTM =  "%b %e %H:%M"
+let OLDFRMTM =  "%b %e  %Y"
+let CURFRMTD =  "%e %b %H:%M"
+let OLDFRMTD =  "%e %b  %Y"
 
+
+let d_first = Darwin.nl_langinfo(Darwin.D_MD_ORDER).pointee == "d".first!.asciiValue!
 
 typealias C6 = (CChar, CChar, CChar, CChar, CChar, CChar)
 typealias C8 = (CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar)
@@ -157,6 +170,7 @@ enum OctalTerminator : Int {
 }
 
 enum PAX_INVALID_ACTION : Int {
+  case UNSET = 0
   case BYPASS = 1
   case RENAME = 2
   case UTF8 = 3
@@ -183,13 +197,16 @@ struct oplist {
              0 means no separator */
 }
 
+// Collecting all the variables which show up in different places so it is not clear how to create the
+// classes or structs to house them or the functions which access them.
+// FIXME: need to find non-global homes for these
 
 // FIXME: put me back
 // nonisolated(unsafe) let ar_io = Ar_io()
 nonisolated(unsafe) let cache = Cache()
 nonisolated(unsafe) let tty = Tty()
 
-nonisolated(unsafe) var pax_invalid_action : PAX_INVALID_ACTION? 
+nonisolated(unsafe) var pax_invalid_action = PAX_INVALID_ACTION.UNSET
 
 nonisolated(unsafe) var exit_val : Int32 = 0   /* exit value */
 nonisolated(unsafe) var vflag : Int = 0  /* produce verbose output */
@@ -199,6 +216,131 @@ nonisolated(unsafe) let tables = Tables.shared
 nonisolated(unsafe) var listf = FileDescriptor.standardError       /* file pointer to print file list to */
 nonisolated(unsafe) var programName : String = "pax"
 nonisolated(unsafe) var chdname : String?
-
+nonisolated(unsafe) var want_linkdata = false
+nonisolated(unsafe) var pax_invalid_action_write_path : String? = nil
+nonisolated(unsafe) var pax_invalid_action_write_cwd : String? = nil
+nonisolated(unsafe) var pids : Bool = false /* preserve file uid/gid */
+nonisolated(unsafe) var pax_read_or_list_mode = false
 
 nonisolated(unsafe) var ophead : [oplist] = []
+nonisolated(unsafe) var patime = true    /* preserve file access time */
+nonisolated(unsafe) var pmtime = true     /* preserve file modification times */
+
+
+
+/*
+ * set_pmode()
+ *  Set file access mode
+ */
+
+func set_pmode(_ fnm : String, _ mode : FilePermissions) {
+  do {
+    try FilePath(fnm).setPermissions(mode)
+  } catch( let e) {
+    Tty.syswarn(true, e.code, "Could not set permissions on \(fnm)")
+  }
+}
+
+/*
+ * set_ftime()
+ *  Set the access time and modification time for a named file. If frc is
+ *  non-zero we force these times to be set even if the user did not
+ *  request access and/or modification time preservation (this is also
+ *  used by -t to reset access times).
+ *  When frc is zero, only those times the user has asked for are set, the
+ *  other ones are left alone. We do not assume the un-documented feature
+ *  of many lutimes() implementations that consider a 0 time value as a do
+ *  not set request.
+ */
+
+func set_ftime(_ fnm : String, _ mtimex : DateTime, _ atimex : DateTime, _ frc : Bool) {
+
+  var ts_req : attrlist = attrlist()
+  ts_req.bitmapcount = UInt16(ATTR_BIT_MAP_COUNT)
+  ts_req.commonattr =  UInt32(ATTR_CMN_MODTIME | ATTR_CMN_ACCTIME)
+
+/*    struct {
+    struct timespec mtime;
+    struct timespec atime;
+  } set_ts;
+  struct stat sb;
+*/
+/*  set_ts.atime.tv_sec = atime;
+  set_ts.atime.tv_nsec = atime_nsec;
+  set_ts.mtime.tv_sec = mtime;
+  set_ts.mtime.tv_nsec = mtime_nsec;
+*/
+
+  var mtime = mtimex
+  var atime = atimex
+
+if (!frc && (!patime || !pmtime)) {
+    /*
+     * if we are not forcing, only set those times the user wants
+     * set. We get the current values of the times if we need them.
+     */
+  if let sb = try? FileMetadata(for: FilePath(fnm), followSymlinks: false) {
+    if (!patime) {
+      atime = sb.lastAccessed
+      }
+
+      if (!pmtime) {
+        mtime = sb.lastModified
+      }
+
+    } else {
+      Tty.syswarn(false,errno,"Unable to obtain file stats \(fnm)")
+    }
+  }
+
+  /*
+   * set the times
+   */
+
+  // FIXME: can I not just generate an absolute path name instead of chdir'ing?
+  if let pax_invalid_action_write_cwd {
+    let cwd =
+    withUnsafeTemporaryAllocation(byteCount: MAXPATHLEN, alignment: 8) { x -> String? in
+      let a = getcwd(x.baseAddress, x.count)
+      if let a {
+        return String(cString: a)
+      } else {
+        return nil
+      }
+    }
+    Darwin.chdir(pax_invalid_action_write_cwd)
+
+    do {
+      // FIXME: do I need a followSymlinks: option for setTimes?
+      try FilePath(pax_invalid_action_write_path!).setTimes(modified: mtime, accessed: atime)
+    } catch(let e) {
+//      if  (setattrlist(pax_invalid_action_write_path, &ts_req, &set_ts, sizeof(set_ts), FSOPT_NOFOLLOW) < 0) {
+      Tty.syswarn(true, e.code, "Access/modification time set failed on: \(pax_invalid_action_write_path!)")
+    }
+    Darwin.chdir(cwd)
+    cleanup_pax_invalid_action()
+  } else {
+    do {
+      try FilePath(fnm).setTimes(modified: mtime, accessed: atime)
+    } catch(let e) {
+      //      if (setattrlist(fnm, &ts_req, &set_ts, sizeof(set_ts), FSOPT_NOFOLLOW) < 0) {
+      Tty.syswarn(true, errno, "Access/modification time set failed on: \(fnm)")
+    }
+  }
+
+  return
+}
+
+func cleanup_pax_invalid_action() {
+  switch pax_invalid_action {
+    case .BYPASS, .RENAME:
+      break
+    case .WRITE:
+      pax_invalid_action_write_path = nil
+      pax_invalid_action_write_cwd = nil
+    case .UTF8:
+      fallthrough
+    default:
+      Tty.paxwarn(true, "pax_invalid_action not implemented:\(pax_invalid_action.rawValue)")
+  }
+}
