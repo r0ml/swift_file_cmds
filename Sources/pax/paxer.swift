@@ -64,7 +64,7 @@ class paxer : FSUB {
    * 'diff' it to that file to see how much of the -x pax format has been implemented.
    */
 
-  var pax_eh_datablk = Array<UInt8>(repeating: 0, count: 4*1024)
+  var pax_eh_datablk = ""
 //  var pax_read_or_list_mode = false
   var want_a_m_time_headers = false
    

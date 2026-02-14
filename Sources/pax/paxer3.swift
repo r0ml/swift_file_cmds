@@ -42,7 +42,7 @@ extension paxer {
 
 
   func generate_pax_ext_header_and_data(_ arcn : ARCHD, _ nfields : Int,
-                                        _ table : inout Int, _ header_type : TarFileType,
+                                        _ table : [Int], _ header_type : TarFileType,
                                         _ header_name : String, _ header_name_requested : String?) -> Result  {
 /*    HD_USTAR *hd;
     char hdblk[sizeof(HD_USTAR)];
@@ -62,102 +62,84 @@ extension paxer {
     /* There might be no fields but a header with a specific name or
      times might be wanted */
 
-    let term_char = 1
+    let term_char = OctalTerminator._1
     var hd = HD_USTAR()
 
-    memset(pax_eh_datablk, 0, sizeof(pax_eh_datablk));
+    pax_eh_datablk = ""
 
     /* generate header */
-    hd->typeflag = header_type;
+    hd.typeflag = header_type.rawValue.asciiValue!
 
     /* These fields appear to be necessary to be able to treat extended headers
      like files in older versions of pax */
-    ul_oct(0o0444, hd->mode, sizeof(hd->mode), term_char);
-    strncpy(hd->magic, TMAGIC, TMAGLEN);
-    strncpy(hd->version, TVERSION, TVERSLEN);
-    ul_oct((u_long)arcn.sb.lastModified,hd->mtime,sizeof(hd->mtime),term_char);
+    withUnsafeMutableBytes(of: &hd.mode) { $0.copyBytes(from: ul_oct(0o0444, MemoryLayout.size(ofValue: hd.mode), term_char)!.utf8) }
+    withUnsafeMutableBytes(of: &hd.magic) { $0.copyBytes(from: TMAGIC.utf8) }
+    withUnsafeMutableBytes(of: &hd.version) { $0.copyBytes(from: TVERSION.utf8) }
+    withUnsafeMutableBytes(of: &hd.mtime) { $0.copyBytes(from: ul_oct(UInt(arcn.sb.lastModified.secs), MemoryLayout.size(ofValue: hd.mtime), term_char)!.utf8) }
 
     /* compute size of data */
-    total_len = 0;
-    for (i=0; i < nfields; i++) {
-      if (!o_option_table[table[i]].active) { continue; } /* deleted keywords */
+    let str : String?
+    for i in 0..<nfields {
+      if (!o_option_table[table[i]].active) { continue } /* deleted keywords */
       name = o_option_table[table[i]].name;
-      if (header_type == .PAXXTYPE) {
-        str = *(o_option_table[table[i]].x_value);
+      if header_type == .PAXXTYPE {
+        str = o_option_table[table[i]].x_value
       } else {
-        str = *(o_option_table[table[i]].g_value);
+        str = o_option_table[table[i]].g_value
       }
-      if (str==NULL) {
-        Tty.paxwarn(true,"Missing option value for %s", name);
-        continue;
+      guard let str else {
+        Tty.paxwarn(true,"Missing option value for \(name)")
+        continue
       }
-      len = strlen(str) + o_option_table[table[i]].len + 3;
-      if (len < 9) { len++; }
-      else if (len < 98) {  len = len + 2; }
-      else if (len < 997)  { len = len + 3; }
-      else if (len < 9996) { len = len + 4; }
-      else {
-        Tty.paxwarn(true,"extended header data too long for header type '\(header_type.rawValue)': %d", len);
-      }
-      total_len = emit_extended_header_record(len, total_len,
-                                              header_type, name, str);
+      emit_extended_header_record(header_type, name, str)
     }
 
-    if ((header_type == .PAXXTYPE) && want_a_m_time_headers) {
-      char time_buffer[12];
-      memset(time_buffer,0,sizeof(time_buffer));
-      sprintf(&time_buffer[0],"%d",(int)arcn.sb.st_atime);
-      /* 3 chars + strlen("atime") + time + # chars in len */
-      len = 3 + 5 + strlen(&time_buffer[0]) + 2;
-      total_len = emit_extended_header_record(len, total_len,
-                                              header_type, "atime", &time_buffer[0]);
-      memset(time_buffer,0,sizeof(time_buffer));
-      sprintf(&time_buffer[0],"%d",(int)arcn.sb.lastModified);
-      /* 3 chars + strlen("mtime") + time + # chars in len */
-      len = 3 + 5 + strlen(&time_buffer[0]) + 2;
-      total_len = emit_extended_header_record(len, total_len,
-                                              header_type, "mtime", &time_buffer[0]);
+    if header_type == .PAXXTYPE && want_a_m_time_headers {
+      var time_buffer = String(arcn.sb.lastAccessed.secs)
+      emit_extended_header_record(header_type, "atime", time_buffer)
+      time_buffer = String(arcn.sb.lastModified.secs)
+      emit_extended_header_record(header_type, "mtime", time_buffer)
     }
 
     /* Check if all fields were deleted: might not need to generate anything */
-    if ((total_len==0) && (header_name_requested == NULL)) { return (0); }
+    if pax_eh_datablk.isEmpty && header_name_requested == nil { return .ok }
 
-    if (header_type == .PAXGTYPE) { nglobal_headers++; }
+    if header_type == .PAXGTYPE { nglobal_headers += 1 }
     /* substitution of fields in header_name */
-    header_name = substitute_percent(header_name, arcn.name);
-    if (strlen(header_name) == sizeof(hd->name)) {  /* must account for name just fits in buffer */
+    let hn = substitute_percent(header_name, arcn.name)
+
+    if hn.utf8.count == sizeof(hd->name)) {  /* must account for name just fits in buffer */
       strncpy(hd->name, header_name, sizeof(hd->name));
     } else {
       strlcpy(hd->name, header_name, sizeof(hd->name));
     }
 
-    free(header_name);
-    header_name = NULL;
     records_size = (u_long)total_len;
     if (ul_oct(records_size, hd->size, sizeof(hd->size), term_char)) {
       Tty.paxwarn(true,"extended header data too long for header type '\(header_type.rawValue)'")
       return(1);
     }
 
+    let ck = ul_oct(pax_chksm(hd), term_char)
     if (ul_oct(pax_chksm(hdblk, sizeof(HD_USTAR)), hd->chksum, sizeof(hd->chksum), term_char)) {
       Tty.paxwarn(true,"extended header data checksum failed: header type '\(header_type.rawValue)'")
       return .partial
     }
 
     /* write out header */
-    if (wr_rdbuf(hdblk, sizeof(HD_USTAR)) < 0) {
-      return .failed;
+    if case .failed = wr_rdbuf(hd)  {
+      return .failed
     }
-    if (wr_skip((off_t)(BLKMULT - sizeof(HD_USTAR))) < 0) {
-      return .failed;
+    if case .failed = wr_skip(BLKMULT - MemoryLayout<HD_USTAR>.size) {
+      return .failed
     }
     /* write out header data */
-    if (total_len > 0) {
-      if (wr_rdbuf(pax_eh_datablk, total_len) < 0) {
-        return .failed;
+    if !pax_eh_datablk.isEmpty {
+      if case .failed = wr_rdbuf(pax_eh_datablk.utf8) {
+        return .failed
       }
-      if (wr_skip((off_t)(BLKMULT - total_len)) < 0) {
-        return .failed;
+      if wr_skip(BLKMULT - pax_eh_datablk.utf8.count)  {
+        return .failed
       }
       /*
        printf("data written:\n%s",&pax_eh_datablk[0]);
@@ -193,8 +175,8 @@ extension paxer {
     char size_value[100];
     bzero(size_value, sizeof(size_value));
 */
-    var term_char = 3 // original setting
-    
+    var term_char = OctalTerminator._3 // original setting
+
     /*
      * check for those file system types pax cannot store
      */
@@ -228,10 +210,8 @@ extension paxer {
       return .partial
     }
 
-    generate_pax_ext_header_and_data(arcn, global_ext_header_inx, &global_ext_header_entry[0],
-                                     .PAXGTYPE, header_name_g, header_name_g_requested);
-    generate_pax_ext_header_and_data(arcn, ext_header_inx, &ext_header_entry[0],
-                                     .PAXXTYPE, header_name_x, header_name_x_requested);
+    generate_pax_ext_header_and_data(arcn, global_ext_header_inx, global_ext_header_entry, .PAXGTYPE, header_name_g, header_name_g_requested);
+    generate_pax_ext_header_and_data(arcn, ext_header_inx, ext_header_entry, .PAXXTYPE, header_name_x, header_name_x_requested);
 
     /*
      * zero out the header so we don't have to worry about zero fill below
@@ -239,8 +219,8 @@ extension paxer {
 
     arcn.pad = 0
     /* To pass conformance tests 274/301, always set these fields to "zero" */
-    ul_oct(0, hd->devmajor, sizeof(hd->devmajor), term_char);
-    ul_oct(0, hd->devminor, sizeof(hd->devminor), term_char);
+    withUnsafeMutableBytes(of: &hd.devmajor) { $0.copyBytes(from: ul_oct(0, $0.count, term_char)!.utf8) }
+    withUnsafeMutableBytes(of: &hd.devminor) { $0.copyBytes(from: ul_oct(0, $0.count, term_char)!.utf8) }
 
     /*
      * split the name, or zero out the prefix
@@ -270,7 +250,7 @@ extension paxer {
      */
     switch (arcn.type) {
       case .DIR:
-        hd->typeflag = DIRTYPE;
+        hd.typeflag = TarFileType.DIRTYPE.rawValue.asciiValue!
         if (ul_oct((u_long)0L, hd->size, sizeof(hd->size), term_char)) {
           goto out;
         }

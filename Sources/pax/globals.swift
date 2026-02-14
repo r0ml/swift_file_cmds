@@ -85,12 +85,13 @@ let OLDFRMTM =  "%b %e  %Y"
 let CURFRMTD =  "%e %b %H:%M"
 let OLDFRMTD =  "%e %b  %Y"
 
+let MAX_EXTENDED_HEADER_SIZE = 4096
 
 let d_first = Darwin.nl_langinfo(Darwin.D_MD_ORDER).pointee == "d".first!.asciiValue!
 
-typealias C6 = (CChar, CChar, CChar, CChar, CChar, CChar)
-typealias C8 = (CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar)
-typealias C11 = (CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar)
+typealias C6 = (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8)
+typealias C8 = (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8)
+typealias C11 = (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8)
 typealias C12 = (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8 )
 typealias C32 = (
   UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,

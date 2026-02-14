@@ -45,12 +45,11 @@ extension paxer {
 
   func expand_extended_headers(_ arcn : ARCHD, _ hd : HD_USTAR) -> Result {
     char mybuf[BLKMULT];
-    HD_USTAR *myhd;
     char * current_value;
     int path_replaced = 0;
     int i, len;
 
-    myhd = hd;
+    let myhd = hd
     while (myhd->typeflag == PAXGTYPE ||  myhd->typeflag == PAXXTYPE) {
       char *name, *str;
       int size, nbytes, inx;
@@ -318,11 +317,10 @@ extension paxer {
    */
 
   func rd(_ buf : [UInt8]) -> ARCHD? {
-    HD_USTAR *hd;
-    int cnt = 0;
-    int check_path;
-    dev_t devmajor;
-    dev_t devminor;
+//    int cnt = 0;
+//    int check_path;
+//    dev_t devmajor;
+//    dev_t devminor;
 
     /*
      * we only get proper sized buffers
@@ -331,14 +329,15 @@ extension paxer {
       return .failed;
     }
 
-    var arcn = ARCHD()
+    var arcn : ARCHD = ARCHD()
     arcn.org_name = arcn.name;
-    arcn.sb.st_nlink = 1;
-    hd = (HD_USTAR *)buf;
+    arcn.sb.links = 1
+    var hd : HD_USTAR = withUnsafeBytes(of: buf) { return $0.assumingMemoryBound(to: HD_USTAR.self).baseAddress!.pointee }
 
-    check_path = expand_extended_headers(arcn, hd);
+    let check_path = expand_extended_headers(arcn, hd)
+    let hdtf = TarFileType(rawValue: Character(UnicodeScalar(hd.typeflag)))
 
-    if (check_path) {
+    if .ok != check_path {
       /*
        * pathname derived from extended head or -o option;
        * full name is in one string, but length may exceed
@@ -363,7 +362,7 @@ extension paxer {
         cnt = 0;
       }
 
-      if (hd->typeflag != LONGLINKTYPE && hd->typeflag != LONGNAMETYPE) {
+      if hdtf != .LONGLINKTYPE && hdtf != .LONGNAMETYPE {
         arcn.nlen = cnt + expandname(dest, sizeof(arcn.name) - cnt,
                                      &gnu_name_string, hd->name, sizeof(hd->name));
         arcn.ln_nlen = expandname(arcn.ln_name, sizeof(arcn.ln_name),
@@ -375,18 +374,18 @@ extension paxer {
      * follow the spec to the letter. we should only have mode bits, strip
      * off all other crud we may be passed.
      */
-    arcn.sb.st_mode = (mode_t)(asc_ul(hd->mode, sizeof(hd->mode), OCT) &
+    arcn.sb.permissions = (asc_ul(hd->mode, sizeof(hd->mode), OCT) &
                                0xfff);
-    arcn.sb.size = (off_t)asc_uqd(hd->size, sizeof(hd->size), OCT);
+    arcn.sb.size = asc_uqd(hd->size, sizeof(hd->size), OCT);
     /* When we have extended header for size, prefer it over hd->size */
     if (size_x_current) {
       sscanf(size_x_current, "%lld", &arcn.sb.size);
     }
-    arcn.sb.lastModified = (time_t)asc_ul(hd->mtime, sizeof(hd->mtime), OCT);
+    arcn.sb.lastModified = asc_ul(hd->mtime, sizeof(hd->mtime), OCT);
     if (arcn.sb.st_atimespec.tv_sec == 0) { // Can be set from header
       arcn.sb.lastAccessed = arcn.sb.lastModified
     }
-    arcn.sb.ctime = arcn.sb.lastModified;
+    arcn.sb.lastChanged = arcn.sb.lastModified
 
     /*
      * If we can find the ascii names for gname and uname in the password
@@ -413,13 +412,13 @@ extension paxer {
     /*
      * set the mode and PAX type according to the typeflag in the header
      */
-    switch (hd->typeflag) {
-      case FIFOTYPE:
+    switch hdtf {
+      case .FIFOTYPE:
         arcn.type = .FIF
         arcn.sb.filetype = .fifo
         break;
-      case DIRTYPE:
-        arcn.type = PAX_DIR;
+      case .DIRTYPE:
+        arcn.type = .DIR;
         arcn.sb.filetype = .directory
         arcn.sb.links = 2
 
@@ -432,12 +431,11 @@ extension paxer {
           arcn.name[--arcn.nlen] = '\0';
         }
         break;
-      case BLKTYPE:
-      case CHRTYPE:
+      case .BLKTYPE, .CHRTYPE:
         /*
          * this type requires the rdev field to be set.
          */
-        if (hd->typeflag == BLKTYPE) {
+        if hdtf == .BLKTYPE {
           arcn.type = .BLK;
           arcn.sb.filetype = .blockDevice
         } else {
@@ -448,9 +446,8 @@ extension paxer {
         devminor = (dev_t)asc_ul(hd->devminor,sizeof(hd->devminor),OCT);
         arcn.sb.st_rdev = TODEV(devmajor, devminor);
         break;
-      case SYMTYPE:
-      case LNKTYPE:
-        if (hd->typeflag == SYMTYPE) {
+      case .SYMTYPE, .LNKTYPE:
+        if hdtf == .SYMTYPE {
           arcn.type = .SLK;
           arcn.sb.filetype = .symbolicLink
         } else {
@@ -458,24 +455,21 @@ extension paxer {
           /*
            * so printing looks better
            */
-          arcn.sb.filetype = .regular
-          arcn.sb.st_nlink = 2;
+          arcn.sb.filetype = FileType.regular
+          arcn.sb.links = 2
         }
         break;
-      case LONGLINKTYPE:
-      case LONGNAMETYPE:
+      case .LONGLINKTYPE, .LONGNAMETYPE:
         /*
          * GNU long link/file; we tag these here and let the
          * pax internals deal with it -- too ugly otherwise.
          */
-        arcn.type =
-        hd->typeflag == LONGLINKTYPE ? .GLL : .GLF
+        arcn.type = hdtf == .LONGLINKTYPE ? .GLL : .GLF
         arcn.pad = TAR_PAD(arcn.sb.size);
         arcn.skip = arcn.sb.size;
         break;
-      case CONTTYPE:
-      case AREGTYPE:
-      case REGTYPE:
+      case .CONTTYPE, .AREGTYPE, .REGTYPE:
+        fallthrough
       default:
         /*
          * these types have file data that follows. Set the skip and
@@ -490,75 +484,69 @@ extension paxer {
     return(0);
   }
 
-  void
-  adjust_copy_for_pax_options(ARCHD * arcn)
-  {
+  func adjust_copy_for_pax_options(_ arcn : ARCHD) {
     /* Because ext_header options take precedence over global_header options, apply
      global options first, then override with any extended header options   */
-    int i;
-    if (global_ext_header_inx) {
-      for (i=0; i < global_ext_header_inx; i++) {
-        if (!o_option_table[global_ext_header_entry[i]].active) { continue; } /* deleted keywords */
-        if (strcmp(o_option_table[global_ext_header_entry[i]].name, "path")==0) {
-          strlcpy(arcn.name,*(o_option_table[global_ext_header_entry[i]].g_value),
-                  sizeof(arcn.name));
-          arcn.nlen = strlen(*(o_option_table[global_ext_header_entry[i]].g_value));
-        } else {  /* only handle path for now: others TBD */
-          Tty.paxwarn(true, "adjust arcn for global extended header options not implemented:%d", i);
-        }
+
+    for i in 0..<global_ext_header_inx {
+      if !o_option_table[global_ext_header_entry[i]].active { continue; } /* deleted keywords */
+      if (strcmp(o_option_table[global_ext_header_entry[i]].name, "path")==0) {
+        strlcpy(arcn.name,*(o_option_table[global_ext_header_entry[i]].g_value),
+                sizeof(arcn.name));
+        arcn.nlen = strlen(*(o_option_table[global_ext_header_entry[i]].g_value));
+      } else {  /* only handle path for now: others TBD */
+        Tty.paxwarn(true, "adjust arcn for global extended header options not implemented:\(i)")
       }
     }
-    if (ext_header_inx) {
-      for (i=0; i < ext_header_inx; i++) {
-        if (!o_option_table[ext_header_entry[i]].active) { continue; } /* deleted keywords */
-        if (strcmp(o_option_table[ext_header_entry[i]].name, "path")==0) {
-          strlcpy(arcn.name,*(o_option_table[ext_header_entry[i]].x_value),
-                  sizeof(arcn.name));
-          arcn.nlen = strlen(*(o_option_table[ext_header_entry[i]].x_value));
-        } else {  /* only handle path for now: others TBD */
-          Tty.paxwarn(true, "adjust arcn for extended header options not implemented:%d", i);
-        }
+
+    for i in 0..<ext_header_inx {
+      if (!o_option_table[ext_header_entry[i]].active) { continue; } /* deleted keywords */
+      if o_option_table[ext_header_entry[i]].name == "path" {
+        strlcpy(arcn.name,*(o_option_table[ext_header_entry[i]].x_value),
+                sizeof(arcn.name));
+        arcn.nlen = strlen(*(o_option_table[ext_header_entry[i]].x_value));
+      } else {  /* only handle path for now: others TBD */
+        Tty.paxwarn(true, "adjust arcn for extended header options not implemented:\(i)")
       }
     }
-    if (want_a_m_time_headers) {
+    if want_a_m_time_headers {
       /* TBD */
     }
   }
 
-  static int
-  emit_extended_header_record(int len, int total_len, int head_type,
-                              char * name, char * value)
-  {
-    if (total_len + len > sizeof(pax_eh_datablk)) {
-      Tty.paxwarn(true,"extended header buffer overflow for header type '%c': %d",
-                  head_type, total_len+len);
+  
+  func emit_extended_header_record(_ head_type : TarFileType, _ name : String, _ value : String) {
+    var j = 3 + name.utf8.count + value.utf8.count
+    if j < 9 { j += 1 }
+    else if j < 98 { j += 2 }
+    else if j < 997 { j += 3 }
+    else { j += 4 }
+    let z = "\(j) \(name)=\(value)\n"
+
+    let y = pax_eh_datablk.utf8.count + j
+    if y > MAX_EXTENDED_HEADER_SIZE {
+      Tty.paxwarn(true,"extended header buffer overflow for header type '\(head_type.rawValue)': \(y)")
     } else {
-      sprintf(&pax_eh_datablk[total_len],"%d %s=%s\n", len, name, value);
-      total_len += len;
+      pax_eh_datablk.append(z)
     }
-    return (total_len);
   }
 
-  __attribute__((__malloc__))
-  static char *
-  substitute_percent(char * header, char * filename)
-  {
-    char *nextpercent, *nextchar;
-    char buf[4*1024];
+  func substitute_percent(_ header : String, _ filename : String) -> String {
     int pos, cpylen;
-    char *dname, *fname;
+    char *fname;
 
-    nextpercent = strchr(header,'%');
-    if (nextpercent==NULL) return strdup(header);
-    pos = nextpercent-header;
-    memcpy(buf,header, pos);
-    while (nextpercent++) {
-      switch (*nextpercent) {
-        case '%':
-          buf[pos++]='%';  /* just skip it */
-          break;
-        case 'd':
-          dname = strrchr(filename,'/');
+    var nextpercent = header.firstIndex(of: "%")
+    guard var nextpercent else { return header }
+    var buf = header[header.startIndex..<nextpercent]
+
+    while true {
+      nextpercent = header.index(after: nextpercent)
+      switch header[nextpercent] {
+        case "%":
+          buf.append("%")  /* just skip it */
+
+        case "d":
+          var dname = strrchr(filename,'/');
           if (dname==NULL) {
             cpylen = 1;
             dname = ".";
@@ -569,7 +557,7 @@ extension paxer {
           memcpy(&buf[pos],dname,cpylen);
           pos+= cpylen;
           break;
-        case 'f':
+        case "f":
           fname = strrchr(filename,'/');
           if (fname==NULL) {
             fname = filename;
@@ -580,18 +568,18 @@ extension paxer {
           memcpy(&buf[pos],fname,cpylen);
           pos+= cpylen;
           break;
-        case 'n':
+        case "n":
           pos += sprintf (&buf[pos],"%d",nglobal_headers);
           break;
-        case 'p':
+        case "p":
           pos += sprintf (&buf[pos],"%d",getpid());
           break;
         default:
-          Tty.paxwarn(true,"header format substitution failed: '%c'", *nextpercent);
-          return strdup(header);
+          Tty.paxwarn(true,"header format substitution failed: '\(header[nextpercent])'")
+          return header
       }
-      nextpercent++;
-      if (*nextpercent=='\0') {
+      nextpercent = header.index(after: nextpercent)
+      if nextpercent >= header.endIndex {
         break;
       }
       nextchar = nextpercent;

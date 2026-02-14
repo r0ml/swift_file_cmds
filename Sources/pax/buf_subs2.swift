@@ -68,9 +68,9 @@ func wr_fin() {
  *  0 if buffer was filled ok, -1 o.w. (buffer flush failure)
  */
 
-func wr_rdbuf(_ out : [UInt8], _ outcnt : Int) -> Result {
-  int cnt;
+func wr_rdbuf(_ out : [UInt8]) -> Result {
 
+  let outcnt = out.count
   /*
    * while there is data to copy into the write buffer. when the
    * write buffer fills, flush it to the archive and continue
