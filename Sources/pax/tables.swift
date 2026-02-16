@@ -849,9 +849,8 @@ class Tables {
         set_pmode(dblk.name, dblk.mode)
       }
 
-      if patime || pmtime {
-
-        set_ftime(dblk.name, dblk.mtime, dblk.atime, false)
+      if options.patime || options.pmtime {
+        set_ftime(dblk.name, dblk.mtime, dblk.atime, false, options)
       }
     }
 

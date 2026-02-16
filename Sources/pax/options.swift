@@ -44,7 +44,6 @@ import Darwin
 fileprivate let GETLINE_FILE_CORRUPT = 1
 fileprivate let GETLINE_OUT_OF_MEM = 2
 
-extension pax {
 
   /*
    * Constants used to specify the legal sets of flags in pax. For each major
@@ -55,54 +54,54 @@ extension pax {
   /*
    * flags (one for each option).
    */
-  struct OptionFlags : OptionSet {
-    var rawValue : Int
+struct OptionFlags : OptionSet {
+  var rawValue : Int
 
-    static let AF = Self.init(rawValue:  0x00000001)
-    static let BF = Self.init(rawValue:  0x00000002)
-    static let CF = Self.init(rawValue:  0x00000004)
-    static let DF = Self.init(rawValue:  0x00000008)
-    static let FF = Self.init(rawValue:  0x00000010)
-    static let IF = Self.init(rawValue:  0x00000020)
-    static let KF = Self.init(rawValue:  0x00000040)
-    static let LF = Self.init(rawValue:  0x00000080)
-    static let NF = Self.init(rawValue:  0x00000100)
-    static let OF = Self.init(rawValue:  0x00000200)
-    static let PF = Self.init(rawValue:  0x00000400)
-    static let RF = Self.init(rawValue:  0x00000800)
-    static let SF = Self.init(rawValue:  0x00001000)
-    static let TF = Self.init(rawValue:  0x00002000)
-    static let UF = Self.init(rawValue:  0x00004000)
-    static let VF = Self.init(rawValue:  0x00008000)
-    static let WF = Self.init(rawValue:  0x00010000)
-    static let XF = Self.init(rawValue:  0x00020000)
-    static let CBF = Self.init(rawValue:  0x00040000)  /* nonstandard extension */
-    static let CDF = Self.init(rawValue:  0x00080000)  /* nonstandard extension */
-    static let CEF = Self.init(rawValue:  0x00100000)  /* nonstandard extension */
-    static let CGF = Self.init(rawValue:  0x00200000)  /* nonstandard extension */
-    static let CHF = Self.init(rawValue:  0x00400000)  /* nonstandard extension */
-    static let CLF = Self.init(rawValue:  0x00800000)  /* nonstandard extension */
-    static let CPF = Self.init(rawValue:  0x01000000)  /* nonstandard extension */
-    static let CTF = Self.init(rawValue:  0x02000000)  /* nonstandard extension */
-    static let CUF = Self.init(rawValue:  0x04000000)  /* nonstandard extension */
-    static let CXF = Self.init(rawValue:  0x08000000)
-    static let CYF = Self.init(rawValue:  0x10000000)  /* nonstandard extension */
-    static let CZF = Self.init(rawValue:  0x20000000)  /* nonstandard extension */
+  static let AF = Self.init(rawValue:  0x00000001)
+  static let BF = Self.init(rawValue:  0x00000002)
+  static let CF = Self.init(rawValue:  0x00000004)
+  static let DF = Self.init(rawValue:  0x00000008)
+  static let FF = Self.init(rawValue:  0x00000010)
+  static let IF = Self.init(rawValue:  0x00000020)
+  static let KF = Self.init(rawValue:  0x00000040)
+  static let LF = Self.init(rawValue:  0x00000080)
+  static let NF = Self.init(rawValue:  0x00000100)
+  static let OF = Self.init(rawValue:  0x00000200)
+  static let PF = Self.init(rawValue:  0x00000400)
+  static let RF = Self.init(rawValue:  0x00000800)
+  static let SF = Self.init(rawValue:  0x00001000)
+  static let TF = Self.init(rawValue:  0x00002000)
+  static let UF = Self.init(rawValue:  0x00004000)
+  static let VF = Self.init(rawValue:  0x00008000)
+  static let WF = Self.init(rawValue:  0x00010000)
+  static let XF = Self.init(rawValue:  0x00020000)
+  static let CBF = Self.init(rawValue:  0x00040000)  /* nonstandard extension */
+  static let CDF = Self.init(rawValue:  0x00080000)  /* nonstandard extension */
+  static let CEF = Self.init(rawValue:  0x00100000)  /* nonstandard extension */
+  static let CGF = Self.init(rawValue:  0x00200000)  /* nonstandard extension */
+  static let CHF = Self.init(rawValue:  0x00400000)  /* nonstandard extension */
+  static let CLF = Self.init(rawValue:  0x00800000)  /* nonstandard extension */
+  static let CPF = Self.init(rawValue:  0x01000000)  /* nonstandard extension */
+  static let CTF = Self.init(rawValue:  0x02000000)  /* nonstandard extension */
+  static let CUF = Self.init(rawValue:  0x04000000)  /* nonstandard extension */
+  static let CXF = Self.init(rawValue:  0x08000000)
+  static let CYF = Self.init(rawValue:  0x10000000)  /* nonstandard extension */
+  static let CZF = Self.init(rawValue:  0x20000000)  /* nonstandard extension */
 
-    static let C0F = Self.init(rawValue:  0x40000000)  /* nonstandard extension */
+  static let C0F = Self.init(rawValue:  0x40000000)  /* nonstandard extension */
 
-    static let allCases : [OptionFlags] = [.AF, .BF, .CF, .DF, .FF, .IF, .KF, .LF, .NF, .OF, .PF, .RF, .SF, .TF, .UF, .VF, .WF, .XF, .CBF, .CDF, .CEF, .CGF, .CHF, .CLF, .CPF, .CTF, .CUF, .CXF, .CYF, .CZF]
+  static let allCases : [OptionFlags] = [.AF, .BF, .CF, .DF, .FF, .IF, .KF, .LF, .NF, .OF, .PF, .RF, .SF, .TF, .UF, .VF, .WF, .XF, .CBF, .CDF, .CEF, .CGF, .CHF, .CLF, .CPF, .CTF, .CUF, .CXF, .CYF, .CZF]
 
-    var myCases : [OptionFlags] { Self.allCases.filter { self.contains($0) } }
+  var myCases : [OptionFlags] { Self.allCases.filter { self.contains($0) } }
 
-    var flagString : String {
-      if let x = Self.allCases.firstIndex(of: self) {
-        "-\(Self.FLGCH[x])"
-      } else {
-        "-?"
-      }
-
+  var flagString : String {
+    if let x = Self.allCases.firstIndex(of: self) {
+      "-\(Self.FLGCH[x])"
+    } else {
+      "-?"
     }
+
+  }
   /*
    * ascii string indexed by bit position above (alter the above and you must
    * alter this string) used to tell the user what flags caused us to complain
@@ -117,13 +116,13 @@ extension pax {
    * legal pax operation bit patterns
    */
 
-    func ISLIST() -> Bool { self.intersection([.RF, .WF]) == [] }
-    func ISEXTRACT() -> Bool { self.intersection([.RF, .WF]) == .RF }
-    func ISARCHIVE() -> Bool { self.intersection([.AF, .RF, .WF]) == .WF }
-    func ISAPPND() -> Bool { self.intersection([.AF, .RF, .WF ]) == [.AF, .WF] }
-    func ISCOPY() -> Bool { self.intersection([.RF, .WF]) == [.RF, .WF] }
-    func ISWRITE() -> Bool { self.intersection([.RF, .WF]) == .WF }
-  }
+  func ISLIST() -> Bool { self.intersection([.RF, .WF]) == [] }
+  func ISEXTRACT() -> Bool { self.intersection([.RF, .WF]) == .RF }
+  func ISARCHIVE() -> Bool { self.intersection([.AF, .RF, .WF]) == .WF }
+  func ISAPPND() -> Bool { self.intersection([.AF, .RF, .WF ]) == [.AF, .WF] }
+  func ISCOPY() -> Bool { self.intersection([.RF, .WF]) == [.RF, .WF] }
+  func ISWRITE() -> Bool { self.intersection([.RF, .WF]) == .WF }
+
 
   /*
    * Illegal option flag subsets based on pax operation
@@ -131,25 +130,27 @@ extension pax {
 
   static let BDEXTR : OptionFlags = [.AF, .BF, .LF, .TF, .WF, .XF, .CBF, .CHF, .CLF, .CPF, .CXF]
   static let BDARCH : OptionFlags = [.CF, .KF, .LF, .NF, .PF, .RF, .CDF, .CEF, .CYF, .CZF]
-//  #ifndef __APPLE__
-//  #define  BDCOPY  (AF|BF|FF|OF|XF|CBF|CEF)
-//  static let BDLIST : OptionFlags = [.AF, .BF, .IF, .KF, .LF, .OF, .PF, .RF, .TF, .UF, .WF, .XF, .CBF, .CDF, .CHF, .CLF, .CPF, .CXF, .CYF, .CZF]
+  //  #ifndef __APPLE__
+  //  #define  BDCOPY  (AF|BF|FF|OF|XF|CBF|CEF)
+  //  static let BDLIST : OptionFlags = [.AF, .BF, .IF, .KF, .LF, .OF, .PF, .RF, .TF, .UF, .WF, .XF, .CBF, .CDF, .CHF, .CLF, .CPF, .CXF, .CYF, .CZF]
 
   //#else
   static let BDCOPY : OptionFlags = [.AF, .BF, .FF, .CBF, .CEF]
   static let BDLIST : OptionFlags = [.AF, .BF, .IF, .KF, .LF, .PF, .RF, .TF, .UF, .WF, .XF,
                                      .CBF, .CDF, .CHF, .CLF, .CPF, .CXF, .CYF, .CZF]
+
+}
 // #endif /* __APPLE__*/
 
-
+extension FSUB {
 
   /*
    * Routines which handle command line options
    */
 
-//  static char flgch[] = FLGCH;	/* list of all possible flags */
-//  static OPLIST *ophead = NULL;	/* head for format specific options -x */
-//  static OPLIST *optail = NULL;	/* option tail */
+  //  static char flgch[] = FLGCH;	/* list of all possible flags */
+  //  static OPLIST *ophead = NULL;	/* head for format specific options -x */
+  //  static OPLIST *optail = NULL;	/* option tail */
 
 
   /*
@@ -195,19 +196,19 @@ extension pax {
    */
 
   /*
-  #define F_OCPIO	0	/* format when called as cpio -6 */
-  #define F_ACPIO	1	/* format when called as cpio -c */
+   #define F_OCPIO	0	/* format when called as cpio -6 */
+   #define F_ACPIO	1	/* format when called as cpio -c */
 
-  #define F_PAX	2	/* -x pax */
-  #define F_SCPIO	3	/* format when called with -x sv4cpio */
-  #define F_CPIO	4	/* format when called as cpio */
-  #define F_OTAR	5	/* format when called as tar -o */
-  #define F_TAR	6	/* format when called as tar */
-*/
+   #define F_PAX	2	/* -x pax */
+   #define F_SCPIO	3	/* format when called with -x sv4cpio */
+   #define F_CPIO	4	/* format when called as cpio */
+   #define F_OTAR	5	/* format when called as tar -o */
+   #define F_TAR	6	/* format when called as tar */
+   */
 
   /*
-  #define DEFLT	F_TAR	/* default write format from list above */
-*/
+   #define DEFLT	F_TAR	/* default write format from list above */
+   */
 
   /*
    * ford is the archive search order used by get_arc() to determine what kind
@@ -215,33 +216,8 @@ extension pax {
    * some formats may be subsets of others....
    */
 
-//  int ford[] = {F_PAX, F_TAR, F_OTAR, F_CPIO, F_SCPIO, F_ACPIO, F_OCPIO, -1 };
+  //  int ford[] = {F_PAX, F_TAR, F_OTAR, F_CPIO, F_SCPIO, F_ACPIO, F_OCPIO, -1 };
 
-  /*
-   * options()
-   *	figure out if we are pax, tar or cpio. Call the appropriate options
-   *	parser
-   */
-
-  func setFrmt() {
-
-    /*
-     * Are we acting like pax, tar or cpio (based on argv[0])
-     */
-
-    if programName == NM_TAR {
-      // FIXME: ADD ME BACK IN
-//      options.frmt = tar()
-    } else if programName == NM_CPIO {
-      // FIXME: ADD ME BACK IN
-//      options.frmt = cpio()
-    } else {
-      options.frmt = paxer()
-    }
-    /*
-     * assume pax as the default
-     */
-  }
 
   // the CMigration `createDirectory` creates the intermediate directories -- and should be equivalent to the original mkpath
   func mkpath(_ path : FilePath) -> Result  {
@@ -253,15 +229,15 @@ extension pax {
     }
     guard let sb = try? FileMetadata(for: path), sb.filetype == .directory else {
       Tty.syswarn(true, ENOTDIR, path.string)
-        return .failed
-      }
+      return .failed
+    }
 
     return .ok
   }
 
 
 
-/*
+  /*
    * opt_add()
    *	breaks the value supplied to -o into an option name and value. Options
    *	are given to -o in the form -o name-value,name=value
@@ -287,7 +263,7 @@ extension pax {
       }
       opls.append( oplist(name: String(k[0]), value: String(k[1]), separator: .equals) )
     }
-//    opt->separator = SEP_EQ;
+    //    opt->separator = SEP_EQ;
     return (.ok, opls)
   }
 
@@ -342,7 +318,9 @@ extension pax {
    * pax_usage()
    *	print the usage summary to the user
    */
+}
 
+extension pax {
   static let pax_usage = """
   usage: pax [-0cdjnOvz] [-E limit] [-f archive] [-s replstr] ... [-U user] ...
              [-G group] ... [-T [from_date][,to_date]] ... [--insecure] [pattern ...]

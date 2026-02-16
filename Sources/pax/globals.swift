@@ -226,8 +226,6 @@ nonisolated(unsafe) var pids : Bool = false /* preserve file uid/gid */
 nonisolated(unsafe) var pax_read_or_list_mode = false
 
 nonisolated(unsafe) var ophead : [oplist] = []
-nonisolated(unsafe) var patime = true    /* preserve file access time */
-nonisolated(unsafe) var pmtime = true     /* preserve file modification times */
 
 
 
@@ -256,7 +254,7 @@ func set_pmode(_ fnm : String, _ mode : FilePermissions) {
  *  not set request.
  */
 
-func set_ftime(_ fnm : String, _ mtimex : DateTime, _ atimex : DateTime, _ frc : Bool) {
+func set_ftime(_ fnm : String, _ mtimex : DateTime, _ atimex : DateTime, _ frc : Bool, _ options : pax.CommandOptions) {
 
   var ts_req : attrlist = attrlist()
   ts_req.bitmapcount = UInt16(ATTR_BIT_MAP_COUNT)
@@ -277,17 +275,17 @@ func set_ftime(_ fnm : String, _ mtimex : DateTime, _ atimex : DateTime, _ frc :
   var mtime = mtimex
   var atime = atimex
 
-if (!frc && (!patime || !pmtime)) {
+  if (!frc && (!options.patime || !options.pmtime)) {
     /*
      * if we are not forcing, only set those times the user wants
      * set. We get the current values of the times if we need them.
      */
   if let sb = try? FileMetadata(for: FilePath(fnm), followSymlinks: false) {
-    if (!patime) {
+    if (!options.patime) {
       atime = sb.lastAccessed
       }
 
-      if (!pmtime) {
+    if (!options.pmtime) {
         mtime = sb.lastModified
       }
 
@@ -353,3 +351,19 @@ func cleanup_pax_invalid_action() {
  * of 2. Macro below is for block of 512 bytes.
  */
 func TAR_PAD(_ x : UInt) -> UInt { return ((512 - ((x) & 511)) & 511) }
+
+func updatepath(_ opts : inout pax.CommandOptions) -> Result {
+  let s : String? = withUnsafeTemporaryAllocation(of: UInt8.self, capacity: MAXPATHLEN) { p -> String? in
+    guard let _ = getcwd(p.baseAddress!, p.count) else {
+      Tty.syswarn(true, errno, "Cannot get working directory");
+      return nil
+    }
+    return String(cString: p.baseAddress!)
+  }
+  if let s {
+    opts.cwdpath = s
+  } else {
+    return .failed
+  }
+  return .ok
+}

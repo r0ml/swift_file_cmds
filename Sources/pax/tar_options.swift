@@ -125,7 +125,7 @@ extension tar {
           /*
            * stop after first error
            */
-          maxflt = 0;
+          options.maxflt = 0
           break;
         case "f":
           /*
@@ -398,7 +398,7 @@ extension tar {
         /*
          * no read errors allowed on updates/append operation!
          */
-        maxflt = 0;
+        options.maxflt = 0
         break;
       case .LIST, .EXTRACT:
         fallthrough

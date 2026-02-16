@@ -180,16 +180,14 @@ extension ARCHD {
      * if not preserving mode or we cannot set uid/gid, then PROHIBIT
      * set uid/gid bits
      */
-    if (!pmode || res) {
+    if !options.pmode || res {
       arcn.sb.st_mode &= ~(SETBITS);
     }
-    if (pmode) {
+    if options.pmode {
       set_pmode(arcn.name, arcn.sb.st_mode);
     }
-    if (patime || pmtime) {
-
-      set_ftime(arcn.name, arcn.sb.lastModified, arcn.sb.st_atime, false)
-
+    if options.patime || options.pmtime {
+      set_ftime(arcn.name, arcn.sb.lastModified, arcn.sb.st_atime, false, options)
     }
   }
 
@@ -391,7 +389,7 @@ extension ARCHD {
    *	0 if ok, -1 otherwise
    */
 
-  func node_creat() -> Result {
+  func node_creat(_ options : pax.CommandOptions) -> Result {
     /*    int res;
      int ign = 0;
      int oerrno;
@@ -499,10 +497,10 @@ extension ARCHD {
      * if not preserving mode or we cannot set uid/gid, then PROHIBIT any
      * set uid/gid bits
      */
-    if (!pmode || res) {
+    if !options.pmode || res {
       arcn.sb.st_mode &= ~(SETBITS);
     }
-    if (pmode) {
+    if options.pmode {
       set_pmode(arcn.name, arcn.sb.st_mode);
     }
 
@@ -530,7 +528,7 @@ extension ARCHD {
            */
           set_pmode(arcn.name,
                     ((sb.st_mode & FILEBITS) | S_IRWXU));
-          if (!pmode) {
+          if !options.pmode {
             arcn.sb.st_mode = sb.st_mode;
           }
         }
@@ -540,12 +538,12 @@ extension ARCHD {
          * since we changed it from the default as created.
          */
         add_dir(arcn.name, arcn.nlen, &(arcn.sb), 1);
-      } else if (pmode || patime || pmtime) {
+      } else if options.pmode || options.patime || options.pmtime {
         add_dir(arcn.name, arcn.nlen, &(arcn.sb), 0);
       }
     }
 
-    if (patime || pmtime) {
+    if options.patime || options.pmtime {
 
       set_ftime(arcn.name, arcn.sb.lastModified, arcn.sb.lastAccessed, false)
     }

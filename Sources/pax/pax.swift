@@ -159,6 +159,8 @@ nonisolated(unsafe) var myUsage : usageType = .pax
       var dirptr : String!		/* destination dir in a copy */
       var argv0 : [String] = []  /* root of argv[0] */
 
+      var patime = true    /* preserve file access time */
+      var pmtime = true     /* preserve file modification times */
 
       var gzip_program : String? = "gzip"
       var arcname : String? = "???"
@@ -169,6 +171,9 @@ nonisolated(unsafe) var myUsage : usageType = .pax
       var flg : OptionFlags = []
       var tempfile : String = ""
       
+      var cwdpath : String?        /* current working directory path */
+      var maxflt = MAXFLT          /* MAX consecutive media errors */
+
       var args : [String] = []
     }
 
@@ -325,7 +330,7 @@ nonisolated(unsafe) var myUsage : usageType = .pax
       Tty.paxwarn(true, "Can't open current working directory: \(e)" )
     }
 
-    if case .failed = updatepath() {
+    if case .failed = updatepath(&options) {
       exit(exit_val)
     }
 
@@ -480,6 +485,33 @@ nonisolated(unsafe) var myUsage : usageType = .pax
     }
 
   }
+
+  /*
+   * options()
+   *  figure out if we are pax, tar or cpio. Call the appropriate options
+   *  parser
+   */
+
+  func setFrmt() {
+
+    /*
+     * Are we acting like pax, tar or cpio (based on argv[0])
+     */
+
+    if programName == NM_TAR {
+      // FIXME: ADD ME BACK IN
+      //      options.frmt = tar()
+    } else if programName == NM_CPIO {
+      // FIXME: ADD ME BACK IN
+      //      options.frmt = cpio()
+    } else {
+      options.frmt = paxer()
+    }
+    /*
+     * assume pax as the default
+     */
+  }
+
 }
 
 

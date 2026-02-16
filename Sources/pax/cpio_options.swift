@@ -298,7 +298,7 @@ extension cpio {
           /*
            * no read errors allowed on updates/append operation!
            */
-          maxflt = 0;
+          optiions.maxflt = 0
           for try await str in FileDescriptor.standardInput.bytes.lines {
             ftree_add(str, 0)
           }

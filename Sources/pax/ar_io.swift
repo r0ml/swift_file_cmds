@@ -324,10 +324,8 @@ class Ar_io {
       if (vfpart) {
         (void)putc('\n', listf);
       }
-      (void)fprintf(listf,
-                    "%s: Waiting for tape drive close to complete...",
-                    argv0);
-      (void)fflush(listf);
+      print("\(programName): Waiting for tape drive close to complete...", terminator: "", to: &listf)
+      fflush(listf)
     }
 
     /*

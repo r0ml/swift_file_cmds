@@ -66,7 +66,7 @@ extension ArchiveOps {
      * if this format supports hard link storage, start up the database
      * that detects them.
      */
-    if (((hlk = frmt->hlk) == 1) && (lnk_start() < 0)) {
+    if (((hlk = options.frmt.hlk) == 1) && (lnk_start() < 0)) {
       return;
     }
 

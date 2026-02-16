@@ -157,9 +157,11 @@ extension paxer {
            */
           options.flg.insert(.OF)
 
-          if case .failed = pax_format_opt_add(v) {
+          let (r,oo) = pax_format_opt_add(v)
+          if case .failed = r {
             throw CmdErr(1)
           }
+          ophead = oo!
 
         case "p":
           /*
@@ -180,14 +182,14 @@ extension paxer {
                  */
                 pids = true
                 options.pmode = true
-                patime = true
-                pmtime = true
+                options.patime = true
+                options.pmtime = true
 
               case "m":
                 /*
                  * do not preserve modification time
                  */
-                pmtime = false
+                options.pmtime = false
 
               case "o":
                 /*
@@ -311,13 +313,15 @@ extension paxer {
            */
           options.flg.insert(.CEF)
           if v == NONE {
-            maxflt = -1;
+            options.maxflt = -1
           }
-          else if ((maxflt = atoi(optarg)) < 0) {
+          else if let mf = UInt(v) {
+            options.maxflt = Int(mf)
+          } else {
             Tty.paxwarn(true, "Error count value must be positive");
             throw CmdErr(1)
           }
-          break;
+
         case "G":
           /*
            * non-standard option for selecting files within an
@@ -434,19 +438,19 @@ extension paxer {
       pax_read_or_list_mode=true
 
       listf = FileDescriptor.standardOutput
-      bflg = options.flg.containsAny(of: pax.BDLIST)
+      bflg = options.flg.containsAny(of: OptionFlags.BDLIST)
     } else if options.flg.ISEXTRACT() {
       options.act = .EXTRACT
-      bflg = options.flg.containsAny(of: pax.BDEXTR)
+      bflg = options.flg.containsAny(of: OptionFlags.BDEXTR)
     } else if options.flg.ISARCHIVE() {
       options.act = .ARCHIVE
-      bflg = options.flg.containsAny(of: pax.BDARCH)
+      bflg = options.flg.containsAny(of: OptionFlags.BDARCH)
     } else if options.flg.ISAPPND() {
       options.act = .APPND
-      bflg = options.flg.containsAny(of: pax.BDARCH)
+      bflg = options.flg.containsAny(of: OptionFlags.BDARCH)
     } else if options.flg.ISCOPY() {
       options.act = .COPY
-      bflg = options.flg.containsAny(of: pax.BDCOPY)
+      bflg = options.flg.containsAny(of: OptionFlags.BDCOPY)
     } else {
       throw CmdErr(1)
     }
@@ -506,7 +510,7 @@ extension paxer {
         /*
          * no read errors allowed on updates/append operation!
          */
-        maxflt = 0
+        options.maxflt = 0
 
     }
   }
@@ -516,7 +520,7 @@ extension paxer {
    *  print out those invalid flag sets found to the user
    */
 
-  private func printflg(_ flg : pax.OptionFlags) {
+  private func printflg(_ flg : OptionFlags) {
     var se = FileDescriptor.standardError
     print("\(programName): Invalid combination of options: " + flg.myCases.map { $0.flagString }.joined(separator: " "), to: &se )
   }

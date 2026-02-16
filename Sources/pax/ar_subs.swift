@@ -53,23 +53,7 @@ class ArchiveOps {
 
   var hdbuf : [UInt8] = Array(repeating: 0, count: BLKMULT)		/* space for archive header on read */
 
-  var cwdpath : String?        /* current working directory path */
 
-  func updatepath() -> Result {
-    let s : String? = withUnsafeTemporaryAllocation(of: UInt8.self, capacity: MAXPATHLEN) { p -> String? in
-      guard let _ = getcwd(p.baseAddress!, p.count) else {
-        Tty.syswarn(true, errno, "Cannot get working directory");
-        return nil
-      }
-      return String(cString: p.baseAddress!)
-    }
-    if let s {
-      cwdpath = s
-    } else {
-      return .failed
-    }
-    return .ok
-  }
 
   func fdochdir(_ fcwd : FileDescriptor) -> Result {
     if (fchdir(fcwd.rawValue) == -1) {

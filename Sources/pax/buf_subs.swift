@@ -57,7 +57,6 @@ class Bufferer {
 
   private var wrblksz : UInt				/* user spec output size in bytes */
 
-  let maxflt = MAXFLT;			/* MAX consecutive media errors */
   var rdblksz = UInt(0)				/* first read blksize (tapes only) */
   var wrlimit = UInt(0)				/* # of bytes written per archive vol */
   var wrcnt = UInt(0)				/* # of bytes written on current vol */
@@ -310,7 +309,7 @@ class Bufferer {
     /*
      * if the user says bail out on first fault, we are out of here...
      */
-    if (maxflt == 0) {
+    if options.maxflt == 0 {
       return .failed;
     }
     if (act == .APPND) {
@@ -349,8 +348,8 @@ class Bufferer {
        * volume. remember the goal on reads is to get the most we
        * can extract out of the archive.
        */
-      if ((maxflt > 0) && (++errcnt > maxflt)) {
-        Tty.paxwarn(false,"Archive read error limit (\(maxflt)) reached")
+      if options.maxflt > 0 && (++errcnt > options.maxflt) {
+        Tty.paxwarn(false,"Archive read error limit (\(options.maxflt)) reached")
       }
       else if (ar_rdsync() == 0) {
         continue;
