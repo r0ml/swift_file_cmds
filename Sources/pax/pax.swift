@@ -544,7 +544,7 @@ extension pax {
     ar_io.ar_close()
     tables.proc_dir(options)
     if options.tflag {
-      tables.atdir_end()
+      tables.atdir_end(options)
     }
 
     /*

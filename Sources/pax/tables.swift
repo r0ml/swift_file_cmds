@@ -713,14 +713,14 @@ class Tables {
    *	entries are for directories READ by pax
    */
 
-  func atdir_end() {
+  func atdir_end(_ options : pax.CommandOptions) {
 
     /*
      * for each non-empty hash table entry reset all the directories
      * chained there.
      */
     for (_, v) in atab {
-      set_ftime(v.name, v.mtime, v.atime, true)
+      set_ftime(v.name, v.mtime, v.atime, true, options)
     }
   }
 

@@ -239,8 +239,8 @@ extension pax {
     /*
      * make sure all dir access times were reset.
      */
-    if (tflag) {
-      atdir_end();
+    if options.tflag {
+      atdir_end(options)
     }
 
     /*

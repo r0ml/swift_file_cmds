@@ -368,7 +368,9 @@ extension paxer {
         return .partial
       }
     }
-    if (ul_oct(arcn.sb.groupId, hd->gid, sizeof(hd->gid), term_char)) {
+    if let gg = ul_oct(arcn.sb.groupId, MemoryLayout.size(ofValue: hd.gid), term_char) {
+      withUnsafeMutableBytes(of: &hd.gid) { $0.copyBytes(from: gg.utf8) }
+    } else {
       if (gid_nobody == 0) {
         if (gid_name("nobody", &gid_nobody) == -1) {
           return .partial
