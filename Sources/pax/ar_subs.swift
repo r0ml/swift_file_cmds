@@ -41,6 +41,11 @@ import Darwin
 
 class ArchiveOps {
 
+  let options : pax.CommandOptions
+
+  init(options: pax.CommandOptions) {
+    self.options = options
+  }
   /*
    * Routines which control the overall operation modes of pax as specified by
    * the user: list, append, read ...

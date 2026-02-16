@@ -960,6 +960,7 @@
 				pax/FSUB.swift,
 				pax/globals.swift,
 				pax/options.swift,
+				pax/pat_rep.swift,
 				pax/pax_options.swift,
 				pax/pax.swift,
 				pax/paxer.swift,

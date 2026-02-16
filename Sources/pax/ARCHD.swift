@@ -107,11 +107,9 @@ struct PatternFlags : OptionSet {
  */
 struct PATTERN {
   var pstr : String    /* pattern to match, user supplied */
-  var pend : String    /* end of a prefix match */
+//  var pend : String    /* end of a prefix match */
   var chdname : String /* the dir to change to if not NULL.  */
-  var plen : UInt       /* length of pstr */
   var flgs : PatternFlags    /* processing/state flags */
-//    struct pattern  *fow;    /* next pattern */
 }
 
 

@@ -39,7 +39,26 @@
 import CMigration
 import Darwin
 
-extension pax {
+struct PaxPatFlags : OptionSet {
+  init(rawValue: UInt) {
+    self.rawValue = rawValue
+  }
+  
+  var rawValue = UInt(0)
+
+  static let PRNT = Self.init(rawValue: 0x1)
+  static let GLOB = Self.init(rawValue: 0x2)
+}
+/*
+ * data structure for storing user supplied replacement strings (-s)
+ */
+struct REPLACE {
+  var nstr : String  /* the new string we will substitute with */
+  var rcmp : Regex<AnyRegexOutput>?   /* compiled regular expression used to match */
+  var flgs : PaxPatFlags  /* print conversions? global in operation?  */
+}
+
+class paxPattern {
 
   /*
    * routines to handle pattern matching, name modification (regular expression
@@ -48,11 +67,9 @@ extension pax {
    * routines.
    */
 
-  #define MAXSUBEXP	10		/* max subexpressions, DO NOT CHANGE */
-  static var pathead : PATTERN?		/* file pattern match list head */
-  static var pattail : PATTERN?		/* file pattern match list tail */
-  static REPLACE *rephead = NULL;		/* replacement string list head */
-  static REPLACE *reptail = NULL;		/* replacement string list tail */
+  let MAXSUBEXP	= 10		/* max subexpressions, DO NOT CHANGE */
+  var pathead : [PATTERN] = []		/* file pattern match list head */
+  var rephead : [REPLACE] = []		/* replacement string list head */
 
 
   /*
@@ -72,11 +89,12 @@ extension pax {
    */
 
   func rep_add(_ str : String) -> Result {
-    char *pt1;
+/*    char *pt1;
     char *pt2;
     REPLACE *rep;
     int res;
     char rebuf[BUFSIZ];
+*/
 
     // throw out the bad parameters
     if str.isEmpty {
@@ -85,35 +103,32 @@ extension pax {
     }
 
     // first character in the string specifies what the delimiter is for this expression
-    for (pt1 = str+1; *pt1; pt1++) {
-      if (*pt1 == '\\') {
-        pt1++;
-        continue;
+    var pt1 = str.dropFirst()
+    var pt3 = Substring("")
+    while !pt1.isEmpty {
+      let c = pt1.removeFirst()
+      if c == "\\" {
+        pt3.append(c)
+        pt3.append(pt1.removeFirst())
+        continue
       }
-      if (*pt1 == *str) {
-        break;
+      if c == str.first {
+        break
       }
+      pt3.append(c)
     }
-    if (*pt1 == '\0') {
-
-      Tty.paxwarn(true, "Invalid replacement string %s", str);
-      return .failed;
-    }
-
-    /*
-     * allocate space for the node that handles this replacement pattern
-     * and split out the regular expression and try to compile it
-     */
-    if ((rep = (REPLACE *)malloc(sizeof(REPLACE))) == NULL) {
-      Tty.paxwarn(true, "Unable to allocate memory for replacement string");
-      return .failed;
+    if pt1.isEmpty {
+      Tty.paxwarn(true, "Invalid replacement string \(str)")
+      return .failed
     }
 
-    *pt1 = '\0';
-    if ((res = regcomp(&(rep->rcmp), str+1, 0)) != 0) {
-      regerror(res, &(rep->rcmp), rebuf, sizeof(rebuf));
-      Tty.paxwarn(true, "%s while compiling regular expression %s", rebuf, str);
-      free(rep);
+    var rcmp : Regex<AnyRegexOutput>
+
+    do {
+      rcmp = try Regex(String(pt3))  // variant for using regcomp ?
+    } catch(let e) {
+//      regerror(res, &(rep->rcmp), rebuf, sizeof(rebuf));
+      Tty.paxwarn(true, "\(e) while compiling regular expression \(str)")
       return .failed;
     }
 
@@ -122,64 +137,49 @@ extension pax {
      * locate the delimiter at the end of the replacement string
      * we then point the node at the new substitution string
      */
-    *pt1++ = *str;
 
-    for (pt2 = pt1; *pt2; pt2++) {
-      if (*pt2 == '\\') {
-        pt2++;
-        continue;
+    var pt2 = pt1
+    var pt4 = Substring("")
+
+    while !pt2.isEmpty {
+      let c = pt2.removeFirst()
+      if c == "\\" {
+        pt4.append(c)
+        pt4.append(pt2.removeFirst())
+        continue
       }
-      if (*pt2 == *str) {
-        break;
+      if c == str.first {
+        break
       }
     }
-    if (*pt2 == '\0') {
-
-      regfree(&rep->rcmp);
-      free(rep);
-      Tty.paxwarn(true, "Invalid replacement string %s", str);
+    if pt2.isEmpty {
+      Tty.paxwarn(true, "Invalid replacement string \(str)")
       return .failed;
     }
 
-    *pt2 = '\0';
-    rep->nstr = pt1;
-    pt1 = pt2++;
-    rep->flgs = 0;
-
+    var nstr = pt4
+    var rflgs : PaxPatFlags = []
     /*
      * set the options if any
      */
-    while (*pt2 != '\0') {
-      switch(*pt2) {
-        case 'g':
-        case 'G':
-          rep->flgs  |= GLOB;
-          break;
-        case 'p':
-        case 'P':
-          rep->flgs  |= PRNT;
-          break;
+    while !pt2.isEmpty {
+      switch pt2.removeFirst() {
+        case "g", "G":
+          rflgs.insert(.GLOB)
+        case "p", "P":
+          rflgs.insert(.PRNT)
         default:
-          regfree(&rep->rcmp);
-          free(rep);
-          *pt1 = *str;
-          Tty.paxwarn(true, "Invalid replacement string option %s", str);
+          Tty.paxwarn(true, "Invalid replacement string option \(str)")
           return .failed;
       }
-      ++pt2;
     }
 
     /*
      * all done, link it in at the end
      */
-    rep->fow = NULL;
-    if (rephead == NULL) {
-      reptail = rephead = rep;
-      return(0);
-    }
-    reptail->fow = rep;
-    reptail = rep;
-    return(0);
+    let rep = REPLACE.init(nstr: String(nstr), rcmp: rcmp, flgs: rflgs)
+    rephead.append(rep)
+    return .ok
   }
 
   /*
@@ -193,43 +193,19 @@ extension pax {
    *	0 if the pattern was added to the list, -1 otherwise
    */
 
-  int
-  pat_add(char *str, char *chdnam)
-  {
-    PATTERN *pt;
+  func pat_add(_ str : String, _ chdnam : String ) -> Result {
 
     /*
      * throw out the junk
      */
-    if ((str == NULL) || (*str == '\0')) {
-      Tty.paxwarn(true, "Empty pattern string");
-      return .failed;
+    if str.isEmpty {
+      Tty.paxwarn(true, "Empty pattern string")
+      return .failed
     }
 
-    /*
-     * allocate space for the pattern and store the pattern. the pattern is
-     * part of argv so do not bother to copy it, just point at it. Add the
-     * node to the end of the pattern list
-     */
-    if ((pt = (PATTERN *)malloc(sizeof(PATTERN))) == NULL) {
-      Tty.paxwarn(true, "Unable to allocate memory for pattern string");
-      return .failed;
-    }
-
-    pt->pstr = str;
-    pt->pend = NULL;
-    pt->plen = strlen(str);
-    pt->fow = NULL;
-    pt->flgs = 0;
-    pt->chdname = chdnam;
-
-    if (pathead == NULL) {
-      pattail = pathead = pt;
-      return(0);
-    }
-    pattail->fow = pt;
-    pattail = pt;
-    return(0);
+    let pt = PATTERN.init(pstr: str, chdname: chdnam, flgs: [])
+    pathead.append(pt)
+    return .ok
   }
 
   /*
@@ -238,25 +214,24 @@ extension pax {
    *	a selected archive member.
    */
 
-  void
-  pat_chk(void)
-  {
-    PATTERN *pt;
-    int wban = 0;
+  func pat_chk() {
+    var warned = false
+    var se = FileDescriptor.standardError
 
     /*
      * walk down the list checking the flags to make sure MTCH was set,
      * if not complain
      */
-    for (pt = pathead; pt != NULL; pt = pt->fow) {
-      if (pt->flgs & MTCH) {
-        continue;
+    for pt in pathead {
+      if pt.flgs.contains(.MTCH) {
+        continue
       }
-      if (!wban) {
+      if !warned {
         Tty.paxwarn(true, "WARNING! These patterns were not matched:");
-        ++wban;
+        warned = true
       }
-      (void)fprintf(stderr, "%s\n", pt->pstr);
+
+      print(pt.pstr, to: &se)
     }
   }
 
@@ -276,9 +251,7 @@ extension pax {
    *	match, -1 otherwise.
    */
 
-  int
-  pat_sel(ARCHD *arcn)
-  {
+  func pat_sel(_ arcn : ARCHD) -> Result {
     PATTERN *pt;
     PATTERN **ppt;
     int len;
@@ -399,9 +372,7 @@ extension pax {
    *	looking for more members)
    */
 
-  int
-  pat_match(ARCHD *arcn)
-  {
+  func pat_match(_ arcn : ARCHD) -> Result {
     PATTERN *pt;
 
     arcn.pat = NULL;
@@ -477,9 +448,7 @@ extension pax {
    *	Note: *pend may be changed to show where the prefix ends.
    */
 
-  static int
-  fn_match(char *pattern, char *string, char **pend)
-  {
+  func fn_match(_ pattern : String, _ string: String, _ pend : inout String) -> Result {
     char c;
     char test;
 
@@ -583,9 +552,7 @@ extension pax {
     /* NOTREACHED */
   }
 
-  static char*
-  extract_equiv_pat(char *pattern, char **pend)
-  {
+  func extract_equiv_pat(_ patterh : String, _ pend : inout String) -> String {
     int pat_len = 2;
     int found = 0;
     int is_double_bracket = 0;
@@ -661,9 +628,7 @@ extension pax {
     return equiv_pat;
   }
 
-  static int
-  regex_match(char *pattern, char *string, char **pend)
-  {
+  func regex_match(_ pattern : String, _ string : String, _ pend : inout String) -> Result {
     int res;
     regex_t preg;
     regmatch_t pmatch;
@@ -699,9 +664,7 @@ extension pax {
     return(0);
   }
 
-  static char *
-  range_match(char *pattern, int test)
-  {
+  func range_match(_ pattern : String, _ test : Int) -> String {
     char c;
     char c2;
     int negate;

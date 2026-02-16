@@ -40,7 +40,7 @@
 import CMigration
 import Darwin
 
-extension pax {
+extension paxPattern {
 
   /*
    * mod_name()
