@@ -104,12 +104,7 @@ class tar : FSUB {
    * Routines for reading, writing and header identify of various versions of tar
    */
 
-  static uid_t uid_nobody;
-  static uid_t uid_warn;
-  static gid_t gid_nobody;
-  static gid_t gid_warn;
-
-  /*
+   /*
    * Routines common to all versions of tar
    */
 

@@ -45,11 +45,6 @@ extension tar {
 
 
 
-  /*
-   * Pad with a bit mask, much faster than doing a mod but only works on powers
-   * of 2. Macro below is for block of 512 bytes.
-   */
-  func TAR_PAD(_ x : Int) -> Int { return ((512 - ((x) & 511)) & 511) }
 
   /*
    * structure of an old tar header as it appeared in BSD releases

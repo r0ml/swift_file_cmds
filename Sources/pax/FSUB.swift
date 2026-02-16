@@ -151,13 +151,13 @@ extension FSUB {
    *  we return a 0 but "left" is set to be the amount unwritten
    */
 
-  func rd_data(_ arcn : ARCHD, _ ofd : Int, _ left : inout Int) -> Result {
+  func rd_data(_ arcn : ARCHD, _ ofd : FileDescriptor?, _ left : inout Int) -> Result {
     var size = arcn.sb.size;
     var res = 0;
     var fnm = arcn.name
     var isem = 1
 
-    var sz = MINFBSZ
+    var sz = UInt(MINFBSZ)
     var crc = UInt(0)
 
     /*
@@ -165,16 +165,16 @@ extension FSUB {
      * if the size is zero, use the default MINFBSZ
      */
 
-    if (ofd < 0) {
-      sz = PAXPATHLEN + 1;    /* GNU tar long link/file */
-    } else if (fstat(ofd, &sb) == 0) {
-      if (sb.blockSize > 0) {
-        sz = sb.blockSize;
+    if ofd == nil {
+      sz = UInt(PAXPATHLEN + 1)    /* GNU tar long link/file */
+    } else if let sb = try? FileMetadata(for: ofd!) {
+      if sb.blockSize > 0 {
+        sz = sb.blockSize
       }
     } else {
       Tty.syswarn(false,errno,"Unable to obtain block size for file \(fnm)")
     }
-    rem = sz;
+    var rem = sz
     left = 0
 
     /*

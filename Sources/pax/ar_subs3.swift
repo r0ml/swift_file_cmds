@@ -39,7 +39,7 @@
 import CMigration
 import Darwin
 
-extension pax {
+extension ArchiveOps {
   
   /*
    * copy()
@@ -346,7 +346,7 @@ extension pax {
    *  the specs for rd_wrbuf() for more details)
    */
   
-  private func next_head(_ arcn : ARCHD) -> Result {
+   func next_head(_ arcn : ARCHD) -> Result {
     int ret;
     char *hdend;
     int res;

@@ -143,7 +143,7 @@ class Ar_io {
         lstrval = 1;
         return .ok
     }
-    if (arfd < 0) {
+    guard let arfd else {
       return .failed
     }
 
@@ -480,10 +480,13 @@ class Ar_io {
      * file, we must get rid of all the stuff after the current offset
      * (it was not written by pax).
      */
-    if let cpos = try? arfd.seek(offset: 0, from: .current)
+    guard let cpos = try? arfd.seek(offset: 0, from: .current),
+          ftruncate(arfd.rawValue, cpos) == 0 else {
+
+    }
 
     if (((cpos = lseek(arfd, (off_t)0L, SEEK_CUR)) < 0) ||
-        (ftruncate(arfd, cpos) < 0)) {
+        (ftruncate(arfd.rawValue, cpos) < 0)) {
       Tty.syswarn(true, errno, "Unable to truncate archive file");
       return .failed
     }

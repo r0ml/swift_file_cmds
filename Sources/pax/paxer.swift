@@ -196,7 +196,7 @@ class paxer : FSUB {
   /*
    * Routines for reading, writing and header identify of various versions of pax
    */
-  var uid_nobody: UInt?       // static uid_t uid_nobody;
+  var uid_nobody: UInt? = 0       // static uid_t uid_nobody;
   var uid_warn : UInt?        // static uid_t uid_warn;
   var gid_nobody : UInt?      // static gid_t gid_nobody;
   var gid_warn : UInt?        // static gid_t gid_warn;

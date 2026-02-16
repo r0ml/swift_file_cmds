@@ -949,7 +949,13 @@
 		E77406B52F0E0D4000498517 /* Exceptions for "Sources" folder in "pax" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				pax/ar_io.swift,
+				pax/ar_subs.swift,
+				pax/ar_subs2.swift,
+				pax/ar_subs3.swift,
 				pax/ARCHD.swift,
+				pax/buf_subs.swift,
+				pax/buf_subs2.swift,
 				pax/cache.swift,
 				pax/FSUB.swift,
 				pax/globals.swift,

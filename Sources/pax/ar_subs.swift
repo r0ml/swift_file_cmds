@@ -39,29 +39,35 @@
 import CMigration
 import Darwin
 
-extension pax {
+class ArchiveOps {
 
   /*
    * Routines which control the overall operation modes of pax as specified by
    * the user: list, append, read ...
    */
 
-  static char hdbuf[BLKMULT];		/* space for archive header on read */
+  var hdbuf : [UInt8] = Array(repeating: 0, count: BLKMULT)		/* space for archive header on read */
 
-  static char	cwdpath[MAXPATHLEN];	/* current working directory path */
-  static size_t	cwdpathlen;		/* current working directory path len */
+  var cwdpath : String?        /* current working directory path */
 
   func updatepath() -> Result {
-    if (getcwd(cwdpath, sizeof(cwdpath)) == NULL) {
-      Tty.syswarn(true, errno, "Cannot get working directory");
+    let s : String? = withUnsafeTemporaryAllocation(of: UInt8.self, capacity: MAXPATHLEN) { p -> String? in
+      guard let _ = getcwd(p.baseAddress!, p.count) else {
+        Tty.syswarn(true, errno, "Cannot get working directory");
+        return nil
+      }
+      return String(cString: p.baseAddress!)
+    }
+    if let s {
+      cwdpath = s
+    } else {
       return .failed
     }
-    cwdpathlen = strlen(cwdpath);
     return .ok
   }
 
   func fdochdir(_ fcwd : FileDescriptor) -> Result {
-    if (fchdir(fcwd) == -1) {
+    if (fchdir(fcwd.rawValue) == -1) {
       Tty.syswarn(true, errno, "Cannot chdir to `.'");
       return .failed
     }
@@ -70,14 +76,14 @@ extension pax {
 
   func dochdir(_ name : String) -> Result {
     if (chdir(name) == -1) {
-      Tty.syswarn(true, errno, "Cannot chdir to `%s'", name);
+      Tty.syswarn(true, errno, "Cannot chdir to `\(name)'")
     }
     return updatepath();
   }
 
   private func path_check(_ arcn: ARCHD, _ level : Int) -> Result {
-    char buf[MAXPATHLEN];
-    char *p;
+//    char buf[MAXPATHLEN];
+//    char *p;
 
     if ((p = strrchr(arcn.name, '/')) == NULL) {
       return .ok
@@ -207,10 +213,11 @@ extension pax {
    */
 
   func extract() {
-    int res;
+ /*   int res;
     off_t cnt;
     struct stat sb;
     int fd;
+*/
 
     int copyfile_disable = (getenv(COPYFILE_DISABLE_VAR) != NULL);
     LIST_HEAD(copyfile_list_t, copyfile_list_entry_t) copyfile_list;

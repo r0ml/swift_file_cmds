@@ -56,8 +56,8 @@ import CMigration
     var org_name : String /* orig name in file system */
     var pat : PATTERN?    /* ptr to pattern match (if any) */
     var sb : FileMetadata /* stat buffer see stat(2) */
-    var pad : Int         /* bytes of padding after file xfer */
-    var skip : Int        /* bytes of real data after header */
+    var pad : UInt         /* bytes of padding after file xfer */
+    var skip : UInt        /* bytes of real data after header */
             /* IMPORTANT. The st_size field does */
             /* not always indicate the amount of */
             /* data following the header. */

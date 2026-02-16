@@ -357,25 +357,26 @@ nonisolated(unsafe) var myUsage : usageType = .pax
 
   func runCommand() async throws(CmdErr) {
 
+    let ao = ArchiveOps()
     /*
      * select a primary operation mode
      */
     switch options.act {
       case .EXTRACT:
-        extract()
+        ao.extract()
       case .ARCHIVE:
-        archive()
+        ao.archive()
       case .APPND:
         if let _ = options.gzip_program {
           errx(1, "can not gzip while appending")
         }
-        append()
+        ao.append()
       case .COPY:
-        copy()
+        ao.copy()
       case .LIST:
-        list()
+        ao.list()
       default:
-        list()
+        ao.list()
     }
 
 //    if exit_val == 0 && (ferror(stdout) != 0 || fflush(stdout) != 0) {

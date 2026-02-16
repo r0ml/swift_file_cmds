@@ -40,7 +40,7 @@
 import CMigration
 import Darwin
 
-extension pax {
+extension ArchiveOps {
 
   /*
    * wr_archive()

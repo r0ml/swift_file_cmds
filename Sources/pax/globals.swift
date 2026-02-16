@@ -88,6 +88,8 @@ let OLDFRMTD =  "%e %b  %Y"
 let MAX_EXTENDED_HEADER_SIZE = 4096
 
 let d_first = Darwin.nl_langinfo(Darwin.D_MD_ORDER).pointee == "d".first!.asciiValue!
+let size_header_name = "size"
+
 
 typealias C6 = (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8)
 typealias C8 = (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8)
@@ -345,3 +347,9 @@ func cleanup_pax_invalid_action() {
       Tty.paxwarn(true, "pax_invalid_action not implemented:\(pax_invalid_action.rawValue)")
   }
 }
+
+/*
+ * Pad with a bit mask, much faster than doing a mod but only works on powers
+ * of 2. Macro below is for block of 512 bytes.
+ */
+func TAR_PAD(_ x : UInt) -> UInt { return ((512 - ((x) & 511)) & 511) }

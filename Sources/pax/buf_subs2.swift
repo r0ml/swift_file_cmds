@@ -68,26 +68,26 @@ func wr_fin() {
  *  0 if buffer was filled ok, -1 o.w. (buffer flush failure)
  */
 
-func wr_rdbuf(_ out : [UInt8]) -> Result {
+func wr_rdbuf(_ outx : [UInt8]) -> Result {
 
-  let outcnt = out.count
+  var out = ArraySlice(outx)
+
   /*
    * while there is data to copy into the write buffer. when the
    * write buffer fills, flush it to the archive and continue
    */
-  while (outcnt > 0) {
-    cnt = bufend - bufpt;
+  while out.count > 0 {
+    var cnt = bufend - bufpt;
     if ((cnt <= 0) && ((cnt = buf_flush(blksz)) < 0)) {
       return .failed;
     }
     /*
      * only move what we have space for
      */
-    cnt = MIN(cnt, outcnt);
+    cnt = min(cnt, out.count)
     memcpy(bufpt, out, cnt);
     bufpt += cnt;
-    out += cnt;
-    outcnt -= cnt;
+    out = out.dropFirst(cnt)
   }
   return .ok;
 }

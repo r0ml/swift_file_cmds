@@ -36,7 +36,7 @@
 
 
 import CMigration
-import Foundation
+import Darwin
 
 extension paxer {
 
@@ -108,20 +108,25 @@ extension paxer {
     /* substitution of fields in header_name */
     let hn = substitute_percent(header_name, arcn.name)
 
-    if hn.utf8.count == sizeof(hd->name)) {  /* must account for name just fits in buffer */
-      strncpy(hd->name, header_name, sizeof(hd->name));
-    } else {
-      strlcpy(hd->name, header_name, sizeof(hd->name));
+    // FIXME: if header_name + "\0" is longer than hd.name, does it get truncated?
+    withUnsafeMutableBytes(of: &hd.name) {
+      var j = Array(header_name.utf8)
+      if j.count < $0.count {
+        j.append(0)
+      }
+      $0.copyBytes(from: j)
     }
 
-    records_size = (u_long)total_len;
-    if (ul_oct(records_size, hd->size, sizeof(hd->size), term_char)) {
+    let records_size = pax_eh_datablk.utf8.count
+    guard let ur = ul_oct(UInt(records_size), MemoryLayout.size(ofValue: hd.size), term_char) else {
       Tty.paxwarn(true,"extended header data too long for header type '\(header_type.rawValue)'")
-      return(1);
+      return .partial
     }
+    withUnsafeMutableBytes(of: &hd.size) { $0.copyBytes(from: ur.utf8) }
 
-    let ck = ul_oct(pax_chksm(hd), term_char)
-    if (ul_oct(pax_chksm(hdblk, sizeof(HD_USTAR)), hd->chksum, sizeof(hd->chksum), term_char)) {
+    if let ck = (withUnsafeBytes(of: &hd) { ul_oct(pax_chksm(Array($0)), $0.count, term_char) }) {
+      withUnsafeMutableBytes(of: &hd.chksum) { $0.copyBytes(from: ck.utf8) }
+    } else {
       Tty.paxwarn(true,"extended header data checksum failed: header type '\(header_type.rawValue)'")
       return .partial
     }
@@ -171,7 +176,6 @@ extension paxer {
     char hdblk[sizeof(HD_USTAR)];
     mode_t mode12only;
     term_char=1;    /* To pass conformance tests 274, 301 */
-    const char *size_header_name = "size";
     char size_value[100];
     bzero(size_value, sizeof(size_value));
 */
@@ -245,16 +249,30 @@ extension paxer {
       strlcpy(hd->name, pt, sizeof(hd->name));
     }
 
+
+    var dowarn = true
+
+    defer {
+      /*
+       * header field is out of range
+       */
+      if dowarn {
+        Tty.paxwarn(true, "Pax header field is too small for \(arcn.org_name)")
+      }
+
+    }
+
     /*
      * set the fields in the header that are type dependent
      */
     switch (arcn.type) {
       case .DIR:
         hd.typeflag = TarFileType.DIRTYPE.rawValue.asciiValue!
-        if (ul_oct((u_long)0L, hd->size, sizeof(hd->size), term_char)) {
-          goto out;
+        guard let tt = ul_oct(0, MemoryLayout.size(ofValue: hd.size), term_char) else {
+          return .partial
         }
-        break;
+        withUnsafeMutableBytes(of: &hd.size) { $0.copyBytes(from: tt.utf8) }
+        break
       case .CHR, .BLK:
         if (arcn.type == .CHR) {
           hd.typeflag = TarFileType.CHRTYPE.rawValue.asciiValue!
@@ -262,20 +280,16 @@ extension paxer {
         else {
           hd.typeflag = TarFileType.BLKTYPE.rawValue.asciiValue!
         }
-        if (ul_oct((u_long)MAJOR(arcn.sb.st_rdev), hd->devmajor,
-                   sizeof(hd->devmajor), term_char) ||
-            ul_oct((u_long)MINOR(arcn.sb.st_rdev), hd->devminor,
-                   sizeof(hd->devminor), term_char) ||
-            ul_oct((u_long)0L, hd->size, sizeof(hd->size), term_char)) {
-          goto out;
-        }
-        break;
+        // FIXME: if any of these failed (which they couldn't, it would return .partial
+        withUnsafeMutableBytes(of: &hd.devmajor) { $0.copyBytes(from: ul_oct(major(arcn.sb.rawDevice), $0.count, term_char)!.utf8 ) }
+        withUnsafeMutableBytes(of: &hd.devminor) { $0.copyBytes(from: ul_oct(minor(arcn.sb.rawDevice), $0.count, term_char)!.utf8 ) }
+        withUnsafeMutableBytes(of: &hd.size) { $0.copyBytes(from:  ul_oct(0, $0.count, term_char)!.utf8 ) }
+          // else { return .partial }
+        break
       case .FIF:
         hd.typeflag = TarFileType.FIFOTYPE.rawValue.asciiValue!
-        if (ul_oct((u_long)0L, hd->size, sizeof(hd->size), term_char)) {
-          goto out;
-        }
-        break;
+        withUnsafeMutableBytes(of: &hd.size) { $0.copyBytes(from:  ul_oct(0, $0.count, term_char)!.utf8 ) }
+        break
       case .SLK, .HLK, .HRG:
         if (arcn.type == .SLK) {
           hd.typeflag = TarFileType.SYMTYPE.rawValue.asciiValue!
@@ -283,15 +297,17 @@ extension paxer {
         else {
           hd.typeflag = TarFileType.LNKTYPE.rawValue.asciiValue!
         }
-        if (strlen(arcn.ln_name) == sizeof(hd->linkname)) {  /* must account for name just fits in buffer */
-          strncpy(hd->linkname, arcn.ln_name, sizeof(hd->linkname));
-        } else {
-          strlcpy(hd->linkname, arcn.ln_name, sizeof(hd->linkname));
+        var ln = arcn.ln_name
+        /* must account for name just fits in buffer */
+        withUnsafeMutableBytes(of: &hd.linkname) {
+          var j = Array(ln.utf8)
+          if j.count < $0.count {
+            j.append(0)
+          }
+          $0.copyBytes(from: j)
         }
-        if (ul_oct((u_long)0L, hd->size, sizeof(hd->size), term_char)) {
-          goto out;
-        }
-        break;
+        withUnsafeMutableBytes(of: &hd.size) { $0.copyBytes(from:  ul_oct(0, $0.count, term_char)!.utf8 ) }
+        break
       case .REG, .CTG:
         fallthrough
       default:
@@ -304,26 +320,27 @@ extension paxer {
         else {
           hd.typeflag = TarFileType.REGTYPE.rawValue.asciiValue!
         }
-        arcn.pad = TAR_PAD(arcn.sb.st_size);
-        if (uqd_oct((u_quad_t)arcn.sb.st_size, hd->size,
-                    sizeof(hd->size), term_char)) {
+        arcn.pad = TAR_PAD(arcn.sb.size);
+        let z = ul_oct(arcn.sb.size, MemoryLayout.size(ofValue: hd.size), term_char)
+        if let z {
+          withUnsafeMutableBytes(of: &hd.size) { $0.copyBytes(from: z.utf8) }
+        } else {
           /*
            * Insert an extended header for size=<arcn.sb.st_size> since
            * octal range of 12 byte string cannot fit > 8GiB files in header.
            * This fixes Conformance test pax.343
            */
-          int i;
-          snprintf(size_value, sizeof(size_value), "%lld", arcn.sb.st_size);
-          for (i = 0; i < sizeof(o_option_table)/sizeof(O_OPTION_TYPE); i++) {
-            if (strncasecmp(size_header_name, o_option_table[i].name, o_option_table[i].len) == 0) {
-              size_x = size_value;
-              ext_header_entry[ext_header_inx++] = i;
+          let size_value = String(arcn.sb.size)
+          for i in 0..<o_option_table.count {
+            if size_header_name == o_option_table[i].name {
+              let size_x = size_value
+              ext_header_entry[ext_header_inx] = i
+              ext_header_inx += 1
             }
           }
-          generate_pax_ext_header_and_data(arcn, ext_header_inx, &ext_header_entry[0],
-                                           .PAXXTYPE, header_name_x, header_name_x_requested);
+          generate_pax_ext_header_and_data(arcn, ext_header_inx, &ext_header_entry[0], .PAXXTYPE, header_name_x, header_name_x_requested)
         }
-        break;
+        break
     }
 
     // WARNING: hd.magic needs to be the same size (or larger) than TMAGIC
@@ -334,71 +351,64 @@ extension paxer {
      * set the remaining fields. Some versions want all 16 bits of mode
      * we better humor them (they really do not meet spec though)....
      */
-    if (ul_oct((u_long)arcn.sb.st_uid, hd->uid, sizeof(hd->uid), term_char)) {
-      if (uid_nobody == 0) {
-        if (uid_name("nobody", &uid_nobody) == -1) {
-          goto out;
+    if let uu = ul_oct(arcn.sb.userId, MemoryLayout.size(ofValue: hd.uid), term_char) {
+      withUnsafeMutableBytes(of: &hd.uid) { $0.copyBytes(from: uu.utf8) }
+    } else {
+      if uid_nobody == 0 {
+        uid_nobody = cache.uid_name("nobody")
+        if uid_nobody == nil {
+          return .partial
         }
       }
-      if (uid_warn != arcn.sb.st_uid) {
-        uid_warn = arcn.sb.st_uid;
-        Tty.paxwarn(true,
-                    "Pax header field is too small for uid %lu, "
-                    "using nobody", (u_long)arcn.sb.st_uid);
+      if uid_warn != arcn.sb.userId {
+        uid_warn = arcn.sb.userId
+        Tty.paxwarn(true, "Pax header field is too small for uid \(arcn.sb.userId), using nobody")
       }
-      if (ul_oct((u_long)uid_nobody, hd->uid, sizeof(hd->uid), term_char)) {
-        goto out;
+      if (ul_oct(uid_nobody, hd->uid, sizeof(hd->uid), term_char)) {
+        return .partial
       }
     }
-    if (ul_oct((u_long)arcn.sb.st_gid, hd->gid, sizeof(hd->gid), term_char)) {
+    if (ul_oct(arcn.sb.groupId, hd->gid, sizeof(hd->gid), term_char)) {
       if (gid_nobody == 0) {
         if (gid_name("nobody", &gid_nobody) == -1) {
-          goto out;
+          return .partial
         }
       }
       if (gid_warn != arcn.sb.groupId) {
         gid_warn = arcn.sb.groupId
         Tty.paxwarn(true, "Pax header field is too small for gid \(arcn.sb.groupId), using nobody")
       }
-      if (ul_oct((u_long)gid_nobody, hd->gid, sizeof(hd->gid), term_char)) {
-        goto out;
-      }
+      withUnsafeMutableBytes(of: &hd.gid) { $0.copyBytes(from: ul_oct(gid_nobody ?? 0, $0.count, term_char)!.utf8) }
+//        return .partial
     }
     /* However, Unix conformance tests do not like MORE than 12 mode bits:
      remove all beyond (see definition of stat.st_mode structure)    */
-    mode12only = ((u_long)arcn.sb.st_mode) & 0x00000fff;
-    if (ul_oct((u_long)mode12only, hd->mode, sizeof(hd->mode), term_char) ||
-        ul_oct((u_long)arcn.sb.lastModified,hd->mtime,sizeof(hd->mtime),term_char)) {
-      goto out;
-    }
-    strncpy(hd->uname, cache.name_uid(arcn.sb.userId, false), sizeof(hd->uname));
-    strncpy(hd->gname, cache.name_gid(arcn.sb.groupId, false), sizeof(hd->gname));
+    let mode12only = arcn.sb.permissions.rawValue
+    withUnsafeMutableBytes(of: &hd.mode) { $0.copyBytes(from: ul_oct( UInt(mode12only), $0.count, term_char)!.utf8) }
+    withUnsafeMutableBytes(of: &hd.mtime) { $0.copyBytes(from: ul_oct( UInt(arcn.sb.lastModified.secs), $0.count,term_char)!.utf8 )
+//      return .partial
+
+    withUnsafeMutableBytes(of: &hd.uname) { $0.copyBytes(from: cache.name_uid(arcn.sb.userId, false).utf8) }
+    withUnsafeMutableBytes(of: &hd.gname) { $0.copyBytes(from: cache.name_gid(arcn.sb.groupId, false).utf8) }
 
     /*
      * calculate and store the checksum write the header to the archive
      * return 0 tells the caller to now write the file data, 1 says no data
      * needs to be written
      */
-    if (ul_oct(pax_chksm(hdblk, sizeof(HD_USTAR)), hd->chksum,
-               sizeof(hd->chksum), term_char)) {
-      goto out;
-    }
-    if (wr_rdbuf(hdblk, sizeof(HD_USTAR)) < 0) {
+      let ck = withUnsafeBytes(of: hd) { pax_chksm( Array($0) ) }
+      withUnsafeMutableBytes(of: &hd.chksum) { $0.copyBytes(from: ul_oct(ck, $0.count, term_char)!.utf8) }
+
+    dowarn = false
+      if (wr_rdbuf(hdblk, MemoryLayout<HD_USTAR>.size) < 0) {
       return .failed;
     }
-    if (wr_skip(BLKMULT - sizeof(HD_USTAR)) < 0) {
+      if (wr_skip(BLKMULT - MemoryLayout<HD_USTAR>.size) < 0) {
       return .failed;
     }
     if ((arcn.type == .CTG) || (arcn.type == .REG)) {
       return .ok
     }
-    return .partial
-
-  out:
-    /*
-     * header field is out of range
-     */
-    Tty.paxwarn(true, "Pax header field is too small for \(arcn.org_name)")
     return .partial
   }
 
@@ -484,5 +494,13 @@ extension paxer {
       }
     }
     return(nlen);
+  }
+
+  func major(_ x : UInt) -> UInt {
+    return (x >> 24) & 0xff
+  }
+
+  func minor(_ x : UInt) -> UInt {
+    return x & 0xffffff
   }
 }
