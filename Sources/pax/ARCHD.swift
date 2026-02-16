@@ -105,9 +105,10 @@ struct PatternFlags : OptionSet {
  *
  * Used to store command line patterns
  */
-struct PATTERN {
+struct PATTERN : Equatable {
+  // FIXME: does the Equatable only case about pstr?
   var pstr : String    /* pattern to match, user supplied */
-//  var pend : String    /* end of a prefix match */
+  var pend : String.Index?    /* end of a prefix match */
   var chdname : String /* the dir to change to if not NULL.  */
   var flgs : PatternFlags    /* processing/state flags */
 }

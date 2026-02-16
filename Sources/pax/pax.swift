@@ -357,7 +357,7 @@ nonisolated(unsafe) var myUsage : usageType = .pax
 
   func runCommand() async throws(CmdErr) {
 
-    let ao = ArchiveOps()
+    let ao = ArchiveOps(options:options)
     /*
      * select a primary operation mode
      */

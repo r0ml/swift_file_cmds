@@ -385,7 +385,7 @@ extension paxer {
      remove all beyond (see definition of stat.st_mode structure)    */
     let mode12only = arcn.sb.permissions.rawValue
     withUnsafeMutableBytes(of: &hd.mode) { $0.copyBytes(from: ul_oct( UInt(mode12only), $0.count, term_char)!.utf8) }
-    withUnsafeMutableBytes(of: &hd.mtime) { $0.copyBytes(from: ul_oct( UInt(arcn.sb.lastModified.secs), $0.count,term_char)!.utf8 )
+    withUnsafeMutableBytes(of: &hd.mtime) { $0.copyBytes(from: ul_oct( UInt(arcn.sb.lastModified.secs), $0.count,term_char)!.utf8 ) }
 //      return .partial
 
     withUnsafeMutableBytes(of: &hd.uname) { $0.copyBytes(from: cache.name_uid(arcn.sb.userId, false).utf8) }

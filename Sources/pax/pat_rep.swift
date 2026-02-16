@@ -58,8 +58,15 @@ struct REPLACE {
   var flgs : PaxPatFlags  /* print conversions? global in operation?  */
 }
 
-class paxPattern {
+class PaxMatcher {
 
+  // FIXME: move pathead (and rephead) into Options, and have the functions take the options as an inout parameter
+  // or, have extensions on CommandOptions to ingest arguments
+  var options : pax.CommandOptions
+
+  init(options: pax.CommandOptions) {
+    self.options = options
+  }
   /*
    * routines to handle pattern matching, name modification (regular expression
    * substitution and interactive renames), and destination name modification for
@@ -89,12 +96,6 @@ class paxPattern {
    */
 
   func rep_add(_ str : String) -> Result {
-/*    char *pt1;
-    char *pt2;
-    REPLACE *rep;
-    int res;
-    char rebuf[BUFSIZ];
-*/
 
     // throw out the bad parameters
     if str.isEmpty {
@@ -251,25 +252,23 @@ class paxPattern {
    *	match, -1 otherwise.
    */
 
-  func pat_sel(_ arcn : ARCHD) -> Result {
-    PATTERN *pt;
-    PATTERN **ppt;
-    int len;
-
+  func pat_sel(_ arcn : inout ARCHD) -> Result {
     /*
      * if no patterns just return
      */
-    if ((pathead == NULL) || ((pt = arcn.pat) == NULL)) {
-      return(0);
+    if pathead.isEmpty {
+      return .ok
     }
+
+    guard var pt = arcn.pat else { return .ok }
 
     /*
      * when we are NOT limited to a single match per pattern mark the
      * pattern and return
      */
-    if (!nflag) {
-      pt->flgs |= MTCH;
-      return(0);
+    if !options.nflag {
+      arcn.pat?.flgs.insert(.MTCH)
+      return .ok
     }
 
     /*
@@ -279,11 +278,11 @@ class paxPattern {
      * in the subtree of a directory. in that case when we are operating
      * with -d, this pattern was already selected and we are done
      */
-    if (pt->flgs & DIR_MTCH) {
-      return(0);
+    if pt.flgs.contains(.DIR_MTCH) {
+      return .ok
     }
 
-    if (!dflag && ((pt->pend != NULL) || (arcn.type == PAX_DIR))) {
+    if !options.dflag && (pt.pend != nil || arcn.type == .DIR) {
       /*
        * ok we matched a directory and we are allowing
        * subtree matches but because of the -n only its children will
@@ -297,39 +296,26 @@ class paxPattern {
        * if this was a prefix match, remove trailing part of path
        * so we can copy it. Future matches will be exact prefix match
        */
-      if (pt->pend != NULL) {
-        *pt->pend = '\0';
+      // r0ml: Guessing that the "pend" stuff is about getting a prefix from arcn.name
+      if let pp = pt.pend {
+        pt.pstr = String(arcn.name[arcn.name.startIndex..<pp])
+      } else {
+        pt.pstr = arcn.name
       }
-
-      if ((pt->pstr = strdup(arcn.name)) == NULL) {
-        Tty.paxwarn(true, "Pattern select out of memory");
-        if (pt->pend != NULL) {
-          *pt->pend = '/';
-        }
-        pt->pend = NULL;
-        return .failed;
-      }
-
       /*
        * put the trailing / back in the source string
        */
-      if (pt->pend != NULL) {
-        *pt->pend = '/';
-        pt->pend = NULL;
-      }
-      pt->plen = strlen(pt->pstr);
+      pt.pend = nil
 
       /*
        * strip off any trailing /, this should really never happen
        */
-      len = pt->plen - 1;
-      if (*(pt->pstr + len) == '/') {
-        *(pt->pstr + len) = '\0';
-        pt->plen = len;
+      while pt.pstr.last == "/" {
+        pt.pstr.removeLast()
       }
-      pt->flgs = DIR_MTCH | MTCH;
-      arcn.pat = pt;
-      return(0);
+      pt.flgs.insert([.DIR_MTCH, .MTCH])
+      arcn.pat = pt
+      return .ok
     }
 
     /*
@@ -340,24 +326,9 @@ class paxPattern {
      * and the pattern rejects a member (i.e. it matched it) it is done.
      * In effect we place the order of the flags as having -c last.
      */
-    pt = pathead;
-    ppt = &pathead;
-    while ((pt != NULL) && (pt != arcn.pat)) {
-      ppt = &(pt->fow);
-      pt = pt->fow;
-    }
-
-    if (pt == NULL) {
-      /*
-       * should never happen....
-       */
-      Tty.paxwarn(true, "Pattern list inconsistent");
-      return .failed;
-    }
-    *ppt = pt->fow;
-    free(pt);
-    arcn.pat = NULL;
-    return(0);
+    pathead.removeAll { $0 == arcn.pat }
+    arcn.pat = nil
+    return .ok
   }
 
   /*
@@ -372,54 +343,54 @@ class paxPattern {
    *	looking for more members)
    */
 
-  func pat_match(_ arcn : ARCHD) -> Result {
-    PATTERN *pt;
-
-    arcn.pat = NULL;
+  func pat_match(_ arcn : inout ARCHD) -> Result {
+    arcn.pat = nil
 
     /*
      * if there are no more patterns and we have -n (and not -c) we are
      * done. otherwise with no patterns to match, matches all
      */
-    if (pathead == NULL) {
-      if (nflag && !cflag) {
+    if pathead.isEmpty {
+      if options.nflag && !options.cflag {
         return .failed;
       }
-      return(0);
+      return .ok
     }
+
+    var matched : PATTERN?
 
     /*
      * have to search down the list one at a time looking for a match.
      */
-    pt = pathead;
-    while (pt != NULL) {
+    for var pt in pathead {
       /*
        * check for a file name match unless we have DIR_MTCH set in
        * this pattern then we want a prefix match
        */
-      if (pt->flgs & DIR_MTCH) {
+      if pt.flgs.contains(.DIR_MTCH) {
         /*
          * this pattern was matched before to a directory
          * as we must have -n set for this (but not -d). We can
          * only match CHILDREN of that directory so we must use
          * an exact prefix match (no wildcards).
          */
-        if ((arcn.name[pt->plen] == '/') &&
-            (strncmp(pt->pstr, arcn.name, pt->plen) == 0)) {
-          break;
+        if arcn.name.dropFirst(pt.pstr.count).first == "/" &&
+            pt.pstr == arcn.name.prefix(pt.pstr.count) {
+          matched = pt
+          break
         }
-      } else if (fn_match(pt->pstr, arcn.name, &pt->pend) == 0) {
-        break;
+      } else if case .ok = fn_match(pt.pstr, Substring(arcn.name), &pt.pend) {
+        matched = pt
+        break
       }
-      pt = pt->fow;
     }
 
     /*
      * return the result, remember that cflag (-c) inverts the sense of a
      * match
      */
-    if (pt == NULL) {
-      return(cflag ? 0 : 1);
+    guard let pt = matched else {
+      return options.cflag ? .ok : .partial
     }
 
     /*
@@ -428,15 +399,15 @@ class paxPattern {
      * match, not in selecting an archive member) so we call pat_sel() here.
      */
     arcn.pat = pt;
-    if (!cflag) {
-      return(0);
+    if !options.cflag {
+      return .ok
     }
 
-    if (pat_sel(arcn) < 0) {
+    if case .failed = pat_sel(&arcn) {
       return .failed;
     }
-    arcn.pat = NULL;
-    return(1);
+    arcn.pat = nil
+    return .partial
   }
 
   /*
@@ -448,247 +419,216 @@ class paxPattern {
    *	Note: *pend may be changed to show where the prefix ends.
    */
 
-  func fn_match(_ pattern : String, _ string: String, _ pend : inout String) -> Result {
-    char c;
-    char test;
+  func fn_match(_ patternx : String, _ stringx: Substring, _ pend : inout String.Index?) -> Result {
+    pend = nil
+    var string = stringx
+    var test : Character
+    var pattern = Substring(patternx)
+    while true {
+      if pattern.isEmpty {
+        /*
+         * Ok we found an exact match
+         */
+        if string.isEmpty {
+          return .ok
+        }
 
-    char *equiv_pat;
-    char *pat_pend = NULL;
+        /*
+         * Check if it is a prefix match
+         */
+        if options.dflag || string.first != "/" {
+          return .failed
+        }
 
-    *pend = NULL;
-    for (;;) {
-      switch (c = *pattern++) {
-        case '\0':
-          /*
-           * Ok we found an exact match
-           */
-          if (*string == '\0') {
-            return(0);
+        /*
+         * It is a prefix match, remember where the trailing
+         * / is located
+         */
+        pend = string.startIndex
+        return .ok
+      }
+      var c = pattern.removeFirst()
+      switch c {
+        case "?":
+          if string.isEmpty {
+            return .failed
           }
-
-          /*
-           * Check if it is a prefix match
-           */
-          if ((dflag == 1) || (*string != '/')) {
-            return .failed;
-          }
-
-          /*
-           * It is a prefix match, remember where the trailing
-           * / is located
-           */
-          *pend = string;
-          return(0);
-        case '?':
-          if ((test = *string++) == '\0') {
-            return (-1);
-          }
-          break;
-        case '*':
-          c = *pattern;
+          test = string.removeFirst()
+        case "*":
           /*
            * Collapse multiple *'s.
            */
-          while (c == '*') {
-            c = *++pattern;
+          while pattern.first == "*" {
+            pattern.removeFirst()
           }
 
           /*
            * Optimized hack for pattern with a * at the end
            */
-          if (c == '\0') {
-            return (0);
+          if pattern.isEmpty {
+            return .ok
           }
+
+          c = pattern.removeFirst()
 
           /*
            * General case, use recursion.
            */
-          while ((test = *string) != '\0') {
-            if (!fn_match(pattern, string, pend)) {
-              return (0);
+          while !string.isEmpty {
+            if case .ok = fn_match(String(pattern), string, &pend) {
+              return .ok
             }
-            ++string;
+            string.removeFirst()
           }
-          return (-1);
-        case '[':
-                  /*
-                   * range match
-                   */
-
-                /*
-                 * Check for equivalence class and use regex_match to
-                 * handle this case. Note pattern should include the
-                 * opening bracket '['
-                 */
-                equiv_pat = extract_equiv_pat(pattern-1, &pat_pend);
-                if (equiv_pat) {
-          if (regex_match(equiv_pat, string, &string) == -1) {
-            free (equiv_pat);
-            return (-1);
-          }
-
-          free(equiv_pat);
+          return .failed
+        case "[":
+          /*
+           * range match
+           */
 
           /*
-           * Update the pattern string
+           * Check for equivalence class and use regex_match to
+           * handle this case.  Note, I have already eaten the leading "["
            */
-          pattern = pat_pend;
-          break;
-        }
+          var pat_pend : String.Index = pattern.startIndex
+          if let equiv_pat = extract_equiv_pat(pattern, &pat_pend) {
+            var ss : String.Index = string.startIndex
+            if case .failed = regex_match(equiv_pat, string, &ss) {
+              return .failed
+            }
 
-                if (((test = *string++) == '\0') ||
-                    ((pattern = range_match(pattern, test)) == NULL)) {
-          return (-1);
-        }
-                break;
-                case '\\':
-                  default:
-                  if (c != *string++) {
-          return (-1);
-        }
-                break;
+            string = string[ss...]
+            /*
+             * Update the pattern string
+             */
+            pattern = pattern[pat_pend...]
+            break
+          }
+
+          if string.isEmpty {
+            return .failed
+          }
+          test = string.removeFirst()
+          guard let pattern = range_match(String(pattern), test) else {
+            return .failed
+          }
+        case "\\":
+          fallthrough
+        default:
+          if c != string.removeFirst() {
+            return .failed
+          }
       }
     }
     /* NOTREACHED */
   }
 
-  func extract_equiv_pat(_ patterh : String, _ pend : inout String) -> String {
-    int pat_len = 2;
-    int found = 0;
-    int is_double_bracket = 0;
-    char* equiv_pat = NULL;
+  // FIXME: FIXME: FIXME: checkout str.swift in the tr command in swift_text_cmds.
+  // That implements equivalence classes for Swift Regex (untested -- but let's share the code
 
-    if (*pattern == '\0' || pattern[1] == '\0' || pattern[2] == '\0')
-        return NULL;
+  // The initial "[" has already been eaten before getting here
+  private func extract_equiv_pat(_ patternx : Substring, _ pend : inout String.Index) -> String? {
+    var found = false
+    var pattern = patternx
+
+    if pattern.count < 2 { return nil }
 
     /*
      * check if the pattern is
      * "[= =]", "[[= =][= =]]", "[: :]", or "[[: :][: :]]"
      * note that the full "pattern" string needs to be passed in
      */
-    is_double_bracket = (*pattern == '[' && pattern[1] == '[');
-    if (!(*pattern == '[') && !is_double_bracket) {
-      return NULL;
+    let is_double_bracket = pattern.hasPrefix("[")
+    if is_double_bracket {
+      pattern.removeFirst()
     }
 
-    pattern ++;
+    guard pattern.first == ":" || pattern.first == "=" else { return nil }
 
-    if (is_double_bracket) {
-      pattern ++;
-      pat_len ++;
-    }
+    while !pattern.isEmpty {
+      pattern.removeFirst()
 
-    if (!(*pattern == ':') && !(*pattern == '=')) {
-      return NULL;
-    }
-
-    pattern ++;
-
-
-    for(; *pattern != '\0'; pat_len++, pattern++) {
-      if (!is_double_bracket) {
-        if ((*pattern == '=' || *pattern == ':')
-            && pattern[1] == ']') {
-          found = 1;
-          pattern += 2;
-          pat_len += 2;
-          break;
+      if !is_double_bracket {
+        if pattern.hasPrefix("=]") || pattern.hasPrefix(":]") {
+          found = true
+          pattern = pattern.dropFirst(2)
+          break
         }
-
       } else {
-        if ((*pattern == '=' || *pattern == ':')
-            && pattern[1] == ']' && pattern[2] == ']') {
-          found = 1;
-          pattern += 3;
-          pat_len += 3;
-          break;
+        if pattern.hasPrefix("=]]") || pattern.hasPrefix(":]]") {
+          found = true
+          pattern = pattern.dropFirst(3)
+          break
         }
-
       }
     }
 
-    if (!found) {
-      return NULL;
+    if !found {
+      return nil
     }
 
-    equiv_pat = strndup(pattern-pat_len, pat_len);
-
-    if (equiv_pat == NULL) {
-      Tty.paxwarn(true, "Out of memory");
-      return NULL;
-    }
-
+    let equiv_pat = pattern[patternx.startIndex..<pattern.startIndex]
     /*
      * set pend to the remaining pattern to be matched
      */
-    if (pend != NULL) {
-      *pend = pattern;
-    }
+    pend = pattern.startIndex
 
-    return equiv_pat;
+    return String("["+equiv_pat)
   }
 
-  func regex_match(_ pattern : String, _ string : String, _ pend : inout String) -> Result {
-    int res;
-    regex_t preg;
-    regmatch_t pmatch;
-    char rebuf[BUFSIZ];
-
-    if ((res = regcomp(&(preg), pattern, REG_EXTENDED)) != 0) {
-      regerror(res, &(preg), rebuf, sizeof(rebuf));
-      Tty.paxwarn(true, "%s while compiling pattern %s", rebuf, pattern);
-      return .failed;
+  func regex_match(_ pattern : String, _ string : Substring, _ pend : inout String.Index) -> Result {
+    let preg : Regex<AnyRegexOutput>
+    do {
+      preg = try Regex(pattern)
+    } catch(let e) {
+//    if ((res = regcomp(&(preg), pattern, REG_EXTENDED)) != 0) {
+//      regerror(res, &(preg), rebuf, sizeof(rebuf));
+      Tty.paxwarn(true, "\(e) while compiling pattern \(pattern)")
+      return .failed
     }
 
-    if (regexec(&(preg), string, 1, &(pmatch), 0) != 0) {
-      regfree(&(preg));
-      return .failed;
+    guard let pmatch = string.firstMatch(of: preg) else {
+      return .failed
     }
-
-    regfree(&(preg));
-
     /*
      * starting position of the match must be 0
      */
-    if (pmatch.rm_so != 0) {
-      return .failed;
+    if pmatch.first?.range?.lowerBound != string.startIndex {
+      return .failed
     }
 
     /*
      * set pend to the remaining string to be matched
      */
-    if (pend != NULL) {
-      *pend = string + pmatch.rm_eo;
-    }
-
-    return(0);
+    pend = pmatch.first!.range!.upperBound
+    return .ok
   }
 
-  func range_match(_ pattern : String, _ test : Int) -> String {
-    char c;
-    char c2;
-    int negate;
-    int ok = 0;
-
-    if ((negate = (*pattern == '!')) != 0)
-        ++pattern;
-
-    while ((c = *pattern++) != ']') {
-      /*
-       * Illegal pattern
-       */
-      if (c == '\0')
-          return (NULL);
-
-      if ((*pattern == '-') && ((c2 = pattern[1]) != '\0') &&
-          (c2 != ']')) {
-        if ((c <= test) && (test <= c2))
-            ok = 1;
-        pattern += 2;
-      } else if (c == test)
-                  ok = 1;
+  // FIXME: this is implementing the regex -- in theory, Swift Regex implementation should handle this
+  private func range_match(_ patternx : String, _ test : Character) -> String? {
+    var ok = false
+    var pattern = Substring(patternx)
+    let negate = pattern.first == "!"
+    if negate {
+      pattern.removeFirst()
     }
-    return (ok == negate ? NULL : pattern);
+
+    while true {
+      if pattern.isEmpty { return nil } // illegal pattern
+
+      let c = pattern.removeFirst()
+      if c == "]" {
+        return ok == negate ? nil : String(pattern)
+      }
+      if pattern.first == "-" && pattern.count > 1 && pattern.prefix(2) != "-]" {
+        if c <= test && test <= pattern.dropFirst().first! {
+          ok = true
+        }
+        pattern = pattern.dropFirst(2)
+      } else if c == test {
+        ok = true
+      }
+    }
   }
 
 }
