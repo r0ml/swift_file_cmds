@@ -59,10 +59,10 @@ class ustar : tar {
 
   override func id( _ blk : [UInt8]) -> Result {
 
-    if (size < BLKMULT) {
+    if blk.count < BLKMULT {
       return .failed;
     }
-    let hd = (HD_USTAR *)blk;
+    let hd = HD_USTAR(blk)
 
     /*
      * check for block of zero's first, a simple and fast test then check
@@ -70,14 +70,14 @@ class ustar : tar {
      * programs are fouled up and create archives missing the \0. Last we
      * check the checksum. If ok we have to assume it is a valid header.
      */
-    if (hd->name[0] == '\0') {
-      return .failed;
+    if hd._name.0 == 0 {
+      return .failed
     }
-    if (strncmp(hd->magic, TMAGIC, TMAGLEN - 1) != 0) {
-      return .failed;
+    if hd.magic != TMAGIC  {
+      return .failed
     }
-    if (asc_ul(hd->chksum,sizeof(hd->chksum),OCT) != tar_chksm(blk,BLKMULT)) {
-      return .failed;
+    if hd.chksum != tar_chksm(blk,BLKMULT) {
+      return .failed
     }
     return .ok
   }
@@ -106,7 +106,7 @@ class ustar : tar {
     arcn.sb.links = 1
     arcn.pat = nil
     arcn.nlen = 0
-    var hd : HD_USTAR = withUnsafeBytes(of: buf) { return $0.assumingMemoryBound(to: HD_USTAR.self).baseAddress!.pointee }
+    var hd = HD_USTAR(buf)
 
     /*
      * see if the filename is split into two parts. if, so joint the parts.
@@ -143,10 +143,9 @@ class ustar : tar {
      * follow the spec to the letter. we should only have mode bits, strip
      * off all other crud we may be passed.
      */
-    arcn.sb.st_mode = (mode_t)(asc_ul(hd->mode, sizeof(hd->mode), OCT) &
-        0xfff);
-    arcn.sb.size = (off_t)asc_uqd(hd->size, sizeof(hd->size), OCT);
-    arcn.sb.lastModified = (time_t)asc_uqd(hd->mtime, sizeof(hd->mtime), OCT);
+    arcn.sb.permissions = FilePermissions(rawValue: UInt16(hd.mode!))
+    arcn.sb.size = hd.size!
+    arcn.sb.lastModified = hd.mtime!
     arcn.sb.lastChanged = arcn.sb.lastModified
     arcn.sb.lastAccessed = arcn.sb.lastModified
 
@@ -156,8 +155,7 @@ class ustar : tar {
      * we use the uid and gid values stored in the header. (This is what
      * the POSIX spec wants).
      */
-    hd->gname[sizeof(hd->gname) - 1] = '\0';
-    if (gid_name(hd->gname, &(arcn.sb.st_gid)) < 0) {
+    if (tables.gid_name(hd.gname, &(arcn.sb.st_gid)) < 0) {
       arcn.sb.groupId = (gid_t)asc_ul(hd->gid, sizeof(hd->gid), OCT);
     }
     hd->uname[sizeof(hd->uname) - 1] = '\0';
@@ -273,7 +271,7 @@ class ustar : tar {
      */
     if (arcn.type == .SCK) {
       Tty.paxwarn(true, "Ustar cannot archive a socket \(arcn.org_name)")
-      return 1
+      return .partial
     }
 
     /*
@@ -286,7 +284,7 @@ class ustar : tar {
        * Conformance: test pax:285 wants error code to be non-zero, and
        * test tar:12 wants error code from pax to be 0
        */
-      return 1
+      return .partial
     }
 
     /*
@@ -295,7 +293,7 @@ class ustar : tar {
      */
     if ((pt = name_split(arcn.name, arcn.nlen)) == NULL) {
       Tty.paxwarn(true, "File name too long for ustar \(arcn.name)")
-      return 1
+      return .partial
     }
 
     /*
@@ -336,46 +334,30 @@ class ustar : tar {
      */
     switch arcn.type {
       case .DIR:
-        hd.typeflag = TarFileType.DIRTYPE.rawValue.asciiValue!
-
-          if (ul_oct(0, hd->size, sizeof(hd->size), term_char)) {
-
-            goto out;
-          }
+        hd.typeflag = .DIRTYPE
+        hd.size = 0
 
       case .CHR, .BLK:
         if (arcn.type == .CHR) {
-            hd.typeflag = TarFileType.CHRTYPE.rawValue.asciiValue!
+          hd.typeflag = .CHRTYPE
           }
           else {
-            hd.typeflag = TarFileType.BLKTYPE.rawValue.asciiValue!
+            hd.typeflag = .BLKTYPE
           }
 
-        if (ul_oct((u_long)MAJOR(arcn.sb.st_rdev), hd->devmajor,
-
-         sizeof(hd->devmajor), term_char) ||
-
-         ul_oct((u_long)MINOR(arcn.sb.st_rdev), hd->devminor,
-
-         sizeof(hd->devminor), term_char) ||
-            ul_oct(0, hd->size, sizeof(hd->size), term_char)) {
-          goto out;
-        }
+        hd.devmajor = major(arcn.sb.rawDevice)
+        hd.devminor = minor(arcn.sb.rawDevice)
 
       case .FIF:
-        hd.typeflag = TarFileType.FIFOTYPE.rawValue.asciiValue!
-
-            if (ul_oct(0, hd->size, sizeof(hd->size), term_char)) {
-
-              goto out;
-            }
+        hd.typeflag = .FIFOTYPE
+        hd.size = 0
 
       case .SLK, .HLK, .HRG:
         if arcn.type == .SLK {
-          hd.typeflag = TarFileType.SYMTYPE.rawValue.asciiValue!
+          hd.typeflag = .SYMTYPE
             }
             else {
-              hd.typeflag = TarFileType.LNKTYPE.rawValue.asciiValue!
+              hd.typeflag = .LNKTYPE
             }
 
       if (strlen(arcn.ln_name) == sizeof(hd->linkname)) {  /* must account for name just fits in buffer */
@@ -454,15 +436,14 @@ class ustar : tar {
     }
     /* However, Unix conformance tests do not like MORE than 12 mode bits:
        remove all beyond (see definition of stat.st_mode structure)    */
-    mode12only = ((u_long)arcn.sb.st_mode) & 0x00000fff;
-    if (ul_oct((u_long)mode12only, hd->mode, sizeof(hd->mode), term_char) ||
-        ul_oct((u_long)arcn.sb.lastModified,hd->mtime,sizeof(hd->mtime),term_char)) {
+    let mode12only = arcn.sb.permissions.rawValue & 0x00000fff
+    hd.mode = UInt(mode12only)
+    hd.mtime = arcn.sb.lastModified
 
-      goto out;
-    }
+//      goto out;
 
-    strncpy(hd->uname, name_uid(arcn.sb.st_uid, 0), sizeof(hd->uname));
-    strncpy(hd->gname, name_gid(arcn.sb.st_gid, 0), sizeof(hd->gname));
+    hd.uname = cache.name_uid(arcn.sb.userId, false)
+    hd.gname = cache.name_gid(arcn.sb.groupId, false)
 
     /*
      * calculate and store the checksum write the header to the archive
@@ -470,11 +451,9 @@ class ustar : tar {
      * needs to be written
      */
 
-    if (ul_oct(tar_chksm(hdblk, sizeof(HD_USTAR)), hd->chksum,
-               sizeof(hd->chksum), term_char)) {
+    hd.chksum = tar_chksm(hdblk)
 
-      goto out;
-    }
+      //      goto out;
       if (wr_rdbuf((char *)&hdblk, sizeof(HD_USTAR)) < 0) {
         return .failed;
       }
@@ -484,14 +463,14 @@ class ustar : tar {
     if ((arcn.type == .CTG) || (arcn.type == .REG)) {
         return .ok
       }
-    return(1);
+    return .partial
 
       out:
         /*
      * header field is out of range
      */
     Tty.paxwarn(true, "Ustar header field is too small for \(arcn.org_name)")
-    return 1
+    return .failed
   }
 
 

@@ -67,28 +67,24 @@ class vcpio_crc : vcpio {
    * crc_strd()
    w  set file data CRC calculations. Fire up the hard link detection code
    * Return:
-   *      0 if ok -1 otherwise (the return values of lnk_start())
+   *      0 if ok 
    */
 
-  int
-  crc_strd(void)
-  {
+  func crc_strd() -> Result {
     docrc = 1;
-    return(lnk_start());
+    return .ok
   }
 
   /*
    * crc_stwr()
    *  start up the device mapping table, enable crc file calculation
    * Return:
-   *  0 if ok, -1 otherwise (what dev_start() returns)
+   *  0 if ok
    */
 
-  int
-  crc_stwr(void)
-  {
+  func crc_stwr() -> Result  {
     docrc = 1;
-    return(dev_start());
+    return .ok
   }
 
 }

@@ -205,41 +205,6 @@ struct Gen {
     }
   }
 
-  static let asc_ul = asc_uqd
-
-  /*
-   * asc_uqd()
-   *	convert hex/octal character string into a u_quad_t. We do not have to
-   *	check for overflow! (the headers in all supported formats are not large
-   *	enough to create an overflow).
-   *	NOTE: strings passed to us are NOT TERMINATED.
-   * Return:
-   *	u_quad_t value
-   */
-
-  static func asc_uqd(_ str : String, _ base : Int) -> UInt? {
-    let x = UInt(str, radix: base)
-    return x
-  }
-
-  static let ul_asc = uqd_asc
-
-  /*
-   * uqd_asc()
-   *	convert an u_quad_t into a hex/oct ascii string. pads with LEADING
-   *	ascii 0's to fill string completely
-   *	NOTE: the string created is NOT TERMINATED.
-   */
-
-  static func uqd_asc(_ val : UInt, _ len : Int, _ base : Int) -> String {
-    let a = String(val, radix: base)
-    let b = String(repeating: "0", count: len - a.count) + a
-    /*
-     * WARNING str is not '\0' terminated by this routine
-     */
-    return b
-  }
-
   func pax_format_list_output(_ arcn : ARCHD, _ now : DateTime, _ fp : FileDescriptor, _ term : Character) {
     /* parse specified listopt format */
  /*   char *nextpercent, *nextchar;

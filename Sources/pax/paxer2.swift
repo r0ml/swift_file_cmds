@@ -274,12 +274,11 @@ extension paxer {
    */
 
   func id( _ blk : [UInt8] ) -> Result {
-    HD_USTAR *hd;
 
-    if (size < BLKMULT) {
-      return .failed;
+    if blk.count < BLKMULT {
+      return .failed
     }
-    hd = (HD_USTAR *)blk;
+    var hd = HD_USTAR(blk)
 
     /*
      * check for block of zero's first, a simple and fast test then check
@@ -290,17 +289,17 @@ extension paxer {
     if (hd->name[0] == '\0') {
       return .failed;
     }
-    if (strncmp(hd->magic, TMAGIC, TMAGLEN - 1) != 0) {
+    if hd.magic != TMAGIC {
       return .failed;
     }
-    if (asc_ul(hd->chksum,sizeof(hd->chksum),OCT) != pax_chksm(blk,BLKMULT)) {
+    if hd.chksum != pax_chksm(blk) {
       return .failed;
     }
-    if ((hd->typeflag != PAXXTYPE) && (hd->typeflag != PAXGTYPE)) {
+    if hd.typeflag != .PAXXTYPE && hd.typeflag != .PAXGTYPE {
       /* Not explicitly pax format, but at least ustar */
-      if (act==LIST || act==EXTRACT) {
+      if (options.act == .LIST || options.act == .EXTRACT) {
         /* Although insufficient evidence, call it pax format */
-        return(0);
+        return .ok
       }
       return .failed;
     }
@@ -319,23 +318,21 @@ extension paxer {
   func rd(_ buf : [UInt8]) -> ARCHD? {
 //    int cnt = 0;
 //    int check_path;
-//    dev_t devmajor;
-//    dev_t devminor;
 
     /*
      * we only get proper sized buffers
      */
-    if (pax_id(buf, BLKMULT) < 0) {
-      return .failed;
+    if case .failed = id(buf) {
+      return nil
     }
 
     var arcn : ARCHD = ARCHD()
     arcn.org_name = arcn.name;
     arcn.sb.links = 1
-    var hd : HD_USTAR = withUnsafeBytes(of: buf) { return $0.assumingMemoryBound(to: HD_USTAR.self).baseAddress!.pointee }
+    var hd = HD_USTAR(buf)
 
     let check_path = expand_extended_headers(arcn, hd)
-    let hdtf = TarFileType(rawValue: Character(UnicodeScalar(hd.typeflag)))
+    let hdtf = hd.typeflag
 
     if .ok != check_path {
       /*
@@ -374,15 +371,14 @@ extension paxer {
      * follow the spec to the letter. we should only have mode bits, strip
      * off all other crud we may be passed.
      */
-    arcn.sb.permissions = (asc_ul(hd->mode, sizeof(hd->mode), OCT) &
-                               0xfff);
-    arcn.sb.size = asc_uqd(hd->size, sizeof(hd->size), OCT);
+    arcn.sb.permissions = FilePermissions(rawValue: UInt16(hd.mode! & 0x0fff))
+    arcn.sb.size = hd.size!
     /* When we have extended header for size, prefer it over hd->size */
     if (size_x_current) {
       sscanf(size_x_current, "%lld", &arcn.sb.size);
     }
-    arcn.sb.lastModified = asc_ul(hd->mtime, sizeof(hd->mtime), OCT);
-    if (arcn.sb.st_atimespec.tv_sec == 0) { // Can be set from header
+    arcn.sb.lastModified = hd.mtime!
+    if (arcn.sb.lastAccessed.secs == 0) { // Can be set from header
       arcn.sb.lastAccessed = arcn.sb.lastModified
     }
     arcn.sb.lastChanged = arcn.sb.lastModified
@@ -393,13 +389,15 @@ extension paxer {
      * we use the uid and gid values stored in the header. (This is what
      * the posix spec wants).
      */
-    hd->gname[sizeof(hd->gname) - 1] = '\0';
-    if (gid_name(hd->gname, &(arcn.sb.groupId)) < 0) {
-      arcn.sb.groupId = (gid_t)asc_ul(hd->gid, sizeof(hd->gid), OCT);
+    if let g = cache.gid_name(hd.gname) {
+      arcn.sb.groupId = g
+    } else {
+      arcn.sb.groupId = hd.gid!
     }
-    hd->uname[sizeof(hd->uname) - 1] = '\0';
-    if (uid_name(hd->uname, &(arcn.sb.userId)) < 0) {
-      arcn.sb.userId = (uid_t)asc_ul(hd->uid, sizeof(hd->uid), OCT);
+    if let u = cache.uid_name(hd.uname) {
+      arcn.sb.userId = u
+    } else {
+      arcn.sb.userId = hd.uid!
     }
 
     /*
@@ -442,9 +440,9 @@ extension paxer {
           arcn.type = .CHR;
           arcn.sb.filetype = .characterDevice
         }
-        devmajor = (dev_t)asc_ul(hd->devmajor,sizeof(hd->devmajor),OCT);
-        devminor = (dev_t)asc_ul(hd->devminor,sizeof(hd->devminor),OCT);
-        arcn.sb.st_rdev = TODEV(devmajor, devminor);
+        let devmajor = hd.devmajor
+        let devminor = hd.devminor
+        arcn.sb.rawDevice = TODEV(devmajor, devminor);
         break;
       case .SYMTYPE, .LNKTYPE:
         if hdtf == .SYMTYPE {
@@ -475,13 +473,13 @@ extension paxer {
          * these types have file data that follows. Set the skip and
          * pad fields.
          */
-        arcn.type = pax.PAXType.REG
+        arcn.type = PAXType.REG
         arcn.pad = TAR_PAD(arcn.sb.size);
         arcn.skip = arcn.sb.size;
         arcn.sb.filetype = .regular
         break;
     }
-    return(0);
+    return arcn
   }
 
   func adjust_copy_for_pax_options(_ arcn : ARCHD) {

@@ -68,14 +68,14 @@ extension paxer {
     pax_eh_datablk = ""
 
     /* generate header */
-    hd.typeflag = header_type.rawValue.asciiValue!
+    hd.typeflag = header_type
 
     /* These fields appear to be necessary to be able to treat extended headers
      like files in older versions of pax */
-    withUnsafeMutableBytes(of: &hd.mode) { $0.copyBytes(from: ul_oct(0o0444, MemoryLayout.size(ofValue: hd.mode), term_char)!.utf8) }
-    withUnsafeMutableBytes(of: &hd.magic) { $0.copyBytes(from: TMAGIC.utf8) }
-    withUnsafeMutableBytes(of: &hd.version) { $0.copyBytes(from: TVERSION.utf8) }
-    withUnsafeMutableBytes(of: &hd.mtime) { $0.copyBytes(from: ul_oct(UInt(arcn.sb.lastModified.secs), MemoryLayout.size(ofValue: hd.mtime), term_char)!.utf8) }
+    hd.mode = 0o0444
+    hd.magic = TMAGIC
+    hd.version = TVERSION
+    hd.mtime = arcn.sb.lastModified
 
     /* compute size of data */
     let str : String?
@@ -223,8 +223,8 @@ extension paxer {
 
     arcn.pad = 0
     /* To pass conformance tests 274/301, always set these fields to "zero" */
-    withUnsafeMutableBytes(of: &hd.devmajor) { $0.copyBytes(from: ul_oct(0, $0.count, term_char)!.utf8) }
-    withUnsafeMutableBytes(of: &hd.devminor) { $0.copyBytes(from: ul_oct(0, $0.count, term_char)!.utf8) }
+    hd.devmajor = 0
+    hd.devminor = 0
 
     /*
      * split the name, or zero out the prefix
@@ -234,15 +234,14 @@ extension paxer {
        * name was split, pt points at the / where the split is to
        * occur, we remove the / and copy the first part to the prefix
        */
-      withUnsafeMutableBytes(of: &hd.prefix) { $0.copyBytes(from: nam.utf8) }
+    hd.prefix = nam
 
     /*
      * copy the name part. this may be the whole path or the part after
      * the prefix
      */
-    var pt = Array(arcn.name.dropFirst(name.count).utf8)
-    if pt.count < MemoryLayout.size(ofValue: hd.name) { pt.append(0) }
-    withUnsafeMutableBytes(of: &hd.name) { $0.copyBytes(from: pt) }
+    var pt = arcn.name.dropFirst(name.count)
+    hd.name = String(pt)
 
     var dowarn = true
 
@@ -261,7 +260,7 @@ extension paxer {
      */
     switch (arcn.type) {
       case .DIR:
-        hd.typeflag = TarFileType.DIRTYPE.rawValue.asciiValue!
+        hd.typeflag = .DIRTYPE
         guard let tt = ul_oct(0, MemoryLayout.size(ofValue: hd.size), term_char) else {
           return .partial
         }
@@ -269,38 +268,30 @@ extension paxer {
         break
       case .CHR, .BLK:
         if (arcn.type == .CHR) {
-          hd.typeflag = TarFileType.CHRTYPE.rawValue.asciiValue!
+          hd.typeflag = .CHRTYPE
         }
         else {
-          hd.typeflag = TarFileType.BLKTYPE.rawValue.asciiValue!
+          hd.typeflag = .BLKTYPE
         }
         // FIXME: if any of these failed (which they couldn't, it would return .partial
-        withUnsafeMutableBytes(of: &hd.devmajor) { $0.copyBytes(from: ul_oct(major(arcn.sb.rawDevice), $0.count, term_char)!.utf8 ) }
-        withUnsafeMutableBytes(of: &hd.devminor) { $0.copyBytes(from: ul_oct(minor(arcn.sb.rawDevice), $0.count, term_char)!.utf8 ) }
-        withUnsafeMutableBytes(of: &hd.size) { $0.copyBytes(from:  ul_oct(0, $0.count, term_char)!.utf8 ) }
-          // else { return .partial }
-        break
+        hd.devmajor = major(arcn.sb.rawDevice)
+        hd.devminor = minor(arcn.sb.rawDevice)
+        hd.size = 0
+
       case .FIF:
-        hd.typeflag = TarFileType.FIFOTYPE.rawValue.asciiValue!
-        withUnsafeMutableBytes(of: &hd.size) { $0.copyBytes(from:  ul_oct(0, $0.count, term_char)!.utf8 ) }
-        break
+        hd.typeflag = .FIFOTYPE
+        hd.size = 0
+
       case .SLK, .HLK, .HRG:
         if (arcn.type == .SLK) {
-          hd.typeflag = TarFileType.SYMTYPE.rawValue.asciiValue!
+          hd.typeflag = .SYMTYPE
         }
         else {
-          hd.typeflag = TarFileType.LNKTYPE.rawValue.asciiValue!
+          hd.typeflag = .LNKTYPE
         }
-        var ln = arcn.ln_name
-        /* must account for name just fits in buffer */
-        withUnsafeMutableBytes(of: &hd.linkname) {
-          var j = Array(ln.utf8)
-          if j.count < $0.count {
-            j.append(0)
-          }
-          $0.copyBytes(from: j)
-        }
-        withUnsafeMutableBytes(of: &hd.size) { $0.copyBytes(from:  ul_oct(0, $0.count, term_char)!.utf8 ) }
+
+        hd.linkname = arcn.ln_name
+        hd.size = 0
         break
       case .REG, .CTG:
         fallthrough
@@ -309,12 +300,12 @@ extension paxer {
          * file data with this type, set the padding
          */
         if (arcn.type == .CTG) {
-          hd.typeflag = TarFileType.CONTTYPE.rawValue.asciiValue!
+          hd.typeflag = .CONTTYPE
         }
         else {
-          hd.typeflag = TarFileType.REGTYPE.rawValue.asciiValue!
+          hd.typeflag = .REGTYPE
         }
-        arcn.pad = TAR_PAD(arcn.sb.size);
+        arcn.pad = TAR_PAD(arcn.sb.size)
         let z = ul_oct(arcn.sb.size, MemoryLayout.size(ofValue: hd.size), term_char)
         if let z {
           withUnsafeMutableBytes(of: &hd.size) { $0.copyBytes(from: z.utf8) }
@@ -338,7 +329,7 @@ extension paxer {
     }
 
     // WARNING: hd.magic needs to be the same size (or larger) than TMAGIC
-    withUnsafeMutableBytes(of: &hd.magic) { $0.copyBytes(from: TMAGIC.utf8) }     // strncpy(&hd.magic, TMAGIC, Int(TMAGLEN))
+    hd.magic = TMAGIC     // strncpy(&hd.magic, TMAGIC, Int(TMAGLEN))
     withUnsafeMutableBytes(of: &hd.version) { $0.copyBytes(from: TVERSION.utf8) } //  strncpy(&hd.version, TVERSION, Int(TVERSLEN))
 
     /*
@@ -473,11 +464,4 @@ extension paxer {
     return String(decoding: name.prefix(len), as: UTF8.self)
   }
 
-  func major(_ x : UInt) -> UInt {
-    return (x >> 24) & 0xff
-  }
-
-  func minor(_ x : UInt) -> UInt {
-    return x & 0xffffff
-  }
 }

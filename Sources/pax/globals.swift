@@ -149,26 +149,138 @@ enum TarFileType : Character {
 }
 
 struct HD_USTAR {
-  var name : C100    /* name of entry */
-  var mode : C8       /* mode */
-  var uid : C8       /* uid */
-  var gid : C8      /* gid */
-  var size : C12      /* size */
-  var mtime : C12      /* modification time */
-  var chksum : C8    /* checksum */
-  var typeflag : UInt8     /* type of file. */
-  var linkname : C100      /* linked to name */
-  var magic : C6           /* magic cookie */
-  var version : (UInt8, UInt8)  /* version */
-  var uname : C32      /* ascii owner name */
-  var gname : C32      /* ascii group name */
-  var devmajor : C8    /* major device number */
-  var devminor : C8    /* minor device number */
-  var prefix : C155    /* linked to name */
+  var _name : C100    /* name of entry */
+  var _mode : C8       /* mode */
+  var _uid : C8       /* uid */
+  var _gid : C8      /* gid */
+  var _size : C12      /* size */
+  var _mtime : C12      /* modification time */
+  var _chksum : C8    /* checksum */
+  var _typeflag : UInt8     /* type of file. */
+  var _linkname : C100      /* linked to name */
+  var _magic : C6           /* magic cookie */
+  var _version : (UInt8, UInt8)  /* version */
+  var _uname : C32      /* ascii owner name */
+  var _gname : C32      /* ascii group name */
+  var _devmajor : C8    /* major device number */
+  var _devminor : C8    /* minor device number */
+  var _prefix : C155    /* linked to name */
 
   init() {
     let a = UnsafeMutablePointer<HD_USTAR>.allocate(capacity: 1)
     self = a.pointee
+  }
+
+  init(_ buf : [UInt8]) {
+    self = withUnsafeBytes(of: buf) { return $0.assumingMemoryBound(to: HD_USTAR.self).baseAddress!.pointee }
+  }
+
+  var name : String {
+    get { cStringFromTuple(_name) }
+    set { copyStringIntoTuple(&_name, from: newValue) }
+  }
+  var mode : UInt? {
+    get { octalFromTuple(_mode) }
+    set { copyOctalIntoTuple(&_mode, from: newValue ?? 0) }
+  }
+  var uid : UInt? {
+    get { octalFromTuple(_uid) }
+    set { copyOctalIntoTuple(&_uid, from: newValue ?? 0) }
+  }
+  var gid : UInt? {
+    get { octalFromTuple(_gid) }
+    set { copyOctalIntoTuple(&_gid, from: newValue ?? 0) }
+  }
+  var size : UInt? {
+    get { octalFromTuple(_size) }
+    set { copyOctalIntoTuple(&_size, from: newValue ?? 0) }
+  }
+  var mtime : DateTime? {
+    get { if let z = octalFromTuple(_mtime) { DateTime(z)} else { nil } }
+    set { let z = UInt((newValue ?? DateTime()).secs); copyOctalIntoTuple(&_mtime, from: z) }
+  }
+  var chksum : UInt32 {
+    get { if let z = octalFromTuple(_chksum) { UInt32(z) } else { 0 } }
+    set { copyOctalIntoTuple(&_chksum, from: UInt(newValue) ) }
+  }
+  var typeflag : TarFileType {
+    get { TarFileType(rawValue: _typeflag) }
+    set { _typeflag = newValue.rawValue.asciiValue! }
+  }
+  var linkname : String {
+    get { cStringFromTuple(_linkname) }
+    set { copyStringIntoTuple(&_linkname, from: newValue) }
+  }
+  var magic : String {
+    get { cStringFromTuple(_magic) }
+    set { copyStringIntoTuple(&_magic, from: newValue) }
+  }
+  var version : String {
+    get { cStringFromTuple(_version) }
+    set { copyStringIntoTuple(&_version, from: newValue) }
+  }
+  var uname : String {
+    get { cStringFromTuple(_uname) }
+    set { copyStringIntoTuple(&_uname, from: newValue) }
+  }
+  var gname : String {
+    get { cStringFromTuple(_gname) }
+    set { copyStringIntoTuple(&_gname, from: newValue) }
+  }
+  var devmajor : UInt? {
+    get { octalFromTuple(_devmajor) }
+    set { copyOctalIntoTuple(&_devmajor, from: newValue ?? 0) }
+  }
+  var devminor : UInt? {
+    get { octalFromTuple(_devminor) }
+    set { copyOctalIntoTuple(&_devminor, from: newValue ?? 0) }
+  }
+  var prefix : String {
+    get { cStringFromTuple(_prefix) }
+    set { copyStringIntoTuple(&_prefix, from: newValue) }
+  }
+
+
+  func octalFromTuple<T>(_ tuple: T) -> UInt? {
+    let s = cStringFromTuple(tuple)
+    return UInt(s, radix: 8)
+  }
+
+  func copyOctalIntoTuple<T>(_ dest : inout T, from src: UInt) {
+
+    // FIXME: need to deal with the weird ul_oct  term_char nonsense
+
+    let s = String(src, radix: 8)
+    let len = MemoryLayout<T>.size
+    let p = len - s.utf8.count
+    if p >= 0 {
+      copyStringIntoTuple(&dest, from: String(repeating: "0", count: p)+s )
+    }
+  }
+
+
+  func cStringFromTuple<T>(_ tuple: T) -> String {
+    var copy = tuple
+    return withUnsafeBytes(of: &copy) { raw in
+      let bytes = raw.prefix { $0 != 0 }
+      return String(decoding: bytes, as: UTF8.self)
+    }
+  }
+
+  func copyStringIntoTuple<T>(_ dest: inout T, from src: String) {
+    withUnsafeMutableBytes(of: &dest) { rawDest in
+      let d = rawDest.bindMemory(to: UInt8.self)
+
+      var i = 0
+      for byte in src.utf8 {
+        if i >= d.count { break }
+        d[i] = byte
+        i += 1
+      }
+      if i < d.count {
+        for j in i..<d.count { d[j] = 0 }
+      }
+    }
   }
 }
 

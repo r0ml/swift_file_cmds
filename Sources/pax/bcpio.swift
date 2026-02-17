@@ -198,11 +198,10 @@ class bcpio : FSUB {
    * cpio_strd()
    *	Fire up the hard link detection code
    * Return:
-   *      0 if ok -1 otherwise (the return values of lnk_start())
+   *      0 if ok 
    */
 
   func st_rd() -> Result {  // was cpio_strd
-//    return(lnk_start())
     return .ok
   }
 
@@ -364,7 +363,7 @@ class bcpio : FSUB {
    */
 
   func st_wr() -> Result { // was cpio_stwr
-    return(dev_start());
+    return .ok
   }
 
 

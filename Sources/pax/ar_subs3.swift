@@ -106,7 +106,7 @@ extension ArchiveOps {
      * start up the hard link table; file traversal routines and the
      * modification time and access mode database
      */
-    if ((lnk_start() < 0) || (ftree_start() < 0) || (dir_start() < 0)) {
+    if (ftree_start() < 0) {
       return;
     }
     

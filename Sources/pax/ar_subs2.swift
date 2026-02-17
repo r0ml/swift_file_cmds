@@ -50,7 +50,6 @@ extension ArchiveOps {
 
   private func wr_archive(_ arcn : ARCHD, _ is_app : Bool) {
     int res;
-    int hlk;
     int wr_one;
     off_t cnt;
     int (*wrf)(ARCHD *);
@@ -66,10 +65,7 @@ extension ArchiveOps {
      * if this format supports hard link storage, start up the database
      * that detects them.
      */
-    if (((hlk = options.frmt.hlk) == 1) && (lnk_start() < 0)) {
-      return;
-    }
-
+    let hlk = options.frmt!.hlk
     if (hlk && want_linkdata) { hlk=0; } /* Treat hard links as individual files */
 
     /*
@@ -386,9 +382,6 @@ extension ArchiveOps {
      * if we only are adding members that are newer, we need to save the
      * mod times for all files we see.
      */
-    if (options.uflag && (ftime_start() < 0)) {
-      return;
-    }
 
     /*
      * some archive formats encode hard links by recording the device and
@@ -404,9 +397,7 @@ extension ArchiveOps {
      * when the inode number is larger than storage space in the archive
      * header. See the remap routines for more details.
      */
-    if ((udev = frmt->udev) && (dev_start() < 0)) {
-      return;
-    }
+    let udev = options.frmt!.udev
 
     /*
      * reading the archive may take a long time. If verbose tell the user
@@ -501,8 +492,8 @@ extension ArchiveOps {
      * mod times for all files; set up for writing; pass the format any
      * options write the archive
      */
-    if ((uflag && (ftime_start() < 0)) || (wr_start() < 0)) {
-      return;
+    if case .ok = wr_start() {
+      return
     }
     if case .failed = options.frmt!.other_options() {
       return

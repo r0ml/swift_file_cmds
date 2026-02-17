@@ -102,12 +102,14 @@ class Tables {
    * performance loss is not measurable (and the size of the archive we can
    * handle is greatly increased).
    */
-  struct FTM {
+  /* Originally this was an FTM struct -- but all we need is the mtime associated with the filename */
+/*  struct FTM {
     //    var namelen : Int   /* file name length */
     var mtime : DateTime  /* files last modification time */
     //    var seek : off_t    /* location in scratch file */
     // fow -> ptr to next FTM
   }
+*/
 
   /*
    * Interactive rename table (-i flag), hashed by orig filename.
@@ -209,7 +211,7 @@ class Tables {
 
 
   var ltab : [UInt : HRDLNK] = [:] 	/* hard link table for detecting hard links */
-  var ftab : [String : FTM] = [:]             /* file time table for updating arch */
+  var ftab : [String : DateTime] = [:]             /* file time table for updating arch */
   var ntab : [String : String] = [:]  /* interactive rename storage table */
   var dtab : [UInt : [DLIST] ] = [:]            /* device/inode mapping tables */
   var atab : [DevInode : ATDIR] = [:]           /* file tree directory time reset table */
@@ -239,26 +241,6 @@ class Tables {
 
 
   private init() {}
-
-  /*
-   * lnk_start
-   *	Creates the hard link table.
-   * Return:
-   *	0 if created, -1 if failure
-   */
-
-  /*
-   func lnk_start() -> Bool {
-   if (ltab != NULL) {
-   return false
-   }
-   if ((ltab = (HRDLNK **)calloc(L_TAB_SZ, sizeof(HRDLNK *))) == NULL) {
-   Tty.paxwarn(true, "Cannot allocate memory for hard link table");
-   return .failed;
-   }
-   return(0);
-   }
-   */
 
   /*
    * chk_lnk()
@@ -385,38 +367,17 @@ class Tables {
    * changed to assume that the table can be in memory because we have virtual memory
    */
 
-  func chk_ftime(_ arcn : ARCHD) -> Int {
-    /*    FTM *pt;
-     int namelen;
-     u_int indx;
-     char ckname[PAXPATHLEN+1];
-     */
-    /*
-     * hash the pathname and look up in table
-     */
-    if let pt = ftab[arcn.name] {
-
-      /*
-       * found the file, compare the times, save the newer
-       */
-      if (arcn.sb.lastModified > pt.mtime) {
-        /*
-         * file is newer
-         */
-        ftab[arcn.name]?.mtime = arcn.sb.lastModified
-        return 0
+  func chk_ftime(_ arcn : ARCHD) -> Bool {
+    // look up the pathname in the table
+    if let pt = ftab[arcn.name] {// found the file, compare the times, save the newer
+      if arcn.sb.lastModified > pt { // file is newer
+        ftab[arcn.name] = arcn.sb.lastModified
+        return false
       }
-      /*
-       * file is older
-       */
-      return 1
+      return true // file is older
     }
-
-    /*
-     * not in table, add it
-     */
-    ftab[arcn.name] = FTM(mtime: arcn.sb.lastModified)
-    return 0
+    ftab[arcn.name] = arcn.sb.lastModified    // not in table, add it
+    return false
   }
 
   /*

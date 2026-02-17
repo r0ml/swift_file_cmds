@@ -585,5 +585,13 @@ extension FSUB {
     return start
   }
 
+  func major(_ x : UInt) -> UInt {
+    return (x >> 24) & 0xff
+  }
+
+  func minor(_ x : UInt) -> UInt {
+    return x & 0xffffff
+  }
+
 
 }

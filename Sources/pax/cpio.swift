@@ -90,7 +90,7 @@ class cpio : bcpio {
      * ascii fields from the header
      */
     arcn.pad = 0
-    arcn.sb.device = (dev_t)asc_ul(hd->c_dev, sizeof(hd->c_dev), OCT);
+    arcn.sb.device = hd.c_dev
     arcn.sb.inode = (ino_t)asc_ul(hd->c_ino, sizeof(hd->c_ino), OCT);
     arcn.sb.st_mode = (mode_t)asc_ul(hd->c_mode, sizeof(hd->c_mode), OCT);
     arcn.sb.userId = (uid_t)asc_ul(hd->c_uid, sizeof(hd->c_uid), OCT);

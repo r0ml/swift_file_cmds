@@ -328,7 +328,7 @@ class ftree {
     /*
      * ftree_sel() might have set the ftree_skip flag if the user has the
      * -n option and a file was selected from this file arg tree. (-n says
-     * only one member is matched for each pattern) ftree_skip being 1
+     * only one member is matched for each pattern) ftree_skip being true
      * forces us to go to the next arg now.
      */
     if (ftree_skip) {
@@ -341,10 +341,30 @@ class ftree {
       }
     }
 
+  outer:
     /*
      * loop until we get a valid file to process
      */
-    while let ftent = ftsp!.next() {
+    while true {
+      // FIXME: this was in the while loop --
+      let ftent = ftsp!.next()
+
+        if error {
+          if (errno) {
+            Tty.syswarn(true, errno, "next_file");
+          }
+
+          /*
+           * out of files in this tree, go to next arg, if none
+           * we are done
+           */
+          if (ftree_arg() < 0) {
+            return .failed;
+          }
+          continue;
+      }
+
+
       /*
        * handle each type of fts_read() flag
        */
@@ -354,7 +374,6 @@ class ftree {
           /*
            * these are all ok
            */
-          break
 
         case .SLNONE:	/* was same as above cases except Unix
                            conformance requires this error check */
@@ -483,20 +502,6 @@ class ftree {
       break;
     }
 
-    if error {
-        if (errno) {
-          Tty.syswarn(true, errno, "next_file");
-        }
-
-        /*
-         * out of files in this tree, go to next arg, if none
-         * we are done
-         */
-        if (ftree_arg() < 0) {
-          return .failed;
-        }
-        continue;
-    }
     /*
      * copy file name, set file name length
      */
