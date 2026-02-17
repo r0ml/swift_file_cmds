@@ -91,13 +91,11 @@ class ustar : tar {
    */
 
   override func rd(_ buf : [UInt8]) -> ARCHD? {
-    HD_USTAR *hd;
-    char *dest;
     int cnt = 0;
     dev_t devmajor;
     dev_t devminor;
 
-    var arcn = ARCHD()
+    var arcn : ARCHD = ARCHD()
     /*
      * we only get proper sized buffers
      */
@@ -108,13 +106,13 @@ class ustar : tar {
     arcn.sb.links = 1
     arcn.pat = nil
     arcn.nlen = 0
-    hd = (HD_USTAR *)buf
+    var hd : HD_USTAR = withUnsafeBytes(of: buf) { return $0.assumingMemoryBound(to: HD_USTAR.self).baseAddress!.pointee }
 
     /*
      * see if the filename is split into two parts. if, so joint the parts.
      * we copy the prefix first and add a / between the prefix and name.
      */
-    dest = arcn.name;
+    let dest = arcn.name
     if (*(hd->prefix) != '\0') {
       cnt = l_strncpy(dest, hd->prefix,
           MIN(sizeof(hd->prefix), sizeof(arcn.name) - 2));
@@ -123,7 +121,9 @@ class ustar : tar {
       cnt++;
     }
 
-    if (hd->typeflag != LONGLINKTYPE && hd->typeflag != LONGNAMETYPE) {
+    let hdtf = TarFileType(rawValue: hd.typeflag)
+
+    if hdtf != .LONGLINKTYPE && hdtf != .LONGNAMETYPE {
       arcn.nlen = cnt + expandname(dest, sizeof(arcn.name) - cnt,
           &gnu_name_string, hd->name, sizeof(hd->name));
       arcn.ln_nlen = expandname(arcn.ln_name, sizeof(arcn.ln_name),
@@ -145,9 +145,10 @@ class ustar : tar {
      */
     arcn.sb.st_mode = (mode_t)(asc_ul(hd->mode, sizeof(hd->mode), OCT) &
         0xfff);
-    arcn.sb.st_size = (off_t)asc_uqd(hd->size, sizeof(hd->size), OCT);
+    arcn.sb.size = (off_t)asc_uqd(hd->size, sizeof(hd->size), OCT);
     arcn.sb.lastModified = (time_t)asc_uqd(hd->mtime, sizeof(hd->mtime), OCT);
-    arcn.sb.st_ctime = arcn.sb.st_atime = arcn.sb.lastModified;
+    arcn.sb.lastChanged = arcn.sb.lastModified
+    arcn.sb.lastAccessed = arcn.sb.lastModified
 
     /*
      * If we can find the ascii names for gname and uname in the password
@@ -157,34 +158,33 @@ class ustar : tar {
      */
     hd->gname[sizeof(hd->gname) - 1] = '\0';
     if (gid_name(hd->gname, &(arcn.sb.st_gid)) < 0) {
-      arcn.sb.st_gid = (gid_t)asc_ul(hd->gid, sizeof(hd->gid), OCT);
+      arcn.sb.groupId = (gid_t)asc_ul(hd->gid, sizeof(hd->gid), OCT);
     }
     hd->uname[sizeof(hd->uname) - 1] = '\0';
     if (uid_name(hd->uname, &(arcn.sb.st_uid)) < 0) {
-      arcn.sb.st_uid = (uid_t)asc_ul(hd->uid, sizeof(hd->uid), OCT);
+      arcn.sb.userId = (uid_t)asc_ul(hd->uid, sizeof(hd->uid), OCT);
     }
 
     /*
      * set the defaults, these may be changed depending on the file type
      */
-    arcn.ln_name[0] = '\0';
-    arcn.ln_nlen = 0;
+    arcn.ln_name = ""
     arcn.pad = 0;
     arcn.skip = 0;
-    arcn.sb.st_rdev = (dev_t)0;
+    arcn.sb.rawDevice = 0
 
     /*
      * set the mode and PAX type according to the typeflag in the header
      */
-    switch(hd->typeflag) {
-    case FIFOTYPE:
-      arcn.type = PAX_FIF;
-      arcn.sb.st_mode |= S_IFIFO;
-      break;
-    case DIRTYPE:
-      arcn.type = PAX_DIR;
-      arcn.sb.st_mode |= S_IFDIR;
-      arcn.sb.st_nlink = 2;
+    switch hdtf {
+      case .FIFOTYPE:
+        arcn.type = .FIF;
+        arcn.sb.filetype = .fifo
+
+      case .DIRTYPE:
+        arcn.type = .DIR;
+        arcn.sb.filetype = .directory
+      arcn.sb.links = 2
 
       /*
        * Some programs that create ustar archives append a "/"
@@ -194,54 +194,47 @@ class ustar : tar {
         if (arcn.name[arcn.nlen - 1] == "/") {
           arcn.name[--arcn.nlen] = '\0';
         }
-      break;
-    case BLKTYPE:
-    case CHRTYPE:
+
+      case .BLKTYPE, .CHRTYPE:
       /*
        * this type requires the rdev field to be set.
        */
-      if (hd->typeflag == BLKTYPE) {
-        arcn.type = PAX_BLK;
-        arcn.sb.st_mode |= S_IFBLK;
+        if hdtf == .BLKTYPE {
+          arcn.type = .BLK;
+          arcn.sb.filetype = .blockDevice
       } else {
-        arcn.type = PAX_CHR;
-        arcn.sb.st_mode |= S_IFCHR;
+        arcn.type = .CHR;
+        arcn.sb.filetype = .characterDevice
       }
       devmajor = (dev_t)asc_ul(hd->devmajor,sizeof(hd->devmajor),OCT);
       devminor = (dev_t)asc_ul(hd->devminor,sizeof(hd->devminor),OCT);
       arcn.sb.st_rdev = TODEV(devmajor, devminor);
       break;
-    case SYMTYPE:
-    case LNKTYPE:
-      if (hd->typeflag == SYMTYPE) {
-        arcn.type = PAX_SLK;
-        arcn.sb.st_mode |= S_IFLNK;
+      case .SYMTYPE, .LNKTYPE:
+        if hdtf == .SYMTYPE {
+          arcn.type = .SLK;
+          arcn.sb.filetype = .symbolicLink
       } else {
-        arcn.type = PAX_HLK;
+        arcn.type = .HLK;
         /*
          * so printing looks better
          */
-        arcn.sb.st_mode |= S_IFREG;
-        arcn.sb.st_nlink = 2;
+        arcn.sb.filetype = .regular
+        arcn.sb.links = 2
       }
 
-      break;
 
-    case LONGLINKTYPE:
-    case LONGNAMETYPE:
+      case .LONGLINKTYPE, .LONGNAMETYPE:
       /*
        * GNU long link/file; we tag these here and let the
        * pax internals deal with it -- too ugly otherwise.
        */
-      arcn.type =
-          hd->typeflag == LONGLINKTYPE ? PAX_GLL : PAX_GLF;
-      arcn.pad = TAR_PAD(arcn.sb.st_size);
-      arcn.skip = arcn.sb.st_size;
-      break;
+      arcn.type = hdtf == .LONGLINKTYPE ? .GLL : .GLF;
+      arcn.pad = TAR_PAD(arcn.sb.size)
+      arcn.skip = arcn.sb.size
 
-    case CONTTYPE:
-    case AREGTYPE:
-    case REGTYPE:
+      case .CONTTYPE, .AREGTYPE, .REGTYPE:
+        fallthrough
     default:
       /*
        * these types have file data that follows. Set the skip and
@@ -251,9 +244,8 @@ class ustar : tar {
         arcn.pad = TAR_PAD(arcn.sb.size)
       arcn.skip = arcn.sb.size
         arcn.sb.filetype = .regular
-      break;
     }
-    return false
+    return arcn
   }
 
   /*
@@ -268,8 +260,7 @@ class ustar : tar {
    *  data to write after the header, -1 if archive write failed
    */
 
-  override func wr(_ arcn : ARCHD) -> Int {
-    HD_USTAR *hd;
+  override func wr(_ arcn : ARCHD) -> Result {
     char *pt;
 
     char hdblk[sizeof(HD_USTAR)];
@@ -310,14 +301,9 @@ class ustar : tar {
     /*
      * zero out the header so we don't have to worry about zero fill below
      */
-    memset(hdblk, 0, sizeof(hdblk));
     var hd = HD_USTAR()
 
     arcn.pad = 0
-
-    /* To pass conformance tests 274/301, always set these fields to "zero" */
-    ul_oct(0, hd->devmajor, sizeof(hd->devmajor), term_char);
-    ul_oct(0, hd->devminor, sizeof(hd->devminor), term_char);
 
     /*
      * split the name, or zero out the prefix
@@ -350,19 +336,19 @@ class ustar : tar {
      */
     switch arcn.type {
       case .DIR:
-      hd->typeflag = DIRTYPE;
+        hd.typeflag = TarFileType.DIRTYPE.rawValue.asciiValue!
 
           if (ul_oct(0, hd->size, sizeof(hd->size), term_char)) {
 
             goto out;
           }
-      break;
+
       case .CHR, .BLK:
-          if (arcn.type == PAX_CHR) {
-            hd->typeflag = CHRTYPE;
+        if (arcn.type == .CHR) {
+            hd.typeflag = TarFileType.CHRTYPE.rawValue.asciiValue!
           }
           else {
-            hd->typeflag = BLKTYPE;
+            hd.typeflag = TarFileType.BLKTYPE.rawValue.asciiValue!
           }
 
         if (ul_oct((u_long)MAJOR(arcn.sb.st_rdev), hd->devmajor,
@@ -375,21 +361,21 @@ class ustar : tar {
             ul_oct(0, hd->size, sizeof(hd->size), term_char)) {
           goto out;
         }
-      break;
+
       case .FIF:
-      hd->typeflag = FIFOTYPE;
+        hd.typeflag = TarFileType.FIFOTYPE.rawValue.asciiValue!
 
             if (ul_oct(0, hd->size, sizeof(hd->size), term_char)) {
 
               goto out;
             }
-      break;
+
       case .SLK, .HLK, .HRG:
         if arcn.type == .SLK {
-              hd->typeflag = SYMTYPE;
+          hd.typeflag = TarFileType.SYMTYPE.rawValue.asciiValue!
             }
             else {
-              hd->typeflag = LNKTYPE;
+              hd.typeflag = TarFileType.LNKTYPE.rawValue.asciiValue!
             }
 
       if (strlen(arcn.ln_name) == sizeof(hd->linkname)) {  /* must account for name just fits in buffer */
@@ -401,7 +387,7 @@ class ustar : tar {
 
             goto out;
           }
-      break;
+
       case .REG, .CTG:
         fallthrough
     default:
@@ -409,10 +395,10 @@ class ustar : tar {
        * file data with this type, set the padding
        */
         if arcn.type == .CTG {
-            hd->typeflag = CONTTYPE;
+          hd.typeflag = TarFileType.CONTTYPE.rawValue.asciiValue!
           }
           else {
-            hd->typeflag = REGTYPE;
+            hd.typeflag = TarFileType.REGTYPE.rawValue.asciiValue!
           }
 
       arcn.pad = TAR_PAD(arcn.sb.st_size);
@@ -420,7 +406,7 @@ class ustar : tar {
 
           sizeof(hd->size), term_char)) {
 
-        Tty.paxwarn(true,"File is too long for ustar %s",arcn.org_name);
+        Tty.paxwarn(true,"File is too long for ustar \(arcn.org_name)")
         return(1);
       }
       break;
@@ -495,8 +481,8 @@ class ustar : tar {
       if (wr_skip((off_t)(BLKMULT - sizeof(HD_USTAR))) < 0) {
         return .failed;
       }
-      if ((arcn.type == PAX_CTG) || (arcn.type == PAX_REG)) {
-        return(0);
+    if ((arcn.type == .CTG) || (arcn.type == .REG)) {
+        return .ok
       }
     return(1);
 

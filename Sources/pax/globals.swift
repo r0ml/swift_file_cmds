@@ -142,6 +142,10 @@ enum TarFileType : Character {
    */
   case LONGLINKTYPE =  "K"    /* Long Symlink */
   case LONGNAMETYPE =  "L"    /* Long File */
+
+  init(rawValue: UInt8) {
+    let t = Character(UnicodeScalar(rawValue))
+  }
 }
 
 struct HD_USTAR {
