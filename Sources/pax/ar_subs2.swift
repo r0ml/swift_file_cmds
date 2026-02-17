@@ -81,14 +81,6 @@ extension ArchiveOps {
     wrf = frmt->wr;
 
     /*
-     * When we are doing interactive rename, we store the mapping of names
-     * so we can fix up hard links files later in the archive.
-     */
-    if (iflag && (name_start() < 0)) {
-      return;
-    }
-
-    /*
      * if this is not append, and there are no files, we do not write a
      * trailer
      */
@@ -124,9 +116,8 @@ extension ArchiveOps {
       /*
        * synthesize ._ files for each node we encounter
        */
-      if (getenv(COPYFILE_DISABLE_VAR) == NULL
-          && copyfile(arcn.name, NULL, NULL,
-                      COPYFILE_CHECK | COPYFILE_XATTR | COPYFILE_ACL)
+      if Environment[COPYFILE_DISABLE_VAR] == nil
+          && copyfile(arcn.name, nil, nil, COPYFILE_CHECK | COPYFILE_XATTR | COPYFILE_ACL)
           && arcn.nlen + 2 < sizeof(arcn.name)) {
         char *tmpdir = P_tmpdir, *TMPDIR;
         int fd_src, fd_dst;
@@ -209,8 +200,7 @@ extension ArchiveOps {
         chk_lnk(arcn)
       }
 
-      if ((arcn.type == PAX_REG) || (arcn.type == PAX_HRG) ||
-          (arcn.type == PAX_CTG)) {
+      if arcn.type == .REG || arcn.type == .HRG || arcn.type == .CTG {
         /*
          * we will have to read this file. by opening it now we
          * can avoid writing a header to the archive for a file
@@ -264,9 +254,9 @@ extension ArchiveOps {
         }
         else {
 
-          (void)safe_print(arcn.name, listf);
+          safe_print(arcn.name, listf);
 
-          vfpart = 1;
+          vfpart = true
         }
       }
       runtime.flcnt += 1
@@ -285,8 +275,8 @@ extension ArchiveOps {
          * format write says no file data needs to be stored
          * so we are done messing with this file
          */
-        if (vflag && vfpart) {
-          (void)putc('\n', listf);
+        if vflag != 0 && vfpart {
+          putc('\n', listf);
           vfpart = 0;
         }
         rdfile_close(arcn, &fd);
@@ -301,13 +291,13 @@ extension ArchiveOps {
        * which FOLLOWS this one will not be where we expect it to
        * be).
        */
-      res = (*frmt->wr_data)(arcn, fd, &cnt);
+      res = options.frmt!.wr_data(arcn, fd, &cnt);
       rdfile_close(arcn, &fd);
-      if (vflag && vfpart) {
-        (void)putc('\n', listf);
-        vfpart = 0;
+      if vflag != 0 && vfpart {
+        putc('\n', listf);
+        vfpart = false
       }
-      if (res < 0) {
+      if case .failed = res {
         break;
       }
 
@@ -332,13 +322,13 @@ extension ArchiveOps {
      * into the cleanup code
      */
     if (wr_one) {
-      (*frmt->end_wr)();
-      wr_fin();
+      options.frmt!.end_wr()
+      wr_fin()
     }
     sigprocmask(SIG_BLOCK, &s_mask, nil)
     ar_io.ar_close();
-    if (tflag) {
-      proc_dir();
+    if options.tflag {
+      tables.proc_dir(options)
     }
     ftree_chk();
   }
@@ -371,19 +361,18 @@ extension ArchiveOps {
     off_t tlen;
 
     var arcn = ARCHD()
-    let orgfrmt = options frmt
+    let orgfrmt = options.frmt
 
     /*
      * Do not allow an append operation if the actual archive is of a
      * different format than the user specified format.
      */
-    if (get_arc() < 0) {
-      return;
+    if case .failed = get_arc() {
+      return
     }
-    if ((orgfrmt != NULL) && (orgfrmt != frmt)) {
-      Tty.paxwarn(true, "Cannot mix current archive format %s with %s",
-                  frmt->name, orgfrmt->name);
-      return;
+    if orgfrmt != nil && type(of: orgfrmt) != type(of: options.frmt) {
+      Tty.paxwarn(true, "Cannot mix current archive format \(options.frmt!.name) with \(orgfrmt!.name)")
+      return
     }
 
     /*
@@ -422,16 +411,15 @@ extension ArchiveOps {
     /*
      * reading the archive may take a long time. If verbose tell the user
      */
-    if (vflag) {
-      (void)fprintf(listf,
-                    "%s: Reading archive to position at the end...", argv0);
-      vfpart = 1;
+    if vflag != 0 {
+      print("\(programName): Reading archive to position at the end...", terminator: "", to: &listf)
+      vfpart = true
     }
 
     /*
      * step through the archive until the format says it is done
      */
-    while !next_head(arcn) {
+    while case .ok = next_head(arcn) {
       /*
        * check if this file meets user specified options.
        */
@@ -442,7 +430,7 @@ extension ArchiveOps {
         continue;
       }
 
-      if (uflag) {
+      if options.uflag {
         /*
          * see if this is the newest version of this file has
          * already been seen, if so skip.
@@ -475,29 +463,29 @@ extension ArchiveOps {
      * can add new members. The format might have used the hard link table,
      * purge it.
      */
-    tlen = (*frmt->end_rd)();
-    lnk_end();
+    var tlen = options.frmt!.end_rd()
+    lnk_end()
 
     /*
      * try to position for write, if this fails quit. if any error occurs,
      * we will refuse to write
      */
-    if (appnd_start(tlen) < 0) {
-      return;
+    if case .failed = appnd_start(tlen) {
+      return
     }
 
     /*
      * tell the user we are done reading.
      */
-    if (vflag && vfpart) {
-      (void)fputs("done.\n", listf);
-      vfpart = 0;
+    if vflag != 0 && vfpart {
+      print("done.", to: &listf)
+      vfpart = false
     }
 
     /*
      * go to the writing phase to add the new members
      */
-    wr_archive(arcn, 1);
+    wr_archive(arcn, true)
   }
 
   /*

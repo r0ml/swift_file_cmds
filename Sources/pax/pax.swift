@@ -151,7 +151,7 @@ nonisolated(unsafe) var myUsage : usageType = .pax
 
       var nodirs : Bool = false /* do not create directories as needed */
       var pmode : Bool = false /* preserve file mode bits */
-      var rmleadslash = false	/* remove leading '/' from pathnames */
+      var rmleadslash = false	/* remove leading "/" from pathnames */
 
       var secure = true 		/* don't extract names that contain .. */
 

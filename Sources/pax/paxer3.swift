@@ -448,7 +448,7 @@ extension paxer {
      */
     var start = name.dropFirst(len2 - TNMSZ - 1)
     let slash = "/".utf8.first!
-    if start.first == slash && start == name { start = start.dropFirst() }  /* 101 byte paths with leading '/' are dinged otherwise */
+    if start.first == slash && start == name { start = start.dropFirst() }  /* 101 byte paths with leading "/" are dinged otherwise */
     start = start.drop { $0 != slash }
 
     /*

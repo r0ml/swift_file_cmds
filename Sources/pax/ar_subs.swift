@@ -60,21 +60,21 @@ class ArchiveOps {
       Tty.syswarn(true, errno, "Cannot chdir to `.'");
       return .failed
     }
-    return updatepath();
+    return updatepath(&options);
   }
 
   func dochdir(_ name : String) -> Result {
     if (chdir(name) == -1) {
       Tty.syswarn(true, errno, "Cannot chdir to `\(name)'")
     }
-    return updatepath();
+    return updatepath(&options);
   }
 
   private func path_check(_ arcn: ARCHD, _ level : Int) -> Result {
 //    char buf[MAXPATHLEN];
 //    char *p;
 
-    if ((p = strrchr(arcn.name, '/')) == NULL) {
+    if ((p = strrchr(arcn.name, "/")) == NULL) {
       return .ok
     }
     *p = '\0';
@@ -82,7 +82,7 @@ class ArchiveOps {
     if (realpath(arcn.name, buf) == NULL) {
       int error;
       error = path_check(arcn, level + 1);
-      *p = '/';
+      *p = "/";
       if (error == 0) {
         return .ok
       }
@@ -92,17 +92,17 @@ class ArchiveOps {
       return .failed
     }
     if (cwdpathlen == 1) {	/* We're in the root */
-      *p = '/';
+      *p = "/";
       return .ok
     }
-    if ((strncmp(buf, cwdpath, cwdpathlen) != 0) || (buf[cwdpathlen] != '\0' && buf[cwdpathlen] != '/')) {
-      *p = '/';
+    if ((strncmp(buf, cwdpath, cwdpathlen) != 0) || (buf[cwdpathlen] != '\0' && buf[cwdpathlen] != "/")) {
+      *p = "/";
       Tty.syswarn(true, 0, "Attempt to write file `%s' that resolves into "
                   "`%s/%s' outside current working directory `%s' ignored",
                   arcn.name, buf, p + 1, cwdpath);
       return .failed
     }
-    *p = '/';
+    *p = "/";
     return .ok
   }
 
@@ -113,7 +113,7 @@ class ArchiveOps {
    */
 
   func list() {
-    var arcn = ARCHD()
+    var arcn = ARCHD(options)
     /*
      * figure out archive type; pass any format specific options to the
      * archive option processing routine; call the format init routine. We
@@ -126,16 +126,12 @@ class ArchiveOps {
       return;
     }
 
-    if (vflag && ((uidtb_start() < 0) || (gidtb_start() < 0))) {
-      return;
-    }
-
     let now = Darwin.time(nil)
 
     /*
      * step through the archive until the format says it is done
      */
-    while (next_head(arcn) == 0) {
+    while case .ok = next_head(arcn) {
 
       if arcn.type == .GLL || arcn.type == .GLF {
         /*
@@ -208,34 +204,29 @@ class ArchiveOps {
     int fd;
 */
 
-    int copyfile_disable = (getenv(COPYFILE_DISABLE_VAR) != NULL);
-    LIST_HEAD(copyfile_list_t, copyfile_list_entry_t) copyfile_list;
+    let copyfile_disable = Environment[COPYFILE_DISABLE_VAR] != nil
+//    LIST_HEAD(copyfile_list_t, copyfile_list_entry_t) copyfile_list;
+    var copyfile_list = [copyfile_list_entry_t]()
     struct copyfile_list_entry_t {
-      char *src;
-      char *dst;
-      LIST_ENTRY(copyfile_list_entry_t) link;
-    } *cle;
+      var src : String
+      var dst : String
+//      LIST_ENTRY(copyfile_list_entry_t) link;
+    }
 
-    LIST_INIT(&copyfile_list);
+    var cle : copyfile_list_entry_t?
 
-    var arcn = ARCHD()
+//    LIST_INIT(&copyfile_list);
+
+    var arcn = ARCHD(options)
     /*
      * figure out archive type; pass any format specific options to the
      * archive option processing routine; call the format init routine;
      * start up the directory modification time and access mode database
      */
-    if ((get_arc() < 0) || ((*frmt->options)() < 0) ||
-        ((*frmt->st_rd)() < 0) || (dir_start() < 0)) {
-      return;
-    }
+    if case .failed = get_arc() { return }
+    if case .failed = options.frmt!.other_options() { return }
+    if case .failed = options.frmt!.st_rd() { return }
 
-    /*
-     * When we are doing interactive rename, we store the mapping of names
-     * so we can fix up hard links files later in the archive.
-     */
-    if (iflag && (name_start() < 0)) {
-      return;
-    }
 
     let now = Darwin.time(nil)
 
@@ -243,7 +234,7 @@ class ArchiveOps {
      * step through each entry on the archive until the format read routine
      * says it is done
      */
-    while !next_head(arcn) {
+    while case .ok = next_head(arcn) {
 
       if arcn.type == .GLL || arcn.type == .GLF {
         /*
@@ -269,8 +260,8 @@ class ArchiveOps {
          * file is not selected. skip past any file data and
          * padding and go back for the next archive member
          */
-        (void)rd_skip(arcn.skip + arcn.pad);
-        continue;
+        rd_skip(arcn.skip + arcn.pad)
+        continue
       }
 
       /*
@@ -287,17 +278,17 @@ class ArchiveOps {
         if let sb = try? FileMetadata(for: FilePath(arcn.name)) {
           if (options.uflag && options.Dflag) {
             if ((arcn.sb.lastModified <= sb.lastModified) &&
-                (arcn.sb.ctime <= sb.ctime)) {
+                (arcn.sb.lastChanged <= sb.lastChanged)) {
               rd_skip(arcn.skip + arcn.pad);
               continue;
             }
-          } else if (Dflag) {
+          } else if options.Dflag {
             if (arcn.sb.ctime <= sb.ctime) {
-              (void)rd_skip(arcn.skip + arcn.pad);
+              rd_skip(arcn.skip + arcn.pad);
               continue;
             }
           } else if (arcn.sb.lastModified <= sb.lastModified) {
-            (void)rd_skip(arcn.skip + arcn.pad);
+            rd_skip(arcn.skip + arcn.pad);
             continue;
           }
         }
@@ -314,48 +305,47 @@ class ArchiveOps {
          * a bad name mod, skip and purge name from link table
          */
         purg_lnk(arcn);
-        (void)rd_skip(arcn.skip + arcn.pad);
-        continue;
+        rd_skip(arcn.skip + arcn.pad)
+        continue
       }
 
       /*
        * Non standard -Y and -Z flag. When the existing file is
        * same age or newer skip
        */
-      if ((Yflag || Zflag) && ((lstat(arcn.name, &sb) == 0))) {
-        if (Yflag && Zflag) {
-          if ((arcn.sb.lastModified <= sb.lastModified) &&
-              (arcn.sb.ctime <= sb.ctime)) {
-            (void)rd_skip(arcn.skip + arcn.pad);
+      if (options.Yflag || options.Zflag) && ((lstat(arcn.name, &sb) == 0)) {
+        if options.Yflag && options.Zflag {
+          if arcn.sb.lastModified <= sb.lastModified && arcn.sb.lastChanged <= sb.lastChanged {
+            rd_skip(arcn.skip + arcn.pad)
             continue;
           }
-        } else if (Yflag) {
-          if (arcn.sb.ctime <= sb.ctime) {
-            (void)rd_skip(arcn.skip + arcn.pad);
+        } else if options.Yflag {
+          if arcn.sb.lastChanged <= sb.lastChanged {
+            rd_skip(arcn.skip + arcn.pad)
             continue;
           }
         } else if (arcn.sb.lastModified <= sb.lastModified) {
-          (void)rd_skip(arcn.skip + arcn.pad);
-          continue;
+          rd_skip(arcn.skip + arcn.pad)
+          continue
         }
       }
 
-      if (vflag) {
+      if vflag != 0 {
         if (vflag > 1) {
           ls_list(arcn, now, listf);
         }
         else {
 
-          (void)safe_print(arcn.name, listf);
+          safe_print(arcn.name, listf);
 
-          vfpart = 1;
+          vfpart = true
         }
       }
 
       /*
        * if required, chdir around.
        */
-      if ((arcn.pat != NULL) && (arcn.pat->chdname != NULL)) {
+      if arcn.pat?.chdname != nil {
 
         dochdir(arcn.pat->chdname);
       }
@@ -367,38 +357,38 @@ class ArchiveOps {
       /*
        * all ok, extract this member based on type
        */
-      if ((arcn.type != PAX_REG) && (arcn.type != PAX_CTG)) {
+      if arcn.type != .REG && arcn.type != .CTG {
         /*
          * process archive members that are not regular files.
          * throw out padding and any data that might follow the
          * header (as determined by the format).
          */
-        if ((arcn.type == PAX_HLK) || (arcn.type == PAX_HRG)) {
-          res = lnk_creat(arcn);
+        if arcn.type == .HLK || arcn.type == .HRG {
+          res = lnk_creat(arcn)
         }
         else {
-          res = node_creat(arcn);
+          res = node_creat(arcn)
         }
 
-        (void)rd_skip(arcn.skip + arcn.pad);
+        rd_skip(arcn.skip + arcn.pad)
         if (res < 0) {
           purg_lnk(arcn);
         }
 
-        if (vflag && vfpart) {
-          (void)putc('\n', listf);
-          vfpart = 0;
+        if vflag != 0 && vfpart {
+          putc('\n', listf);
+          vfpart = 0
         }
-        continue;
+        continue
       }
       /*
        * we have a file with data here. If we can not create it, skip
        * over the data and purge the name from hard link table
        */
       if ((fd = file_creat(arcn)) < 0) {
-        (void)rd_skip(arcn.skip + arcn.pad);
-        purg_lnk(arcn);
-        continue;
+        rd_skip(arcn.skip + arcn.pad)
+        purg_lnk(arcn)
+        continue
       }
       /*
        * extract the file from the archive and skip over padding and
@@ -429,9 +419,9 @@ class ArchiveOps {
       /*
        * if required, chdir around.
        */
-      if ((arcn.pat != NULL) && (arcn.pat->chdname != NULL)) {
+      if arcn.pat != nil && arcn.pat!.chdname != nil {
 
-        fdochdir(cwdfd);
+        fdochdir(cwdfd)
 
       }
     }
@@ -455,10 +445,10 @@ class ArchiveOps {
      * all patterns supplied by the user were matched; block off signals
      * to avoid chance for multiple entry into the cleanup code.
      */
-    (void)(*frmt->end_rd)();
-    (void)sigprocmask(SIG_BLOCK, &s_mask, NULL);
-    ar_io.ar_close();
-    proc_dir();
+    options.frmt.end_rd()
+    sigprocmask(SIG_BLOCK, &s_mask, nil)
+    ar_io.ar_close()
+    tables.proc_dir(options)
     pat_chk();
   }
 

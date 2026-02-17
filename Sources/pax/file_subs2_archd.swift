@@ -114,7 +114,7 @@ func chk_path(_ name : String, _ st_uid : UInt, _ st_gid : UInt, _ new_name : in
   /*
    * watch out for paths with nodes stored directly in / (e.g. /bozo)
    */
-  if (*spt == '/') {
+  if (*spt == "/") {
     ++spt;
   }
 
@@ -122,10 +122,10 @@ func chk_path(_ name : String, _ st_uid : UInt, _ st_gid : UInt, _ new_name : in
     /*
      * work forward from the first / and check each part of the path
      */
-    spt = strchr(spt, '/');
+    spt = strchr(spt, "/");
 
     /*
-     * skip creating a leaf dir (with an ending '/') as we only want
+     * skip creating a leaf dir (with an ending "/") as we only want
      * to create parents here
      */
     if ((spt == NULL) || (*(spt + 1) == '\0')) {
@@ -143,7 +143,7 @@ func chk_path(_ name : String, _ st_uid : UInt, _ st_gid : UInt, _ new_name : in
      * required (do an access()).
      */
     if (lstat(name, &sb) == 0) {
-      *(spt++) = '/';
+      *(spt++) = "/";
 
       if (new_name==NULL) { continue; }
       retval = 0; /* accept it one directory at a time */
@@ -156,7 +156,7 @@ func chk_path(_ name : String, _ st_uid : UInt, _ st_gid : UInt, _ new_name : in
      * needed directory and continue on
      */
     if (mkdir(name, S_IRWXU | S_IRWXG | S_IRWXO) < 0) {
-      *spt = '/';
+      *spt = "/";
       retval = -1;
       break;
     }
@@ -184,7 +184,7 @@ func chk_path(_ name : String, _ st_uid : UInt, _ st_gid : UInt, _ new_name : in
       add_dir(name, namelen, &sb, 1);
 
     }
-    *(spt++) = '/';
+    *(spt++) = "/";
 
     if (new_name==NULL) { continue; }
     break;
@@ -196,13 +196,13 @@ func chk_path(_ name : String, _ st_uid : UInt, _ st_gid : UInt, _ new_name : in
      printf ("chdir to %s\n", name);
      */
     if(0==chdir(name)) {
-      *spt++ = '/';
+      *spt++ = "/";
       /*
        printf ("remaining path: %s\n",spt);
        */
       *new_name = spt;
     } else {
-      *spt = '/';
+      *spt = "/";
     }
 
   }

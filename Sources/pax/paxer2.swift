@@ -87,13 +87,13 @@ extension paxer {
         } else {
           mybuf[inx+len-1] = '\0';
         }
-        name = strchr(&mybuf[inx],' ');
+        name = strchr(&mybuf[inx]," ");
         if (name) { name++; }
         else {
           Tty.paxwarn(true,"Extended header failure: missing space");
           exit(1);
         }
-        str = strchr(name,'=');
+        str = strchr(name,"=");
         if (str) {
           *str++='\0'; /* end of name */
         } else {
@@ -304,8 +304,8 @@ extension paxer {
       }
       return .failed;
     }
-    pax_invalid_action = .PAX_INVALID_ACTION_BYPASS; /* Default for pax format */
-    return(0);
+    pax_invalid_action = .BYPASS /* Default for pax format */
+    return .ok
   }
 
   /*
@@ -356,7 +356,7 @@ extension paxer {
       if (*(hd->prefix) != '\0') {
         cnt = strlcpy(dest, hd->prefix, sizeof(arcn.name) - 1);
         dest += cnt;
-        *dest++ = '/';
+        *dest++ = "/";
         cnt++;
       } else {
         cnt = 0;
@@ -423,11 +423,11 @@ extension paxer {
         arcn.sb.links = 2
 
         /*
-         * Some programs that create pax archives append a '/'
+         * Some programs that create pax archives append a "/"
          * to the pathname for directories. This clearly violates
          * pax specs, but we will silently strip it off anyway.
          */
-        if (arcn.name[arcn.nlen - 1] == '/') {
+        if (arcn.name[arcn.nlen - 1] == "/") {
           arcn.name[--arcn.nlen] = '\0';
         }
         break;
@@ -546,7 +546,7 @@ extension paxer {
           buf.append("%")  /* just skip it */
 
         case "d":
-          var dname = strrchr(filename,'/');
+          var dname = strrchr(filename,"/");
           if (dname==NULL) {
             cpylen = 1;
             dname = ".";
@@ -558,7 +558,7 @@ extension paxer {
           pos+= cpylen;
           break;
         case "f":
-          fname = strrchr(filename,'/');
+          fname = strrchr(filename,"/");
           if (fname==NULL) {
             fname = filename;
           } else {
@@ -583,7 +583,7 @@ extension paxer {
         break;
       }
       nextchar = nextpercent;
-      nextpercent = strchr(nextpercent,'%');
+      nextpercent = strchr(nextpercent,"%");
       if (nextpercent==NULL) {
         cpylen = strlen(nextchar);
       } else {

@@ -459,7 +459,7 @@ class tar : FSUB {
       hd.linkflag = AREGTYPE;
 
       hd.name[len-1] = "/";
-      if (ul_oct((u_long)0L, hd.size, sizeof(hd.size), 1)) {
+      if (ul_oct(0, hd.size, sizeof(hd.size), 1)) {
         goto out;
       }
     } else if (arcn.type == .SLK) {
@@ -470,7 +470,7 @@ class tar : FSUB {
 
       strlcpy(hd.linkname, arcn.ln_name, sizeof(hd.linkname));
 
-      if (ul_oct((u_long)0L, hd.size, sizeof(hd.size), 1)) {
+      if (ul_oct(0, hd.size, sizeof(hd.size), 1)) {
         goto out;
       }
     } else if ((arcn.type == .HLK) || (arcn.type == .HRG)) {
@@ -481,7 +481,7 @@ class tar : FSUB {
 
       strlcpy(hd.linkname, arcn.ln_name, sizeof(hd.linkname));
 
-      if (ul_oct((u_long)0L, hd.size, sizeof(hd.size), 1)) {
+      if (ul_oct(0, hd.size, sizeof(hd.size), 1)) {
         goto out;
       }
     } else {

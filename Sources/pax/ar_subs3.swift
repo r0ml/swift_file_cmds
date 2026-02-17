@@ -80,14 +80,14 @@ extension ArchiveOps {
     
     dlen = strlcpy(dirbuf, dirptr, sizeof(dirbuf));
     if (dlen >= sizeof(dirbuf) ||
-        (dlen == sizeof(dirbuf) - 1 && dirbuf[dlen - 1] != '/')) {
+        (dlen == sizeof(dirbuf) - 1 && dirbuf[dlen - 1] != "/")) {
       Tty.paxwarn(true, "directory name is too long %s", dirptr);
       return;
     }
     
     dest_pt = dirbuf + dlen;
-    if (*(dest_pt-1) != '/') {
-      *dest_pt++ = '/';
+    if (*(dest_pt-1) != "/") {
+      *dest_pt++ = "/";
       ++dlen;
     }
     
@@ -107,14 +107,6 @@ extension ArchiveOps {
      * modification time and access mode database
      */
     if ((lnk_start() < 0) || (ftree_start() < 0) || (dir_start() < 0)) {
-      return;
-    }
-    
-    /*
-     * When we are doing interactive rename, we store the mapping of names
-     * so we can fix up hard links files later in the archive.
-     */
-    if (iflag && (name_start() < 0)) {
       return;
     }
     
@@ -157,7 +149,7 @@ extension ArchiveOps {
          * create the destination name
          */
         
-        if (strlcpy(dest_pt, arcn.name + (*arcn.name == '/'),
+        if (strlcpy(dest_pt, arcn.name + (*arcn.name == "/"),
                     drem + 1) > drem) {
           
           Tty.paxwarn(true, "Destination pathname too long %s",
@@ -500,7 +492,7 @@ extension ArchiveOps {
    *  0 if archive found -1 otherwise
    */
   
-  private func get_arc() -> Result {
+  func get_arc() -> Result {
     let minhd = BLKMULT
     char *hdend;
     var notice = false

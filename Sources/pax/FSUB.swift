@@ -447,7 +447,7 @@ extension FSUB {
    * ul_oct()
    *  convert an unsigned long to an octal string. many oddball field
    *  termination characters are used by the various versions of tar in the
-   *  different fields. term selects which kind to use. str is '0' padded
+   *  different fields. term selects which kind to use. str is "0" padded
    *  at the front to len. we are unable to use only one format as many old
    *  tar readers are very cranky about this.
    * Return:

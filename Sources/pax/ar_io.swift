@@ -177,7 +177,7 @@ class Ar_io {
     } else if arsb.filetype == .blockDevice {
       artyp = .ISBLK
     }
-    else if ((lseek(arfd, (off_t)0L, SEEK_CUR) == -1) && (errno == ESPIPE)) {
+    else if ((lseek(arfd, 0, SEEK_CUR) == -1) && (errno == ESPIPE)) {
       artyp = ISPIPE;
     }
     else {
@@ -483,7 +483,7 @@ class Ar_io {
 
     }
 
-    if (((cpos = lseek(arfd, (off_t)0L, SEEK_CUR)) < 0) ||
+    if (((cpos = lseek(arfd, 0, SEEK_CUR)) < 0) ||
         (ftruncate(arfd.rawValue, cpos) < 0)) {
       Tty.syswarn(true, errno, "Unable to truncate archive file");
       return .failed

@@ -62,12 +62,12 @@ extension PaxMatcher {
     int res = 0;
 
     /*
-     * Strip off leading '/' if appropriate.
+     * Strip off leading "/" if appropriate.
      * Currently, this option is only set for the tar format.
      */
-    if (rmleadslash && arcn.name[0] == '/') {
+    if (rmleadslash && arcn.name[0] == "/") {
       if (arcn.name[1] == '\0') {
-        arcn.name[0] = '.';
+        arcn.name[0] = ".";
       } else {
         (void)memmove(arcn.name, &arcn.name[1],
                       strlen(arcn.name));
@@ -78,10 +78,10 @@ extension PaxMatcher {
         Tty.paxwarn(0, "Removing leading / from absolute path names in the archive");
       }
     }
-    if (rmleadslash && arcn.ln_name[0] == '/' &&
+    if (rmleadslash && arcn.ln_name[0] == "/" &&
         (arcn.type == PAX_HLK || arcn.type == PAX_HRG)) {
       if (arcn.ln_name[1] == '\0') {
-        arcn.ln_name[0] = '.';
+        arcn.ln_name[0] = ".";
       } else {
         (void)memmove(arcn.ln_name, &arcn.ln_name[1],
                       strlen(arcn.ln_name));
@@ -203,7 +203,7 @@ extension PaxMatcher {
     start = or_name;
     src = start + *or_len;
     dest = src + dir_len;
-    if (*start == '/') {
+    if (*start == "/") {
       ++start;
       --dest;
     }
@@ -435,13 +435,13 @@ extension PaxMatcher {
        * see if we just have an ordinary replacement character
        * or we refer to a subexpression.
        */
-      if (c == '&') {
+      if (c == "&") {
         pmpt = pm;
-      } else if ((c == '\\') && (*spt >= '0') && (*spt <= '9')) {
+      } else if ((c == '\\') && (*spt >= "0") && (*spt <= "9")) {
         /*
          * make sure there is a subexpression as specified
          */
-        if ((len = *spt++ - '0') > subexcnt) {
+        if ((len = *spt++ - "0") > subexcnt) {
           return .failed;
         }
         pmpt = pm + len;

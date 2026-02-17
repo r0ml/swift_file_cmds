@@ -303,7 +303,7 @@ class paxer : FSUB {
           switch o_option_table[i].cmdline_action {
             case .INVALID:
               if (opt.separator != .equals) {
-                Tty.paxwarn(true,"-o \(opt.name)= option requires '=' separator: option ignored")
+                Tty.paxwarn(true,"-o \(opt.name)= option requires "=" separator: option ignored")
               } else if let v = opt.value?.lowercased() {
                 if v == "bypass" {
                   pax_invalid_action = .BYPASS;
@@ -321,7 +321,7 @@ class paxer : FSUB {
               }
             case .DELETE:
               if opt.separator != .equals {
-                Tty.paxwarn(true,"-o \(opt.name)= option requires '=' separator: option ignored")
+                Tty.paxwarn(true,"-o \(opt.name)= option requires "=" separator: option ignored")
                 break
               }
               /* Mark all matches as deleted */
@@ -359,14 +359,14 @@ class paxer : FSUB {
               }
             case .HEADER_NAME:
               if opt.separator != .equals {
-                Tty.paxwarn(true,"-o \(opt.name)= option requires '=' separator: option ignored")
+                Tty.paxwarn(true,"-o \(opt.name)= option requires "=" separator: option ignored")
               } else {
                 o_option_table[i].g_value = opt.value
                 o_option_table[i].x_value = "YES"
               }
             case .LISTOPT:
               if opt.separator != .equals {
-                Tty.paxwarn(true,"-o \(opt.name)= option requires '=' separator: option ignored")
+                Tty.paxwarn(true,"-o \(opt.name)= option requires "=" separator: option ignored")
               } else {
                 o_option_table[i].g_value = opt.value
               }

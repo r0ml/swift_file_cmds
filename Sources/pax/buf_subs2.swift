@@ -156,7 +156,7 @@ extension Bufferer {
     /*
      * loop while there is more padding to add
      */
-    while (skcnt > 0L) {
+    while (skcnt > 0) {
       cnt = bufend - bufpt;
       if ((cnt <= 0) && ((cnt = buf_flush(blksz)) < 0)) {
         return .failed;

@@ -58,12 +58,11 @@ class ustar : tar {
    */
 
   override func id( _ blk : [UInt8]) -> Result {
-    HD_USTAR *hd;
 
     if (size < BLKMULT) {
       return .failed;
     }
-    hd = (HD_USTAR *)blk;
+    let hd = (HD_USTAR *)blk;
 
     /*
      * check for block of zero's first, a simple and fast test then check
@@ -120,7 +119,7 @@ class ustar : tar {
       cnt = l_strncpy(dest, hd->prefix,
           MIN(sizeof(hd->prefix), sizeof(arcn.name) - 2));
       dest += cnt;
-      *dest++ = '/';
+      *dest++ = "/";
       cnt++;
     }
 
@@ -188,11 +187,11 @@ class ustar : tar {
       arcn.sb.st_nlink = 2;
 
       /*
-       * Some programs that create ustar archives append a '/'
+       * Some programs that create ustar archives append a "/"
        * to the pathname for directories. This clearly violates
        * ustar specs, but we will silently strip it off anyway.
        */
-        if (arcn.name[arcn.nlen - 1] == '/') {
+        if (arcn.name[arcn.nlen - 1] == "/") {
           arcn.name[--arcn.nlen] = '\0';
         }
       break;
@@ -332,7 +331,7 @@ class ustar : tar {
 
       strlcpy(hd->prefix, arcn.name, sizeof(hd->prefix));
 
-      *pt++ = '/';
+      *pt++ = "/";
     }
 
     /*
@@ -353,7 +352,7 @@ class ustar : tar {
       case .DIR:
       hd->typeflag = DIRTYPE;
 
-          if (ul_oct((u_long)0L, hd->size, sizeof(hd->size), term_char)) {
+          if (ul_oct(0, hd->size, sizeof(hd->size), term_char)) {
 
             goto out;
           }
@@ -373,14 +372,14 @@ class ustar : tar {
          ul_oct((u_long)MINOR(arcn.sb.st_rdev), hd->devminor,
 
          sizeof(hd->devminor), term_char) ||
-            ul_oct((u_long)0L, hd->size, sizeof(hd->size), term_char)) {
+            ul_oct(0, hd->size, sizeof(hd->size), term_char)) {
           goto out;
         }
       break;
       case .FIF:
       hd->typeflag = FIFOTYPE;
 
-            if (ul_oct((u_long)0L, hd->size, sizeof(hd->size), term_char)) {
+            if (ul_oct(0, hd->size, sizeof(hd->size), term_char)) {
 
               goto out;
             }
@@ -398,7 +397,7 @@ class ustar : tar {
       } else {
         strlcpy(hd->linkname, arcn.ln_name, sizeof(hd->linkname));
       }
-        if (ul_oct((u_long)0L, hd->size, sizeof(hd->size), term_char)) {
+        if (ul_oct(0, hd->size, sizeof(hd->size), term_char)) {
 
             goto out;
           }

@@ -61,7 +61,7 @@ class Selector {
    * data structure for storing user supplied time ranges (-T option)
    */
 
-//  #define ATOI2(ar)  ((ar)[0] - '0') * 10 + ((ar)[1] - '0'); (ar) += 2;
+//  #define ATOI2(ar)  ((ar)[0] - "0") * 10 + ((ar)[1] - "0"); (ar) += 2;
 
   struct TimeRangeFlags : OptionSet, Equatable {
     var rawValue: UInt

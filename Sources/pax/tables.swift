@@ -432,17 +432,6 @@ class Tables {
    */
 
   /*
-   * name_start()
-   *	create the interactive rename table
-   * Return:
-   *	0 if successful, -1 otherwise
-   */
-
-  /*  func name_start() -> Bool {
-   }
-   */
-
-  /*
    * add_name()
    *	add the new name to old name mapping just created by the user.
    *	If an old name mapping is found (there may be duplicate names on an

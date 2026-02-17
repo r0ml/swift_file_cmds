@@ -272,7 +272,7 @@ struct Gen {
         break;
       }
       nextchar = nextpercent;
-      nextpercent = strchr(nextpercent,'%');
+      nextpercent = strchr(nextpercent,"%");
       if (nextpercent==NULL) {
         cpylen = strlen(nextchar);
       } else {
