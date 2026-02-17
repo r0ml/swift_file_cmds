@@ -197,7 +197,8 @@ extension cpio {
           }
 
           while let str = try? fp.readLine() {
-            pat_add(str, NULL);
+            // FIXME: what about errors?
+            PaxMatcher.pat_add(str, nil, &options)
           }
 
           if (get_line_error) {
@@ -274,7 +275,7 @@ extension cpio {
       switch options.act {
         case .LIST, .EXTRACT:
           while (*argv != NULL) {
-            if (pat_add(*argv++, NULL) < 0) {
+            if case .failed = pat_add(*argv++, nil, &options) {
               throw CmdErr(1)
             }
           }

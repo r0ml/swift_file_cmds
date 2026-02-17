@@ -958,6 +958,7 @@
 				pax/buf_subs2.swift,
 				pax/cache.swift,
 				pax/FSUB.swift,
+				pax/ftree.swift,
 				pax/globals.swift,
 				pax/options.swift,
 				pax/pat_rep.swift,
@@ -968,7 +969,10 @@
 				pax/paxer3.swift,
 				pax/sel_subs.swift,
 				pax/tables.swift,
+				pax/tar_options.swift,
+				pax/tar.swift,
 				pax/tty_subs.swift,
+				pax/ustar.swift,
 			);
 			target = E774012D2F02D87D00498517 /* pax */;
 		};

@@ -61,6 +61,7 @@ class Bufferer {
   var wrlimit = UInt(0)				/* # of bytes written per archive vol */
   var wrcnt = UInt(0)				/* # of bytes written on current vol */
   var rdcnt = UInt(0)				/* # of bytes read on current vol */
+  var fini = false
 
   var options : pax.CommandOptions
 
@@ -84,29 +85,28 @@ class Bufferer {
      * archive that might be hard to read elsewhere. If all ok, we then
      * open the first archive volume
      */
-    if (!wrblksz) {
-      wrblksz = options.frmt.bsz
-    }
+
+    wrblksz = options.wrblksz ?? options.frmt!.bsz
+
     if (wrblksz > MAXBLK) {
-      Tty.paxwarn(true, "Write block size of %d too large, maximum is: %d",
-                  wrblksz, MAXBLK);
-      return .failed;
+      Tty.paxwarn(true, "Write block size of \(wrblksz) too large, maximum is: \(MAXBLK)")
+      return .failed
     }
-    if (wrblksz % BLKMULT) {
-      Tty.paxwarn(true, "Write block size of %d is not a %d byte multiple",
-                  wrblksz, BLKMULT);
-      return .failed;
+    if wrblksz % UInt(BLKMULT) != 0 {
+      Tty.paxwarn(true, "Write block size of \(wrblksz) is not a \(BLKMULT) byte multiple")
+      return .failed
     }
-    if (wrblksz > MAXBLK_POSIX) {
-      Tty.paxwarn(false, "Write block size of %d larger than POSIX max %d, archive may not be portable",
-                  wrblksz, MAXBLK_POSIX);
-      return .failed;
+    if wrblksz > MAXBLK_POSIX {
+      Tty.paxwarn(false, "Write block size of \(wrblksz) larger than POSIX max \(MAXBLK_POSIX), archive may not be portable")
+      return .failed
     }
 
     /*
      * we only allow wrblksz to be used with all archive operations
      */
-    blksz = rdblksz = wrblksz;
+    blksz = wrblksz
+    rdblksz = wrblksz
+
     if ((ar_open(arcname) < 0) && (ar_next() < 0)) {
       return .failed;
     }
@@ -162,7 +162,8 @@ class Bufferer {
 
   func cp_start() {
     buf = &(bufmem[BLKMULT]);
-    rdblksz = blksz = MAXBLK;
+    rdblksz = MAXBLK
+    blksz = MAXBLK
   }
 
   /*
@@ -304,17 +305,16 @@ class Bufferer {
 
   func rd_sync() -> Result {
     int errcnt = 0;
-    int res;
 
     /*
      * if the user says bail out on first fault, we are out of here...
      */
     if options.maxflt == 0 {
-      return .failed;
+      return .failed
     }
-    if (act == .APPND) {
-      Tty.paxwarn(true, "Unable to append when there are archive read errors.");
-      return .failed;
+    if options.act == .APPND {
+      Tty.paxwarn(true, "Unable to append when there are archive read errors.")
+      return .failed
     }
 
     /*
@@ -329,7 +329,7 @@ class Bufferer {
       }
     }
 
-    for (;;) {
+    while true {
       if ((res = ar_read(buf, blksz)) > 0) {
         /*
          * All right! got some data, fill that buffer
@@ -389,8 +389,6 @@ class Bufferer {
    */
 
   func rd_skip(_ skcnt : Int) -> Result {
-    off_t res;
-    off_t cnt;
     off_t skipped = 0;
 
     /*
@@ -402,9 +400,9 @@ class Bufferer {
     if skcnt == 0 {
       return .ok
     }
-    res = MIN((bufend - bufpt), skcnt);
-    bufpt += res;
-    skcnt -= res;
+    var res2 = MIN((bufend - bufpt), skcnt);
+    bufpt += res2;
+    skcnt -= res2;
 
     /*
      * if skcnt is now 0, then no additional i/o is needed
@@ -417,8 +415,8 @@ class Bufferer {
      * We have to read more, calculate complete and partial record reads
      * based on rdblksz. we skip over "cnt" complete records
      */
-    res = skcnt%rdblksz;
-    cnt = (skcnt/rdblksz) * rdblksz;
+    var res = skcnt%rdblksz;
+    var cnt = (skcnt/rdblksz) * rdblksz;
 
     /*
      * if the skip fails, we will have to resync. ar_fow will tell us
@@ -434,7 +432,7 @@ class Bufferer {
      * what is left we have to read (which may be the whole thing if
      * ar_fow() told us the device can only read to skip records);
      */
-    while (res > 0L) {
+    while res > 0 {
       cnt = bufend - bufpt;
       /*
        * if the read fails, we will have to resync
@@ -445,9 +443,9 @@ class Bufferer {
       if (cnt == 0) {
         return .partial
       }
-      cnt = MIN(cnt, res);
+      cnt = min(cnt, res);
       bufpt += cnt;
-      res -= cnt;
+      res -= cnt
     }
     return .ok
   }

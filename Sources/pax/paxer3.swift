@@ -208,7 +208,7 @@ extension paxer {
      * split the path name into prefix and name fields (if needed). if
      * pt != arcn.name, the name has to be split
      */
-    let (nam, pt) = name_split(arcn.name)
+    let nam = name_split(arcn.name)
     guard let nam else {
       Tty.paxwarn(true, "File name too long for pax \(arcn.name)")
       return .partial
@@ -229,26 +229,20 @@ extension paxer {
     /*
      * split the name, or zero out the prefix
      */
-    if (pt != arcn.name) {
-      /*
+
+    /*
        * name was split, pt points at the / where the split is to
        * occur, we remove the / and copy the first part to the prefix
        */
-      *pt = '\0';
-      strlcpy(hd->prefix, arcn.name, sizeof(hd->prefix));
-      *pt++ = '/';
-    }
+      withUnsafeMutableBytes(of: &hd.prefix) { $0.copyBytes(from: nam.utf8) }
 
     /*
      * copy the name part. this may be the whole path or the part after
      * the prefix
      */
-    if (strlen(pt) == sizeof(hd->name)) {  /* must account for name just fits in buffer */
-      strncpy(hd->name, pt, sizeof(hd->name));
-    } else {
-      strlcpy(hd->name, pt, sizeof(hd->name));
-    }
-
+    var pt = Array(arcn.name.dropFirst(name.count).utf8)
+    if pt.count < MemoryLayout.size(ofValue: hd.name) { pt.append(0) }
+    withUnsafeMutableBytes(of: &hd.name) { $0.copyBytes(from: pt) }
 
     var dowarn = true
 
@@ -354,7 +348,7 @@ extension paxer {
     if let uu = ul_oct(arcn.sb.userId, MemoryLayout.size(ofValue: hd.uid), term_char) {
       withUnsafeMutableBytes(of: &hd.uid) { $0.copyBytes(from: uu.utf8) }
     } else {
-      if uid_nobody == 0 {
+      if uid_nobody == nil {
         uid_nobody = cache.uid_name("nobody")
         if uid_nobody == nil {
           return .partial
@@ -364,24 +358,30 @@ extension paxer {
         uid_warn = arcn.sb.userId
         Tty.paxwarn(true, "Pax header field is too small for uid \(arcn.sb.userId), using nobody")
       }
-      if (ul_oct(uid_nobody, hd->uid, sizeof(hd->uid), term_char)) {
+      if let uuu = ul_oct(uid_nobody!, MemoryLayout.size(ofValue: hd.uid), term_char) {
+        withUnsafeMutableBytes(of: &hd.uid) { $0.copyBytes(from: uuu.utf8) }
+      } else {
         return .partial
       }
     }
     if let gg = ul_oct(arcn.sb.groupId, MemoryLayout.size(ofValue: hd.gid), term_char) {
       withUnsafeMutableBytes(of: &hd.gid) { $0.copyBytes(from: gg.utf8) }
     } else {
-      if (gid_nobody == 0) {
-        if (gid_name("nobody", &gid_nobody) == -1) {
+      if (gid_nobody == nil) {
+        gid_nobody = cache.gid_name("nobody")
+        if gid_nobody == nil {
           return .partial
         }
       }
-      if (gid_warn != arcn.sb.groupId) {
+      if gid_warn != arcn.sb.groupId {
         gid_warn = arcn.sb.groupId
         Tty.paxwarn(true, "Pax header field is too small for gid \(arcn.sb.groupId), using nobody")
       }
-      withUnsafeMutableBytes(of: &hd.gid) { $0.copyBytes(from: ul_oct(gid_nobody ?? 0, $0.count, term_char)!.utf8) }
-//        return .partial
+      if let ggg = ul_oct(gid_nobody!, MemoryLayout.size(ofValue: hd.gid), term_char) {
+        withUnsafeMutableBytes(of: &hd.gid) { $0.copyBytes(from: ggg.utf8) }
+      } else {
+        return .partial
+      }
     }
     /* However, Unix conformance tests do not like MORE than 12 mode bits:
      remove all beyond (see definition of stat.st_mode structure)    */
@@ -427,7 +427,7 @@ extension paxer {
    */
 
   // Deals with Unicode strings
-  func name_split(_ namex : String) -> (String?, String?) {
+  func name_split(_ namex : String) -> String? {
 
     /*
      * check to see if the file name is small enough to fit in the name
@@ -437,8 +437,8 @@ extension paxer {
     let name = ArraySlice(namex.utf8)
 
     let len2 = name.count
-    if len2 <= TNMSZ { return (namex, nil) }
-    if len2 > TPFSZ + TNMSZ { return (nil, nil) }
+    if len2 <= TNMSZ { return namex }
+    if len2 > TPFSZ + TNMSZ { return nil }
 
     /*
      * we start looking at the biggest sized piece that fits in the name
@@ -455,7 +455,7 @@ extension paxer {
      * if we hit the end of the string, this name cannot be split, so we
      * cannot store this file.
      */
-    if start.isEmpty { return (nil, nil) }
+    if start.isEmpty { return nil }
 
     let len = name.count - start.count
 
@@ -465,37 +465,12 @@ extension paxer {
      * the file would then expand on extract to //str. The len == 0 below
      * makes this special case follow the spec to the letter.
      */
-    if len >= TPFSZ || len == 0 { return (nil, nil) }
+    if len >= TPFSZ || len == 0 { return nil }
 
     /*
      * ok have a split point, return it to the caller
      */
-    return ( String(decoding: name.prefix(len), as: UTF8.self), String(decoding: start, as: UTF8.self) );
-  }
-
-  func expandname(_ buf : [UInt8], size_t len, char **gnu_name, _ name : String, size_t name_len) -> UInt {
-    size_t nlen;
-
-    if (*gnu_name) {
-      if ((nlen = strlcpy(buf, *gnu_name, len)) >= len) {
-        nlen = len - 1;
-      }
-      free(*gnu_name);
-      *gnu_name = NULL;
-    } else {
-      if (name_len < len) {
-        /* name may not be null terminated: it might be as big as the
-         field,  so copy is limited to the max size of the header field */
-        if ((nlen = strlcpy(buf, name, name_len+1)) >= name_len+1) {
-          nlen = name_len;
-        }
-      } else {
-        if ((nlen = strlcpy(buf, name, len)) >= len) {
-          nlen = len - 1;
-        }
-      }
-    }
-    return(nlen);
+    return String(decoding: name.prefix(len), as: UTF8.self)
   }
 
   func major(_ x : UInt) -> UInt {

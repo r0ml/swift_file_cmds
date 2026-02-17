@@ -40,9 +40,7 @@ import CMigration
 import Darwin
 
 class tar : FSUB {
-
- 
-
+  
   /*
    * Values used in typeflag field in all tar formats
    * (only REGTYPE, LNKTYPE and SYMTYPE are used in old BSD tar headers)
@@ -113,123 +111,6 @@ class tar : FSUB {
   char *gnu_name_string;			/* GNU ././@LongLink hackery name */
   char *gnu_link_string;			/* GNU ././@LongLink hackery link */
 
-
- 
- 
-  /*
-   * ul_oct()
-   *	convert an unsigned long to an octal string. many oddball field
-   *	termination characters are used by the various versions of tar in the
-   *	different fields. term selects which kind to use. str is "0" padded
-   *	at the front to len. we are unable to use only one format as many old
-   *	tar readers are very cranky about this.
-   * Return:
-   *	0 if the number fit into the string, -1 otherwise
-   */
-
-  static int
-  ul_oct(u_long val, char *str, int len, int term)
-  {
-    char *pt;
-
-    /*
-     * term selects the appropriate character(s) for the end of the string
-     */
-    pt = str + len - 1;
-    switch(term) {
-      case 3:
-        *pt-- = "\0";
-        break;
-      case 2:
-        *pt-- = " ";
-        *pt-- = "\0";
-        break;
-      case 1:
-        *pt-- = " ";
-        break;
-      case 0:
-      default:
-        *pt-- = "\0";
-        *pt-- = " ";
-        break;
-    }
-
-    /*
-     * convert and blank pad if there is space
-     */
-    while (pt >= str) {
-      *pt-- = "0" + (char)(val & 0x7);
-      if ((val = val >> 3) == (u_long)0) {
-        break;
-      }
-    }
-
-    while (pt >= str) {
-      *pt-- = "0";
-    }
-    if (val != (u_long)0) {
-      return .failed;
-    }
-    return(0);
-  }
-
-  /*
-   * uqd_oct()
-   *	convert an u_quad_t to an octal string. one of many oddball field
-   *	termination characters are used by the various versions of tar in the
-   *	different fields. term selects which kind to use. str is "0" padded
-   *	at the front to len. we are unable to use only one format as many old
-   *	tar readers are very cranky about this.
-   * Return:
-   *	0 if the number fit into the string, -1 otherwise
-   */
-
-  static int
-  uqd_oct(u_quad_t val, char *str, int len, int term)
-  {
-    char *pt;
-
-    /*
-     * term selects the appropriate character(s) for the end of the string
-     */
-    pt = str + len - 1;
-    switch(term) {
-      case 3:
-        *pt-- = "\0";
-        break;
-      case 2:
-        *pt-- = " ";
-        *pt-- = "\0";
-        break;
-      case 1:
-        *pt-- = " ";
-        break;
-      case 0:
-      default:
-        *pt-- = "\0";
-        *pt-- = " ";
-        break;
-    }
-
-    /*
-     * convert and blank pad if there is space
-     */
-    while (pt >= str) {
-      *pt-- = "0" + (char)(val & 0x7);
-      if ((val = val >> 3) == 0) {
-        break;
-      }
-    }
-
-    while (pt >= str) {
-      *pt-- = "0";
-    }
-    if (val != (u_quad_t)0) {
-      return .failed;
-    }
-    return(0);
-  }
-
   /*
    * tar_chksm()
    *	calculate the checksum for a tar block counting the checksum field as
@@ -240,20 +121,18 @@ class tar : FSUB {
    *	unsigned long checksum
    */
 
-  static u_long
-  tar_chksm(char *blk, int len)
-  {
-    char *stop;
-    char *pt;
-    u_long chksm = BLNKSUM;	/* initial value is checksum field sum */
+  func tar_chksm(char *blk, int len) -> UInt {
+    var chksm = UInt(BLNKSUM)	/* initial value is checksum field sum */
 
     /*
      * add the part of the block before the checksum field
      */
-    pt = blk;
-    stop = blk + CHK_OFFSET;
-    while (pt < stop)
-            chksm += (u_long)(*pt++ & 0xff);
+    var pt = blk
+    var stop = blk + CHK_OFFSET
+
+    while (pt < stop) {
+      chksm += UInt(*pt++ & 0xff)
+    }
     /*
      * move past the checksum field and keep going, spec counts the
      * checksum field as the sum of 8 blanks (which is pre-computed as
@@ -264,9 +143,9 @@ class tar : FSUB {
     pt += CHK_LEN;
     stop = blk + len;
     while (pt < stop) {
-      chksm += (u_long)(*pt++ & 0xff);
+      chksm += (*pt++ & 0xff)
     }
-    return(chksm);
+    return chksm
   }
 
   /*
@@ -658,109 +537,5 @@ class tar : FSUB {
   }
 
 
-  /*
-   * name_split()
-   *	see if the name has to be split for storage in a ustar header. We try
-   *	to fit the entire name in the name field without splitting if we can.
-   *	The split point is always at a /
-   * Return
-   *	character pointer to split point (always the / that is to be removed
-   *	if the split is not needed, the points is set to the start of the file
-   *	name (it would violate the spec to split there). A NULL is returned if
-   *	the file name is too long
-   */
 
-  private func name_split(_ name : String, _ len : Int) -> String {
-    char *start;
-
-    /*
-     * check to see if the file name is small enough to fit in the name
-     * field. if so just return a pointer to the name.
-     */
-    if (len <= TNMSZ) {
-      return(name);
-    }
-
-    /*
-     * The strings can fill the complete name and prefix fields
-     * without a NUL terminator.
-     */
-    if (len > (TPFSZ + TNMSZ + 1)) {
-
-      return(NULL);
-    }
-
-    /*
-     * we start looking at the biggest sized piece that fits in the name
-     * field. We walk forward looking for a slash to split at. The idea is
-     * to find the biggest piece to fit in the name field (or the smallest
-     * prefix we can find)
-     */
-
-    /*
-     * the -1 is correct the biggest piece would
-     * include the slash between the two parts that gets thrown away
-     */
-    start = name + len - TNMSZ - 1;
-    if ((*start == "/") && (start == name)) {
-      ++start;	/* 101 byte paths with leading "/" are dinged otherwise */
-    }
-
-    while ((*start != "\0") && (*start != "/")) {
-      ++start;
-    }
-
-    /*
-     * if we hit the end of the string, this name cannot be split, so we
-     * cannot store this file.
-     */
-    if (*start == "\0") {
-      return(NULL);
-    }
-    len = start - name;
-
-    /*
-     * NOTE: /str where the length of str == TNMSZ can not be stored under
-     * the p1003.1-1990 spec for ustar. We could force a prefix of / and
-     * the file would then expand on extract to //str. The len == 0 below
-     * makes this special case follow the spec to the letter.
-     */
-    if ((len > TPFSZ) || (len == 0)) {
-      return(NULL);
-    }
-
-    /*
-     * ok have a split point, return it to the caller
-     */
-    return(start);
-  }
-
-  static size_t
-  expandname(char *buf, size_t len, char **gnu_name, const char *name,
-             size_t name_len)
-  {
-    size_t nlen;
-
-    if (*gnu_name) {
-      /* *gnu_name is NUL terminated */
-      if ((nlen = strlcpy(buf, *gnu_name, len)) >= len) {
-        nlen = len - 1;
-      }
-      free(*gnu_name);
-      *gnu_name = NULL;
-    } else {
-      if (name_len < len) {
-        /* name may not be null terminated: it might be as big as the
-         field,  so copy is limited to the max size of the header field */
-        if ((nlen = strlcpy(buf, name, name_len+1)) >= name_len+1) {
-          nlen = name_len;
-        }
-      } else {
-        if ((nlen = strlcpy(buf, name, len)) >= len) {
-          nlen = len - 1;
-        }
-      }
-    }
-    return(nlen);
-  }
 }

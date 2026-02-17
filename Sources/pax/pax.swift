@@ -174,6 +174,9 @@ nonisolated(unsafe) var myUsage : usageType = .pax
       var cwdpath : String?        /* current working directory path */
       var maxflt = MAXFLT          /* MAX consecutive media errors */
 
+      var rephead : [REPLACE] = []    /* replacement string list head */
+      var pathead : [PATTERN] = []    /* file pattern match list head */
+
       var args : [String] = []
     }
 

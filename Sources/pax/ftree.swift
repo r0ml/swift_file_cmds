@@ -39,7 +39,20 @@
 import CMigration
 import Darwin
 
-extension pax {
+class ftree {
+
+  /*
+   * Data structure used by the ftree.c routines to store the file args to be
+   * handed to fts(). It keeps a reference count of which args generated a
+   * "selected" member
+   */
+
+  struct FTREE {
+    var fname : String    /* file tree name */
+    var refcnt : Int = 0  /* has tree had a selected file? */
+    var chflg : Bool      /* change directory flag */
+//    struct ftree  *fow;    /* pointer to next entry on list */
+  }
 
   /*
    * routines to interface with the fts library function.
@@ -55,18 +68,20 @@ extension pax {
    * pax, they are read from stdin
    */
 
-  static FTS *ftsp = NULL;		/* current FTS handle */
-  static int ftsopts;			/* options to be used on fts_open */
-  static char *farray[2];			/* array for passing each arg to fts */
-  static FTREE *fthead = NULL;		/* head of linked list of file args */
-  static FTREE *fttail = NULL;		/* tail of linked list of file args */
-  static FTREE *ftcur = NULL;		/* current file arg being processed */
-  static FTSENT *ftent = NULL;		/* current file tree entry */
-  static int ftree_skip;			/* when set skip to next file arg */
+  var ftsp : FTSWalker?           /* current FTS handle */
+  var ftsopts : FTSFlags          /* options to be used on fts_open */
+//  static char *farray[2];       /* array for passing each arg to fts */
+  var fthead : [FTREE] = []       /* head of linked list of file args */
+//  static FTREE *fttail = NULL;  /* tail of linked list of file args */
+  var ftcur : FTREE? = nil        /* current file arg being processed */
+  var ftent : FTSEntry?           /* current file tree entry */
+  var ftree_skip = false          /* when set skip to next file arg */
 
-  static int ftree_arg(void);
+  var options : pax.CommandOptions
 
-  static char *getpathname(char *, int);
+  init(options : pax.CommandOptions) {
+    self.options = options
+  }
 
   /*
    * ftree_start()
@@ -78,16 +93,14 @@ extension pax {
    *	0 if there is at least one valid file arg to process, -1 otherwise
    */
 
-  int
-  ftree_start(void)
-  {
+  func ftree_start() async -> Result {
     /*
      * Set up the operation mode of fts, open the first file arg. We must
      * use FTS_NOCHDIR, as the user may have to open multiple archives and
      * if fts did a chdir off into the boondocks, we may create an archive
      * volume in a place where the user did not expect to.
      */
-    ftsopts = FTS_NOCHDIR;
+    var ftsopts = FTSFlags.NOCHDIR
 
     /*
      * optional user flags that effect file traversal
@@ -99,31 +112,23 @@ extension pax {
      * -n select only the first member of a file tree when a match is found
      * -d do not extract subtrees rooted at a directory arg.
      */
-    if (Lflag) {
-      ftsopts |= FTS_LOGICAL;
+    if options.Lflag {
+      ftsopts.insert(.LOGICAL)
     }
     else {
-      ftsopts |= FTS_PHYSICAL;
+      ftsopts.insert(.PHYSICAL)
     }
-    if (Hflag) {
-      ftsopts |= FTS_COMFOLLOW;
+    if options.Hflag {
+      ftsopts.insert(.COMFOLLOW)
     }
-    if (Xflag) {
-      ftsopts |= FTS_XDEV;
-    }
-
-    if ((fthead == NULL) && ((farray[0] = malloc(PAXPATHLEN+2)) == NULL)) {
-      Tty.paxwarn(true, "Unable to allocate memory for file name buffer");
-      return .failed;
+    if options.Xflag {
+      ftsopts.insert(.XDEV)
     }
 
-    if (ftree_arg() < 0) {
-      return .failed;
+    if case .failed = await ftree_arg() {
+      return .failed
     }
-    if (tflag && (atdir_start() < 0)) {
-      return .failed;
-    }
-    return(0);
+    return .ok
   }
 
   /*
@@ -134,18 +139,13 @@ extension pax {
    *	0 if added to the linked list, -1 if failed
    */
 
-  int
-  ftree_add(char *str, int chflg)
-  {
-    FTREE *ft;
-    int len;
-
+  func ftree_add(_ strx : String, _ chflg : Bool) -> Result {
     /*
      * simple check for bad args
      */
-    if ((str == NULL) || (*str == '\0')) {
-      Tty.paxwarn(0, "Invalid file name argument");
-      return .failed;
+    if strx.isEmpty {
+      Tty.paxwarn(false, "Invalid file name argument");
+      return .failed
     }
 
     /*
@@ -153,25 +153,15 @@ extension pax {
      * processed in the same order they were passed to pax). Get rid of any
      * trailing / the user may pass us. (watch out for / by itself).
      */
-    if ((ft = (FTREE *)malloc(sizeof(FTREE))) == NULL) {
-      Tty.paxwarn(0, "Unable to allocate memory for filename");
-      return .failed;
+
+    var str = strx
+    while str.last == "/" && str.count > 1 {
+      str.removeLast()
     }
 
-    if (((len = strlen(str) - 1) > 0) && (str[len] == '/')) {
-      str[len] = '\0';
-    }
-    ft->fname = str;
-    ft->refcnt = 0;
-    ft->chflg = chflg;
-    ft->fow = NULL;
-    if (fthead == NULL) {
-      fttail = fthead = ft;
-      return(0);
-    }
-    fttail->fow = ft;
-    fttail = ft;
-    return(0);
+    let ft = FTREE(fname: str, chflg: chflg)
+    fthead.append(ft)
+    return .ok
   }
 
   /*
@@ -180,16 +170,14 @@ extension pax {
    *	-n and -d processing.
    */
 
-  void
-  ftree_sel(ARCHD *arcn)
-  {
+  func ftree_sel(_ arcn : ARCHD) {
     /*
      * set reference bit for this pattern. This linked list is only used
      * when file trees are supplied pax as args. The list is not used when
      * the trees are read from stdin.
      */
-    if (ftcur != NULL) {
-      ftcur->refcnt = 1;
+    if ftcur != nil {
+      ftcur!.refcnt = 1
     }
 
     /*
@@ -198,16 +186,16 @@ extension pax {
      * if -d we tell fts only to match the directory (if the arg is a dir)
      * and not the entire file tree rooted at that point.
      */
-    if (nflag) {
-      ftree_skip = 1;
+    if options.nflag {
+      ftree_skip = true
     }
 
-    if (!dflag || (arcn.type != PAX_DIR)) {
-      return;
+    if !options.dflag || arcn.type != .DIR {
+      return
     }
 
-    if (ftent != NULL) {
-      (void)fts_set(ftsp, ftent, FTS_SKIP);
+    if ftent != nil {
+      ftent!.setAction(.SKIP)
     }
   }
 
@@ -216,11 +204,9 @@ extension pax {
    *	this entry has not been selected by pax.
    */
 
-  void
-  ftree_notsel(void)
-  {
-    if (ftent != NULL) {
-      (void)fts_set(ftsp, ftent, FTS_SKIP);
+  func ftree_notsel() {
+    if ftent != nil {
+      ftent!.setAction(.SKIP)
     }
   }
 
@@ -230,32 +216,29 @@ extension pax {
    *	have a selected member (reference count still 0)
    */
 
-  void
-  ftree_chk(void)
-  {
-    FTREE *ft;
-    int wban = 0;
-
+  func ftree_chk() {
     /*
      * make sure all dir access times were reset.
      */
     if options.tflag {
-      atdir_end(options)
+      tables.atdir_end(options)
     }
 
+    var se = FileDescriptor.standardError
+    var wban = true
     /*
      * walk down list and check reference count. Print out those members
      * that never had a match
      */
-    for (ft = fthead; ft != NULL; ft = ft->fow) {
-      if ((ft->refcnt > 0) || ft->chflg) {
-        continue;
+    for ft in fthead {
+      if ft.refcnt > 0 || ft.chflg {
+        continue
       }
-      if (wban == 0) {
+      if wban {
         Tty.paxwarn(true,"WARNING! These file names were not selected:");
-        ++wban;
+        wban = false
       }
-      (void)fprintf(stderr, "%s\n", ft->fname);
+      print(ft.fname, to: &se)
     }
   }
 
@@ -269,57 +252,50 @@ extension pax {
    *	stdin).
    */
 
-  static int
-  ftree_arg(void)
-  {
+  func ftree_arg() async -> Result {
 
     /*
      * close off the current file tree
      */
-    if (ftsp != NULL) {
-      (void)fts_close(ftsp);
-      ftsp = NULL;
+    if let ftsp {
+      self.ftsp = nil
     }
 
     /*
      * keep looping until we get a valid file tree to process. Stop when we
      * reach the end of the list (or get an eof on stdin)
      */
+    var farr : String
     while true {
-      if (fthead == NULL) {
+      if fthead.isEmpty {
         /*
          * the user didn't supply any args, get the file trees
          * to process from stdin;
          */
 
-        if (getpathname(farray[0], PAXPATHLEN+1) == NULL) {
-          return .failed;
+        guard let f = await getpathname() else {
+          return .failed
         }
+        farr = f
 
       } else {
         /*
          * the user supplied the file args as arguments to pax
          */
-        if (ftcur == NULL) {
-          ftcur = fthead;
-        }
-        else if ((ftcur = ftcur->fow) == NULL) {
-          return .failed;
-        }
-        if (ftcur->chflg) {
+        ftcur = fthead.removeFirst()
+        if ftcur!.chflg {
           /* First fchdir() back... */
 
-          if (fdochdir(cwdfd) == -1) {
-            return .failed;
+          if case .failed = fdochdir(cwdfd) {
+            return .failed
           }
 
-          if (dochdir(ftcur->fname) == -1) {
-            return .failed;
+          if case .failed = dochdir(ftcur.fname) {
+            return .failed
           }
-
-          continue;
+          continue
         } else {
-          farray[0] = ftcur->fname;
+          farr = ftcur!.fname
         }
       }
 
@@ -332,11 +308,12 @@ extension pax {
        * files (the -n and -d flags need this). If the open is
        * successful, return a 0.
        */
-      if ((ftsp = fts_open(farray, ftsopts, NULL)) != NULL) {
-        break;
+      ftsp = try? FTSWalker(path: [farr], options: ftsopts)
+      if let ftsp {
+        break
       }
     }
-    return(0);
+    return .ok
   }
 
   /*
@@ -346,14 +323,7 @@ extension pax {
    *	0 when contents of arcn have been set with the next file, -1 when done.
    */
 
-  int
-  next_file(ARCHD *arcn)
-  {
-    int cnt;
-    time_t atime;
-    time_t mtime;
-
-    time_t atime_nsec, mtime_nsec;
+  func next_file(_ arcn : inout ARCHD) async -> Result {
 
     /*
      * ftree_sel() might have set the ftree_skip flag if the user has the
@@ -365,18 +335,155 @@ extension pax {
       /*
        * clear and go to next arg
        */
-      ftree_skip = 0;
-      if (ftree_arg() < 0) {
-        return .failed;
+      ftree_skip = false
+      if case .failed = await ftree_arg() {
+        return .failed
       }
     }
 
     /*
      * loop until we get a valid file to process
      */
-    while true {
-      if ((ftent = fts_read(ftsp)) == NULL) {
+    while let ftent = ftsp!.next() {
+      /*
+       * handle each type of fts_read() flag
+       */
+      switch ftent.info {
+        case .D, .DEFAULT, .F, .SL:
 
+          /*
+           * these are all ok
+           */
+          break
+
+        case .SLNONE:	/* was same as above cases except Unix
+                           conformance requires this error check */
+          if options.Hflag || options.Lflag {       /* -H or -L was specified */
+            if ftent.errno.code != 0 {
+              Tty.paxwarn(true, "\(ftent.name ?? "???"): \(ftent.errno.localizedDescription)")
+            }
+          }
+
+        case .DP:
+          /*
+           * already saw this directory. If the user wants file
+           * access times reset, we use this to restore the
+           * access time for this directory since this is the
+           * last time we will see it in this file subtree
+           * remember to force the time (this is -t on a read
+           * directory, not a created directory).
+           */
+          var mtime = DateTime()
+          var atime = DateTime()
+          if !options.tflag {
+            continue
+          }
+          // FIXME: add_atdir and get_atdir only get called here -- they could be moved out of `tables`
+          if case .failed = tables.get_atdir(ftent.statp.device, ftent.statp.inode, &mtime, &atime) {
+            continue
+          }
+
+          set_ftime(ftent.path, mtime, atime, true, options)
+
+          continue
+        case .DC:
+          /*
+           * fts claims a file system cycle
+           */
+          Tty.paxwarn(true,"File system cycle found at \(ftent.path)")
+          continue
+        case .DNR:
+          Tty.syswarn(true, ftent.errno.code, "Unable to read directory \(ftent.path)")
+          continue
+        case .ERR:
+          Tty.syswarn(true, ftent.errno.code, "File system traversal error")
+          continue
+        case .NS, .NSOK:
+          Tty.syswarn(true, ftent.errno.code, "Unable to access \(ftent.path)")
+          continue
+        default:
+          // FIXME: what should I do here?
+          break
+      }
+
+      /*
+       * ok got a file tree node to process. copy info into arcn
+       * structure (initialize as required)
+       */
+
+      arcn.skip = 0;
+      arcn.pad = 0;
+      arcn.ln_name = ""
+      arcn.sb = ftent.statp
+
+      /*
+       * file type based set up and copy into the arcn struct
+       * SIDE NOTE:
+       * we try to reset the access time on all files and directories
+       * we may read when the -t flag is specified. files are reset
+       * when we close them after copying. we reset the directories
+       * when we are done with their file tree (we also clean up at
+       * end in case we cut short a file tree traversal). However
+       * there is no way to reset access times on symlinks.
+       */
+      switch arcn.sb.filetype {
+        case .directory:
+          arcn.type = .DIR;
+          if !options.tflag {
+            break
+          }
+          // FIXME: this is the only reference to `tables.add_atdir` -- can it be moved here?
+          tables.add_atdir(ftent.path, arcn.sb.device, arcn.sb.inode, arcn.sb.lastModified, arcn.sb.lastAccessed );
+
+        case .characterDevice:
+          arcn.type = .CHR
+        case .blockDevice:
+          arcn.type = .BLK;
+        case .regular:
+          /*
+           * only regular files with have data to store on the
+           * archive. all others will store a zero length skip.
+           * the skip field is used by pax for actual data it has
+           * to read (or skip over).
+           */
+          arcn.type = .REG
+          arcn.skip = arcn.sb.size
+
+        case .symbolicLink:
+          arcn.type = .SLK
+          /*
+           * have to read the symlink path from the file
+           */
+          if ((cnt = readlink(ftent.path, arcn.ln_name,
+                              PAXPATHLEN - 1)) < 0) {
+            Tty.syswarn(true, errno, "Unable to read symlink \(ftent.path)")
+            continue
+          }
+          /*
+           * set link name length, watch out readlink does not
+           * always NUL terminate the link path
+           */
+          arcn.ln_name[cnt] = '\0';
+          arcn.ln_nlen = cnt;
+          break;
+        case .socket:
+          /*
+           * under BSD storing a socket is senseless but we will
+           * let the format specific write function make the
+           * decision of what to do with it.
+           */
+          arcn.type = .SCK
+
+        case .fifo:
+          arcn.type = .FIF
+        default:
+          // FIXME: what should I do here?
+          break
+      }
+      break;
+    }
+
+    if error {
         if (errno) {
           Tty.syswarn(true, errno, "next_file");
         }
@@ -389,156 +496,7 @@ extension pax {
           return .failed;
         }
         continue;
-      }
-
-      /*
-       * handle each type of fts_read() flag
-       */
-      switch(ftent->fts_info) {
-        case FTS_D:
-        case FTS_DEFAULT:
-        case FTS_F:
-        case FTS_SL:
-
-          /*
-           * these are all ok
-           */
-          break;
-
-        case FTS_SLNONE:	/* was same as above cases except Unix
-                           conformance requires this error check */
-          if (Hflag || Lflag) {       /* -H or -L was specified */
-            if (ftent->fts_errno) {
-              Tty.paxwarn(true, "%s: %s",
-                          ftent->fts_name, strerror(ftent->fts_errno));
-            }
-          }
-          break;
-
-        case FTS_DP:
-          /*
-           * already saw this directory. If the user wants file
-           * access times reset, we use this to restore the
-           * access time for this directory since this is the
-           * last time we will see it in this file subtree
-           * remember to force the time (this is -t on a read
-           * directory, not a created directory).
-           */
-          if (!tflag || (get_atdir(ftent->fts_statp->st_dev,
-
-                                   ftent->fts_statp->st_ino,
-                                   &mtime, &mtime_nsec,
-                                   &atime, &atime_nsec) < 0)) {
-            continue;
-          }
-
-          set_ftime(ftent->fts_path, mtime, mtime_nsec,
-                    atime, atime_nsec, 1);
-
-          continue;
-        case FTS_DC:
-          /*
-           * fts claims a file system cycle
-           */
-          Tty.paxwarn(true,"File system cycle found at %s",ftent->fts_path);
-          continue;
-        case FTS_DNR:
-          Tty.syswarn(true, ftent->fts_errno,
-                  "Unable to read directory %s", ftent->fts_path);
-          continue;
-        case FTS_ERR:
-          Tty.syswarn(true, ftent->fts_errno,
-                  "File system traversal error");
-          continue;
-        case FTS_NS:
-        case FTS_NSOK:
-          Tty.syswarn(true, ftent->fts_errno,
-                  "Unable to access %s", ftent->fts_path);
-          continue;
-      }
-
-      /*
-       * ok got a file tree node to process. copy info into arcn
-       * structure (initialize as required)
-       */
-      arcn.skip = 0;
-      arcn.pad = 0;
-      arcn.ln_nlen = 0;
-      arcn.ln_name[0] = '\0';
-      arcn.sb = *(ftent->fts_statp);
-
-      /*
-       * file type based set up and copy into the arcn struct
-       * SIDE NOTE:
-       * we try to reset the access time on all files and directories
-       * we may read when the -t flag is specified. files are reset
-       * when we close them after copying. we reset the directories
-       * when we are done with their file tree (we also clean up at
-       * end in case we cut short a file tree traversal). However
-       * there is no way to reset access times on symlinks.
-       */
-      switch(S_IFMT & arcn.sb.st_mode) {
-        case S_IFDIR:
-          arcn.type = PAX_DIR;
-          if (!tflag) {
-            break;
-          }
-          add_atdir(ftent->fts_path, arcn.sb.st_dev,
-                    arcn.sb.st_ino, arcn.sb.lastModified,
-
-                    arcn.sb.st_mtime_nsec, arcn.sb.st_atime,
-                    arcn.sb.st_atime_nsec);
-
-          break;
-        case S_IFCHR:
-          arcn.type = PAX_CHR;
-          break;
-        case S_IFBLK:
-          arcn.type = PAX_BLK;
-          break;
-        case S_IFREG:
-          /*
-           * only regular files with have data to store on the
-           * archive. all others will store a zero length skip.
-           * the skip field is used by pax for actual data it has
-           * to read (or skip over).
-           */
-          arcn.type = PAX_REG;
-          arcn.skip = arcn.sb.st_size;
-          break;
-        case S_IFLNK:
-          arcn.type = PAX_SLK;
-          /*
-           * have to read the symlink path from the file
-           */
-          if ((cnt = readlink(ftent->fts_path, arcn.ln_name,
-                              PAXPATHLEN - 1)) < 0) {
-            Tty.syswarn(true, errno, "Unable to read symlink %s",
-                    ftent->fts_path);
-            continue;
-          }
-          /*
-           * set link name length, watch out readlink does not
-           * always NUL terminate the link path
-           */
-          arcn.ln_name[cnt] = '\0';
-          arcn.ln_nlen = cnt;
-          break;
-        case S_IFSOCK:
-          /*
-           * under BSD storing a socket is senseless but we will
-           * let the format specific write function make the
-           * decision of what to do with it.
-           */
-          arcn.type = PAX_SCK;
-          break;
-        case S_IFIFO:
-          arcn.type = PAX_FIF;
-          break;
-      }
-      break;
     }
-
     /*
      * copy file name, set file name length
      */
@@ -546,8 +504,8 @@ extension pax {
     if (arcn.nlen >= sizeof(arcn.name)) {
       arcn.nlen = sizeof(arcn.name) - 1; /* XXX truncate? */
     }
-    arcn.org_name = ftent->fts_path;
-    return(0);
+    arcn.org_name = ftent.path
+    return .ok
   }
 
   /*
@@ -557,45 +515,26 @@ extension pax {
    *	NULL at end of file, otherwise the NUL-terminated buffer.
    */
 
-  static char *
-  getpathname(char *buf, int buflen)
-  {
-    char *bp, *ep;
-    int ch, term;
-
-    if (zeroflag) {
+  private func getpathname() async -> String? {
       /*
        * Read a NUL-terminated pathname, being especially
        * paranoid about proper termination and pathname length.
        */
-      for (bp = buf, ep = buf + buflen; bp < ep; bp++) {
-        if ((ch = getchar()) == EOF) {
-          if (bp != buf)
-              Tty.paxwarn(true, "Ignoring unterminated "
-                      "pathname at EOF");
-          return(NULL);
+      var buf = ""
+    var term : Character = options.zeroflag ? "\0" : "\n"
+      do {
+        for try await ch in FileDescriptor.standardInput.characters {
+          if ch == term { return buf }
+          else { buf.append(ch) }
+          if buf.count > PAXPATHLEN {
+            Tty.paxwarn(true, "Ignoring too-long pathname starting: \(buf)")
+            return nil
+          }
         }
-        if ((*bp = ch) == '\0')
-            return(buf);
+      } catch(let e) {
+        Tty.paxwarn(true, "Ignoring unterminated pathname at EOF")
+        return nil
       }
-      /* Too long - skip this path */
-      *--bp = '\0';
-      term = '\0';
-    } else {
-      if (fgets(buf, buflen, stdin) == NULL)
-          return(NULL);
-      if ((bp = strchr(buf, '\n')) != NULL || feof(stdin)) {
-        if (bp != NULL)
-            *bp = '\0';
-        return(buf);
-      }
-      /* Too long - skip this path */
-      term = '\n';
     }
-    while ((ch = getchar()) != term && ch != EOF)
-    ;
-    Tty.paxwarn(true, "Ignoring too-long pathname: %s", buf);
-    return(NULL);
-  }
 
 }

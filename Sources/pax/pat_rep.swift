@@ -75,8 +75,8 @@ class PaxMatcher {
    */
 
   let MAXSUBEXP	= 10		/* max subexpressions, DO NOT CHANGE */
-  var pathead : [PATTERN] = []		/* file pattern match list head */
-  var rephead : [REPLACE] = []		/* replacement string list head */
+//  var pathead : [PATTERN] = []		/* file pattern match list head */
+//  var rephead : [REPLACE] = []		/* replacement string list head */
 
 
   /*
@@ -95,7 +95,7 @@ class PaxMatcher {
    *	the list of replacement patterns; -1 otherwise.
    */
 
-  func rep_add(_ str : String) -> Result {
+  static func rep_add(_ str : String, _ options : inout pax.CommandOptions) -> Result {
 
     // throw out the bad parameters
     if str.isEmpty {
@@ -179,7 +179,7 @@ class PaxMatcher {
      * all done, link it in at the end
      */
     let rep = REPLACE.init(nstr: String(nstr), rcmp: rcmp, flgs: rflgs)
-    rephead.append(rep)
+    options.rephead.append(rep)
     return .ok
   }
 
@@ -194,7 +194,7 @@ class PaxMatcher {
    *	0 if the pattern was added to the list, -1 otherwise
    */
 
-  func pat_add(_ str : String, _ chdnam : String ) -> Result {
+  static func pat_add(_ str : String, _ chdnam : String?, _ options : inout pax.CommandOptions ) -> Result {
 
     /*
      * throw out the junk
@@ -205,7 +205,7 @@ class PaxMatcher {
     }
 
     let pt = PATTERN.init(pstr: str, chdname: chdnam, flgs: [])
-    pathead.append(pt)
+    options.pathead.append(pt)
     return .ok
   }
 
@@ -223,7 +223,7 @@ class PaxMatcher {
      * walk down the list checking the flags to make sure MTCH was set,
      * if not complain
      */
-    for pt in pathead {
+    for pt in options.pathead {
       if pt.flgs.contains(.MTCH) {
         continue
       }
@@ -256,7 +256,7 @@ class PaxMatcher {
     /*
      * if no patterns just return
      */
-    if pathead.isEmpty {
+    if options.pathead.isEmpty {
       return .ok
     }
 
@@ -326,7 +326,7 @@ class PaxMatcher {
      * and the pattern rejects a member (i.e. it matched it) it is done.
      * In effect we place the order of the flags as having -c last.
      */
-    pathead.removeAll { $0 == arcn.pat }
+    options.pathead.removeAll { $0 == arcn.pat }
     arcn.pat = nil
     return .ok
   }
@@ -350,7 +350,7 @@ class PaxMatcher {
      * if there are no more patterns and we have -n (and not -c) we are
      * done. otherwise with no patterns to match, matches all
      */
-    if pathead.isEmpty {
+    if options.pathead.isEmpty {
       if options.nflag && !options.cflag {
         return .failed;
       }
@@ -362,7 +362,7 @@ class PaxMatcher {
     /*
      * have to search down the list one at a time looking for a match.
      */
-    for var pt in pathead {
+    for var pt in options.pathead {
       /*
        * check for a file name match unless we have DIR_MTCH set in
        * this pattern then we want a prefix match

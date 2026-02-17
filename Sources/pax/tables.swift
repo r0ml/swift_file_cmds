@@ -730,7 +730,7 @@ class Tables {
      *	and chained by inode number. This is for directories READ by pax
      */
 
-    func add_atdir(_ fname : String, _ dev : UInt, _ ino : UInt, _ mtime : DateTime, _ atime : DateTime) -> ATDIR {
+    @discardableResult func add_atdir(_ fname : String, _ dev : UInt, _ ino : UInt, _ mtime : DateTime, _ atime : DateTime) -> ATDIR {
 
       /*
        * make sure this directory is not already in the table, if so just

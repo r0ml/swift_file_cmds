@@ -204,8 +204,7 @@ struct oplist {
 // classes or structs to house them or the functions which access them.
 // FIXME: need to find non-global homes for these
 
-// FIXME: put me back
-// nonisolated(unsafe) let ar_io = Ar_io()
+nonisolated(unsafe) let ar_io = Ar_io()
 nonisolated(unsafe) let cache = Cache()
 nonisolated(unsafe) let tty = Tty()
 

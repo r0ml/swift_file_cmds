@@ -42,388 +42,387 @@ import Darwin
 extension Bufferer {
 
   /*
- * wr_fin()
- *  flush out any data (and pad if required) the last block. We always pad
- *  with zero (even though we do not have to). Padding with 0 makes it a
- *  lot easier to recover if the archive is damaged. zero padding SHOULD
- *  BE a requirement....
- */
-
-func wr_fin() {
-  if (bufpt > buf) {
-    memset(bufpt, 0, bufend - bufpt);
-    bufpt = bufend;
-    (void)buf_flush(blksz);
-  }
-}
-
-/*
- * wr_rdbuf()
- *  fill the write buffer from data passed to it in a buffer (usually used
- *  by format specific write routines to pass a file header). On failure we
- *  punt. We do not allow the user to continue to write flawed archives.
- *  We assume these headers are not very large (the memory copy we use is
- *  a bit expensive).
- * Return:
- *  0 if buffer was filled ok, -1 o.w. (buffer flush failure)
- */
-
-func wr_rdbuf(_ outx : [UInt8]) -> Result {
-
-  var out = ArraySlice(outx)
-
-  /*
-   * while there is data to copy into the write buffer. when the
-   * write buffer fills, flush it to the archive and continue
+   * wr_fin()
+   *  flush out any data (and pad if required) the last block. We always pad
+   *  with zero (even though we do not have to). Padding with 0 makes it a
+   *  lot easier to recover if the archive is damaged. zero padding SHOULD
+   *  BE a requirement....
    */
-  while out.count > 0 {
-    var cnt = bufend - bufpt;
-    if ((cnt <= 0) && ((cnt = buf_flush(blksz)) < 0)) {
-      return .failed;
+
+  func wr_fin() {
+    if (bufpt > buf) {
+      memset(bufpt, 0, bufend - bufpt);
+      bufpt = bufend;
+      (void)buf_flush(blksz);
     }
-    /*
-     * only move what we have space for
-     */
-    cnt = min(cnt, out.count)
-    memcpy(bufpt, out, cnt);
-    bufpt += cnt;
-    out = out.dropFirst(cnt)
   }
-  return .ok;
-}
-
-/*
- * rd_wrbuf()
- *  copy from the read buffer into a supplied buffer a specified number of
- *  bytes. If the read buffer is empty fill it and continue to copy.
- *  usually used to obtain a file header for processing by a format
- *  specific read routine.
- * Return
- *  number of bytes copied to the buffer, 0 indicates EOF on archive volume,
- *  -1 is a read error
- */
-
-func rd_wrbuf(_ inx : [UInt8], _ cpcnt : Int) -> Result  {
-  int res;
-  int cnt;
-  int incnt = cpcnt;
 
   /*
-   * loop until we fill the buffer with the requested number of bytes
+   * wr_rdbuf()
+   *  fill the write buffer from data passed to it in a buffer (usually used
+   *  by format specific write routines to pass a file header). On failure we
+   *  punt. We do not allow the user to continue to write flawed archives.
+   *  We assume these headers are not very large (the memory copy we use is
+   *  a bit expensive).
+   * Return:
+   *  0 if buffer was filled ok, -1 o.w. (buffer flush failure)
    */
-  while (incnt > 0) {
-    cnt = bufend - bufpt;
-    if ((cnt <= 0) && ((cnt = buf_fill()) <= 0)) {
-      /*
-       * read error, return what we got (or the error if
-       * no data was copied). The caller must know that an
-       * error occurred and has the best knowledge what to
-       * do with it
-       */
-      if ((res = cpcnt - incnt) > 0) {
-        return(res);
+
+  func wr_rdbuf(_ outx : [UInt8]) -> Result {
+
+    var out = ArraySlice(outx)
+
+    /*
+     * while there is data to copy into the write buffer. when the
+     * write buffer fills, flush it to the archive and continue
+     */
+    while out.count > 0 {
+      var cnt = bufend - bufpt;
+      if ((cnt <= 0) && ((cnt = buf_flush(blksz)) < 0)) {
+        return .failed;
       }
-      return .count(cnt)
-    }
-
-    /*
-     * calculate how much data to copy based on what's left and
-     * state of buffer
-     */
-    cnt = MIN(cnt, incnt);
-    memcpy(in, bufpt, cnt);
-    bufpt += cnt;
-    incnt -= cnt;
-    in += cnt;
-  }
-  return(cpcnt);
-}
-
-/*
- * wr_skip()
- *  skip forward during a write. In other words add padding to the file.
- *  we add zero filled padding as it makes flawed archives much easier to
- *  recover from. the caller tells us how many bytes of padding to add
- *  This routine was not designed to add HUGE amount of padding, just small
- *  amounts (a few 512 byte blocks at most)
- * Return:
- *  0 if ok, -1 if there was a buf_flush failure
- */
-
-func wr_skip(_ skcnt : Int) -> Result  {
-  int cnt;
-
-  /*
-   * loop while there is more padding to add
-   */
-  while (skcnt > 0L) {
-    cnt = bufend - bufpt;
-    if ((cnt <= 0) && ((cnt = buf_flush(blksz)) < 0)) {
-      return .failed;
-    }
-    cnt = MIN(cnt, skcnt);
-    memset(bufpt, 0, cnt);
-    bufpt += cnt;
-    skcnt -= cnt;
-  }
-  return .ok
-}
-
-/*
- * cp_file()
- *  copy the contents of one file to another. used during -rw phase of pax
- *  just as in rd_wrfile() we use a special write function to write the
- *  destination file so we can properly copy files with holes.
- */
-
-func cp_file(_ arcn : ARCHD, _ fd1 : FileDescriptor, _ fd2 : FileDescriptor) {
-  var cpcnt = 0
-  var res = 0
-  let fnm = arcn.name
-  var no_hole = false
-  var isem = true
-  var sz = UInt(MINFBSZ)
-
-  /*
-   * check for holes in the source file. If none, we will use regular
-   * write instead of file write.
-   */
-  if (((off_t)(arcn.sb.blocks * BLKMULT)) >= arcn.sb.size) {
-    ++no_hole;
-  }
-
-  /*
-   * pass the blocksize of the file being written to the write routine,
-   * if the size is zero, use the default MINFBSZ
-   */
-  if let sb = try? FileMetadata(for: fd2) {
-    if (sb.blockSize > 0) {
-      sz = sb.blockSize
-    }
-  } else {
-    Tty.syswarn(false,errno,"Unable to obtain block size for file \(fnm)")
-  }
-  var rem = sz
-
-  /*
-   * read the source file and copy to destination file until EOF
-   */
-  while true {
-    if ((cnt = read(fd1, buf, blksz)) <= 0) {
-      break;
-    }
-    if (no_hole) {
-      res = write(fd2, buf, cnt);
-    }
-    else {
-      res = file_write(fd2, buf, cnt, &rem, &isem, sz, fnm);
-    }
-    if (res != cnt) {
-      break;
-    }
-    cpcnt += cnt;
-  }
-
-  /*
-   * check to make sure the copy is valid.
-   */
-  if (res < 0) {
-    Tty.syswarn(true, errno, "Failed write during copy of %s to %s",
-            arcn.org_name, arcn.name);
-  }
-  else if (cpcnt != arcn.sb.size) {
-    Tty.paxwarn(true, "File %s changed size during copy to %s",
-            arcn.org_name, arcn.name);
-  }
-  else if (fstat(fd1, &sb) < 0) {
-    Tty.syswarn(true, errno, "Failed stat of %s", arcn.org_name);
-  }
-  else if (arcn.sb.lastModified != sb.lastModified) {
-    Tty.paxwarn(true, "File %s was modified during copy to %s",
-            arcn.org_name, arcn.name);
-  }
-
-  /*
-   * if the last block has a file hole (all zero), we must make sure this
-   * gets updated in the file. We force the last block of zeros to be
-   * written. just closing with the file offset moved forward may not put
-   * a hole at the end of the file.
-   */
-  if (!no_hole && isem && (arcn.sb.size > 0)) {
-    file_flush(fd2, fnm, isem);
-  }
-  return;
-}
-
-/*
- * buf_fill()
- *  fill the read buffer with the next record (or what we can get) from
- *  the archive volume.
- * Return:
- *  Number of bytes of data in the read buffer, -1 for read error, and
- *  0 when finished (user specified termination in ar_next()).
- */
-
-func buf_fill() -> Int {
-  int cnt;
-  static int fini = 0;
-
-  if (fini) {
-    return(0);
-  }
-
-  while true {
-    /*
-     * try to fill the buffer. on error the next archive volume is
-     * opened and we try again.
-     */
-    if ((cnt = ar_read(buf, blksz)) > 0) {
-      bufpt = buf;
-      bufend = buf + cnt;
-      rdcnt += cnt;
-      return(cnt);
-    }
-
-    /*
-     * errors require resync, EOF goes to next archive
-     * but in case we have not determined yet the format,
-     * this means that we have a very short file, so we
-     * are done again.
-     */
-    if (cnt < 0) {
-      break;
-    }
-    if (frmt == NULL || ar_next() < 0) {
-      fini = 1;
-      return(0);
-    }
-    rdcnt = 0;
-  }
-  exit_val = 1;
-  return .failed;
-}
-
-/*
- * buf_flush()
- *  force the write buffer to the archive. We are passed the number of
- *  bytes in the buffer at the point of the flush. When we change archives
- *  the record size might change. (either larger or smaller).
- * Return:
- *  0 if all is ok, -1 when a write error occurs.
- */
-
-func buf_flush(_ bufcnt : Int) -> Result  {
-  int cnt;
-  int push = 0;
-  int totcnt = 0;
-
-  /*
-   * if we have reached the user specified byte count for each archive
-   * volume, prompt for the next volume. (The non-standard -R flag).
-   * NOTE: If the wrlimit is smaller than wrcnt, we will always write
-   * at least one record. We always round limit UP to next blocksize.
-   */
-  if ((wrlimit > 0) && (wrcnt > wrlimit)) {
-    Tty.paxwarn(0, "User specified archive volume byte limit reached.");
-    if (ar_next() < 0) {
-      wrcnt = 0;
-      exit_val = 1;
-      return .failed;
-    }
-    wrcnt = 0;
-
-    /*
-     * The new archive volume might have changed the size of the
-     * write blocksize. if so we figure out if we need to write
-     * (one or more times), or if there is now free space left in
-     * the buffer (it is no longer full). bufcnt has the number of
-     * bytes in the buffer, (the blocksize, at the point we were
-     * CALLED). Push has the amount of "extra" data in the buffer
-     * if the block size has shrunk from a volume change.
-     */
-    bufend = buf + blksz;
-    if (blksz > bufcnt) {
-      return .ok
-    }
-    if (blksz < bufcnt) {
-      push = bufcnt - blksz;
-    }
-  }
-
-  /*
-   * We have enough data to write at least one archive block
-   */
-  while true {
-    /*
-     * write a block and check if it all went out ok
-     */
-    cnt = ar_write(buf, blksz);
-    if (cnt == blksz) {
       /*
-       * the write went ok
+       * only move what we have space for
        */
-      wrcnt += cnt;
-      totcnt += cnt;
-      if (push > 0) {
-        /* we have extra data to push to the front.
-         * check for more than 1 block of push, and if
-         * so we loop back to write again
+      cnt = min(cnt, out.count)
+      memcpy(bufpt, out, cnt);
+      bufpt += cnt;
+      out = out.dropFirst(cnt)
+    }
+    return .ok;
+  }
+
+  /*
+   * rd_wrbuf()
+   *  copy from the read buffer into a supplied buffer a specified number of
+   *  bytes. If the read buffer is empty fill it and continue to copy.
+   *  usually used to obtain a file header for processing by a format
+   *  specific read routine.
+   * Return
+   *  number of bytes copied to the buffer, 0 indicates EOF on archive volume,
+   *  -1 is a read error
+   */
+
+  func rd_wrbuf(_ inx : [UInt8], _ cpcnt : Int) -> Result  {
+    int res;
+    int cnt;
+    int incnt = cpcnt;
+
+    /*
+     * loop until we fill the buffer with the requested number of bytes
+     */
+    while (incnt > 0) {
+      cnt = bufend - bufpt;
+      if ((cnt <= 0) && ((cnt = buf_fill()) <= 0)) {
+        /*
+         * read error, return what we got (or the error if
+         * no data was copied). The caller must know that an
+         * error occurred and has the best knowledge what to
+         * do with it
          */
-        memcpy(buf, bufend, push);
-        bufpt = buf + push;
-        if (push >= blksz) {
-          push -= blksz;
-          continue;
+        if ((res = cpcnt - incnt) > 0) {
+          return(res);
         }
-      } else {
-        bufpt = buf;
+        return .count(cnt)
       }
-      return(totcnt);
-    } else if (cnt > 0) {
+
       /*
-       * Oh drat we got a partial write!
-       * if format doesn't care about alignment let it go,
-       * we warned the user in ar_write().... but this means
-       * the last record on this volume violates pax spec....
+       * calculate how much data to copy based on what's left and
+       * state of buffer
        */
-      totcnt += cnt;
-      wrcnt += cnt;
-      bufpt = buf + cnt;
-      cnt = bufcnt - cnt;
-      memcpy(buf, bufpt, cnt);
-      bufpt = buf + cnt;
-      if (!frmt->blkalgn || ((cnt % frmt->blkalgn) == 0)) {
-        return(totcnt);
-      }
-      break;
+      cnt = MIN(cnt, incnt);
+      memcpy(in, bufpt, cnt);
+      bufpt += cnt;
+      incnt -= cnt;
+      in += cnt;
     }
-
-    /*
-     * All done, go to next archive
-     */
-    wrcnt = 0;
-    if (ar_next() < 0) {
-      break;
-    }
-
-    /*
-     * The new archive volume might also have changed the block
-     * size. if so, figure out if we have too much or too little
-     * data for using the new block size
-     */
-    bufend = buf + blksz;
-    if (blksz > bufcnt) {
-      return(0);
-    }
-    if (blksz < bufcnt) {
-      push = bufcnt - blksz;
-    }
+    return(cpcnt);
   }
 
   /*
-   * write failed, stop pax. we must not create a bad archive!
+   * wr_skip()
+   *  skip forward during a write. In other words add padding to the file.
+   *  we add zero filled padding as it makes flawed archives much easier to
+   *  recover from. the caller tells us how many bytes of padding to add
+   *  This routine was not designed to add HUGE amount of padding, just small
+   *  amounts (a few 512 byte blocks at most)
+   * Return:
+   *  0 if ok, -1 if there was a buf_flush failure
    */
-  exit_val = 1;
-  return .failed;
-}
+
+  func wr_skip(_ skcnt : Int) -> Result  {
+    int cnt;
+
+    /*
+     * loop while there is more padding to add
+     */
+    while (skcnt > 0L) {
+      cnt = bufend - bufpt;
+      if ((cnt <= 0) && ((cnt = buf_flush(blksz)) < 0)) {
+        return .failed;
+      }
+      cnt = MIN(cnt, skcnt);
+      memset(bufpt, 0, cnt);
+      bufpt += cnt;
+      skcnt -= cnt;
+    }
+    return .ok
+  }
+
+  /*
+   * cp_file()
+   *  copy the contents of one file to another. used during -rw phase of pax
+   *  just as in rd_wrfile() we use a special write function to write the
+   *  destination file so we can properly copy files with holes.
+   */
+
+  func cp_file(_ arcn : ARCHD, _ fd1 : FileDescriptor, _ fd2 : FileDescriptor) {
+    var cpcnt = 0
+    var res = 0
+    let fnm = arcn.name
+    var no_hole = false
+    var isem = true
+    var sz = UInt(MINFBSZ)
+
+    /*
+     * check for holes in the source file. If none, we will use regular
+     * write instead of file write.
+     */
+    if (((off_t)(arcn.sb.blocks * BLKMULT)) >= arcn.sb.size) {
+      ++no_hole;
+    }
+
+    /*
+     * pass the blocksize of the file being written to the write routine,
+     * if the size is zero, use the default MINFBSZ
+     */
+    if let sb = try? FileMetadata(for: fd2) {
+      if (sb.blockSize > 0) {
+        sz = sb.blockSize
+      }
+    } else {
+      Tty.syswarn(false,errno,"Unable to obtain block size for file \(fnm)")
+    }
+    var rem = sz
+
+    /*
+     * read the source file and copy to destination file until EOF
+     */
+    while true {
+      if ((cnt = read(fd1, buf, blksz)) <= 0) {
+        break;
+      }
+      if (no_hole) {
+        res = write(fd2, buf, cnt);
+      }
+      else {
+        res = file_write(fd2, buf, cnt, &rem, &isem, sz, fnm);
+      }
+      if (res != cnt) {
+        break;
+      }
+      cpcnt += cnt;
+    }
+
+    /*
+     * check to make sure the copy is valid.
+     */
+    if (res < 0) {
+      Tty.syswarn(true, errno, "Failed write during copy of %s to %s",
+                  arcn.org_name, arcn.name);
+    }
+    else if (cpcnt != arcn.sb.size) {
+      Tty.paxwarn(true, "File %s changed size during copy to %s",
+                  arcn.org_name, arcn.name);
+    }
+    else if (fstat(fd1, &sb) < 0) {
+      Tty.syswarn(true, errno, "Failed stat of %s", arcn.org_name);
+    }
+    else if (arcn.sb.lastModified != sb.lastModified) {
+      Tty.paxwarn(true, "File %s was modified during copy to %s",
+                  arcn.org_name, arcn.name);
+    }
+
+    /*
+     * if the last block has a file hole (all zero), we must make sure this
+     * gets updated in the file. We force the last block of zeros to be
+     * written. just closing with the file offset moved forward may not put
+     * a hole at the end of the file.
+     */
+    if (!no_hole && isem && (arcn.sb.size > 0)) {
+      file_flush(fd2, fnm, isem);
+    }
+    return;
+  }
+
+  /*
+   * buf_fill()
+   *  fill the read buffer with the next record (or what we can get) from
+   *  the archive volume.
+   * Return:
+   *  Number of bytes of data in the read buffer, -1 for read error, and
+   *  0 when finished (user specified termination in ar_next()).
+   */
+
+  func buf_fill() -> Result {
+
+    if (fini) {
+      return(0);
+    }
+
+    while true {
+      /*
+       * try to fill the buffer. on error the next archive volume is
+       * opened and we try again.
+       */
+      var cnt = ar_read(buf, blksz)
+      if cnt > 0 {
+        bufpt = buf;
+        bufend = buf + cnt;
+        rdcnt += cnt;
+        return .count(cnt)
+      }
+
+      /*
+       * errors require resync, EOF goes to next archive
+       * but in case we have not determined yet the format,
+       * this means that we have a very short file, so we
+       * are done again.
+       */
+      if cnt < 0 {
+        break
+      }
+      if options.frmt == nil || ar_next() < 0 {
+        fini = 1;
+        return .ok
+      }
+      rdcnt = 0;
+    }
+    exit_val = 1;
+    return .failed
+  }
+
+  /*
+   * buf_flush()
+   *  force the write buffer to the archive. We are passed the number of
+   *  bytes in the buffer at the point of the flush. When we change archives
+   *  the record size might change. (either larger or smaller).
+   * Return:
+   *  0 if all is ok, -1 when a write error occurs.
+   */
+
+  func buf_flush(_ bufcnt : Int) -> Result  {
+    int cnt;
+    int push = 0;
+    int totcnt = 0;
+
+    /*
+     * if we have reached the user specified byte count for each archive
+     * volume, prompt for the next volume. (The non-standard -R flag).
+     * NOTE: If the wrlimit is smaller than wrcnt, we will always write
+     * at least one record. We always round limit UP to next blocksize.
+     */
+    if ((wrlimit > 0) && (wrcnt > wrlimit)) {
+      Tty.paxwarn(0, "User specified archive volume byte limit reached.");
+      if (ar_next() < 0) {
+        wrcnt = 0;
+        exit_val = 1;
+        return .failed;
+      }
+      wrcnt = 0;
+
+      /*
+       * The new archive volume might have changed the size of the
+       * write blocksize. if so we figure out if we need to write
+       * (one or more times), or if there is now free space left in
+       * the buffer (it is no longer full). bufcnt has the number of
+       * bytes in the buffer, (the blocksize, at the point we were
+       * CALLED). Push has the amount of "extra" data in the buffer
+       * if the block size has shrunk from a volume change.
+       */
+      bufend = buf + blksz;
+      if (blksz > bufcnt) {
+        return .ok
+      }
+      if (blksz < bufcnt) {
+        push = bufcnt - blksz;
+      }
+    }
+
+    /*
+     * We have enough data to write at least one archive block
+     */
+    while true {
+      /*
+       * write a block and check if it all went out ok
+       */
+      cnt = ar_write(buf, blksz);
+      if (cnt == blksz) {
+        /*
+         * the write went ok
+         */
+        wrcnt += cnt;
+        totcnt += cnt;
+        if (push > 0) {
+          /* we have extra data to push to the front.
+           * check for more than 1 block of push, and if
+           * so we loop back to write again
+           */
+          memcpy(buf, bufend, push);
+          bufpt = buf + push;
+          if (push >= blksz) {
+            push -= blksz;
+            continue;
+          }
+        } else {
+          bufpt = buf;
+        }
+        return(totcnt);
+      } else if (cnt > 0) {
+        /*
+         * Oh drat we got a partial write!
+         * if format doesn't care about alignment let it go,
+         * we warned the user in ar_write().... but this means
+         * the last record on this volume violates pax spec....
+         */
+        totcnt += cnt;
+        wrcnt += cnt;
+        bufpt = buf + cnt;
+        cnt = bufcnt - cnt;
+        memcpy(buf, bufpt, cnt);
+        bufpt = buf + cnt;
+        if (!frmt->blkalgn || ((cnt % frmt->blkalgn) == 0)) {
+          return(totcnt);
+        }
+        break;
+      }
+
+      /*
+       * All done, go to next archive
+       */
+      wrcnt = 0;
+      if (ar_next() < 0) {
+        break;
+      }
+
+      /*
+       * The new archive volume might also have changed the block
+       * size. if so, figure out if we have too much or too little
+       * data for using the new block size
+       */
+      bufend = buf + blksz;
+      if (blksz > bufcnt) {
+        return(0);
+      }
+      if (blksz < bufcnt) {
+        push = bufcnt - blksz;
+      }
+    }
+
+    /*
+     * write failed, stop pax. we must not create a bad archive!
+     */
+    exit_val = 1;
+    return .failed;
+  }
 }

@@ -222,7 +222,7 @@ extension paxer {
           /*
            * file name substitution name pattern
            */
-          if case .failed = rep_add(v)  {
+          if case .failed = PaxMatcher.rep_add(v, &options)  {
             throw CmdErr(1)
           }
           options.flg.insert(.SF)
@@ -488,7 +488,7 @@ extension paxer {
     switch options.act {
       case .LIST, .EXTRACT:
         for av in options.args {
-          if (pat_add(av, nil) < 0) {
+          if case .failed = PaxMatcher.pat_add(av, nil, &options) {
             throw CmdErr(1)
           }
         }

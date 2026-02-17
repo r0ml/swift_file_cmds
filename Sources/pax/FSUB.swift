@@ -218,7 +218,7 @@ extension FSUB {
      * written. just closing with the file offset moved forward may not put
      * a hole at the end of the file.
      */
-    if (isem && (arcn.sb.size > 0L)) {
+    if (isem && (arcn.sb.size > 0)) {
       file_flush(ofd, fnm, isem);
     }
 
@@ -479,5 +479,111 @@ extension FSUB {
     str = String(repeating: "0", count: len - str.count) + str
     return str
   }
+
+  // ==============================================================================================
+  // these two functions were in both tar and paxer -- promoted to FSUB
+  // ==============================================================================================
+  func expandname(_ buf : [UInt8], gnu_name: inout String?, _ name : String) -> UInt {
+    if let gnu_name {
+      let buf = gnu_name
+      if ((nlen = strlcpy(buf, *gnu_name, len)) >= len) {
+        nlen = len - 1;
+      }
+      free(*gnu_name);
+      *gnu_name = NULL;
+    } else {
+      if (name_len < len) {
+        /* name may not be null terminated: it might be as big as the
+         field,  so copy is limited to the max size of the header field */
+        let buf = name
+        if ((nlen = strlcpy(buf, name, name_len+1)) >= name_len+1) {
+          nlen = name_len;
+        }
+      } else {
+        if ((nlen = strlcpy(buf, name, len)) >= len) {
+          nlen = len - 1;
+        }
+      }
+    }
+    return(nlen);
+  }
+
+  /*
+   * name_split()
+   *  see if the name has to be split for storage in a ustar header. We try
+   *  to fit the entire name in the name field without splitting if we can.
+   *  The split point is always at a /
+   * Return
+   *  character pointer to split point (always the / that is to be removed
+   *  if the split is not needed, the points is set to the start of the file
+   *  name (it would violate the spec to split there). A NULL is returned if
+   *  the file name is too long
+   */
+
+  func name_split(_ name : String, _ len : Int) -> String? {
+    char *start;
+
+    /*
+     * check to see if the file name is small enough to fit in the name
+     * field. if so just return a pointer to the name.
+     */
+    if (len <= TNMSZ) {
+      return(name);
+    }
+
+    /*
+     * The strings can fill the complete name and prefix fields
+     * without a NUL terminator.
+     */
+    if (len > (TPFSZ + TNMSZ + 1)) {
+
+      return nil
+    }
+
+    /*
+     * we start looking at the biggest sized piece that fits in the name
+     * field. We walk forward looking for a slash to split at. The idea is
+     * to find the biggest piece to fit in the name field (or the smallest
+     * prefix we can find)
+     */
+
+    /*
+     * the -1 is correct the biggest piece would
+     * include the slash between the two parts that gets thrown away
+     */
+    start = name + len - TNMSZ - 1;
+    if ((*start == "/") && (start == name)) {
+      ++start;  /* 101 byte paths with leading "/" are dinged otherwise */
+    }
+
+    while ((*start != "\0") && (*start != "/")) {
+      ++start;
+    }
+
+    /*
+     * if we hit the end of the string, this name cannot be split, so we
+     * cannot store this file.
+     */
+    if (*start == "\0") {
+      return nil
+    }
+    len = start - name;
+
+    /*
+     * NOTE: /str where the length of str == TNMSZ can not be stored under
+     * the p1003.1-1990 spec for ustar. We could force a prefix of / and
+     * the file would then expand on extract to //str. The len == 0 below
+     * makes this special case follow the spec to the letter.
+     */
+    if ((len > TPFSZ) || (len == 0)) {
+      return nil
+    }
+
+    /*
+     * ok have a split point, return it to the caller
+     */
+    return start
+  }
+
 
 }

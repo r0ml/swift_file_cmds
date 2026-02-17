@@ -43,13 +43,9 @@ import Darwin
 
 extension tar {
 
-
-
-
   /*
    * structure of an old tar header as it appeared in BSD releases
    */
-
 
   struct HD_TAR {
     var name : C100      /* name of entry */
@@ -63,9 +59,6 @@ extension tar {
     var linkname : C100   /* linked to name */
   }
 
-
-
-
   /*
    * tar_options()
    *  look at the user specified flags. set globals as required and check if
@@ -73,7 +66,7 @@ extension tar {
    */
 
   func doOptions(_ options : inout pax.CommandOptions) throws(CmdErr) {
-/*    int fstdin = 0;
+/*
     int tar_Oflag = 0;
     int nincfiles = 0;
     int incfiles_max = 0;
@@ -86,7 +79,7 @@ extension tar {
 
     myUsage = .tar
     var incfiles = [(String, String)]()
-
+    var fstdin = false
     var tar_Oflag = false
     /*
      * Set default values.
@@ -109,12 +102,13 @@ extension tar {
           /*
            * specify blocksize in 512-byte blocks
            */
-          if ((wrblksz = (int)str_offt(optarg)) <= 0) {
+
+          guard let wb = UInt(v), wb > 0 else {
             Tty.paxwarn(true, "Invalid block size \(v)")
             throw CmdErr(1)
           }
-          wrblksz *= 512;    /* XXX - check for int oflow */
-          break;
+          options.wrblksz = wb * 512    /* XXX - check for int oflow */
+
         case "c":
           /*
            * create an archive
@@ -135,10 +129,10 @@ extension tar {
             /*
              * treat a - as stdin
              */
-            fstdin = 1;
+            fstdin = true
             options.arcname = nil
           } else {
-            fstdin = 0;
+            fstdin = false
             options.arcname = v
           }
 
@@ -162,9 +156,12 @@ extension tar {
           options.pmtime = false
 
         case "o":
-          if (opt_add("write_opt=nodir") < 0) {
+          let (r, oo) = opt_add("write_opt=nodir")
+          if case .failed = r {
             throw CmdErr(1)
           }
+          ophead = oo!
+
         case "O":
           tar_Oflag = true
 
@@ -191,10 +188,10 @@ extension tar {
           /*
            * file name substitution name pattern
            */
-          if (rep_add(optarg) < 0) {
+          if case .failed = PaxMatcher.rep_add(v, &options) {
             throw CmdErr(1)
           }
-
+          
         case "t":
           /*
            * list contents of the tape
@@ -205,8 +202,8 @@ extension tar {
           /*
            * verbose operation mode
            */
-          vflag++;
-          break;
+          vflag += 1
+
         case "w":
           /*
            * interactive file rename
@@ -295,7 +292,7 @@ extension tar {
     options.args = go.remaining
 
     /* Traditional tar behaviour (pax uses stderr unless in list mode) */
-    if (fstdin == 1 && options.act == .ARCHIVE) {
+    if fstdin && options.act == .ARCHIVE {
       listf = FileDescriptor.standardError
     }
     else {
@@ -399,7 +396,7 @@ extension tar {
          * no read errors allowed on updates/append operation!
          */
         options.maxflt = 0
-        break;
+
       case .LIST, .EXTRACT:
         fallthrough
       default:
@@ -441,7 +438,7 @@ extension tar {
                 throw CmdErr(1)
               }
               while for try await str in fp.bytes.lines {
-                if (pat_add(str, dir) < 0) {
+                if case .failed = PaxMatcher.pat_add(str, dir, &options) {
                   throw CmdErr(1)
                 }
                 sawpat = 1;
@@ -458,7 +455,7 @@ extension tar {
                 break;
               }
               chdname = *argv++;
-            } else if (pat_add(*argv++, chdname) < 0) {
+            } else if case .failed = PaxMatcher.pat_add(*argv++, chdname, &options) {
               throw CmdErr(1)
             }
             else {
