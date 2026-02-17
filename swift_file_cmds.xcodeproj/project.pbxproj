@@ -13,6 +13,7 @@
 			buildPhases = (
 			);
 			dependencies = (
+				E7FB12EF2F45320A00D238F4 /* PBXTargetDependency */,
 				E77405712F0AB8A200498517 /* PBXTargetDependency */,
 				E774FF2A2F0232C800498517 /* PBXTargetDependency */,
 				E77403512F0334AB00498517 /* PBXTargetDependency */,
@@ -74,16 +75,12 @@
 		E77404EA2F06CF4900498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404E92F06CF4900498517 /* CMigration */; };
 		E77404EC2F06CF4D00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404EB2F06CF4D00498517 /* CMigration */; };
 		E77404EE2F06CF5100498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404ED2F06CF5100498517 /* CMigration */; };
-		E77404F02F06CF5500498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404EF2F06CF5500498517 /* CMigration */; };
-		E77404F22F06CF5900498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404F12F06CF5900498517 /* CMigration */; };
 		E77404F42F06CF5E00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404F32F06CF5E00498517 /* CMigration */; };
 		E77404F62F06CF6200498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404F52F06CF6200498517 /* CMigration */; };
 		E77404F82F06CF6600498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404F72F06CF6600498517 /* CMigration */; };
 		E77404FA2F06CF6B00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404F92F06CF6B00498517 /* CMigration */; };
 		E77404FC2F06CF6F00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404FB2F06CF6F00498517 /* CMigration */; };
-		E77404FE2F06CF7600498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404FD2F06CF7600498517 /* CMigration */; };
 		E77405002F06CF7B00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77404FF2F06CF7B00498517 /* CMigration */; };
-		E77405042F06CF8300498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77405032F06CF8300498517 /* CMigration */; };
 		E77405062F06CF8700498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77405052F06CF8700498517 /* CMigration */; };
 		E77405082F06CF8B00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77405072F06CF8B00498517 /* CMigration */; };
 		E774050A2F06CF8F00498517 /* CMigration in Frameworks */ = {isa = PBXBuildFile; productRef = E77405092F06CF8F00498517 /* CMigration */; };
@@ -107,18 +104,14 @@
 		E79E5E012F20071F00F3CB3F /* libbz2.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = E79E5E002F20071F00F3CB3F /* libbz2.tbd */; };
 		E7DDF8FF2F32427F00EB9B50 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E7DDF8FB2F32427F00EB9B50 /* ShellTesting */; };
 		E7DDF90A2F32428D00EB9B50 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E7DDF9062F32428D00EB9B50 /* ShellTesting */; };
-		E7DDF9152F3242A400EB9B50 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E7DDF9112F3242A400EB9B50 /* ShellTesting */; };
 		E7DDF9302F3244B500EB9B50 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E7DDF92C2F3244B500EB9B50 /* ShellTesting */; };
 		E7DDF9422F32457E00EB9B50 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E7DDF93E2F32457E00EB9B50 /* ShellTesting */; };
 		E7F4F75F2F1571B0000CC7E1 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E7F4F75E2F1571B0000CC7E1 /* ShellTesting */; };
 		E7F4F8AD2F184E37000CC7E1 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E7F4F8AC2F184E37000CC7E1 /* ShellTesting */; };
 		E7FF280F2F2B9F8700DF22C9 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E7FF280E2F2B9F8700DF22C9 /* ShellTesting */; };
 		E7FF28132F2BB33500DF22C9 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E7FF28122F2BB33500DF22C9 /* ShellTesting */; };
-		E7FF28152F2BB33B00DF22C9 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E7FF28142F2BB33B00DF22C9 /* ShellTesting */; };
 		E7FF28172F2BB34000DF22C9 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E7FF28162F2BB34000DF22C9 /* ShellTesting */; };
 		E7FF28192F2BB34800DF22C9 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E7FF28182F2BB34800DF22C9 /* ShellTesting */; };
-		E7FF281B2F2BB35000DF22C9 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E7FF281A2F2BB35000DF22C9 /* ShellTesting */; };
-		E7FF281D2F2BB35400DF22C9 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E7FF281C2F2BB35400DF22C9 /* ShellTesting */; };
 		E7FF281F2F2BB35900DF22C9 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E7FF281E2F2BB35900DF22C9 /* ShellTesting */; };
 		E7FF28212F2BB35D00DF22C9 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E7FF28202F2BB35D00DF22C9 /* ShellTesting */; };
 		E7FF28232F2BB36100DF22C9 /* ShellTesting in Frameworks */ = {isa = PBXBuildFile; productRef = E7FF28222F2BB36100DF22C9 /* ShellTesting */; };
@@ -310,6 +303,13 @@
 			remoteGlobalIDString = E7A6AA552E428C1A001C9A44;
 			remoteInfo = chflags;
 		};
+		E7FB12EE2F45320A00D238F4 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E73707002E4273AC00246ED4 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E774019B2F02D91D00498517;
+			remoteInfo = install;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -367,15 +367,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 		};
-		E774012C2F02D87D00498517 /* CopyFiles */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = /usr/share/man/man1/;
-			dstSubfolderSpec = 0;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 1;
-		};
 		E77401372F02D89900498517 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -386,15 +377,6 @@
 			runOnlyForDeploymentPostprocessing = 1;
 		};
 		E77401422F02D8A800498517 /* CopyFiles */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = /usr/share/man/man1/;
-			dstSubfolderSpec = 0;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 1;
-		};
-		E774014D2F02D8B200498517 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = /usr/share/man/man1/;
@@ -431,24 +413,6 @@
 			runOnlyForDeploymentPostprocessing = 1;
 		};
 		E77401792F02D90000498517 /* CopyFiles */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = /usr/share/man/man1/;
-			dstSubfolderSpec = 0;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 1;
-		};
-		E77401842F02D90800498517 /* CopyFiles */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = /usr/share/man/man1/;
-			dstSubfolderSpec = 0;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 1;
-		};
-		E774018F2F02D91400498517 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = /usr/share/man/man1/;
@@ -600,16 +564,12 @@
 		E774010D2F02D86100498517 /* stat */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = stat; sourceTree = BUILT_PRODUCTS_DIR; };
 		E77401182F02D86F00498517 /* rmdir */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = rmdir; sourceTree = BUILT_PRODUCTS_DIR; };
 		E77401232F02D87600498517 /* rm */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = rm; sourceTree = BUILT_PRODUCTS_DIR; };
-		E774012E2F02D87D00498517 /* pax */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = pax; sourceTree = BUILT_PRODUCTS_DIR; };
 		E77401392F02D89900498517 /* pathchk */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = pathchk; sourceTree = BUILT_PRODUCTS_DIR; };
 		E77401442F02D8A800498517 /* mv */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = mv; sourceTree = BUILT_PRODUCTS_DIR; };
-		E774014F2F02D8B200498517 /* mtree */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = mtree; sourceTree = BUILT_PRODUCTS_DIR; };
 		E774015A2F02D8BE00498517 /* mknod */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = mknod; sourceTree = BUILT_PRODUCTS_DIR; };
 		E77401652F02D8C500498517 /* mkfifo */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = mkfifo; sourceTree = BUILT_PRODUCTS_DIR; };
 		E77401702F02D8F900498517 /* ls */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = ls; sourceTree = BUILT_PRODUCTS_DIR; };
 		E774017B2F02D90000498517 /* ln */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = ln; sourceTree = BUILT_PRODUCTS_DIR; };
-		E77401862F02D90800498517 /* ipcs */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = ipcs; sourceTree = BUILT_PRODUCTS_DIR; };
-		E77401912F02D91400498517 /* ipcrm */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = ipcrm; sourceTree = BUILT_PRODUCTS_DIR; };
 		E774019C2F02D91D00498517 /* install */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = install; sourceTree = BUILT_PRODUCTS_DIR; };
 		E77401A72F02D92700498517 /* gzip */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = gzip; sourceTree = BUILT_PRODUCTS_DIR; };
 		E77401B22F02D9DE00498517 /* du */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = du; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -629,12 +589,9 @@
 		E77402832F02E7A300498517 /* duTest.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = duTest.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E774028E2F02E7AE00498517 /* gzipTest.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = gzipTest.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E77402992F02E7BA00498517 /* installTest.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = installTest.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		E77402A42F02E7C800498517 /* ipcrmTest.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ipcrmTest.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		E77402AF2F02E7D800498517 /* ipcsTest.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ipcsTest.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E77402BA2F02E7E100498517 /* lnTest.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = lnTest.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E77402C52F02E85A00498517 /* lsTest.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = lsTest.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E77402D02F02E87400498517 /* mvTest.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = mvTest.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		E77402DB2F02E88900498517 /* paxTest.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = paxTest.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E77402E62F02E89700498517 /* rmTest.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = rmTest.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E77402F12F02E8C500498517 /* rmdirTest.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = rmdirTest.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E77402FC2F02E8D300498517 /* statTest.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = statTest.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -654,7 +611,6 @@
 		E7B891D62F33F9C2002572DE /* libc.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libc.tbd; path = usr/lib/libc.tbd; sourceTree = SDKROOT; };
 		E7DDF9042F32427F00EB9B50 /* mkfifoTest.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = mkfifoTest.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E7DDF90F2F32428D00EB9B50 /* mknodTest.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = mknodTest.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		E7DDF91A2F3242A400EB9B50 /* mtreeTest.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = mtreeTest.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E7DDF9352F3244B500EB9B50 /* pathchkTest.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = pathchkTest.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E7DDF9472F32457E00EB9B50 /* cksumTest.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = cksumTest.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -701,13 +657,6 @@
 				installTest/installTest.swift,
 			);
 			target = E77402982F02E7BA00498517 /* installTest */;
-		};
-		E77185A22F3101B0006EC9D4 /* Exceptions for "Tests" folder in "paxTest" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				paxTest/paxTest.swift,
-			);
-			target = E77402DA2F02E88900498517 /* paxTest */;
 		};
 		E77185A42F3101BD006EC9D4 /* Exceptions for "Tests" folder in "mvTest" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
@@ -798,13 +747,6 @@
 				ln/ln.swift,
 			);
 			target = E774017A2F02D90000498517 /* ln */;
-		};
-		E774033B2F03334A00498517 /* Exceptions for "Sources" folder in "ipcrm" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				ipcrm/ipcrm.swift,
-			);
-			target = E77401902F02D91400498517 /* ipcrm */;
 		};
 		E774033D2F03335400498517 /* Exceptions for "Sources" folder in "du" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
@@ -939,58 +881,6 @@
 			);
 			target = E774019B2F02D91D00498517 /* install */;
 		};
-		E774069F2F0B96C100498517 /* Exceptions for "Sources" folder in "ipcs" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				ipcs/ipcs.swift,
-			);
-			target = E77401852F02D90800498517 /* ipcs */;
-		};
-		E77406B52F0E0D4000498517 /* Exceptions for "Sources" folder in "pax" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				pax/ar_io.swift,
-				pax/ar_subs.swift,
-				pax/ar_subs2.swift,
-				pax/ar_subs3.swift,
-				pax/ARCHD.swift,
-				pax/buf_subs.swift,
-				pax/buf_subs2.swift,
-				pax/cache.swift,
-				pax/FSUB.swift,
-				pax/ftree.swift,
-				pax/globals.swift,
-				pax/options.swift,
-				pax/pat_rep.swift,
-				pax/pax_options.swift,
-				pax/pax.swift,
-				pax/paxer.swift,
-				pax/paxer2.swift,
-				pax/paxer3.swift,
-				pax/sel_subs.swift,
-				pax/tables.swift,
-				pax/tar_options.swift,
-				pax/tar.swift,
-				pax/tty_subs.swift,
-				pax/ustar.swift,
-			);
-			target = E774012D2F02D87D00498517 /* pax */;
-		};
-		E77406BF2F0E0D4F00498517 /* Exceptions for "Sources" folder in "mtree" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				mtree/compare.swift,
-				mtree/create.swift,
-				mtree/excludes.swift,
-				mtree/metrics.swift,
-				mtree/misc.swift,
-				mtree/mtree.swift,
-				mtree/spec.swift,
-				mtree/specspec.swift,
-				mtree/verify.swift,
-			);
-			target = E774014E2F02D8B200498517 /* mtree */;
-		};
 		E77406C42F0E0D5D00498517 /* Exceptions for "Sources" folder in "ls" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -1075,13 +965,6 @@
 			);
 			target = E7DDF9052F32428D00EB9B50 /* mknodTest */;
 		};
-		E7DDF92A2F32440200EB9B50 /* Exceptions for "Tests" folder in "mtreeTest" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				mtreeTest/mtreeTest.swift,
-			);
-			target = E7DDF9102F3242A400EB9B50 /* mtreeTest */;
-		};
 		E7DDF93C2F32452600EB9B50 /* Exceptions for "Tests" folder in "pathchkTest" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -1142,18 +1025,14 @@
 				E774033D2F03335400498517 /* Exceptions for "Sources" folder in "du" target */,
 				E77406CC2F0E0D6C00498517 /* Exceptions for "Sources" folder in "gzip" target */,
 				E774069D2F0B96B600498517 /* Exceptions for "Sources" folder in "install" target */,
-				E774033B2F03334A00498517 /* Exceptions for "Sources" folder in "ipcrm" target */,
-				E774069F2F0B96C100498517 /* Exceptions for "Sources" folder in "ipcs" target */,
 				E77405652F09BBA800498517 /* Exceptions for "Sources" folder in "link" target */,
 				E77403392F03334100498517 /* Exceptions for "Sources" folder in "ln" target */,
 				E77406C42F0E0D5D00498517 /* Exceptions for "Sources" folder in "ls" target */,
 				E77400042F0239F900498517 /* Exceptions for "Sources" folder in "mkdir" target */,
 				E77406902F0B960E00498517 /* Exceptions for "Sources" folder in "mkfifo" target */,
 				E77403372F03333500498517 /* Exceptions for "Sources" folder in "mknod" target */,
-				E77406BF2F0E0D4F00498517 /* Exceptions for "Sources" folder in "mtree" target */,
 				E774068E2F0B95BD00498517 /* Exceptions for "Sources" folder in "mv" target */,
 				E774032E2F03323300498517 /* Exceptions for "Sources" folder in "pathchk" target */,
-				E77406B52F0E0D4000498517 /* Exceptions for "Sources" folder in "pax" target */,
 				E774068C2F0B959B00498517 /* Exceptions for "Sources" folder in "rm" target */,
 				E774032C2F03321400498517 /* Exceptions for "Sources" folder in "rmdir" target */,
 				E774068A2F0B959100498517 /* Exceptions for "Sources" folder in "stat" target */,
@@ -1187,10 +1066,8 @@
 				E77400E72F02D29900498517 /* Exceptions for "Tests" folder in "mkdirTest" target */,
 				E7DDF9262F32437E00EB9B50 /* Exceptions for "Tests" folder in "mkfifoTest" target */,
 				E7DDF9282F3243AD00EB9B50 /* Exceptions for "Tests" folder in "mknodTest" target */,
-				E7DDF92A2F32440200EB9B50 /* Exceptions for "Tests" folder in "mtreeTest" target */,
 				E77185A42F3101BD006EC9D4 /* Exceptions for "Tests" folder in "mvTest" target */,
 				E7DDF93C2F32452600EB9B50 /* Exceptions for "Tests" folder in "pathchkTest" target */,
-				E77185A22F3101B0006EC9D4 /* Exceptions for "Tests" folder in "paxTest" target */,
 				E7FF28112F2BB2EB00DF22C9 /* Exceptions for "Tests" folder in "rmTest" target */,
 				E7FF280D2F2B9F0D00DF22C9 /* Exceptions for "Tests" folder in "rmdirTest" target */,
 				E77408242F10017C00498517 /* Exceptions for "Tests" folder in "statTest" target */,
@@ -1277,14 +1154,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		E774012B2F02D87D00498517 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				E77405042F06CF8300498517 /* CMigration in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		E77401362F02D89900498517 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -1298,14 +1167,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				E77405002F06CF7B00498517 /* CMigration in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		E774014C2F02D8B200498517 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				E77404FE2F06CF7600498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1339,22 +1200,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				E77404F42F06CF5E00498517 /* CMigration in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		E77401832F02D90800498517 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				E77404F22F06CF5900498517 /* CMigration in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		E774018E2F02D91400498517 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				E77404F02F06CF5500498517 /* CMigration in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1520,22 +1365,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		E77402A12F02E7C800498517 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				E7FF281D2F2BB35400DF22C9 /* ShellTesting in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		E77402AC2F02E7D800498517 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				E7FF281B2F2BB35000DF22C9 /* ShellTesting in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		E77402B72F02E7E100498517 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -1558,14 +1387,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				E7FF28172F2BB34000DF22C9 /* ShellTesting in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		E77402D82F02E88900498517 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				E7FF28152F2BB33B00DF22C9 /* ShellTesting in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1686,14 +1507,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		E7DDF9142F3242A400EB9B50 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				E7DDF9152F3242A400EB9B50 /* ShellTesting in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		E7DDF92F2F3244B500EB9B50 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -1743,16 +1556,12 @@
 				E774010D2F02D86100498517 /* stat */,
 				E77401182F02D86F00498517 /* rmdir */,
 				E77401232F02D87600498517 /* rm */,
-				E774012E2F02D87D00498517 /* pax */,
 				E77401392F02D89900498517 /* pathchk */,
 				E77401442F02D8A800498517 /* mv */,
-				E774014F2F02D8B200498517 /* mtree */,
 				E774015A2F02D8BE00498517 /* mknod */,
 				E77401652F02D8C500498517 /* mkfifo */,
 				E77401702F02D8F900498517 /* ls */,
 				E774017B2F02D90000498517 /* ln */,
-				E77401862F02D90800498517 /* ipcs */,
-				E77401912F02D91400498517 /* ipcrm */,
 				E774019C2F02D91D00498517 /* install */,
 				E77401A72F02D92700498517 /* gzip */,
 				E77401B22F02D9DE00498517 /* du */,
@@ -1772,12 +1581,9 @@
 				E77402832F02E7A300498517 /* duTest.xctest */,
 				E774028E2F02E7AE00498517 /* gzipTest.xctest */,
 				E77402992F02E7BA00498517 /* installTest.xctest */,
-				E77402A42F02E7C800498517 /* ipcrmTest.xctest */,
-				E77402AF2F02E7D800498517 /* ipcsTest.xctest */,
 				E77402BA2F02E7E100498517 /* lnTest.xctest */,
 				E77402C52F02E85A00498517 /* lsTest.xctest */,
 				E77402D02F02E87400498517 /* mvTest.xctest */,
-				E77402DB2F02E88900498517 /* paxTest.xctest */,
 				E77402E62F02E89700498517 /* rmTest.xctest */,
 				E77402F12F02E8C500498517 /* rmdirTest.xctest */,
 				E77402FC2F02E8D300498517 /* statTest.xctest */,
@@ -1789,7 +1595,6 @@
 				E774055F2F09BB3800498517 /* linkTest.xctest */,
 				E7DDF9042F32427F00EB9B50 /* mkfifoTest.xctest */,
 				E7DDF90F2F32428D00EB9B50 /* mknodTest.xctest */,
-				E7DDF91A2F3242A400EB9B50 /* mtreeTest.xctest */,
 				E7DDF9352F3244B500EB9B50 /* pathchkTest.xctest */,
 				E7DDF9472F32457E00EB9B50 /* cksumTest.xctest */,
 			);
@@ -1960,26 +1765,6 @@
 			productReference = E77401232F02D87600498517 /* rm */;
 			productType = "com.apple.product-type.tool";
 		};
-		E774012D2F02D87D00498517 /* pax */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = E77401322F02D87D00498517 /* Build configuration list for PBXNativeTarget "pax" */;
-			buildPhases = (
-				E774012A2F02D87D00498517 /* Sources */,
-				E774012B2F02D87D00498517 /* Frameworks */,
-				E774012C2F02D87D00498517 /* CopyFiles */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = pax;
-			packageProductDependencies = (
-				E77405032F06CF8300498517 /* CMigration */,
-			);
-			productName = pax;
-			productReference = E774012E2F02D87D00498517 /* pax */;
-			productType = "com.apple.product-type.tool";
-		};
 		E77401382F02D89900498517 /* pathchk */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = E774013D2F02D89A00498517 /* Build configuration list for PBXNativeTarget "pathchk" */;
@@ -2018,26 +1803,6 @@
 			);
 			productName = mv;
 			productReference = E77401442F02D8A800498517 /* mv */;
-			productType = "com.apple.product-type.tool";
-		};
-		E774014E2F02D8B200498517 /* mtree */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = E77401532F02D8B200498517 /* Build configuration list for PBXNativeTarget "mtree" */;
-			buildPhases = (
-				E774014B2F02D8B200498517 /* Sources */,
-				E774014C2F02D8B200498517 /* Frameworks */,
-				E774014D2F02D8B200498517 /* CopyFiles */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = mtree;
-			packageProductDependencies = (
-				E77404FD2F06CF7600498517 /* CMigration */,
-			);
-			productName = mtree;
-			productReference = E774014F2F02D8B200498517 /* mtree */;
 			productType = "com.apple.product-type.tool";
 		};
 		E77401592F02D8BE00498517 /* mknod */ = {
@@ -2118,46 +1883,6 @@
 			);
 			productName = ln;
 			productReference = E774017B2F02D90000498517 /* ln */;
-			productType = "com.apple.product-type.tool";
-		};
-		E77401852F02D90800498517 /* ipcs */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = E774018A2F02D90800498517 /* Build configuration list for PBXNativeTarget "ipcs" */;
-			buildPhases = (
-				E77401822F02D90800498517 /* Sources */,
-				E77401832F02D90800498517 /* Frameworks */,
-				E77401842F02D90800498517 /* CopyFiles */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = ipcs;
-			packageProductDependencies = (
-				E77404F12F06CF5900498517 /* CMigration */,
-			);
-			productName = ipcs;
-			productReference = E77401862F02D90800498517 /* ipcs */;
-			productType = "com.apple.product-type.tool";
-		};
-		E77401902F02D91400498517 /* ipcrm */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = E77401952F02D91400498517 /* Build configuration list for PBXNativeTarget "ipcrm" */;
-			buildPhases = (
-				E774018D2F02D91400498517 /* Sources */,
-				E774018E2F02D91400498517 /* Frameworks */,
-				E774018F2F02D91400498517 /* CopyFiles */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = ipcrm;
-			packageProductDependencies = (
-				E77404EF2F06CF5500498517 /* CMigration */,
-			);
-			productName = ipcrm;
-			productReference = E77401912F02D91400498517 /* ipcrm */;
 			productType = "com.apple.product-type.tool";
 		};
 		E774019B2F02D91D00498517 /* install */ = {
@@ -2547,46 +2272,6 @@
 			productReference = E77402992F02E7BA00498517 /* installTest.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		E77402A32F02E7C800498517 /* ipcrmTest */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = E77402A82F02E7C800498517 /* Build configuration list for PBXNativeTarget "ipcrmTest" */;
-			buildPhases = (
-				E77402A02F02E7C800498517 /* Sources */,
-				E77402A12F02E7C800498517 /* Frameworks */,
-				E77402A22F02E7C800498517 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = ipcrmTest;
-			packageProductDependencies = (
-				E7FF281C2F2BB35400DF22C9 /* ShellTesting */,
-			);
-			productName = ipcrmTest;
-			productReference = E77402A42F02E7C800498517 /* ipcrmTest.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
-		E77402AE2F02E7D800498517 /* ipcsTest */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = E77402B32F02E7D800498517 /* Build configuration list for PBXNativeTarget "ipcsTest" */;
-			buildPhases = (
-				E77402AB2F02E7D800498517 /* Sources */,
-				E77402AC2F02E7D800498517 /* Frameworks */,
-				E77402AD2F02E7D800498517 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = ipcsTest;
-			packageProductDependencies = (
-				E7FF281A2F2BB35000DF22C9 /* ShellTesting */,
-			);
-			productName = ipcsTest;
-			productReference = E77402AF2F02E7D800498517 /* ipcsTest.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
 		E77402B92F02E7E100498517 /* lnTest */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = E77402BE2F02E7E100498517 /* Build configuration list for PBXNativeTarget "lnTest" */;
@@ -2646,26 +2331,6 @@
 			);
 			productName = mvTest;
 			productReference = E77402D02F02E87400498517 /* mvTest.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
-		E77402DA2F02E88900498517 /* paxTest */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = E77402DF2F02E88900498517 /* Build configuration list for PBXNativeTarget "paxTest" */;
-			buildPhases = (
-				E77402D72F02E88900498517 /* Sources */,
-				E77402D82F02E88900498517 /* Frameworks */,
-				E77402D92F02E88900498517 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = paxTest;
-			packageProductDependencies = (
-				E7FF28142F2BB33B00DF22C9 /* ShellTesting */,
-			);
-			productName = paxTest;
-			productReference = E77402DB2F02E88900498517 /* paxTest.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 		E77402E52F02E89700498517 /* rmTest */ = {
@@ -2954,26 +2619,6 @@
 			productReference = E7DDF90F2F32428D00EB9B50 /* mknodTest.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		E7DDF9102F3242A400EB9B50 /* mtreeTest */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = E7DDF9172F3242A400EB9B50 /* Build configuration list for PBXNativeTarget "mtreeTest" */;
-			buildPhases = (
-				E7DDF9132F3242A400EB9B50 /* Sources */,
-				E7DDF9142F3242A400EB9B50 /* Frameworks */,
-				E7DDF9162F3242A400EB9B50 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = mtreeTest;
-			packageProductDependencies = (
-				E7DDF9112F3242A400EB9B50 /* ShellTesting */,
-			);
-			productName = mkdirTest;
-			productReference = E7DDF91A2F3242A400EB9B50 /* mtreeTest.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
 		E7DDF92B2F3244B500EB9B50 /* pathchkTest */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = E7DDF9322F3244B500EB9B50 /* Build configuration list for PBXNativeTarget "pathchkTest" */;
@@ -3045,16 +2690,10 @@
 					E77401222F02D87600498517 = {
 						CreatedOnToolsVersion = 26.2;
 					};
-					E774012D2F02D87D00498517 = {
-						CreatedOnToolsVersion = 26.2;
-					};
 					E77401382F02D89900498517 = {
 						CreatedOnToolsVersion = 26.2;
 					};
 					E77401432F02D8A800498517 = {
-						CreatedOnToolsVersion = 26.2;
-					};
-					E774014E2F02D8B200498517 = {
 						CreatedOnToolsVersion = 26.2;
 					};
 					E77401592F02D8BE00498517 = {
@@ -3067,12 +2706,6 @@
 						CreatedOnToolsVersion = 26.2;
 					};
 					E774017A2F02D90000498517 = {
-						CreatedOnToolsVersion = 26.2;
-					};
-					E77401852F02D90800498517 = {
-						CreatedOnToolsVersion = 26.2;
-					};
-					E77401902F02D91400498517 = {
 						CreatedOnToolsVersion = 26.2;
 					};
 					E774019B2F02D91D00498517 = {
@@ -3132,12 +2765,6 @@
 					E77402982F02E7BA00498517 = {
 						CreatedOnToolsVersion = 26.2;
 					};
-					E77402A32F02E7C800498517 = {
-						CreatedOnToolsVersion = 26.2;
-					};
-					E77402AE2F02E7D800498517 = {
-						CreatedOnToolsVersion = 26.2;
-					};
 					E77402B92F02E7E100498517 = {
 						CreatedOnToolsVersion = 26.2;
 					};
@@ -3145,9 +2772,6 @@
 						CreatedOnToolsVersion = 26.2;
 					};
 					E77402CF2F02E87400498517 = {
-						CreatedOnToolsVersion = 26.2;
-					};
-					E77402DA2F02E88900498517 = {
 						CreatedOnToolsVersion = 26.2;
 					};
 					E77402E52F02E89700498517 = {
@@ -3235,10 +2859,6 @@
 				E774028D2F02E7AE00498517 /* gzipTest */,
 				E774019B2F02D91D00498517 /* install */,
 				E77402982F02E7BA00498517 /* installTest */,
-				E77401902F02D91400498517 /* ipcrm */,
-				E77402A32F02E7C800498517 /* ipcrmTest */,
-				E77401852F02D90800498517 /* ipcs */,
-				E77402AE2F02E7D800498517 /* ipcsTest */,
 				E77405472F09BB2700498517 /* link */,
 				E77405522F09BB3800498517 /* linkTest */,
 				E774017A2F02D90000498517 /* ln */,
@@ -3251,14 +2871,10 @@
 				E7DDF8FA2F32427F00EB9B50 /* mkfifoTest */,
 				E77401592F02D8BE00498517 /* mknod */,
 				E7DDF9052F32428D00EB9B50 /* mknodTest */,
-				E774014E2F02D8B200498517 /* mtree */,
-				E7DDF9102F3242A400EB9B50 /* mtreeTest */,
 				E77401432F02D8A800498517 /* mv */,
 				E77402CF2F02E87400498517 /* mvTest */,
 				E77401382F02D89900498517 /* pathchk */,
 				E7DDF92B2F3244B500EB9B50 /* pathchkTest */,
-				E774012D2F02D87D00498517 /* pax */,
-				E77402DA2F02E88900498517 /* paxTest */,
 				E77401222F02D87600498517 /* rm */,
 				E77402E52F02E89700498517 /* rmTest */,
 				E77401172F02D86F00498517 /* rmdir */,
@@ -3346,20 +2962,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		E77402A22F02E7C800498517 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		E77402AD2F02E7D800498517 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		E77402B82F02E7E100498517 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -3375,13 +2977,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		E77402CE2F02E87400498517 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		E77402D92F02E88900498517 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -3458,13 +3053,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		E7DDF9162F3242A400EB9B50 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		E7DDF9312F3244B500EB9B50 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -3531,13 +3119,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		E774012A2F02D87D00498517 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		E77401352F02D89900498517 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -3546,13 +3127,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		E77401402F02D8A800498517 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		E774014B2F02D8B200498517 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -3581,20 +3155,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		E77401772F02D90000498517 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		E77401822F02D90800498517 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		E774018D2F02D91400498517 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -3734,20 +3294,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		E77402A02F02E7C800498517 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		E77402AB2F02E7D800498517 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		E77402B62F02E7E100498517 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -3763,13 +3309,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		E77402CC2F02E87400498517 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		E77402D72F02E88900498517 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -3868,13 +3407,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		E7DDF9082F32428D00EB9B50 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		E7DDF9132F3242A400EB9B50 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -4027,6 +3559,11 @@
 			isa = PBXTargetDependency;
 			target = E7A6AA552E428C1A001C9A44 /* chflags */;
 			targetProxy = E78DE7192E43AB26001E00CA /* PBXContainerItemProxy */;
+		};
+		E7FB12EF2F45320A00D238F4 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E774019B2F02D91D00498517 /* install */;
+			targetProxy = E7FB12EE2F45320A00D238F4 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -4277,22 +3814,6 @@
 			};
 			name = Release;
 		};
-		E77401332F02D87D00498517 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				HEADER_SEARCH_PATHS = Vendors;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-			};
-			name = Debug;
-		};
-		E77401342F02D87D00498517 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				HEADER_SEARCH_PATHS = Vendors;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-			};
-			name = Release;
-		};
 		E774013E2F02D89A00498517 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -4315,20 +3836,6 @@
 			name = Debug;
 		};
 		E774014A2F02D8A800498517 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				PRODUCT_NAME = "$(TARGET_NAME)";
-			};
-			name = Release;
-		};
-		E77401542F02D8B200498517 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				PRODUCT_NAME = "$(TARGET_NAME)";
-			};
-			name = Debug;
-		};
-		E77401552F02D8B200498517 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -4387,34 +3894,6 @@
 			name = Debug;
 		};
 		E77401812F02D90000498517 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				PRODUCT_NAME = "$(TARGET_NAME)";
-			};
-			name = Release;
-		};
-		E774018B2F02D90800498517 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				PRODUCT_NAME = "$(TARGET_NAME)";
-			};
-			name = Debug;
-		};
-		E774018C2F02D90800498517 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				PRODUCT_NAME = "$(TARGET_NAME)";
-			};
-			name = Release;
-		};
-		E77401962F02D91400498517 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				PRODUCT_NAME = "$(TARGET_NAME)";
-			};
-			name = Debug;
-		};
-		E77401972F02D91400498517 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -4737,42 +4216,6 @@
 			};
 			name = Release;
 		};
-		E77402A92F02E7C800498517 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				GENERATE_INFOPLIST_FILE = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = software.tinker.ipcrmTest;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-			};
-			name = Debug;
-		};
-		E77402AA2F02E7C800498517 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				GENERATE_INFOPLIST_FILE = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = software.tinker.ipcrmTest;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-			};
-			name = Release;
-		};
-		E77402B42F02E7D800498517 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				GENERATE_INFOPLIST_FILE = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = software.tinker.ipcsTest;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-			};
-			name = Debug;
-		};
-		E77402B52F02E7D800498517 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				GENERATE_INFOPLIST_FILE = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = software.tinker.ipcsTest;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-			};
-			name = Release;
-		};
 		E77402BF2F02E7E100498517 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -4823,24 +4266,6 @@
 			buildSettings = {
 				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = software.tinker.mvTest;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-			};
-			name = Release;
-		};
-		E77402E02F02E88900498517 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				GENERATE_INFOPLIST_FILE = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = software.tinker.paxTest;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-			};
-			name = Debug;
-		};
-		E77402E12F02E88900498517 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				GENERATE_INFOPLIST_FILE = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = software.tinker.paxTest;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Release;
@@ -5081,24 +4506,6 @@
 			};
 			name = Release;
 		};
-		E7DDF9182F3242A400EB9B50 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				GENERATE_INFOPLIST_FILE = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = software.tinker.mkdirTest;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-			};
-			name = Debug;
-		};
-		E7DDF9192F3242A400EB9B50 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				GENERATE_INFOPLIST_FILE = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = software.tinker.mkdirTest;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-			};
-			name = Release;
-		};
 		E7DDF9332F3244B500EB9B50 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -5210,15 +4617,6 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		E77401322F02D87D00498517 /* Build configuration list for PBXNativeTarget "pax" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				E77401332F02D87D00498517 /* Debug */,
-				E77401342F02D87D00498517 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		E774013D2F02D89A00498517 /* Build configuration list for PBXNativeTarget "pathchk" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -5233,15 +4631,6 @@
 			buildConfigurations = (
 				E77401492F02D8A800498517 /* Debug */,
 				E774014A2F02D8A800498517 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		E77401532F02D8B200498517 /* Build configuration list for PBXNativeTarget "mtree" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				E77401542F02D8B200498517 /* Debug */,
-				E77401552F02D8B200498517 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -5278,24 +4667,6 @@
 			buildConfigurations = (
 				E77401802F02D90000498517 /* Debug */,
 				E77401812F02D90000498517 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		E774018A2F02D90800498517 /* Build configuration list for PBXNativeTarget "ipcs" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				E774018B2F02D90800498517 /* Debug */,
-				E774018C2F02D90800498517 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		E77401952F02D91400498517 /* Build configuration list for PBXNativeTarget "ipcrm" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				E77401962F02D91400498517 /* Debug */,
-				E77401972F02D91400498517 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -5471,24 +4842,6 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		E77402A82F02E7C800498517 /* Build configuration list for PBXNativeTarget "ipcrmTest" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				E77402A92F02E7C800498517 /* Debug */,
-				E77402AA2F02E7C800498517 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		E77402B32F02E7D800498517 /* Build configuration list for PBXNativeTarget "ipcsTest" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				E77402B42F02E7D800498517 /* Debug */,
-				E77402B52F02E7D800498517 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		E77402BE2F02E7E100498517 /* Build configuration list for PBXNativeTarget "lnTest" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -5512,15 +4865,6 @@
 			buildConfigurations = (
 				E77402D52F02E87400498517 /* Debug */,
 				E77402D62F02E87400498517 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		E77402DF2F02E88900498517 /* Build configuration list for PBXNativeTarget "paxTest" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				E77402E02F02E88900498517 /* Debug */,
-				E77402E12F02E88900498517 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -5660,15 +5004,6 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		E7DDF9172F3242A400EB9B50 /* Build configuration list for PBXNativeTarget "mtreeTest" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				E7DDF9182F3242A400EB9B50 /* Debug */,
-				E7DDF9192F3242A400EB9B50 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		E7DDF9322F3244B500EB9B50 /* Build configuration list for PBXNativeTarget "pathchkTest" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -5755,14 +5090,6 @@
 			};
 		};
 		E7DDF9072F32428D00EB9B50 /* XCRemoteSwiftPackageReference "ShellTesting" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/r0ml/ShellTesting";
-			requirement = {
-				branch = main;
-				kind = branch;
-			};
-		};
-		E7DDF9122F3242A400EB9B50 /* XCRemoteSwiftPackageReference "ShellTesting" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/r0ml/ShellTesting";
 			requirement = {
@@ -5918,16 +5245,6 @@
 			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
 			productName = CMigration;
 		};
-		E77404EF2F06CF5500498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
-		E77404F12F06CF5900498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
 		E77404F32F06CF5E00498517 /* CMigration */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
@@ -5953,17 +5270,7 @@
 			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
 			productName = CMigration;
 		};
-		E77404FD2F06CF7600498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
 		E77404FF2F06CF7B00498517 /* CMigration */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
-			productName = CMigration;
-		};
-		E77405032F06CF8300498517 /* CMigration */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E77404D42F06CEE600498517 /* XCRemoteSwiftPackageReference "CMigration" */;
 			productName = CMigration;
@@ -6068,11 +5375,6 @@
 			package = E7DDF9072F32428D00EB9B50 /* XCRemoteSwiftPackageReference "ShellTesting" */;
 			productName = ShellTesting;
 		};
-		E7DDF9112F3242A400EB9B50 /* ShellTesting */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7DDF9122F3242A400EB9B50 /* XCRemoteSwiftPackageReference "ShellTesting" */;
-			productName = ShellTesting;
-		};
 		E7DDF92C2F3244B500EB9B50 /* ShellTesting */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E7DDF92D2F3244B500EB9B50 /* XCRemoteSwiftPackageReference "ShellTesting" */;
@@ -6103,27 +5405,12 @@
 			package = E7A6AA602E428C8C001C9A44 /* XCRemoteSwiftPackageReference "ShellTesting" */;
 			productName = ShellTesting;
 		};
-		E7FF28142F2BB33B00DF22C9 /* ShellTesting */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA602E428C8C001C9A44 /* XCRemoteSwiftPackageReference "ShellTesting" */;
-			productName = ShellTesting;
-		};
 		E7FF28162F2BB34000DF22C9 /* ShellTesting */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E7A6AA602E428C8C001C9A44 /* XCRemoteSwiftPackageReference "ShellTesting" */;
 			productName = ShellTesting;
 		};
 		E7FF28182F2BB34800DF22C9 /* ShellTesting */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA602E428C8C001C9A44 /* XCRemoteSwiftPackageReference "ShellTesting" */;
-			productName = ShellTesting;
-		};
-		E7FF281A2F2BB35000DF22C9 /* ShellTesting */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7A6AA602E428C8C001C9A44 /* XCRemoteSwiftPackageReference "ShellTesting" */;
-			productName = ShellTesting;
-		};
-		E7FF281C2F2BB35400DF22C9 /* ShellTesting */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E7A6AA602E428C8C001C9A44 /* XCRemoteSwiftPackageReference "ShellTesting" */;
 			productName = ShellTesting;

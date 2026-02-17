@@ -1,7 +1,6 @@
 
 For now, removed the commands
 
-- install
 - mtree
 - pax
 - ipcrm

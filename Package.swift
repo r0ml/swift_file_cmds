@@ -22,8 +22,8 @@
 import PackageDescription
 import Foundation
 
-let WIP = ["pax", "ipcrm", "ipcs", "mtree"]
-let TestWIP = ["paxTest", "mtreeTest"]
+let WIP = []         // source folders to skip over
+let TestWIP = []     // test folders to skip over
 
 let package = Package(
   name: "file_cmds",
