@@ -259,12 +259,13 @@ class ustar : tar {
    */
 
   override func wr(_ arcn : ARCHD) -> Result {
-    char *pt;
+/*    char *pt;
 
     char hdblk[sizeof(HD_USTAR)];
     mode_t mode12only;
     int term_char=3;  /* orignal setting */
     term_char=1;    /* To pass conformance tests 274, 301 */
+*/
 
     /*
      * check for those file system types ustar cannot store
@@ -323,11 +324,7 @@ class ustar : tar {
      * the prefix.  both the name and prefix may fill the entire field.
      */
 
-    if (strlen(pt) == sizeof(hd->name)) {  /* must account for name just fits in buffer */
-      strncpy(hd->name, pt, sizeof(hd->name));
-    } else {
-      strlcpy(hd->name, pt, sizeof(hd->name));
-    }
+    hd.name = pt  /* must account for name just fits in buffer */
 
     /*
      * set the fields in the header that are type dependent
@@ -340,10 +337,10 @@ class ustar : tar {
       case .CHR, .BLK:
         if (arcn.type == .CHR) {
           hd.typeflag = .CHRTYPE
-          }
-          else {
-            hd.typeflag = .BLKTYPE
-          }
+        }
+        else {
+          hd.typeflag = .BLKTYPE
+        }
 
         hd.devmajor = major(arcn.sb.rawDevice)
         hd.devminor = minor(arcn.sb.rawDevice)
@@ -355,47 +352,39 @@ class ustar : tar {
       case .SLK, .HLK, .HRG:
         if arcn.type == .SLK {
           hd.typeflag = .SYMTYPE
-            }
-            else {
-              hd.typeflag = .LNKTYPE
-            }
+        }
+        else {
+          hd.typeflag = .LNKTYPE
+        }
 
-      if (strlen(arcn.ln_name) == sizeof(hd->linkname)) {  /* must account for name just fits in buffer */
-        strncpy(hd->linkname, arcn.ln_name, sizeof(hd->linkname));
-      } else {
-        strlcpy(hd->linkname, arcn.ln_name, sizeof(hd->linkname));
-      }
-        if (ul_oct(0, hd->size, sizeof(hd->size), term_char)) {
-
-            goto out;
-          }
+        hd.linkname = arcn.ln_name  /* must account for name just fits in buffer */
+        hd.size = 0
 
       case .REG, .CTG:
         fallthrough
-    default:
-      /*
-       * file data with this type, set the padding
-       */
+      default:
+        /*
+         * file data with this type, set the padding
+         */
         if arcn.type == .CTG {
-          hd.typeflag = TarFileType.CONTTYPE.rawValue.asciiValue!
-          }
-          else {
-            hd.typeflag = TarFileType.REGTYPE.rawValue.asciiValue!
-          }
+          hd.typeflag = .CONTTYPE
+        }
+        else {
+          hd.typeflag = .REGTYPE
+        }
 
-      arcn.pad = TAR_PAD(arcn.sb.st_size);
-      if (uqd_oct((u_quad_t)arcn.sb.st_size, hd->size,
-
-          sizeof(hd->size), term_char)) {
-
-        Tty.paxwarn(true,"File is too long for ustar \(arcn.org_name)")
-        return(1);
-      }
-      break;
+        arcn.pad = TAR_PAD(arcn.sb.size);
+        do {
+          try hd.size = arcn.sb.size
+        } catch(let e) {
+          Tty.paxwarn(true,"File is too long for ustar \(arcn.org_name)")
+          return .partial
+        }
+        break;
     }
 
-    strncpy(hd->magic, TMAGIC, TMAGLEN);
-    strncpy(hd->version, TVERSION, TVERSLEN);
+    hd.magic = TMAGIC
+    hd.version = TVERSION
 
     /*
      * set the remaining fields. Some versions want all 16 bits of mode

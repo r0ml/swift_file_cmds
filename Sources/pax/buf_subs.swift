@@ -351,8 +351,8 @@ class Bufferer {
       if options.maxflt > 0 && (++errcnt > options.maxflt) {
         Tty.paxwarn(false,"Archive read error limit (\(options.maxflt)) reached")
       }
-      else if (ar_rdsync() == 0) {
-        continue;
+      else if case .ok = ar_rdsync() {
+        continue
       }
       if (ar_next() < 0) {
         break;

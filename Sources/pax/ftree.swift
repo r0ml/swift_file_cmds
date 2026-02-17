@@ -39,7 +39,7 @@
 import CMigration
 import Darwin
 
-class ftree {
+class Ftree {
 
   /*
    * Data structure used by the ftree.c routines to store the file args to be

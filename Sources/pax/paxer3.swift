@@ -62,7 +62,6 @@ extension paxer {
     /* There might be no fields but a header with a specific name or
      times might be wanted */
 
-    let term_char = OctalTerminator._1
     var hd = HD_USTAR()
 
     pax_eh_datablk = ""
@@ -179,7 +178,7 @@ extension paxer {
     char size_value[100];
     bzero(size_value, sizeof(size_value));
 */
-    var term_char = OctalTerminator._3 // original setting
+//    var term_char = OctalTerminator._1 // To pass conformance tests 274, 301
 
     /*
      * check for those file system types pax cannot store

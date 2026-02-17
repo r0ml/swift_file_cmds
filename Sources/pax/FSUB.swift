@@ -443,17 +443,8 @@ extension FSUB {
   }
 
 
-  /*
-   * ul_oct()
-   *  convert an unsigned long to an octal string. many oddball field
-   *  termination characters are used by the various versions of tar in the
-   *  different fields. term selects which kind to use. str is "0" padded
-   *  at the front to len. we are unable to use only one format as many old
-   *  tar readers are very cranky about this.
-   * Return:
-   *  0 if the number fit into the string, -1 otherwise
-   */
-
+ 
+/*
   func ul_oct(_ val : UInt, _ len : Int, _ term : OctalTerminator) -> String? {
     /*
      * term selects the appropriate character(s) for the end of the string
@@ -479,7 +470,8 @@ extension FSUB {
     str = String(repeating: "0", count: len - str.count) + str
     return str
   }
-
+*/
+  
   // ==============================================================================================
   // these two functions were in both tar and paxer -- promoted to FSUB
   // ==============================================================================================

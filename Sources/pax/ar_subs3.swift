@@ -49,8 +49,8 @@ extension ArchiveOps {
    *  (except the files are forced to be under the destination directory).
    */
   
-  func copy() {
-    ARCHD *arcn;
+  func copy() async {
+/*    ARCHD *arcn;
     int res;
     int fddest;
     char *dest_pt;
@@ -60,16 +60,17 @@ extension ArchiveOps {
     struct stat sb;
     ARCHD archd;
     char dirbuf[PAXPATHLEN+1];
-    
-    arcn = &archd;
-    
-    if (frmt && strcmp(frmt->name, NM_PAX)==0) {
+  */
+
+    var arcn : ARCHD = ARCHD()
+
+    if options.frmt != nil && options.frmt!.name == NM_PAX {
       /* Copy using pax format:  must check if any -o options */
-      if ((*frmt->options)() < 0) {
-        return;
+      if .failed == options.frmt!.other_options() {
+        return
       }
-      if (pax_invalid_action==0) {
-        pax_invalid_action = PAX_INVALID_ACTION_BYPASS;
+      if pax_invalid_action == .UNSET {
+        pax_invalid_action = .BYPASS
       }
     }
     
@@ -78,36 +79,30 @@ extension ArchiveOps {
      * make sure we have a trailing / on the destination
      */
     
-    dlen = strlcpy(dirbuf, dirptr, sizeof(dirbuf));
-    if (dlen >= sizeof(dirbuf) ||
-        (dlen == sizeof(dirbuf) - 1 && dirbuf[dlen - 1] != "/")) {
-      Tty.paxwarn(true, "directory name is too long %s", dirptr);
-      return;
-    }
-    
-    dest_pt = dirbuf + dlen;
-    if (*(dest_pt-1) != "/") {
-      *dest_pt++ = "/";
-      ++dlen;
-    }
-    
-    drem = PAXPATHLEN - dlen;
-    
-    guard let sb = try? FileMetadata(for: dirptr, followSymlinks: true) else {
-      Tty.syswarn(true, errno, "Cannot access destination directory \(dirptr)")
+    var dirbuf = options.dirptr!
+    if dirbuf.last != "/" { dirbuf.append("/") }
+    if dirbuf.utf8.count > PAXPATHLEN {
+      Tty.paxwarn(true, "directory name is too long \(dirbuf)")
       return
     }
-    if (! (sb.filetype == .directory) ) {
-      Tty.paxwarn(true, "Destination is not a directory %s", dirptr);
-      return;
+    
+    let drem = PAXPATHLEN - dirbuf.utf8.count
+
+    guard let sb = try? FileMetadata(for: FilePath(dirbuf), followSymlinks: true) else {
+      Tty.syswarn(true, errno, "Cannot access destination directory \(dirbuf)")
+      return
+    }
+    if !(sb.filetype == .directory) {
+      Tty.paxwarn(true, "Destination is not a directory \(dirbuf)")
+      return
     }
     
     /*
      * start up the hard link table; file traversal routines and the
      * modification time and access mode database
      */
-    if (ftree_start() < 0) {
-      return;
+    if await .failed == ftree.ftree_start() {
+      return
     }
     
     /*
@@ -118,20 +113,20 @@ extension ArchiveOps {
     /*
      * while there are files to archive, process them
      */
-    while (next_file(arcn) == 0) {
+    while await .ok == ftree.next_file(&arcn) {
       fdsrc = -1;
       
       /*
        * Fill in arcn from any pax options
        */
-      adjust_copy_for_pax_options(arcn);
+      adjust_copy_for_pax_options(arcn)
       
       /*
        * check if this file meets user specified options
        */
       if (sel_chk(arcn) != 0) {
-        ftree_notsel();
-        continue;
+        ftree.ftree_notsel()
+        continue
       }
       
       /*
@@ -144,16 +139,13 @@ extension ArchiveOps {
        * the name mod. In honesty the pax spec is probably flawed in
        * this respect
        */
-      if (uflag || Dflag) {
+      if options.uflag || options.Dflag {
         /*
          * create the destination name
          */
-        
         if (strlcpy(dest_pt, arcn.name + (*arcn.name == "/"),
                     drem + 1) > drem) {
-          
-          Tty.paxwarn(true, "Destination pathname too long %s",
-                      arcn.name);
+          Tty.paxwarn(true, "Destination pathname too long \(arcn.name)")
           continue;
         }
         
@@ -164,9 +156,9 @@ extension ArchiveOps {
         *dest_pt = '\0';
         
         if (res == 0) {
-          if (uflag && Dflag) {
+          if options.uflag && options.Dflag {
             if ((arcn.sb.lastModified<=sb.lastModified) &&
-                (arcn.sb.ctime<=sb.ctime)) {
+                (arcn.sb.lastChanged <= sb.lastChanged )) {
               continue;
             }
           } else if (Dflag) {
@@ -184,7 +176,7 @@ extension ArchiveOps {
        * to a previous file; modify the name as requested by the
        * user; set the final destination.
        */
-      ftree_sel(arcn);
+      ftree.ftree_sel(arcn)
       chk_lnk(arcn)
       
       if ((res > 0) || (set_dest(arcn, dirbuf, dlen) < 0)) {
@@ -199,14 +191,14 @@ extension ArchiveOps {
        * Non standard -Y and -Z flag. When the existing file is
        * same age or newer skip
        */
-      if ((Yflag || Zflag) && ((lstat(arcn.name, &sb) == 0))) {
-        if (Yflag && Zflag) {
+      if ( (options.Yflag || options.Zflag) && ((lstat(arcn.name, &sb) == 0))) {
+        if (options.Yflag && options.Zflag) {
           if ((arcn.sb.lastModified <= sb.lastModified) &&
-              (arcn.sb.ctime <= sb.ctime)) {
+              (arcn.sb.lastChanged <= sb.lastChanged)) {
             continue;
           }
-        } else if (Yflag) {
-          if (arcn.sb.ctime <= sb.ctime) {
+        } else if (options.Yflag) {
+          if (arcn.sb.lastChanged <= sb.lastChanged) {
             continue;
           }
         } else if (arcn.sb.lastModified <= sb.lastModified) {
@@ -214,11 +206,11 @@ extension ArchiveOps {
         }
       }
       
-      if (vflag) {
-        
+      if vflag != 0 {
+
         (void)safe_print(arcn.name, listf);
         
-        vfpart = 1;
+        vfpart = true
       }
       runtime.flcnt += 1
       
@@ -226,16 +218,16 @@ extension ArchiveOps {
        * try to create a hard link to the src file if requested
        * but make sure we are not trying to overwrite ourselves.
        */
-      if (lflag) {
+      if options.lflag {
         res = cross_lnk(arcn);
       }
       else {
         res = chk_same(arcn);
       }
       if (res <= 0) {
-        if (vflag && vfpart) {
+        if (vflag != 0 && vfpart) {
           (void)putc('\n', listf);
-          vfpart = 0;
+          vfpart = false
         }
         continue;
       }
@@ -243,11 +235,11 @@ extension ArchiveOps {
       /*
        * have to create a new file
        */
-      if ((arcn.type != PAX_REG) && (arcn.type != PAX_CTG)) {
+      if ((arcn.type != .REG) && (arcn.type != .CTG)) {
         /*
          * create a link or special file
          */
-        if ((arcn.type == PAX_HLK) || (arcn.type == PAX_HRG)) {
+        if ((arcn.type == .HLK) || (arcn.type == .HRG)) {
           res = lnk_creat(arcn);
         }
         else {
@@ -258,14 +250,14 @@ extension ArchiveOps {
         }
         
         if (res >= 0 &&
-            arcn.type == PAX_DIR &&
+            arcn.type == .DIR &&
             copyfile(arcn.org_name, arcn.name, NULL, COPYFILE_ACL | COPYFILE_XATTR) < 0) {
-          Tty.paxwarn(true, "Directory %s had metadata that could not be copied: %s", arcn.org_name, strerror(errno));
+          Tty.paxwarn(true, "Directory \(arcn.org_name) had metadata that could not be copied: %s", strerror(errno));
         }
         
-        if (vflag && vfpart) {
+        if (vflag != 0 && vfpart) {
           (void)putc('\n', listf);
-          vfpart = 0;
+          vfpart = false
         }
         continue;
       }
@@ -292,9 +284,9 @@ extension ArchiveOps {
       cp_file(arcn, fdsrc, fddest);
       
       /* do this before file close so that mtimes are correct regardless */
-      if (getenv(COPYFILE_DISABLE_VAR) == NULL) {
+      if Environment[COPYFILE_DISABLE_VAR] == nil {
         if (fcopyfile(fdsrc, fddest, NULL, COPYFILE_ACL | COPYFILE_XATTR) < 0) {
-          Tty.paxwarn(true, "File %s had metadata that could not be copied: %s", arcn.org_name,
+          Tty.paxwarn(true, "File \(arcn.org_name) had metadata that could not be copied: %s",
                       strerror(errno));
         }
       }
@@ -302,9 +294,9 @@ extension ArchiveOps {
       file_close(arcn, fddest);
       rdfile_close(arcn, &fdsrc);
       
-      if (vflag && vfpart) {
+      if (vflag != 0 && vfpart) {
         (void)putc('\n', listf);
-        vfpart = 0;
+        vfpart = false
       }
     }
     
@@ -313,9 +305,9 @@ extension ArchiveOps {
      * patterns were selected block off signals to avoid chance for
      * multiple entry into the cleanup code.
      */
-    (void)sigprocmask(SIG_BLOCK, &s_mask, NULL);
+    sigprocmask(SIG_BLOCK, &s_mask, nil);
     ar_io.ar_close();
-    proc_dir();
+    tables.proc_dir(options)
     ftree_chk();
   }
   
@@ -339,7 +331,7 @@ extension ArchiveOps {
    */
   
    func next_head(_ arcn : ARCHD) -> Result {
-    int ret;
+/*    int ret;
     char *hdend;
     int res;
     int shftsz;
@@ -347,7 +339,8 @@ extension ArchiveOps {
     int in_resync = 0;   /* set when we are in resync mode */
     int cnt = 0;      /* counter for trailer function */
     int first = 1;      /* on 1st read, EOF isn't premature. */
-    
+  */
+
     /*
      * set up initial conditions, we want a whole frmt->hsz block as we
      * have no data yet.
@@ -361,7 +354,7 @@ extension ArchiveOps {
        * keep looping until we get a contiguous FULL buffer
        * (frmt->hsz is the proper size)
        */
-      for (;;) {
+      while true {
         if ((ret = rd_wrbuf(hdend, res)) == res) {
           break;
         }
@@ -470,7 +463,7 @@ extension ArchiveOps {
      * ok got a valid header, check for trailer if format encodes it in
      * the header.
      */
-    if (options.frmt!.inhead && (!options.frmt!.trail_cpio(arcn))) {
+     if (options.frmt!.inhead && (.ok == options.frmt!.trail_cpio(arcn))) {
       /*
        * valid trailer found, drain input as required
        */

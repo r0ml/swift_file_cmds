@@ -43,9 +43,13 @@ class ArchiveOps {
 
   let options : pax.CommandOptions
 
+  var ftree : Ftree
+
   init(options: pax.CommandOptions) {
     self.options = options
+    ftree = Ftree(options: options)
   }
+  
   /*
    * Routines which control the overall operation modes of pax as specified by
    * the user: list, append, read ...
@@ -87,7 +91,7 @@ class ArchiveOps {
         return .ok
       }
       if (level == 0) {
-        Tty.syswarn(true, 0, "Cannot resolve `%s'", arcn.name);
+        Tty.syswarn(true, 0, "Cannot resolve `\(arcn.name)'")
       }
       return .failed
     }
@@ -97,9 +101,8 @@ class ArchiveOps {
     }
     if ((strncmp(buf, cwdpath, cwdpathlen) != 0) || (buf[cwdpathlen] != '\0' && buf[cwdpathlen] != "/")) {
       *p = "/";
-      Tty.syswarn(true, 0, "Attempt to write file `%s' that resolves into "
-                  "`%s/%s' outside current working directory `%s' ignored",
-                  arcn.name, buf, p + 1, cwdpath);
+      Tty.syswarn(true, 0, "Attempt to write file `\(arcn.name)' that resolves into `%s/%s' outside current working directory `%s' ignored",
+                  buf, p + 1, cwdpath);
       return .failed
     }
     *p = "/";
@@ -121,9 +124,14 @@ class ArchiveOps {
      * call for each file we need to print. If verbose (vflag) start up
      * the name and group caches.
      */
-    if ((get_arc() < 0) || ((*frmt->options)() < 0) ||
-        ((*frmt->st_rd)() < 0)) {
-      return;
+    if case .failed = get_arc() {
+      return
+    }
+    if case .failed = options.frmt!.other_options() {
+      return
+    }
+    if case .failed = options.frmt!.st_rd() {
+      return
     }
 
     let now = Darwin.time(nil)
@@ -148,16 +156,17 @@ class ArchiveOps {
        * check for pattern, and user specified options match.
        * When all patterns are matched we are done.
        */
-      if ((res = pat_match(arcn)) < 0) {
-        break;
+      var res = pat_match(arcn)
+      if case .failed = res {
+        break
       }
 
-      if ((res == 0) && (sel_chk(arcn) == 0)) {
+      if res == .ok && .ok == sel_chk(arcn) {
         /*
          * pattern resulted in a selected file
          */
-        if (pat_sel(arcn) < 0) {
-          break;
+        if .failed == pat_sel(arcn) {
+          break
         }
 
         /*
@@ -283,7 +292,7 @@ class ArchiveOps {
               continue;
             }
           } else if options.Dflag {
-            if (arcn.sb.ctime <= sb.ctime) {
+            if (arcn.sb.lastChanged <= sb.lastChanged) {
               rd_skip(arcn.skip + arcn.pad);
               continue;
             }

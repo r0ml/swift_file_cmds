@@ -166,6 +166,8 @@ struct HD_USTAR {
   var _devminor : C8    /* minor device number */
   var _prefix : C155    /* linked to name */
 
+  let term_char = OctalTerminator._1
+
   init() {
     let a = UnsafeMutablePointer<HD_USTAR>.allocate(capacity: 1)
     self = a.pointee
@@ -242,15 +244,40 @@ struct HD_USTAR {
 
 
   func octalFromTuple<T>(_ tuple: T) -> UInt? {
-    let s = cStringFromTuple(tuple)
+    var s = Substring(cStringFromTuple(tuple))
+    while s.last == " " || s.last == "\0" {
+      s = s.dropLast()
+    }
     return UInt(s, radix: 8)
   }
 
+  /*
+   * ul_oct()
+   *  convert an unsigned long to an octal string. many oddball field
+   *  termination characters are used by the various versions of tar in the
+   *  different fields. term selects which kind to use. str is "0" padded
+   *  at the front to len. we are unable to use only one format as many old
+   *  tar readers are very cranky about this.
+   */
+  // FIXME: different uses have different terminator characters!!
+  // not sure how to fix this!!
   func copyOctalIntoTuple<T>(_ dest : inout T, from src: UInt) {
+    /*
+     * term selects the appropriate character(s) for the end of the string
+     */
+    var end =
+    switch term_char {
+      case ._3:
+        "\0"
+      case ._2:
+        "\0 "
+      case ._1:
+        " "
+      case ._0:
+        " \0"
+    }
 
-    // FIXME: need to deal with the weird ul_oct  term_char nonsense
-
-    let s = String(src, radix: 8)
+    let s = String(src, radix: 8) + end
     let len = MemoryLayout<T>.size
     let p = len - s.utf8.count
     if p >= 0 {
