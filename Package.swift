@@ -22,16 +22,16 @@
 import PackageDescription
 import Foundation
 
-let WIP = []         // source folders to skip over
-let TestWIP = []     // test folders to skip over
+let WIP = [String]()         // source folders to skip over
+let TestWIP = [String]()     // test folders to skip over
 
 let package = Package(
   name: "file_cmds",
-  platforms: [.macOS(.v15), .iOS(.v15)],
+  platforms: [.macOS(.v15), .iOS(.v18)],
   dependencies: [
+      .package(url: "https://github.com/r0ml/CMigration.git", branch: "main"),
      .package(url: "https://github.com/r0ml/ShellTesting.git" , branch: "main"),
      .package(url: "https://github.com/swiftlang/swift-subprocess.git", branch: "main"),
-     .package(url: "https://github.com/r0ml/CMigration.git", branch: "main"),
      .package(url: "https://github.com/apple/swift-atomics.git", from: "1.2.0"),
      .package(url: "https://github.com/r0ml/libxo", branch: "main"),
   ],
