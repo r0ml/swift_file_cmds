@@ -7,7 +7,7 @@ import ShellTesting
   let cmd = "chmod"
   let suiteBundle = "file_cmds_chmodTest"
   
-  @Test func notYetImplemented() {
+  @Test(.disabled("Not yet implemented")) func notYetImplemented() {
     Issue.record("Tests not yet implemented")
   }
 }

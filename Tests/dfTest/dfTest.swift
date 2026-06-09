@@ -7,7 +7,7 @@ import ShellTesting
   let cmd = "df"
   let suiteBundle = "file_cmds_dfTest"
   
-  @Test func notYetImplemented() {
+  @Test(.disabled("Not yet implemented")) func notYetImplemented() {
     Issue.record("Tests not yet implemented")
   }
 }

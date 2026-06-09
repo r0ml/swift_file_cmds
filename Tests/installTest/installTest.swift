@@ -7,7 +7,7 @@ import ShellTesting
   let cmd = "install"
   let suiteBundle = "file_cmds_installTest"
   
-  @Test func notYetImplemented() {
+  @Test(.disabled("Not yet implemented")) func notYetImplemented() {
     Issue.record("Tests not yet implemented")
   }
 }

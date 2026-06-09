@@ -9,7 +9,7 @@ import ShellTesting
   let cmd = "pathchk"
   let suiteBundle = "file_cmds_pathchkTest"
 
-  @Test func notYetImplemented() {
+  @Test(.disabled("Not yet implemented")) func notYetImplemented() {
     Issue.record("Tests not yet implemented")
   }
 }

@@ -37,7 +37,7 @@
 
 import CMigration
 import Darwin
-import SystemPackage
+import System
 
 enum SimpleError: Error {
     case message(String)

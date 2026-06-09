@@ -7,7 +7,7 @@ import ShellTesting
   let cmd = "du"
   let suiteBundle = "file_cmds_duTest"
   
-  @Test func notYetImplemented() {
+  @Test(.disabled("Not yet implemented")) func notYetImplemented() {
     Issue.record("Tests not yet implemented")
   }
 }

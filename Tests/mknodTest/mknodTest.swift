@@ -11,7 +11,7 @@ import ShellTesting
   let cmd = "mknod"
   let suiteBundle = "file_cmds_mknodTest"
 
-  @Test func notYetImplemented() {
+  @Test(.disabled("Not yet implemented")) func notYetImplemented() {
     Issue.record("Tests not yet implemented")
   }
 }

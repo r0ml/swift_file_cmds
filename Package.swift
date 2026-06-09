@@ -31,7 +31,7 @@ let package = Package(
   dependencies: [
       .package(url: "https://github.com/r0ml/CMigration.git", branch: "main"),
      .package(url: "https://github.com/r0ml/ShellTesting.git" , branch: "main"),
-     .package(url: "https://github.com/swiftlang/swift-subprocess.git", branch: "main"),
+//     .package(url: "https://github.com/swiftlang/swift-subprocess.git", branch: "main"),
      .package(url: "https://github.com/apple/swift-atomics.git", from: "1.2.0"),
      .package(url: "https://github.com/r0ml/libxo", branch: "main"),
   ],
@@ -134,7 +134,7 @@ func generateTestTargets() -> [Target] {
         let rr = r ? [Resource.copy("Resources")] : []
         let t = Target.testTarget(name: i,
                                   dependencies: [.product(name: "ShellTesting", package: "ShellTesting"),
-                                                 .product(name: "Subprocess", package: "swift-subprocess"),
+//                                                 .product(name: "Subprocess", package: "swift-subprocess"),
                                                  .target(name: i.replacingOccurrences(of: "Test", with: ""))],
                                   path: nil,
                                   exclude: x
