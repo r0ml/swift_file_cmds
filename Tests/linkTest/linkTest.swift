@@ -33,6 +33,7 @@
 
 import ShellTesting
 import CMigration
+import RegexBuilder
 
 struct linkTest : ShellTest {
   var cmd = "link"
@@ -72,21 +73,21 @@ struct linkTest : ShellTest {
 
     let baz = try tmpfile("C15")
     let ne = try tmpfile("non-existent")
-
-    try await run(status: 1, error: /link: B15: File exists/, args: [foo, bar])
+    defer { rm(foo, bar, baz, ne) }
+    
+    try await run(status: 1, error: Regex {"link: "; bar.string; ": File exists" }, args: [foo, bar])
     try baz.createSymbolicLink(to: ne)
 
-    try await run(status: 1, error: /link: C15: File exists/, args: [foo, baz])
-    rm(foo, bar)
+    try await run(status: 1, error: Regex {"link: "; baz.string; ": File exists" }, args: [foo, baz])
   }
 
   @Test("Verify that link(1) fails if the source is a directory") func link_eisdir() async throws {
     let foo = try tmpdir("A16")
     let bar = try tmpfile("B16")
     let baz = try tmpfile("C16")
-    try await run(status: 1, error: /link: A16: Is a directory/, args: [foo, bar] )
+    defer { rm(foo, bar, baz) }
+    try await run(status: 1, error: Regex { "link: "; foo.string; ": Is a directory" }, args: [foo, bar])
     try bar.createSymbolicLink(to: foo)
-    try await run(status: 1, error: /link: B16: Is a directory/, args: [bar, baz] )
-    rm(foo, bar, baz)
+    try await run(status: 1, error: Regex {"link: "; bar.string; ": Is a directory" }, args: [bar, baz] )
   }
 }
