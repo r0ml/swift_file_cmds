@@ -14,7 +14,7 @@ struct mkdirTest : ShellTest {
   }
 
   @Test("Verify that an invalid usage with a supported option produces a valid error message") func argm() async throws {
-    try await run(status: 1, error: /mkdir: options requires an argument/, args: "-m")
+    try await run(status: 1, error: /mkdir: option requires an argument/, args: "-m")
   }
 
   @Test("Verify that mkdir(1) fails and generates a valid usage message when no arguments are supplied") func noargs() async throws {
