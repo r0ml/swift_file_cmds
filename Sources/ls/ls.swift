@@ -38,7 +38,10 @@
 import CMigration
 import Darwin
 import Darwin.C
-import Curses
+
+// FIXME: building for iOS unable to resolve module dependecy Curses
+//   all I needed was tputs -- so I re-implemented that
+// import Curses
 
 
 // FIXME: cheating for now to get to a working compile
@@ -536,18 +539,15 @@ func do_color() -> Bool {
       var bp: UnsafeMutablePointer<Int8>?
 
       if let term = Environment["TERM"], tgetent(&termcapbuf, term) == 1 {
-        r.ansi_fgcol = String(cString: tgetstr("AF", &bp)!)
-        r.ansi_bgcol = String(cString: tgetstr("AB", &bp)!)
-        attrs_off = String(cString: tgetstr("me", &bp)!)
-        r.enter_bold = String(cString: tgetstr("md", &bp)!)
+        r.ansi_fgcol = tgetstr("AF")
+        r.ansi_bgcol = tgetstr("AB")
+        attrs_off = tgetstr("me") ?? ""
+        r.enter_bold = tgetstr("md") ?? ""
 
         /* To switch colours off use 'op' if
          * available, otherwise use 'oc', or
          * don't do colours at all. */
-        ansi_coloff = String(cString: tgetstr("op", &bp)!)
-        if ansi_coloff == nil {
-          ansi_coloff = String(cString: tgetstr("oc", &bp)!)
-        }
+        ansi_coloff = tgetstr("op") ?? tgetstr("oc")
         if (r.ansi_fgcol != nil && r.ansi_bgcol != nil && ansi_coloff != nil) {
           options.f_color = true
         }
@@ -716,18 +716,6 @@ usage: ls [-@ABCFGHILOPRSTUWXabcdefghiklmnopqrstuvwxy1%%,] [--color=when] [-D fo
 // =====================================================================
 // FIXME: this is very much not allowed
 
-@_silgen_name("tgetent")
-func tgetent(
-    _ bp: UnsafeMutablePointer<CChar>?,
-    _ name: UnsafePointer<CChar>?
-) -> Int32
-
-@_silgen_name("tgetstr")
-func tgetstr(
-    _ id: UnsafePointer<CChar>?,
-    _ area: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
-) -> UnsafeMutablePointer<CChar>?
-
 @_silgen_name("tgetnum")
 func tgetnum(_ id: UnsafePointer<CChar>?) -> Int32
 
@@ -768,12 +756,75 @@ func writech(_ c : Int32) -> Int32 {
 
 func endcolor_termcap(_ sig : Int32) {
   if sig != 0 {
-    tputs(ansi_coloff, 1, writech )
+    tputs(ansi_coloff ?? "", 1, writech )
     tputs(attrs_off, 1, writech )
   } else {
-    tputs(ansi_coloff, 1, putch)
+    tputs(ansi_coloff ?? "", 1, putch)
     tputs(attrs_off, 1, putch)
 
   }
 }
 
+
+
+private let capabilities: [String: String] = [
+
+    // cursor
+    "cm": "\u{001B}[%i%d;%dH",
+    "ho": "\u{001B}[H",
+
+    // clear
+    "cl": "\u{001B}[H\u{001B}[J",
+    "cd": "\u{001B}[J",
+    "ce": "\u{001B}[K",
+
+    // insert/delete
+    "al": "\u{001B}[L",
+    "dl": "\u{001B}[M",
+    "dc": "\u{001B}[P",
+    "ic": "\u{001B}[@",
+
+    // cursor movement
+    "up": "\u{001B}[A",
+    "do": "\u{001B}[B",
+    "nd": "\u{001B}[C",
+    "bc": "\u{0008}",
+
+    // attributes
+    "md": "\u{001B}[1m",   // bold
+    "us": "\u{001B}[4m",   // underline
+    "mr": "\u{001B}[7m",   // reverse
+    "me": "\u{001B}[0m",
+
+    // visibility
+    "vi": "\u{001B}[?25l",
+    "ve": "\u{001B}[?25h",
+
+    // colors
+    "AF": "\u{001B}[38;5;%dm",
+    "AB": "\u{001B}[48;5;%dm",
+
+    // alternate screen
+    "ti": "\u{001B}[?1049h",
+    "te": "\u{001B}[?1049l"
+]
+
+public func tgetstr(_ id: String) -> String? {
+    capabilities[id]
+}
+
+public func tgetent(_ bp: UnsafeMutablePointer<CChar>?, _ name: String?) -> Int {
+    switch name {
+    case nil,
+         "ansi",
+         "vt100",
+         "xterm",
+         "xterm-256color",
+         "screen",
+         "screen-256color":
+        return 1
+
+    default:
+        return 0
+    }
+}

@@ -1,4 +1,4 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.4
 
 /*
   The MIT License (MIT)
@@ -27,13 +27,17 @@ let TestWIP = [String]()     // test folders to skip over
 
 let package = Package(
   name: "file_cmds",
-  platforms: [.macOS(.v15), .iOS(.v18)],
+  // using v26 because linking with external lzma from brew
+  platforms: [.macOS(.v26), .macCatalyst(.v18), .iOS(.v18)],
   dependencies: [
       .package(url: "https://github.com/r0ml/CMigration.git", branch: "main"),
      .package(url: "https://github.com/r0ml/ShellTesting.git" , branch: "main"),
 //     .package(url: "https://github.com/swiftlang/swift-subprocess.git", branch: "main"),
      .package(url: "https://github.com/apple/swift-atomics.git", from: "1.2.0"),
+
+      // FIXME: for iOS cannot resolve libxo
      .package(url: "https://github.com/r0ml/libxo", branch: "main"),
+      .package(url: "https://github.com/r0ml/lzma", branch: "main"),
   ],
 
   targets:
@@ -69,8 +73,10 @@ func generateLibs() -> [Target] {
      )
     res.append(t)
   }
-  let k = Target.systemLibrary(name: "CLZMA", path: "Vendors/LZMA", pkgConfig: "liblzma", providers: [.brew(["xz"])] )
-  res.append(k)
+
+// Moved the vendored lzma from brew to an SPM package
+//  let k = Target.systemLibrary(name: "CLZMA", path: "Vendors/LZMA", pkgConfig: "liblzma", providers: [.brew(["xz"])] )
+//  res.append(k)
   return res
 }
 
@@ -99,7 +105,8 @@ func generateTargets() -> [Target] {
       deps += [.target(name: "CCurses")]
     }
     if i == "gzip" {
-      deps += [.target(name: "CBZip2"), .target(name: "CLZMA")]
+//      deps += [.target(name: "CBZip2"), .target(name: "CLZMA")]
+      deps += [.target(name: "CBZip2"), .product(name: "LZMA", package: "lzma") ]
 
     }
     if i == "install" {

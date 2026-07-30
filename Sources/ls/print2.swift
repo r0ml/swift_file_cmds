@@ -37,7 +37,7 @@
 
 import CMigration
 import Darwin
-import Curses
+// import Curses
 
 extension ls {
   func printcol(_ dp : DISPLAY) {
@@ -282,13 +282,13 @@ extension ls {
     }
     
     if r.colors[c.rawValue].num[0] != -1 {
-      if let ansiseq = tgoto(r.ansi_fgcol, 0, Int32(r.colors[c.rawValue].num[0])) {
+      if let k = r.ansi_fgcol, let ansiseq = tgoto(k, 0, Int(r.colors[c.rawValue].num[0])) {
         tputs(ansiseq, 1, putch);
       }
     }
     // FIXME: this business with Self.colors and c.rawValue are ugly
     if r.colors[c.rawValue].num[1] != -1 {
-      if let ansiseq = tgoto(r.ansi_bgcol, 0, Int32(r.colors[c.rawValue].num[1])) {
+      if let k = r.ansi_bgcol, let ansiseq = tgoto(k, 0, Int(r.colors[c.rawValue].num[1])) {
         tputs(ansiseq, 1, putch);
       }
     }
@@ -472,4 +472,106 @@ func monthDayOrder() -> String {
         return "md" // safe fallback
     }
     return String(cString: s)
+}
+
+
+public func tputs(
+    _ string: String,
+    _ affcnt: Int = 1,
+    _ putc: (Int32) -> Int32
+) -> Int {
+
+    _ = affcnt
+
+    var i = string.utf8.makeIterator()
+
+    while let c = i.next() {
+
+        // Skip padding sequences like "$<5>"
+        if c == UInt8(ascii: "$") {
+            var copy = i
+            if let next = copy.next(), next == UInt8(ascii: "<") {
+
+                i = copy
+
+                while let ch = i.next() {
+                    if ch == UInt8(ascii: ">") {
+                        break
+                    }
+                }
+
+                continue
+            }
+        }
+
+        putc(Int32(c))
+    }
+
+    return 0
+}
+
+public func tgoto(_ capability: String, _ col: Int, _ row: Int) -> String? {
+    var row = row
+    var col = col
+
+    var result = ""
+    var current = row
+
+    var i = capability.startIndex
+
+    while i != capability.endIndex {
+
+        if capability[i] != "%" {
+            result.append(capability[i])
+            i = capability.index(after: i)
+            continue
+        }
+
+        i = capability.index(after: i)
+        guard i != capability.endIndex else { break }
+
+        switch capability[i] {
+
+        case "i":
+            row += 1
+            col += 1
+            current = row
+
+        case "d":
+            result += decimal(current)
+            current = col
+
+        case "2":
+            result += decimal(current, width: 2)
+            current = col
+
+        case "3":
+            result += decimal(current, width: 3)
+            current = col
+
+        case ".":
+            if let scalar = UnicodeScalar(current) {
+                result.unicodeScalars.append(scalar)
+            }
+            current = col
+
+        case "%":
+            result.append("%")
+
+        default:
+            break
+        }
+
+        i = capability.index(after: i)
+    }
+
+    return result
+}
+
+private func decimal(_ value: Int, width: Int = 0) -> String {
+    let s = String(value)
+    if s.count >= width {
+        return s
+    }
+    return String(repeating: "0", count: width - s.count) + s
 }

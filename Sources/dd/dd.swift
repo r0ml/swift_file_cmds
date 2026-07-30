@@ -41,6 +41,10 @@ import Atomics
 
 import Darwin
 
+let D_TAPE = 1 // for iOS
+let D_DISK = 2 // for iOS
+let D_TTY = 3 // for iOS
+
 let need_summary = ManagedAtomic<Bool>(false)
 let need_progress = ManagedAtomic<Bool>(false)
 
@@ -414,13 +418,18 @@ let kill_signal = ManagedAtomic<Int32>(0)
         err(1, io.name ?? "(stdout)")
       } else {
         /* MacOSX uses enumeration for type not a bitmask */
+
+        // FIXME: for iOS cannot find D_TAPE in scope
         if (type == D_TAPE) {
           io.flags.insert(.ISTAPE)
         }
+        // FIXME: for iOS cannot find D_DISK in scope
+        // FIXME: for iOS cannot find D_TTY in scope
         else if (type == D_DISK || type == D_TTY) {
           io.flags.insert(.ISSEEK)
         }
 
+        // FIXME: for iOS cannot find D_TAPE in scope
         if sb.filetype == .characterDevice && (type != D_TAPE) {
           io.flags.insert(.ISCHR)
         }

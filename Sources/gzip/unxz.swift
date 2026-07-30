@@ -36,7 +36,7 @@
 
 import CMigration
 import Darwin
-import LZMA
+import CLibLZMA
 import zlib
 
 let IO_BUFFER_SIZE = 8192

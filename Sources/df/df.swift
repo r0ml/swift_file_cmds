@@ -39,6 +39,8 @@
 
 import CMigration
 import Darwin
+
+// FIXME: for iOS -- unable to resolve libxo
 import libxo
 
 let unix2003 = true
