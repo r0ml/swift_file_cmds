@@ -606,9 +606,9 @@ let unix2003 = true
       prthuman(sfsp, used);
     } else {
       let cc = options.thousands ? "%*j'd" : "%*jd"
-      let buf1 = cFormat(cc, mwp.total, fsbtoblk(sfsp.blocks, sfsp.bsize, blocksize, sfsp.mntonname))
-      let buf2 = cFormat(cc, mwp.used, fsbtoblk(UInt(used), sfsp.bsize, blocksize, sfsp.mntonname))
-      let buf3 = cFormat(cc, mwp.avail, fsbtoblk(sfsp.bavail, sfsp.bsize, blocksize, sfsp.mntonname))
+      let buf1 = cc.cFormat(mwp.total, fsbtoblk(sfsp.blocks, sfsp.bsize, blocksize, sfsp.mntonname))
+      let buf2 = cc.cFormat(mwp.used, fsbtoblk(UInt(used), sfsp.bsize, blocksize, sfsp.mntonname))
+      let buf3 = cc.cFormat(mwp.avail, fsbtoblk(sfsp.bavail, sfsp.bsize, blocksize, sfsp.mntonname))
       let format = " {t:total-blocks/\(buf1)} {t:used-blocks/\(buf2)} {t:available-blocks/\(buf3)}"
       xo_emit(format)
     }
@@ -641,8 +641,8 @@ let unix2003 = true
         xo_emit(" {:inodes-free/\(buf2.leftPad(toLength: 5))}")
       } else {
         let cc = options.thousands ? "%*j'd" : "%*jd"
-        let buf1 = cFormat(cc, mwp.iused, used)
-        let buf2 = cFormat(cc, mwp.ifree, sfsp.ffree)
+        let buf1 = cc.cFormat(mwp.iused, used)
+        let buf2 = cc.cFormat(mwp.ifree, sfsp.ffree)
         let format = " {:inodes-used/\(buf1)} {:inodes-free/\(buf2)}"
         xo_emit(format)
       }

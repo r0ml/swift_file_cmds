@@ -341,7 +341,7 @@ extension cp {
         wtotal += wcount
         if info.load(ordering: .relaxed) {
           info.store(false, ordering: .relaxed)
-          let k = cFormat("%3d", cp_pct(wtotal, Int(fs.size)))
+          let k = "%3d".cFormat(cp_pct(wtotal, Int(fs.size)))
           print("\(entp.path) -> \(topp) \(k)%", to: &stderr)
         }
       } while (wcount > 0);
@@ -588,7 +588,7 @@ func copyfile_callback(_ what : Int32, _ stage : Int32, _ state : copyfile_state
     info.store(false, ordering: .relaxed)
     copyfile_state_get(state, UInt32(COPYFILE_STATE_COPIED), &wtotal);
     var stderr = FileDescriptor.standardError
-    print("\(cpctx.src) -> \(cpctx.dst) \(cFormat("%3d", cp_pct(wtotal, cpctx.size)))%")
+    print("\(cpctx.src) -> \(cpctx.dst) \("%3d".cFormat(cp_pct(wtotal, cpctx.size)))%")
   }
   return (COPYFILE_CONTINUE);
 }

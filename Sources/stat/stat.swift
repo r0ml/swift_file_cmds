@@ -953,7 +953,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
         }
         lfmt.append("lld")
         let s = String(cString: fmtcheck(strdup(lfmt), strdup("%lld")))
-        return cFormat(s, tsp!.secs)
+        return s.cFormat(tsp!.secs)
       }
 
       /*
@@ -1007,7 +1007,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
        * might be required to make up the requested precision.
        */
       let s = String(cString: fmtcheck(strdup(lfmt), strdup("%lld %ld")))
-      var r = cFormat(s, Int64(tsp!.secs), Int32(tsp!.nanosecs))
+      var r = s.cFormat(Int64(tsp!.secs), Int32(tsp!.nanosecs))
       if prec > 9 { r.append(contentsOf: String(repeating: "0", count: prec-9))
         prec = 9
       }
@@ -1033,7 +1033,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
       }
       lfmt.append("s")
       let s = String(cString: fmtcheck(strdup(lfmt), strdup("%s")))
-      return cFormat(s, sdata!)
+      return s.cFormat(sdata!)
     }
 
     /*
@@ -1059,7 +1059,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
     }
 
     let s = String(cString: fmtcheck(strdup(lfmt), strdup("%llu")))
-    return cFormat(s, data)
+    return s.cFormat(data)
   }
 
 

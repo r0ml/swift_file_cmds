@@ -371,7 +371,7 @@ extension gzip {
       }
     }
 
-    var buff = cFormat("%2.2d.", percent10)
+    var buff = "%2.2d.".cFormat(percent10)
     /* Move the '.' to before the last digit */
     buff = String(buff.dropLast(2) + "." + buff.dropLast().suffix(1))
     var wherexx = wherex
@@ -459,7 +459,7 @@ extension gzip {
       let date = String(cString: Darwin.ctime(&b))
       let dd = date.dropFirst(4).prefix(11)
       /* skip the day, 1/100th second, and year */
-      let a = cFormat("%08x", crc)
+      let a = "%08x".cFormat(crc)
       print("defla \(a) \(dd) ", terminator: "")
     }
     in_tot += inx
@@ -468,8 +468,8 @@ extension gzip {
   }
 
   func print_list_out(_ out : UInt, _ inx : UInt, _ outfile : FilePath) {
-    let a = cFormat("%12llu", out)
-    let b = cFormat("%12llu", inx)
+    let a = "%12llu".cFormat(out)
+    let b = "%12llu".cFormat(inx)
     print("\(a) \(b) ", terminator: "")
     print_ratio(inx, out, FileDescriptor.standardOutput)
     print(" \(outfile)")

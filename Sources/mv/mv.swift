@@ -404,12 +404,12 @@ let EXEC_FAILED : Int32 = 127
     if 0 != fchown(to_fd.rawValue, uid_t(sbp.userId), gid_t(sbp.groupId) ) {
       warn("\(to): set owner/group (was: \(sbp.userId)/\(sbp.groupId))")
       if oldmode.contains(.setUserID) || oldmode.contains(.setGroupID) {
-        warnx("\(to): owner/group changed; clearing suid/sgid (mode was \(cFormat("0%03o", oldmode.rawValue))")
+        warnx("\(to): owner/group changed; clearing suid/sgid (mode was \("0%03o".cFormat(oldmode.rawValue))")
         newmode.remove([.setUserID, .setGroupID])
       }
     }
     if 0 != fchmod(to_fd.rawValue, newmode.rawValue) {
-      warn("\(to): set mode (was: \(cFormat("0%03o",oldmode.rawValue))")
+      warn("\(to): set mode (was: \("0%03o".cFormat(oldmode.rawValue))")
     }
     /* #ifndef __APPLE__
      /*
@@ -431,7 +431,7 @@ let EXEC_FAILED : Int32 = 127
     // #ifdef __APPLE__
     if 0 != fchflags(to_fd.rawValue, sbp.flags.rawValue) {
       if errno != ENOTSUP || !sbp.flags.isEmpty {
-        warn("\(to): set flags (was: \(cFormat("0%07o", sbp.flags.rawValue))")
+        warn("\(to): set flags (was: \("0%07o".cFormat(sbp.flags.rawValue))")
       }
     }
     /*

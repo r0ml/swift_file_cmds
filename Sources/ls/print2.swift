@@ -166,7 +166,7 @@ extension ls {
    * Print device special file major and minor numbers.
    */
   func printdev(_ width: size_t, _ dev : dev_t) {
-    let x = cFormat("%#*jx ", width, dev)
+    let x = "%#*jx".cFormat(width, dev)
     print(x, terminator: "")
   }
 
@@ -457,7 +457,7 @@ extension ls {
       
       buf = humanize_number(HUMANVALSTR_LEN, Int(bytes), "",nil, [.b, .nospace, .decimal] ) ?? ""
     } else if (options.f_thousands) {    /* with commas */
-      buf = cFormat("%'lld", bytes)
+      buf = "%'lld".cFormat(bytes)
     } else {
       buf = String(bytes)
     }

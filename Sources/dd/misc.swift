@@ -85,7 +85,7 @@ extension dd {
       print("\(st.trunc) truncated record\(st.trunc == 1 ? "" : "s")", to: &stderr)
     }
     if !ddflags.contains(.C_NOXFER) {
-      print("\(st.bytes) bytes transferred in \(cFormat("%.6f", secs)) secs (\(cFormat("%.0f", Double(st.bytes) / secs)) bytes/sec)", to: &stderr)
+      print("\(st.bytes) bytes transferred in \("%.6f".cFormat(secs)) secs (\("%.0f".cFormat( Double(st.bytes) / secs)) bytes/sec)", to: &stderr)
     }
     need_summary.store(false, ordering: .relaxed)
   }
@@ -96,7 +96,7 @@ extension dd {
     let iec = humanize_number(9, Int(st.bytes), "B", nil, [.decimal, .iec_prefixes])!
     let persec = humanize_number(8, Int( Double(st.bytes) / secs), "B", nil, [.decimal, .divisor_1000])!
 
-    let buf = "  \(cFormat("%'ju", st.bytes)) bytes (\(si), \(iec)) transferred \(cFormat("%.3f", secs))s, \(persec)/s"
+    let buf = "  \("%'ju".cFormat(st.bytes)) bytes (\(si), \(iec)) transferred \("%.3f".cFormat(secs))s, \(persec)/s"
 
     var stderr = FileDescriptor.standardError
     print(buf, terminator: "\r", to: &stderr)

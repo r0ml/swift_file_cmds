@@ -337,10 +337,10 @@ import Darwin
         if let sb = try? FileMetadata(for: out) {
           print(out, to: &stderr)
           if isb.size > sb.size {
-            print("\(cFormat("%.0f", Double(sb.size) / Double(isb.size) * 100.0))%% compression", to: &stderr)
+            print("\("%.0f".cFormat(Double(sb.size) / Double(isb.size) * 100.0))%% compression", to: &stderr)
           }
           else {
-            print("\(cFormat("%.0f", Double(isb.size) / Double(sb.size) * 100))%% expansion", to: &stderr)
+            print("\("%.0f".cFormat(Double(isb.size) / Double(sb.size) * 100))%% expansion", to: &stderr)
 
           }
         }

@@ -407,7 +407,7 @@ extension ls {
           }
 
           if sp.filetype == .characterDevice || sp.filetype == .blockDevice {
-            let sizelen = cFormat("%#jx", sp.rawDevice).count
+            let sizelen = "%#jx".cFormat(sp.rawDevice).count
             if d.s_size < sizelen {
               d.s_size = UInt(sizelen)
             }
@@ -438,13 +438,13 @@ extension ls {
     d.maxlen = maxlen;
     if (needstats) {
       d.btotal = btotal;
-      d.s_block = UInt(cFormat("%llu", howmany(Int(maxblock), Int(options.blocksize))).count)
+      d.s_block = UInt("%llu".cFormat(howmany(Int(maxblock), Int(options.blocksize))).count)
       d.s_flags = maxflags;
 
       d.s_group = maxgroup;
-      d.s_inode = UInt(cFormat("%llu", maxinode).count)
-      d.s_nlink = UInt(cFormat("%llu", maxnlink).count)
-      let sizelen = options.f_humanval ? HUMANVALSTR_LEN : cFormat("%lld", maxsize).count
+      d.s_inode = UInt("%llu".cFormat(maxinode).count)
+      d.s_nlink = UInt("%llu".cFormat(maxnlink).count)
+      let sizelen = options.f_humanval ? HUMANVALSTR_LEN : "%lld".cFormat( maxsize).count
       if d.s_size < sizelen {
         d.s_size = UInt(sizelen)
       }
