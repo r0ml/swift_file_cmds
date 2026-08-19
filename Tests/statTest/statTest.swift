@@ -62,7 +62,7 @@ struct statTest : ShellTest {
     defer { rm(a,b) }
     let po = try await DarwinProcess().run("/usr/bin/stat", args: a,b)
     #expect (po.code == 0)
-    let oo = po.string.replacing("\n", with: "")
+    let oo = try po.string(encoded: .utf8).replacing("\n", with: "")
     try await run(output: oo, args: "-n", a, b)
   }
 
@@ -79,8 +79,10 @@ struct statTest : ShellTest {
     for x in [a,b,c,d] {
       let po1 = try await DarwinProcess().run("/bin/ls", args: "-ldT", x)
       try await run(args: "-l", x) { po2 in
-        #expect (po1.string.replacing( /[:space:]+/, with: " ") ==
-                 po2.string.replacing( /[:space:]+/, with: " ") )
+        let s = try po1.string(encoded: .utf8)
+        let t = try po2.string(encoded: .utf8)
+        #expect (s.replacing( /[:space:]+/, with: " ") ==
+                 t.replacing( /[:space:]+/, with: " ") )
         #expect (po1.code == po2.code)
       }
     }
@@ -147,7 +149,7 @@ struct statTest : ShellTest {
       // Need to make them the same
       // FIXME: i.relativePath
       let po = try await DarwinProcess().run("/usr/bin/stat", args: "-x", i, cd: a.removingLastComponent() )
-      try await run(output: po.string, args: "-x", i)
+      try await run(output: po.string(encoded: .utf8), args: "-x", i)
     }
 
 
