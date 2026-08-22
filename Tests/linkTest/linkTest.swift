@@ -49,6 +49,8 @@ struct linkTest : ShellTest {
   @Test("Verify that link(1) creates a link") func link_basic() async throws {
     let foo = try tmpfile("A14", "")
     let bar = try tmpfile("B14")
+    let baz = try tmpfile("C14")
+    defer { rm(foo, bar, baz) }
 
     try await run(args: [foo, bar])
 
@@ -59,7 +61,6 @@ struct linkTest : ShellTest {
 
     try bar.createSymbolicLink(to: foo)
 
-    let baz = try tmpfile("C14")
     try await run(args: [bar, baz])
 
     let cc = try FileMetadata(for: foo, followSymlinks: false)

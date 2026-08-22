@@ -1,5 +1,5 @@
-// Copyright (c) 1868 Charles Babbage
-// Modernized by Robert "r0ml" Lefkowitz <code@liberally.net> in 2025
+// Modernized by Robert "r0ml" Lefkowitz <code@liberally.net> in 2025 using an LLM
+// from a file containing the following notice:
 
 /*
 # Copyright (c) 2017 Jilles Tjoelker <jilles@FreeBSD.org>

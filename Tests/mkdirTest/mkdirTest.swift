@@ -10,14 +10,14 @@ struct mkdirTest : ShellTest {
   @Test("Verify that an invalid usage with a supported option produces a valid error message", arguments: [
     "-p", "-v"
   ]) func nofiles(_ f : String) async throws {
-    try await run(status: 1, error: /usage: mkdir/, args: f)
+    try await run(status: 64, error: /usage: mkdir/, args: f)
   }
 
   @Test("Verify that an invalid usage with a supported option produces a valid error message") func argm() async throws {
-    try await run(status: 1, error: /mkdir: option requires an argument/, args: "-m")
+    try await run(status: 64, error: /mkdir: option requires an argument/, args: "-m")
   }
 
   @Test("Verify that mkdir(1) fails and generates a valid usage message when no arguments are supplied") func noargs() async throws {
-    try await run(status: 1, error: /usage: mkdir/)
+    try await run(status: 64, error: /usage: mkdir/)
   }
 }

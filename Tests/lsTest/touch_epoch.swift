@@ -1,8 +1,8 @@
+// Modernized by Robert "r0ml" Lefkowitz <code@liberally.net> in 2025 using an LLM
+// from a file containing the following notice:
  /*
  *
  * Copyright (c) 2022 Apple Inc. All rights reserved.
- *
- * @APPLE_LICENSE_HEADER_START@
  *
  * This file contains Original Code and/or Modifications of
  * Original Code as defined in and that are subject to the Apple Public
@@ -18,10 +18,9 @@
  * FITNESS FOR A PARTICULAR PURPOSE OR NON-INFRINGEMENT.  Please see the
  * License for the specific language governing rights and limitations
  * under the License."
- *
- * @APPLE_LICENSE_HEADER_END@
  */
 
+/*
 #include <sys/time.h>
 
 #include <err.h>
@@ -52,3 +51,4 @@ main(int argc, char *argv[])
 
 	return (0);
 }
+*/

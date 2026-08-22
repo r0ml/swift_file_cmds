@@ -124,28 +124,24 @@ func generateTargets() -> [Target] {
  
 
 func generateTestTargets() -> [Target] {
-  let skipTestsForNow = ["lsTest", "cpTest"]
-
-    var res = [ Target]()
-
+  var res = [ Target]()
+  
   let testurl = packageRoot().appendingPathComponent("Tests", isDirectory: true)
   let cd = try! FileManager.default.contentsOfDirectory(atPath: testurl.path )
-    for i in cd {
-      if i == ".DS_Store" { continue }
-
-      if skipTestsForNow.contains(i) { continue }
-
-      if TestWIP.contains(i) { continue }
-      let r =  FileManager.default.fileExists(atPath: testurl.appendingPathComponent(i).appendingPathComponent("Resources").path  )
-        let rr = r ? [Resource.copy("Resources")] : []
-        let t = Target.testTarget(name: i,
-                                  dependencies: [.product(name: "ShellTesting", package: "ShellTesting"),
-//                                                 .product(name: "Subprocess", package: "swift-subprocess"),
-                                                 .target(name: i.replacingOccurrences(of: "Test", with: ""))],
-                                  path: nil,
-                                  resources: rr
-        )
-        res.append(t)
-    }
-    return res
+  for i in cd {
+    if i == ".DS_Store" { continue }
+    
+    if TestWIP.contains(i) { continue }
+    let r =  FileManager.default.fileExists(atPath: testurl.appendingPathComponent(i).appendingPathComponent("Resources").path  )
+    let rr = r ? [Resource.copy("Resources")] : []
+    let t = Target.testTarget(name: i,
+                              dependencies: [.product(name: "ShellTesting", package: "ShellTesting"),
+                                             //                                                 .product(name: "Subprocess", package: "swift-subprocess"),
+                                             .target(name: i.replacingOccurrences(of: "Test", with: ""))],
+                              path: nil,
+                              resources: rr
+    )
+    res.append(t)
+  }
+  return res
 }
