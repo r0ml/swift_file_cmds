@@ -28,166 +28,259 @@
 */
 
 import ShellTesting
+import Darwin
 
-@Suite("chmodTest") struct chmodTest : ShellTest {
+@Suite("chmodTest", .serialized) struct chmodTest : ShellTest {
   let cmd = "chmod"
   let suiteBundle = "file_cmds_chmodTest"
   
-  @Test(.disabled("Not yet implemented")) func notYetImplemented() {
-    Issue.record("Tests not yet implemented")
-  }
-}
-
-/*
- get_filesystem()
- {
+  /*
+   get_filesystem()
+   {
    local mountpoint=$1
-
+   
    df -T $mountpoint | tail -n 1 | cut -wf 2
- }
+   }
+   */
+  
+  @Test("Verify that setting modes recursively via -R doesn't affect symlinks specified via the arguments when -H is specified")
+  func RH_flag() async throws {
+    
+    //   atf_check mkdir -m 0777 -p A/B
+    //   atf_check ln -s B A/C
+    
+    // tmpdir() always creates directories as 0700; explicitly set the
+    // permissions "mkdir -m 0777 -p A/B" would produce: the leaf directory
+    // gets the exact requested mode, ancestors get the umask-adjusted default.
+    let ab = try tmpdir("A_RH/B")
+    let ac = try tmpfile("A_RH/C")
+    try ac.createSymbolicLink(to: "B")
+    let a = try tmpdir("A_RH")
+    chmod(a.string, 0o755)
+    chmod(ab.string, 0o777)
 
- atf_test_case RH_flag
- RH_flag_head()
- {
-   atf_set  "descr" "Verify that setting modes recursively via -R doesn't " \
-       "affect symlinks specified via the arguments when -H " \
-       "is specified"
- }
- RH_flag_body()
- {
-   atf_check mkdir -m 0777 -p A/B
-   atf_check ln -s B A/C
-   atf_check chmod -h 0777 A/C
-   atf_check -o inline:'40755\n40777\n120777\n' stat -f '%p' A A/B A/C
-   atf_check chmod -RH 0700 A
-   atf_check -o inline:'40700\n40700\n120700\n' stat -f '%p' A A/B A/C
-   atf_check chmod -RH 0600 A/C
-   atf_check -o inline:'40700\n40600\n120700\n' stat -f '%p' A A/B A/C
- }
+    defer { rm(ab, ac, a) }
 
- atf_test_case RL_flag
- RL_flag_head()
- {
-   atf_set  "descr" "Verify that setting modes recursively via -R doesn't " \
-       "affect symlinks specified via the arguments when -L " \
-       "is specified"
- }
- RL_flag_body()
- {
-   atf_check mkdir -m 0777 -p A/B
-   atf_check ln -s B A/C
-   atf_check chmod -h 0777 A/C
-   atf_check -o inline:'40755\n40777\n120777\n' stat -f '%p' A A/B A/C
-   atf_check chmod -RL 0700 A
-   atf_check -o inline:'40700\n40700\n120777\n' stat -f '%p' A A/B A/C
-   atf_check chmod -RL 0600 A/C
-   atf_check -o inline:'40700\n40600\n120777\n' stat -f '%p' A A/B A/C
- }
+    try await run(output: "",args: "-h", "0777", ac)
+    
+    //   atf_check chmod -h 0777 A/C
+    let x = try await DarwinProcess().run("/usr/bin/stat", args: "-f", "%p", a, ab, ac, output: nil)
+    let res = try x.string(encoded: .utf8)
+    #expect(res == "40755\n40777\n120777\n")  
+    
+    //   atf_check -o inline:'40755\n40777\n120777\n' stat -f '%p' A A/B A/C
+    try await run(output: "", args: "-RH", "0700", a)
+    //   atf_check chmod -RH 0700 A
+    let y = try await DarwinProcess().run("/usr/bin/stat", args: "-f", "%p", a, ab, ac, output: nil) 
+    let res2 = try y.string(encoded: .utf8)
+    #expect(res2 == "40700\n40700\n120700\n")
+    
+    
+    //   atf_check -o inline:'40700\n40700\n120700\n' stat -f '%p' A A/B A/C
+    try await run(output: "", args: "-RH", "0600", ac)
+    //   atf_check chmod -RH 0600 A/C
+    //   atf_check -o inline:'40700\n40600\n120700\n' stat -f '%p' A A/B A/C
+    let z = try await DarwinProcess().run("/usr/bin/stat", args: "-f", "%p", a, ab, ac, output: nil) 
+    let res3 = try z.string(encoded: .utf8)
+    #expect(res3 == "40700\n40600\n120700\n")
+    
+  }
+  
+  
+  @Test("Verify that setting modes recursively via -R doesn't affect symlinks specified via the arguments when -L is specified")
+  func RL_flag() async throws {
+    let ab = try tmpdir("A_RL/B")
+    let ac = try tmpfile("A_RL/C")
+    try ac.createSymbolicLink(to: "B")
+    let a = try tmpdir("A_RL")
+    chmod(a.string, 0o755)
+    chmod(ab.string, 0o777)
+    
+    defer { rm(ab, ac, a) }
+    
+    
+    //   atf_check mkdir -m 0777 -p A/B
+    //   atf_check ln -s B A/C
+    
+    try await run(output: "", args: "-h", "0777", ac)
+    
+    //   atf_check chmod -h 0777 A/C
+    let x = try await DarwinProcess().run("/usr/bin/stat", args: "-f", "%p", a, ab, ac, output: nil)
+    let res = try x.string(encoded: .utf8)
+    #expect(res == "40755\n40777\n120777\n")  
+    
+    //   atf_check -o inline:'40755\n40777\n120777\n' stat -f '%p' A A/B A/C
+    
+    try await run(output: "", args: "-RL", "0700", a)
+    let y = try await DarwinProcess().run("/usr/bin/stat", args: "-f", "%p", a, ab, ac, output: nil)
+    let res2 = try y.string(encoded: .utf8)
+    #expect(res2 == "40700\n40700\n120777\n")  
+    
+    //   atf_check chmod -RL 0700 A
+    //   atf_check -o inline:'40700\n40700\n120777\n' stat -f '%p' A A/B A/C
+    
+    try await run(output: "", args: "-RL", "0600", ac)
+    //   atf_check chmod -RL 0600 A/C
+    let z = try await DarwinProcess().run("/usr/bin/stat", args: "-f", "%p", a, ab, ac, output: nil)
+    let res3 = try z.string(encoded: .utf8)
+    #expect(res3 == "40700\n40600\n120777\n")  
+    //   atf_check -o inline:'40700\n40600\n120777\n' stat -f '%p' A A/B A/C
+  }
+  
+  @Test("Verify that setting modes recursively via -R doesn't affect symlinks specified via the arguments when -P is specified")
+  func RP_flag() async throws {
+    let ab = try tmpdir("A_RP/B")
+    let ac = try tmpfile("A_RP/C")
+    try ac.createSymbolicLink(to: "B")
+    let a = try tmpdir("A_RP")
+    chmod(a.string, 0o755)
+    chmod(ab.string, 0o777)
+    defer { rm(a) }
 
- atf_test_case RP_flag
- RP_flag_head()
- {
-   atf_set  "descr" "Verify that setting modes recursively via -R doesn't " \
-       "affect symlinks specified via the arguments when -P " \
-       "is specified"
- }
- RP_flag_body()
- {
-   atf_check mkdir -m 0777 -p A/B
-   atf_check ln -s B A/C
-   atf_check chmod -h 0777 A/C
-   atf_check -o inline:'40755\n40777\n120777\n' stat -f '%p' A A/B A/C
-   atf_check chmod -RP 0700 A
-   atf_check -o inline:'40700\n40700\n120700\n' stat -f '%p' A A/B A/C
-   atf_check chmod -RP 0600 A/C
-   atf_check -o inline:'40700\n40700\n120600\n' stat -f '%p' A A/B A/C
- }
+    try await run(output:"", args: "-h", "0777", ac)
+//   atf_check chmod -h 0777 A/C
+    let x = try await DarwinProcess().run("/usr/bin/stat", args: "-f", "%p", a, ab, ac, output: nil)
+    let res = try x.string(encoded: .utf8)
+    #expect(res == "40755\n40777\n120777\n")  
 
- atf_test_case f_flag cleanup
- f_flag_head()
- {
-   atf_set  "descr" "Verify that setting a mode for a file with -f " \
-       "doesn't emit an error message/exit with a non-zero " \
-       "code"
- }
+//   atf_check -o inline:'40755\n40777\n120777\n' stat -f '%p' A A/B A/C
+//   atf_check chmod -RP 0700 A
+    try await run(output:"", args: "-RP", "0700", a)
+//   atf_check chmod -h 0777 A/C
+    let y = try await DarwinProcess().run("/usr/bin/stat", args: "-f", "%p", a, ab, ac, output: nil)
+    let res2 = try y.string(encoded: .utf8)
+    #expect(res2 == "40700\n40700\n120700\n")
+//   atf_check -o inline:'40700\n40700\n120700\n' stat -f '%p' A A/B A/C
+    
+    try await run(output:"", args: "-RP", "0600", ac)
+    let z = try await DarwinProcess().run("/usr/bin/stat", args: "-f", "%p", a, ab, ac, output: nil)
+    let res3 = try z.string(encoded: .utf8)
+    #expect(res3 == "40700\n40700\n120600\n")  
+    //   atf_check chmod -RP 0600 A/C
+//   atf_check -o inline:'40700\n40700\n120600\n' stat -f '%p' A A/B A/C
+   }
 
- f_flag_body()
- {
-   atf_check truncate -s 0 foo bar
-   atf_check chmod 0750 foo bar
-   case "$(get_filesystem .)" in
-   zfs)
-     atf_expect_fail "ZFS doesn't support UF_IMMUTABLE; returns EPERM - bug 221189"
-     ;;
-   esac
-   atf_check chflags uchg foo
-   atf_check -e not-empty -s not-exit:0 chmod 0700 foo bar
-   atf_check -o inline:'100750\n100700\n' stat -f '%p' foo bar
-   atf_check -s exit:0 chmod -f 0600 foo bar
-   atf_check -o inline:'100750\n100600\n' stat -f '%p' foo bar
- }
+  @Test("Verify that setting a mode for a file with -f doesn't emit an error message/exit with a non-zero code")
+  func f_flag() async throws {
+    let foo = try tmpfile("foo", "")
+    let bar = try tmpfile("bar", "")
+//   atf_check truncate -s 0 foo bar
+    
+    try await run(output: "", args: "0750", foo, bar)
+//   atf_check chmod 0750 foo bar
+    // FIXME: do I need to do this?
+//   case "$(get_filesystem .)" in
+//   zfs)
+//   atf_expect_fail "ZFS doesn't support UF_IMMUTABLE; returns EPERM - bug 221189"
+//   ;;
+//   esac
+    
+   let (st, _) = strtofflags("uchg")!
+    let kkk = Darwin.chflags(foo.string, st.rawValue)
+    print(kkk)
+    defer { Darwin.chflags(foo.string, 0) }
+//   atf_check chflags uchg foo
+//   atf_check -e not-empty -s not-exit:0
 
- f_flag_cleanup()
- {
-   chflags 0 foo || :
- }
+    try await run(status: 1, args: "0700", foo, bar)
+    
+    let z = try await DarwinProcess().run("/usr/bin/stat", args: "-f", "%p", foo, bar, output: nil)
+    let res3 = try z.string(encoded: .utf8)
+    #expect(res3 == "100750\n100700\n")
+//   atf_check -o inline:'100750\n100700\n' stat -f '%p' foo bar
+    
+    try await run(status: 0, args: "-f", "0600", foo, bar)
+//   atf_check -s exit:0 chmod -f 0600 foo bar
+    let y = try await DarwinProcess().run("/usr/bin/stat", args: "-f", "%p", foo, bar, output: nil)
+    let res2 = try y.string(encoded: .utf8)
+    #expect(res2 == "100750\n100600\n")
+//   atf_check -o inline:'100750\n100600\n' stat -f '%p' foo bar
+   }
+   
 
- atf_test_case h_flag
- h_flag_head()
- {
-   atf_set  "descr" "Verify that setting a mode for a file with -f " \
-       "doesn't emit an error message/exit with a non-zero " \
-       "code"
- }
+  @Test("testing -h flag") func h_flag() async throws {
+    let foo = try tmpfile("foo", "")
+    Darwin.chmod( foo.string, 0o0600)
+    defer { rm(foo) }
+    
+    let z = try await DarwinProcess().run("/usr/bin/stat", args: "-f", "%p", foo, output: nil)
+    let res3 = try z.string(encoded: .utf8)
+    #expect(res3 == "100600\n")
 
- h_flag_body()
- {
-   atf_check truncate -s 0 foo
-   atf_check chmod 0600 foo
-   atf_check -o inline:'100600\n' stat -f '%p' foo
-   umask 0077
-   atf_check ln -s foo bar
-   atf_check -o inline:'100600\n120700\n' stat -f '%p' foo bar
-   atf_check chmod -h 0500 bar
-   atf_check -o inline:'100600\n120500\n' stat -f '%p' foo bar
-   atf_check chmod 0660 bar
-   atf_check -o inline:'100660\n120500\n' stat -f '%p' foo bar
- }
+//    atf_check -o inline:'100600\n' stat -f '%p' foo
+ 
 
- atf_test_case v_flag
- v_flag_head()
- {
-   atf_set  "descr" "Verify that setting a mode with -v emits the file when " \
-       "doesn't emit an error message/exit with a non-zero " \
-       "code"
- }
- v_flag_body()
- {
-   atf_check truncate -s 0 foo bar
-   atf_check chmod 0600 foo
-   atf_check chmod 0750 bar
-   case "$(get_filesystem .)" in
-   zfs)
-     atf_expect_fail "ZFS updates mode for foo unnecessarily - bug 221188"
-     ;;
-   esac
-   atf_check -o 'inline:bar\n' chmod -v 0600 foo bar
-   atf_check chmod -v 0600 foo bar
-   for f in foo bar; do
-     echo "$f: 0100600 [-rw------- ] -> 0100700 [-rwx------ ]";
-   done > output.txt
-   atf_check -o file:output.txt chmod -vv 0700 foo bar
-   atf_check chmod -vv 0700 foo bar
- }
+    let k = Darwin.umask(0o0077)
+    let bar = try tmpfile("bar")
+    rm(bar)
+    try bar.createSymbolicLink(to: "foo")
+    defer { rm(bar) }
+    
+//   atf_check ln -s foo bar
+    #expect( try FileMetadata(for: foo).permissions.rawValue == 0o100600)
+    let p = try FileMetadata(for: bar, followSymlinks: false).permissions.rawValue
+    #expect( p == 0o120700)
 
- atf_init_test_cases()
- {
-   atf_add_test_case RH_flag
-   atf_add_test_case RL_flag
-   atf_add_test_case RP_flag
-   atf_add_test_case f_flag
-   atf_add_test_case h_flag
-   atf_add_test_case v_flag
- }
+//    let y = try await DarwinProcess().run("/usr/bin/stat", args: "-f", "%p", foo, bar, output: nil)
+//    let res2 = try y.string(encoded: .utf8)
+//    #expect(res2 == "100600\n120700\n")
+ 
+//   atf_check -o inline:'100600\n120700\n' stat -f '%p' foo bar
 
- */
+    try await run(output: "", args: "-h", "0500", bar)
+//    atf_check chmod -h 0500 bar
+    let x = try await DarwinProcess().run("/usr/bin/stat", args: "-f", "%p", foo, bar, output: nil)
+    let res = try x.string(encoded: .utf8)
+    #expect(res == "100600\n120500\n")
+//   atf_check -o inline:'100600\n120500\n' stat -f '%p' foo bar
+    
+    try await run(output: "", args: "0660", bar)
+//   atf_check chmod 0660 bar
+    let q = try await DarwinProcess().run("/usr/bin/stat", args: "-f", "%p", foo, bar, output: nil)
+    let res4 = try q.string(encoded: .utf8)
+    #expect(res4 == "100660\n120500\n")
+  
+//   atf_check -o inline:'100660\n120500\n' stat -f '%p' foo bar
+  }
+  
+  @Test("Verify that setting a mode with -v emits the file when doesn't emit an error message/exit with a non-zero code")
+  func v_flag() async throws {
+    
+    let foo = try tmpfile("foo", "")
+    let bar = try tmpfile("bar", "")
+    let d = try tmpdir()
+    
+    defer { rm(foo, bar) }
+    
+    Darwin.chmod(foo.string, 0o0600)
+    Darwin.chmod(bar.string, 0o0750)
+//   atf_check truncate -s 0 foo bar
+//   atf_check chmod 0600 foo
+//   atf_check chmod 0750 bar
+    // Do I need this?
+//   case "$(get_filesystem .)" in
+//   zfs)
+//   atf_expect_fail "ZFS updates mode for foo unnecessarily - bug 221188"
+//   ;;
+//   esac
+    try await run(output: "bar\n", args: "-v", "0600", foo.relativeTo(d), bar.relativeTo(d), cd: d)    
+//   atf_check -o 'inline:bar\n' chmod -v 0600 foo bar
+    try await run(output: "", args: "-v", "0600", foo.relativeTo(d), bar.relativeTo(d), cd: d)
+//   atf_check chmod -v 0600 foo bar
+    
+    let outp = """
+foo: 0100600 [-rw------- ] -> 0100700 [-rwx------ ]
+bar: 0100600 [-rw------- ] -> 0100700 [-rwx------ ]
+
+"""
+    
+//   for f in foo bar; do
+//   echo "$f: 0100600 [-rw------- ] -> 0100700 [-rwx------ ]";
+//   done > output.txt
+    try await run(output: outp, args: "-vv", "0700", foo.relativeTo(d), bar.relativeTo(d), cd: d)
+//   atf_check -o file:output.txt chmod -vv 0700 foo bar
+    try await run(output: "", args: "-vv", "0700", foo.relativeTo(d), bar.relativeTo(d), cd: d)
+//   atf_check chmod -vv 0700 foo bar
+   }
+   
+}

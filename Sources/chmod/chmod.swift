@@ -60,7 +60,7 @@ func siginfo_handler(_ sig : Int32) {
     var acl_input : acl_t? = nil
     var aclpos : Int = -1
     var mode : String? = nil
-    var sett : mode_t? = nil
+    var sett : UnsafeMutableRawPointer? = nil
     var args : [String] = []
   }
 
@@ -355,7 +355,7 @@ func siginfo_handler(_ sig : Int32) {
       guard let sett = setmode(mode) else {
         errx(1, "Invalid file mode: \(mode!)")
       }
-      options.sett = sett.assumingMemoryBound(to: UInt16.self).pointee
+      options.sett = sett
 
     }
     return options
@@ -418,9 +418,7 @@ func siginfo_handler(_ sig : Int32) {
       }
       else {
 
-        let newmode = withUnsafePointer(to: options.sett) {
-          getmode($0, p.statp.permissions.rawValue)
-        }
+        let newmode = getmode(options.sett, p.statp.permissions.rawValue)
         /*
          * With NFSv4 ACLs, it is possible that applying a mode
          * identical to the one computed from an ACL will change
@@ -441,7 +439,7 @@ func siginfo_handler(_ sig : Int32) {
 
             let a = String(p.statp.permissions.rawValue, radix: 8)
             // FIXME: filetype does not save the rawValue
-            let b = p.statp.filetype // String(p.statp.filetype.rawValue, radix: 8)
+            let b = String(newmode, radix: 8)
             print(": 0\(a) [\(m1)] -> 0\(b) [\(m2)]", terminator: "")
           }
           print("")
