@@ -42,6 +42,6 @@ struct chflagsTest : ShellTest {
   @Test("change a flag") func changeFlag() async throws {
     let k = try tmpfile("test", "Test file")
     defer { rm(k) }
-    try await run(output: "test: 00 -> 01\n", args: "-v", "-v", "nodump", k)
+    try await run(output: "\(k): 00 -> 01\n", args: "-v", "-v", "nodump", k)
   }
 }

@@ -39,15 +39,20 @@ struct rmTest : ShellTest {
   @Test("unlink correctly handles -filename") func unlink_dash_filename() async throws {
     let foo = try tmpfile("foo", "")
     let bar = try tmpfile("bar", "")
-    let dash_foo = try tmpfile("-foo", "")
-    let dash_bar = try tmpfile("-bar", "")
-    defer { rm(foo, bar, dash_foo, dash_bar)}
-
+    defer { rm(foo, bar)}
+    
     try await run(args: foo)
     try await run(args: "--", bar)
-    // FIXME: this succeeds when called as 'unlink'; fails when calles as 'rm'
-    try await run(args: "-foo")
-    try await run(args: "--", "-bar")
+  }
+
+  @Test("unlink correctly handles -filename (2)") func unlink_dash_filename2() async throws {
+    let dash_foo = try tmpfile("-foo", "")
+    let dash_bar = try tmpfile("-bar", "")
+    defer { rm(dash_foo, dash_bar)}
+// Unlike "unlink", "rm" always parses a leading "-" as an option, so a
+    // filename starting with "-" is only removable when preceded by "--".
+    try await run(status: 64, args: "-foo", cd: try tmpdir())
+    try await run(args: "--", "-bar", cd: try tmpdir())
   }
 }
 

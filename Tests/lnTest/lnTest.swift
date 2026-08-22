@@ -89,16 +89,17 @@ struct lnTest : ShellTest {
   @Test("Verify whether creating a hard link fails if the target file already exists") func target_exists_hard() async throws {
     let a = try tmpfile("A4", "")
     let b = try tmpfile("B4", "")
+    let c = try tmpdir()
 
-    try await run(status: 1, error: /ln: B4: File exists/, args: [a, b])
+    try await run(status: 1, error: /ln: B4: File exists/, args: a.relativeTo(c), b.relativeTo(c), cd: c)
     rm(a, b)
   }
 
   @Test("Verify whether creating a symbolic link fails if the target file already exists") func target_exists_symbolic() async throws {
     let a = try tmpfile("A5", "")
     let b = try tmpfile("B5", "")
-
-    try await run(status: 1, error: /ln: B5: File exists/, args: ["-s", a, b])
+    let c = try tmpdir()
+    try await run(status: 1, error: /ln: B5: File exists/, args: "-s", a.relativeTo(c), b.relativeTo(c), cd: c)
     rm(a, b)
   }
 
@@ -213,7 +214,7 @@ struct lnTest : ShellTest {
     let a = try tmpfile("A13")
     let b = try tmpfile("B13")
     rm(a, b)
-    try await run(error: /ln: warning: A13: No such file or directory/, args: ["-sw", a, b])
+    try await run(error: /ln: warning: .* inaccessible: No such file or directory/, args: ["-sw", a, b])
 
     let aa = try? FileMetadata(for: a, followSymlinks: false)
     let bb = try? FileMetadata(for: b, followSymlinks: true)

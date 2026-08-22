@@ -511,7 +511,7 @@ class ZStream {
 
       if code == CLEAR && block_compress {
         for c in 0..<256 {
-          codetab[code] = 0
+          codetab[c] = 0
         }
         clear_flg = true
         free_ent = FIRST;
@@ -570,16 +570,17 @@ class ZStream {
     /* As above, initialize the first 256 entries in the table. */
     n_bits = INIT_BITS
     maxcode = MAXCODE(n_bits)
-    for code in UInt8(0)..<UInt8(255) {
+    for code in UInt8(0)...UInt8(255) {
       codetab[Int(code)] = 0
       htab[Int(code)] = Int(code)
     }
     free_ent = block_compress ? FIRST : 256;
 
-    guard let oldcode = getcode() else {
+    guard let firstcode = getcode() else {
       return nil  // EOF already
     }
-    finchar = oldcode
+    oldcode = firstcode
+    finchar = firstcode
 
 
     /* First code must be 8 bits = char. */
@@ -637,12 +638,16 @@ class ZStream {
       }
       let bp = try? fp.readUpToCount(Int(n_bits))
       guard let bp,
-            buf.count > 0 else {	/* End of file. */
+            bp.count > 0 else {	/* End of file. */
         return nil
       }
-      gbuf = bp
+      /* Buffer is fixed at BITS bytes so that the bit-unpacking below may
+       * safely read a byte or two past the n_bits actually read, mirroring
+       * the fixed-size `char_type buf[BITS]` used by the original C code. */
+      gbuf = bp + Array(repeating: 0, count: Int(BITS) - bp.count)
       roffset = 0;
       /* Round size down to integral number of codes. */
+      size = bp.count
       size = (size << 3) - (Int(n_bits) - 1)
     }
     var r_off = roffset

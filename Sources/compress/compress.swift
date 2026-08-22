@@ -299,7 +299,8 @@ import Darwin
       return
     }
 
-    guard let ofp = try? FileDescriptor.open(out, .writeOnly) else {
+    guard let ofp = try? FileDescriptor.open(out, .writeOnly, options: [.create, .truncate],
+                                             permissions: FilePermissions(rawValue: 0o666)) else {
       warn(out.string)
       return
     }
