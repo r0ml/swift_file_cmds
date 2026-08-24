@@ -215,9 +215,9 @@ let unix2003 = true
      This makes the Lexmark printer installer happy (PR-3918471) */
     if options.vfslist_t == nil && options.kludge_tflag && !options.args.isEmpty {
       do {
-        let _ = try FileMetadata(for: FilePath(options.args.first!))
+        let _ = try FilePath(options.args.first!).stat()
       } catch(let e) {
-        if e.code == ENOENT {
+        if e.rawValue == ENOENT {
           (options.skipvfs_t, options.vfslist_t) = makevfslist(options.args.removeFirst())
         }
       }
@@ -243,7 +243,7 @@ let unix2003 = true
 
     /* iterate through specified filesystems */
     for argv in options.args {
-      let stbuf = try? FileMetadata(for: FilePath(argv))
+      let stbuf = try? FilePath(argv).stat()
       if stbuf == nil {
         let mntpt = getmntpt(argv)
         guard let mntpt else {
@@ -255,7 +255,7 @@ let unix2003 = true
 
 
       var mntpt : String?
-      if stbuf?.filetype == .characterDevice || stbuf?.filetype == .blockDevice {
+      if stbuf?.type == .characterSpecial || stbuf?.type == .blockSpecial {
         mntpt = getmntpt(argv)
         if (mntpt == nil) {
           xo_warnx("\(argv): not mounted")

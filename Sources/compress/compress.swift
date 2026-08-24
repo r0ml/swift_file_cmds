@@ -180,13 +180,13 @@ import Darwin
      u_char buf[1024];
      */
 
-    let sb = try? FileMetadata(for: out)
-    let exists = sb != nil
-    if !options.force && sb != nil && sb!.filetype == .regular && !cat && !permission(out) {
+    let sb = try? out.stat()
+   // let exists = sb != nil
+    if !options.force && sb != nil && sb!.type == .regular && !cat && !permission(out) {
       warnx("\(out) already exists")
       return
     }
-    let oreg = sb == nil || sb?.filetype == .regular
+    let oreg = sb == nil || sb?.type == .regular
 
 
     guard let ifp = try? FileDescriptor.open(inx, .readOnly) else {
@@ -195,14 +195,14 @@ import Darwin
     }
     defer { try? ifp.close() }
 
-    guard let isb = try? FileMetadata(for: inx) else {
+    guard let isb = try? inx.stat() else {
       warn(inx.string)
       return
     }
 
-    let isreg = isb.filetype == .regular
+    let isreg = isb.type == .regular
 
-    guard var ofp = ZStream(out, "w", options.bits) else {
+    guard let ofp = ZStream(out, "w", options.bits) else {
       warn(out.string)
       return
     }
@@ -226,7 +226,7 @@ import Darwin
       }
 
     if (!cat && isreg) {
-      guard let sb = try? FileMetadata(for: out) else {
+      guard let sb = try? out.stat() else {
         warn(out.string)
         return
       }
@@ -270,12 +270,12 @@ import Darwin
      int exists, isreg, oreg;
      u_char buf[1024];
      */
-    let sb = try? FileMetadata(for: out) //  !stat(out, &sb);
-    if (!options.force && sb != nil && sb!.filetype == .regular && !cat && !permission(out)) {
+    let sb = try? out.stat() //  !stat(out, &sb);
+    if (!options.force && sb != nil && sb!.type == .regular && !cat && !permission(out)) {
       warnx("\(out) already exists")
       return
     }
-    let oreg = sb == nil || sb!.filetype == .regular
+   // let oreg = sb == nil || sb!.type == .regular
 
     guard let ifp = ZStream(inx, "r", options.bits) else {
       warn(inx.string)
@@ -283,11 +283,11 @@ import Darwin
     }
 
     defer { let _ = ifp.zclose() }
-    guard let sb = try? FileMetadata(for: inx) else {
+    guard let sb = try? inx.stat() else {
       warn(inx.string);
       return
     }
-    let isreg = sb.filetype == .regular
+    let isreg = sb.type == .regular
 
     /*
      * Try to read the first few uncompressed bytes from the input file
@@ -335,7 +335,7 @@ import Darwin
       }
       if 0 != options.verbose {
         let isb = sb
-        if let sb = try? FileMetadata(for: out) {
+        if let sb = try? out.stat() {
           print(out, to: &stderr)
           if isb.size > sb.size {
             print("\("%.0f".cFormat(Double(sb.size) / Double(isb.size) * 100.0))%% compression", to: &stderr)
@@ -358,10 +358,10 @@ import Darwin
  */
   }
 
-  func setfile(_ name : FilePath, _ fsx : FileMetadata) {
+  func setfile(_ name : FilePath, _ fsx : Stat) {
 
     var fs = fsx
-    var tspec : (timespec, timespec) = (fs.lastAccessed.timespec, fs.lastModified.timespec)
+    var tspec : (timespec, timespec) = (fs.st_atim, fs.st_mtim)
 
     if 0 != utimensat(AT_FDCWD, name.string, &tspec.0, 0) {
       warn("utimensat: \(name)")
@@ -373,7 +373,7 @@ import Darwin
      * the mode; current BSD behavior is to remove all setuid bits on
      * chown.  If chown fails, lose setuid/setgid bits.
      */
-    if 0 != chown(name.string, UInt32(fs.userId), UInt32(fs.groupId)) {
+    if 0 != chown(name.string, UInt32(fs.userID.rawValue), UInt32(fs.groupID.rawValue)) {
       if errno != EPERM {
         warn("chown: \(name)")
       }

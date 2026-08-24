@@ -320,7 +320,7 @@ struct ignentry {
 
             let curblocks = options.Aflag ?
             howmany(Int(p.statp.size), options.cblocksize) :
-            howmany(Int(p.statp.blocks), options.cblocksize)
+            howmany(Int(p.statp.blocksAllocated), options.cblocksize)
             p.number += curblocks
             if var j = p.parent {
               j.number += p.number
@@ -364,13 +364,13 @@ struct ignentry {
               break
             }
 
-            if !options.lflag && p.statp.links > 1 && linkchk(p) {
+            if !options.lflag && p.statp.linkCount > 1 && linkchk(p) {
               break
             }
 
             let curblocks = options.Aflag ?
             howmany(Int(p.statp.size), options.cblocksize) :
-            howmany(Int(p.statp.blocks), options.cblocksize)
+            howmany(Int(p.statp.blocksAllocated), options.cblocksize)
 
             if options.aflag || p.level == 0 {
               if options.hflag > 0 {
@@ -488,7 +488,7 @@ struct ignentry {
     }
 */
 
-    let le = links_entry(dev: st.device, ino: st.inode)
+    let le = links_entry(dev: st.deviceID, ino: st.inode)
     if buckets.f.contains(le) {
       return true
     }
@@ -556,8 +556,8 @@ struct ignentry {
     struct links_entry *previous;
     int   links;
 */
-    var dev : UInt
-    var ino : UInt
+    var dev : DeviceID
+    var ino : Inode
   }
 
   class Buckets {
@@ -655,7 +655,7 @@ struct ignentry {
 */
 
     /* Try to locate this entry in the hash table. */
-    let le = links_entry(dev: st.device, ino: st.inode)
+    let le = links_entry(dev: st.deviceID, ino: st.inode)
 
     if buckets.d.contains(le) {
       return true
@@ -758,7 +758,7 @@ usage: du [-Aclnx] [-H | -L | -P] [-g | -h | -k | -m] [-a | -s | -d depth] [-B b
 
   func ignorep(_ ent : FTSEntry) -> Bool {
 //    #ifdef __APPLE__
-    if ent.statp.filetype == .directory && "fd" == ent.name {
+    if ent.statp.type == .directory && "fd" == ent.name {
       var sfsb = statfs()
       let rc = statfs(ent.accpath, &sfsb)
       let fstn = withUnsafePointer(to: sfsb.f_fstypename) {
@@ -782,7 +782,7 @@ usage: du [-Aclnx] [-H | -L | -P] [-g | -h | -k | -m] [-a | -s | -d depth] [-B b
     }
 
 // #endif /* __APPLE__ */
-    if options.nodumpflag && ent.statp.flags.contains(.UF_NODUMP) {
+    if options.nodumpflag && ent.statp.flags.contains(.noDump) {
       return true
     }
 

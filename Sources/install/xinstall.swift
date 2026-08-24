@@ -83,7 +83,7 @@ let BACKUP_SUFFIX = ".old"
     static let SETFLAGS	= Self(rawValue: 0x02)		/* Tell install to set flags. */
   }
 
-  let NOCHANGEBITS : FileFlags = [.UF_IMMUTABLE, .UF_APPEND, .SF_IMMUTABLE, .SF_APPEND]
+  let NOCHANGEBITS : FileFlags = [.userImmutable, .userAppend, .systemImmutable, .systemAppend]
 
   /*
    typedef union {
@@ -121,8 +121,8 @@ let BACKUP_SUFFIX = ".old"
   }
 
   struct CommandOptions {
-    var gid : UInt?
-    var uid : UInt?
+    var gid : GroupID?
+    var uid : UserID?
     var dobackup = false
     var docompare = false
     var dodir = false
@@ -336,12 +336,12 @@ let BACKUP_SUFFIX = ".old"
     if let g = options.group,
        !options.dounpriv {
       if let gid = gid_from_group(g) {
-        options.gid = gid
+        options.gid = GroupID(UInt32(gid))
       } else {
         guard let id = parseid(g) else {
           errx(1, "unknown group \(g)")
         }
-        options.gid = id
+        options.gid = GroupID(UInt32(id))
       }
     } else {
       options.gid = nil
@@ -349,10 +349,10 @@ let BACKUP_SUFFIX = ".old"
 
     if let o = options.owner, !options.dounpriv {
       if let uid = uid_from_user(o) {
-        options.uid = uid
+        options.uid = UserID(UInt32(uid))
       } else {
         if let id = parseid(o) {
-          options.uid = id
+          options.uid = UserID(UInt32(id))
         } else {
           errx(1, "unknown user \(o)")
         }
@@ -369,9 +369,8 @@ let BACKUP_SUFFIX = ".old"
       options.iflags.insert(.SETFLAGS)
     }
 
-    if let m = options.metafile {
-
-    } else {
+    let m = options.metafile
+    if m == nil {
       options.digesttype = .NONE
     }
 
@@ -398,14 +397,14 @@ let BACKUP_SUFFIX = ".old"
     }
 
     var to_name = FilePath(options.args.last!)
-    var to_sb = try? FileMetadata(for: to_name)
-    if to_sb != nil, to_sb!.filetype == .directory {
+    var to_sb = try? to_name.stat()
+    if to_sb != nil, to_sb!.type == .directory {
       if options.dolink.contains(.SYMBOLIC) {
-        to_sb = try? FileMetadata(for: to_name, followSymlinks: false)
+        to_sb = try? to_name.stat(followTargetSymlink: false)
         guard let to_sb else {
           err(Int(EX_OSERR), "\(to_name) vanished")
         }
-        if to_sb.filetype == .symbolicLink {
+        if to_sb.type == .symbolicLink {
           if options.args.count != 2 {
             errno = ENOTDIR
             err(Int(EX_CANTCREAT), to_name.string)
@@ -433,14 +432,14 @@ let BACKUP_SUFFIX = ".old"
 
     if to_sb != nil && options.dolink.isEmpty {
       let argv = FilePath(options.args[0])
-      guard let from_sb = try? FileMetadata(for: argv) else {
+      guard let from_sb = try? argv.stat() else {
         err(Int(EX_OSERR), argv.string)
       }
-      if to_sb!.filetype != .regular {
+      if to_sb!.type != .regular {
         errno = EFTYPE
         err(Int(EX_OSERR), to_name.string)
       }
-      if to_sb!.device == from_sb.device && to_sb!.inode == from_sb.inode {
+      if to_sb!.deviceID == from_sb.deviceID && to_sb!.inode == from_sb.inode {
         errx(Int(EX_USAGE), "\(argv.string) and \(to_name.string) are the same file")
       }
     }

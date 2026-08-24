@@ -296,28 +296,28 @@ extension ls {
       }
       if (needstats) {
         let sp = cur.statp
-        if sp.blocks > maxblock {
-          maxblock = sp.blocks
+        if sp.blocksAllocated > maxblock {
+          maxblock = UInt(sp.blocksAllocated)
         }
-        if sp.inode > maxinode {
-          maxinode = sp.inode
+        if sp.inode.rawValue > maxinode {
+          maxinode = UInt(sp.inode.rawValue)
         }
-        if sp.links > maxnlink {
-          maxnlink = sp.links
+        if sp.linkCount > maxnlink {
+          maxnlink = UInt(sp.linkCount)
         }
         if sp.size > maxsize {
-          maxsize = sp.size
+          maxsize = UInt(sp.size)
         }
 
-        btotal += sp.blocks
+        btotal += UInt(sp.blocksAllocated)
         if options.f_longform {
           if options.f_numericonly {
-            let nuser = String(sp.userId)
-            let ngroup = String(sp.groupId)
+            let nuser = String(sp.userID.rawValue)
+            let ngroup = String(sp.groupID.rawValue)
             user = nuser;
             group = ngroup;
           } else {
-            guard let u = Darwin.user_from_uid(uid_t(sp.userId), 0) else {
+            guard let u = Darwin.user_from_uid(sp.userID.rawValue, 0) else {
               err(1, "user_from_uid")
             }
             user = String(cString: u)
@@ -331,7 +331,7 @@ extension ls {
              * likely exit anyway.
              */
 
-            guard let g = Darwin.group_from_gid(gid_t(sp.groupId), 0) else {
+            guard let g = Darwin.group_from_gid(sp.groupID.rawValue, 0) else {
             /* Ditto. */
               err(1, "group_from_gid")
             }
@@ -376,7 +376,7 @@ extension ls {
             listxattr(filename, &xattr_names, xattr_size, XATTR_NOFOLLOW)
             let names = xattr_names.split(separator: 0).dropLast()
             let nams = names.map { p in String(decoding: p, as: UTF8.self) }
-            var sizes = nams.map { p in
+            let sizes = nams.map { p in
               p.withCString { getxattr(filename, $0, nil, 0, 0, XATTR_NOFOLLOW); }
             }
             np.xattr_sizes = sizes
@@ -406,8 +406,8 @@ extension ls {
             np.acl = nil
           }
 
-          if sp.filetype == .characterDevice || sp.filetype == .blockDevice {
-            let sizelen = "%#jx".cFormat(sp.rawDevice).count
+          if sp.type == .characterSpecial || sp.type == .blockSpecial {
+            let sizelen = "%#jx".cFormat(sp.specialDeviceID.rawValue).count
             if d.s_size < sizelen {
               d.s_size = UInt(sizelen)
             }
@@ -457,7 +457,7 @@ extension ls {
     r.output = true
 
     if options.f_longform {
-      for var cur in list {
+      for cur in list {
         if let np = cur.getPointer(NAMES.self) {
           if let na = np.acl {
             acl_free(UnsafeMutableRawPointer(na))

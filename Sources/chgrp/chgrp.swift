@@ -46,8 +46,8 @@ let unix2003 = true
 @main struct chgrp : ShellCommand {
 
   struct CommandOptions {
-    var uid : UInt?
-    var gid : UInt?
+    var uid : UserID?
+    var gid : GroupID?
     var isnumeric = false
 
 //    static const char *gname;
@@ -137,7 +137,7 @@ let unix2003 = true
 
     options.gname = options.args.removeFirst()
 
-    options.gid = a_gid(options.gname!, options.isnumeric)
+    options.gid = GroupID(a_gid(options.gname!, options.isnumeric))
     return options
   }
 
@@ -200,12 +200,12 @@ let unix2003 = true
           continue
         }
     } else {
-      if (options.uid == nil || options.uid == p.statp.userId) &&
-          (options.gid == nil || options.gid == p.statp.groupId) {
+      if (options.uid == nil || options.uid == p.statp.userID) &&
+          (options.gid == nil || options.gid == p.statp.groupID) {
         continue
       }
     }
-      if (fchownat(AT_FDCWD, p.accpath, UInt32(options.uid!), UInt32(options.gid!), atflag) == -1 && !options.fflag) {
+      if (fchownat(AT_FDCWD, p.accpath, options.uid!.rawValue, options.gid!.rawValue, atflag) == -1 && !options.fflag) {
         chownerr(p.path)
       rval = 1
       } else if 0 != options.vflag {
@@ -218,13 +218,13 @@ let unix2003 = true
   exit(rval);
 }
 
-  func a_gid(_ s : String, _ isn : Bool) -> UInt? {
-    if s.isEmpty { return nil }   /* Argument was "uid[:.]". */
+  func a_gid(_ s : String, _ isn : Bool) -> UInt32 {
+    if s.isEmpty { return 0 }   /* Argument was "uid[:.]". */
 
     // #ifdef __APPLE__
     if !isn {
       if let gr = getgrnam(s) {
-        return UInt(gr.pointee.gr_gid)
+        return gr.pointee.gr_gid
       }
     }
 
@@ -234,11 +234,11 @@ let unix2003 = true
     // #endif
   }
 
-  func id(_ name : String, _ type : String) -> UInt {
+  func id(_ name : String, _ type : String) -> UInt32 {
     let UID_MAX = 2147483647  /* max value for a uid_t (2^31-2) */
     if let val = Int(name) {
       if val <= UID_MAX {
-        return UInt(val)
+        return UInt32(val)
       }
     }
     errx(1, "\(name): illegal \(type) name")
@@ -249,7 +249,7 @@ let unix2003 = true
     let ngroups_max = Int(sysconf(_SC_NGROUPS_MAX) + 1)
     var groups = Array(repeating: gid_t(0), count: ngroups_max)
     let ngroups = getgroups(Int32(ngroups_max), &groups)
-    return groups[0..<Int(ngroups)].map { UInt($0) }
+    return groups[0..<Int(ngroups)].map { GroupID($0) }
   }()
 
 
@@ -277,7 +277,7 @@ func print_info(_ p : FTSEntry, _ vflag : Int) {
   print(p.path, terminator: "")
   if (vflag > 1) {
     print(
-      ": \(p.statp.groupId) -> \(options.gid == nil ? p.statp.groupId : options.gid!)",
+      ": \(p.statp.groupID) -> \(options.gid == nil ? p.statp.groupID : options.gid!)",
       terminator: ""
     )
 

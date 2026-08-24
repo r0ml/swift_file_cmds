@@ -71,7 +71,7 @@ let EXEC_FAILED : Int32 = 127
     var options = CommandOptions()
     let go = BSDGetopt("fhinv")
 
-    while let (k, v) = try go.getopt() {
+    while let (k, _) = try go.getopt() {
       switch k {
         case "h":
           options.hflg = true
@@ -106,8 +106,8 @@ let EXEC_FAILED : Int32 = 127
      * If the stat on the target fails or the target isn't a directory,
      * try the move.  More than 2 arguments is an error in this case.
      */
-    let sb = try? FileMetadata(for: FilePath(options.args.last!))
-    if sb == nil || sb!.filetype != .directory {
+    let sb = try? FilePath(options.args.last!).stat()
+    if sb == nil || sb!.type != .directory {
 //    if (stat(argv[argc - 1], &sb) || !S_ISDIR(sb.st_mode)) {
       if options.args.count > 2 {
         errx(1, "\(options.args.last!) is not a directory")
@@ -116,14 +116,14 @@ let EXEC_FAILED : Int32 = 127
     }
 
     // #ifdef __APPLE__
-    let fsb = try? FileMetadata(for: FilePath(options.args[0]), followSymlinks: false)
-    let tsb = try? FileMetadata(for: FilePath(options.args[1]), followSymlinks: false)
+    let fsb = try? FilePath(options.args[0]).stat(followTargetSymlink: false)
+    let tsb = try? FilePath(options.args[1]).stat(followTargetSymlink: false)
 
     if options.args.count == 2,
        let fsb,
        let tsb,
-       fsb.inode == tsb.inode && fsb.device == tsb.device,
-      fsb.generation == tsb.generation {
+       fsb.inode == tsb.inode && fsb.deviceID == tsb.deviceID,
+      fsb.generationNumber == tsb.generationNumber {
       /*
        * We appear to be trying to move a directory into itself,
        * but it may be that the filesystem is case insensitive and
@@ -152,7 +152,7 @@ let EXEC_FAILED : Int32 = 127
         throw CmdErr(1, usage)
       }
 
-      if let tsb, tsb.filetype == .symbolicLink {
+      if let tsb, tsb.type == .symbolicLink {
         exit( do_move( FilePath(options.args[0]) , FilePath(options.args[1]) ) ? 1 : 0)
       }
     }
@@ -177,16 +177,16 @@ let EXEC_FAILED : Int32 = 127
         warnx("\(argv): destination pathname too long")
         rval = 1
       } else {
-        var newp = path + p
+        let newp = path + p
         if unix2003 {
           /*
            * For Unix 2003 compatibility, check if old and new are
            * same file, and produce an error * (like on Sun) that
            * conformance test 66 in mv.ex expects.
            */
-          if let fsb = try? FileMetadata(for: FilePath(argv)),
-             let tsb = try? FileMetadata(for: FilePath(newp)),
-             fsb.inode == tsb.inode && fsb.device == tsb.device && fsb.generation == tsb.generation {
+          if let fsb = try? FilePath(argv).stat(),
+             let tsb = try? FilePath(newp).stat(),
+             fsb.inode == tsb.inode && fsb.deviceID == tsb.deviceID && fsb.generationNumber == tsb.generationNumber {
             var stderr = FileDescriptor.standardError
             print("mv: \(argv) and \(newp) are identical", to: &stderr)
             rval = 2 /* Like the Sun */
@@ -221,7 +221,7 @@ let EXEC_FAILED : Int32 = 127
     if !options.fflg && 0 == Darwin.access(to.string, F_OK) {
 
       /* prompt only if source exist */
-      guard let sb = try? FileMetadata(for: from, followSymlinks: false) else {
+      guard let _ = try? from.stat(followTargetSymlink: false) else {
         warn(from.string)
         return true
       }
@@ -238,11 +238,11 @@ let EXEC_FAILED : Int32 = 127
         print("overwrite \(to)? \(YESNO)", terminator: "", to: &stderr)
         ask = 1
       } else if 0 != Darwin.access(to.string, W_OK),
-                let sb = try? FileMetadata(for: to),
+                let sb = try? to.stat(),
                 0 != Darwin.isatty(STDIN_FILENO) {
-        let modep = strmode(sb.filetype, sb.permissions)
-        let u = Darwin.user_from_uid(UInt32(sb.userId), 0)!
-        let g = Darwin.group_from_gid(UInt32(sb.groupId), 0)!
+        let modep = strmode(sb.type, sb.permissions)
+        let u = Darwin.user_from_uid(sb.userID.rawValue, 0)!
+        let g = Darwin.group_from_gid(sb.groupID.rawValue, 0)!
         print("override \(modep.dropFirst())\(modep.last == " " ? "" : " ")\(u)/\(g) for \(to)? \(YESNO)",
               terminator: "", to: &stderr)
         ask = 1
@@ -278,11 +278,11 @@ let EXEC_FAILED : Int32 = 127
        * If the source is a symbolic link and is on another
        * filesystem, it can be recreated at the destination.
        */
-      guard let sb = try? FileMetadata(for: from, followSymlinks: false) else {
+      guard let sb = try? from.stat(followTargetSymlink: false) else {
         warn(from.string)
         return true
       }
-      if sb.filetype != .symbolicLink {
+      if sb.type != .symbolicLink {
         /* Can't mv(1) a mount point. */
         guard let pathx = Darwin.realpath(from.string, nil) else {
           warn("cannot resolve \(from)")
@@ -306,14 +306,14 @@ let EXEC_FAILED : Int32 = 127
      * it's a regular file, do the copy internally; otherwise, use
      * cp and rm.
      */
-    guard let sb = try? FileMetadata(for: from, followSymlinks: false) else {
+    guard let sb = try? from.stat(followTargetSymlink: false) else {
       warn(from.string);
       return true
     }
-    return sb.filetype == .regular ? fastcopy(from, to, sb) : copy(from, to)
+    return sb.type == .regular ? fastcopy(from, to, sb) : copy(from, to)
   }
 
-  func fastcopy(_ from : FilePath, _ to : FilePath, _ sbp : FileMetadata) -> Bool {
+  func fastcopy(_ from : FilePath, _ to : FilePath, _ sbp : Stat) -> Bool {
     //    struct timespec ts[2];
     //    static u_int blen = MAXPHYS;
     //    static char *bp = NULL;
@@ -351,7 +351,8 @@ let EXEC_FAILED : Int32 = 127
         if e.rawValue == EEXIST && unlink(to.string) == 0 {
           continue
         }
-      } catch (let e) {
+      } catch {
+        // ignored
       }
       warn("fastcopy: open() failed (to): \(to)")
       return true
@@ -380,13 +381,13 @@ let EXEC_FAILED : Int32 = 127
       do {
         bp = try from_fd.readUpToCount(Int(MAXPHYS))
         if bp == nil { break }
-      } catch(let e) {
+      } catch {
         warn("fastcopy: read() failed: \(from)")
         return true
       }
       do {
         try to_fd.write(bp!)
-      } catch (let e) {
+      } catch {
         warn("fastcopy: write() failed: \(to)")
         return true
       }
@@ -399,10 +400,10 @@ let EXEC_FAILED : Int32 = 127
     }
     // #endif
 
-    var oldmode = sbp.permissions
+    let oldmode = sbp.permissions
     var newmode = sbp.permissions
-    if 0 != fchown(to_fd.rawValue, uid_t(sbp.userId), gid_t(sbp.groupId) ) {
-      warn("\(to): set owner/group (was: \(sbp.userId)/\(sbp.groupId))")
+    if 0 != fchown(to_fd.rawValue, sbp.userID.rawValue, sbp.groupID.rawValue ) {
+      warn("\(to): set owner/group (was: \(sbp.userID.rawValue)/\(sbp.groupID.rawValue))")
       if oldmode.contains(.setUserID) || oldmode.contains(.setGroupID) {
         warnx("\(to): owner/group changed; clearing suid/sgid (mode was \("0%03o".cFormat(oldmode.rawValue))")
         newmode.remove([.setUserID, .setGroupID])
@@ -451,7 +452,7 @@ let EXEC_FAILED : Int32 = 127
      #endif
      */
 
-    var ts = ( sbp.lastAccessed.timespec, sbp.lastModified.timespec )
+    var ts = ( sbp.st_atim, sbp.st_mtim )
     if 0 != Darwin.futimens(to_fd.rawValue, &ts.0) {
       warn("\(to): set times")
     }
@@ -474,9 +475,9 @@ let EXEC_FAILED : Int32 = 127
   func copy(_ from : FilePath, _ to : FilePath) -> Bool {
 
     do {
-    let sb = try FileMetadata(for: to, followSymlinks: false)
+      let sb = try to.stat(followTargetSymlink: false)
       /* Destination path exists. */
-      if sb.filetype == .directory {
+      if sb.type == .directory {
         if Darwin.rmdir(to.string) != 0 {
           warn("rmdir \(to.string)")
           return true
@@ -488,7 +489,7 @@ let EXEC_FAILED : Int32 = 127
         }
       }
     } catch(let e) {
-      if (e.code != ENOENT) {
+      if (e.rawValue != ENOENT) {
         warn(to.string)
         return true
       }

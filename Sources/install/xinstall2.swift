@@ -74,17 +74,17 @@ extension xinstall {
    *  make a hard link, obeying dorename if set
    *  return -1 on failure
    */
-  func do_link(_ from_name : FilePath, _ to_name : FilePath, _ target_sb : FileMetadata?) -> Int {
+  func do_link(_ from_name : FilePath, _ to_name : FilePath, _ target_sb : Stat?) -> Int {
     var ret = 0
     if let target_sb {
-      var tmpl = "\(to_name.string).inst.XXXXXX"
+      let tmpl = "\(to_name.string).inst.XXXXXX"
       /* This usage is safe. */
       guard let tmpl = quiet_mktemp(tmpl) else {
         err( Int(EX_OSERR), "\(tmpl): mktemp")
       }
       ret = Int(link(from_name.string, tmpl))
       if ret == 0 {
-        if target_sb.filetype == .directory && rmdir(to_name.string) == -1 {
+        if target_sb.type == .directory && rmdir(to_name.string) == -1 {
           unlink(tmpl)
           err(Int(EX_OSERR), to_name.string)
         }
@@ -117,9 +117,9 @@ extension xinstall {
    * do_symlink --
    *  Make a symbolic link, obeying dorename if set. Exit on failure.
    */
-  func do_symlink(_ from_name : FilePath, _ to_name : FilePath, _ target_sb : FileMetadata?) {
+  func do_symlink(_ from_name : FilePath, _ to_name : FilePath, _ target_sb : Stat?) {
     if let target_sb {
-      var tmpl = "\(to_name.string).inst.XXXXXX"
+      let tmpl = "\(to_name.string).inst.XXXXXX"
       /* This usage is safe. */
       guard let tmpl = quiet_mktemp(tmpl) else  {
         err(Int(EX_OSERR), "\(tmpl): mktemp")
@@ -129,7 +129,7 @@ extension xinstall {
         err(Int(EX_OSERR), "symlink \(from_name.string) -> \(tmpl)")
       }
 
-      if target_sb.filetype == .directory && rmdir(to_name.string) == -1 {
+      if target_sb.type == .directory && rmdir(to_name.string) == -1 {
         unlink(tmpl)
         err(Int(EX_OSERR), to_name.string)
       }
@@ -160,7 +160,7 @@ extension xinstall {
    * makelink --
    *  make a link from source to destination
    */
-  func makelink(_ from_name : FilePath, _ to_name : FilePath, _ target_sb : FileMetadata?) {
+  func makelink(_ from_name : FilePath, _ to_name : FilePath, _ target_sb : Stat?) {
 //    char src[MAXPATHLEN], dst[MAXPATHLEN], lnk[MAXPATHLEN];
 //    char *to_name_copy, *d, *ld, *ls, *s;
 //    const char *base, *dir;
@@ -172,11 +172,11 @@ extension xinstall {
           err(Int(EX_OSERR), "link \(from_name) -> \(to_name)")
         }
       } else {
-        guard let to_sb = try? FileMetadata(for: to_name) else {
+        guard let to_sb = try? to_name.stat() else {
           err(Int(EX_OSERR), "\(to_name): stat")
         }
 
-        if to_sb.filetype == .regular {
+        if to_sb.type == .regular {
           /*
            * XXX: hard links to anything other than
            * plain files are not metalogged
@@ -203,7 +203,7 @@ extension xinstall {
           if !options.haveopt_f { xfflags = nil }
           let dres = digest_file(from_name, options.digesttype)
 
-          metadata_log(to_name, "file", nil, nil, dres, to_sb.size, override: (xmode, xowner, xgroup, xfflags))
+          metadata_log(to_name, "file", nil, nil, dres, UInt(to_sb.size), override: (xmode, xowner, xgroup, xfflags))
         }
         return
       }
@@ -251,8 +251,8 @@ extension xinstall {
       } else {
         /* all other cases: safe to call dirname() */
         let dir = to_name_copy.dirname
-        var dstx = try? dir.realpath()
-        guard var dstx else {
+        let dstx = try? dir.realpath()
+        guard let dstx else {
           err(Int(EX_OSERR), "\(dir): realpath")
         }
         dst = dstx
@@ -311,7 +311,7 @@ extension xinstall {
 
 //  copied:
     /* in case mtime is modified */
-    if !cc.devnull && (cc.from_sb.filetype == .symbolicLink || cc.from_sb.filetype == .regular) &&
+    if !cc.devnull && (cc.from_sb.type == .symbolicLink || cc.from_sb.type == .regular) &&
         fcopyfile(cc.from_fd.rawValue, cc.to_fd.rawValue, nil, UInt32(COPYFILE_XATTR) ) < 0 {
       warn("\(to_name.string): unable to copy extended attributes from \(from_name.string)")
     }
@@ -319,12 +319,12 @@ extension xinstall {
     /*
      * Preserve the timestamp of the source file if necessary.
      */
-    let tsb = (DateTime(cc.from_sb.lastModified.timespec), DateTime(cc.from_sb.lastAccessed.timespec) )
+    let tsb = (DateTime(cc.from_sb.st_mtim), DateTime(cc.from_sb.st_atim) )
     if options.dopreserve && !cc.files_match && !cc.devnull {
-      try? to_name.setTimes(modified: cc.from_sb.lastModified, accessed: cc.from_sb.lastAccessed)
+      try? to_name.setTimes(modified: cc.from_sb.st_mtim, accessed: cc.from_sb.st_atim)
     }
 
-    guard let to_sb = try? FileMetadata(for: cc.to_fd) else {
+    guard let to_sb = try? cc.to_fd.stat() else {
       let serrno = errno
       unlink(to_name.string)
       errno = serrno
@@ -335,8 +335,8 @@ extension xinstall {
      * Set owner, group, mode for target; do the chown first,
      * chown may lose the setuid bits.
      */
-    if !options.dounpriv && ((options.gid != nil && options.gid != to_sb.groupId) ||
-                      (options.uid != nil && options.uid != to_sb.userId) ||
+    if !options.dounpriv && ((options.gid != nil && options.gid != to_sb.groupID) ||
+                      (options.uid != nil && options.uid != to_sb.userID) ||
                       (options.mode != (to_sb.permissions.rawValue))) {
 
       /* Try to turn off the immutable bits. */
@@ -346,9 +346,9 @@ extension xinstall {
 
     }
 
-    if !options.dounpriv && ((options.gid != nil && options.gid != to_sb.groupId) ||
-                             (options.uid != nil && options.uid != to_sb.userId)) {
-      if (fchown(cc.to_fd.rawValue, options.uid == nil ? NO_ID : UInt32(options.uid!), options.gid == nil ? NO_ID : gid_t(options.gid!)) == -1) {
+    if !options.dounpriv && ((options.gid != nil && options.gid != to_sb.groupID) ||
+                             (options.uid != nil && options.uid != to_sb.userID)) {
+      if (fchown(cc.to_fd.rawValue, options.uid == nil ? NO_ID : options.uid!.rawValue, options.gid == nil ? NO_ID : options.gid!.rawValue) == -1) {
         let serrno = errno;
         unlink(to_name.string)
         errno = serrno;
@@ -372,8 +372,8 @@ extension xinstall {
      * then warn if the fs doesn't support it, otherwise fail.
      */
     if !options.dounpriv && !cc.devnull
-        && (flags.contains(.SETFLAGS) || cc.from_sb.flags.subtracting(.UF_NODUMP) != to_sb.flags)
-        && 0 != fchflags(cc.to_fd.rawValue, (flags.contains(.SETFLAGS) ? fset : cc.from_sb.flags.subtracting(.UF_NODUMP)).rawValue  ) {
+        && (flags.contains(.SETFLAGS) || cc.from_sb.flags.subtracting(.noDump) != to_sb.flags)
+        && 0 != fchflags(cc.to_fd.rawValue, (flags.contains(.SETFLAGS) ? fset : cc.from_sb.flags.subtracting(.noDump)).rawValue  ) {
       if (flags.contains(.SETFLAGS)) {
         if (errno == ENOTSUP) {
           warn("\(to_name.string): chflags")
@@ -390,7 +390,7 @@ extension xinstall {
 
     /* the ACL could prevent credential/permission system calls later on... */
     if !cc.devnull
-        && (cc.from_sb.filetype == .symbolicLink || cc.from_sb.filetype == .regular)
+        && (cc.from_sb.type == .symbolicLink || cc.from_sb.type == .regular)
         && (fcopyfile(cc.from_fd.rawValue, cc.to_fd.rawValue, nil, UInt32(COPYFILE_ACL) ) < 0) {
       warn("\(to_name.string): unable to copy ACL from \(from_name.string)")
     }
@@ -400,14 +400,14 @@ extension xinstall {
       try? cc.from_fd.close()
     }
 
-    metadata_log(to_name, "file", tsb, nil, cc.digestresult, to_sb.size)
+    metadata_log(to_name, "file", tsb, nil, cc.digestresult, UInt(to_sb.size))
   }
 
   func clippedForCopy(_ to_name : inout FilePath, _ from_name : FilePath, _ flags : IFlags) async
-  -> (devnull: Bool, from_fd : FileDescriptor, to_fd : FileDescriptor, from_sb : FileMetadata, to_sb : FileMetadata?, files_match: Bool, digestresult : [UInt8]? )? {
+  -> (devnull: Bool, from_fd : FileDescriptor, to_fd : FileDescriptor, from_sb : Stat, to_sb : Stat?, files_match: Bool, digestresult : [UInt8]? )? {
     var devnull = false
 
-    var from_sb : FileMetadata!
+    var from_sb : Stat!
 
     // FIXME: this will zap things when tempfile is not set.
     var tempfile : FilePath!
@@ -417,11 +417,11 @@ extension xinstall {
     /* If try to install NULL file to a directory, fails. */
     if flags.contains(.DIRECTORY) || from_name != FilePath(CMigration._PATH_DEVNULL) {
       if options.dolink.isEmpty {
-        guard let fsb = try? FileMetadata(for: from_name) else {
+        guard let fsb = try? from_name.stat() else {
           err(Int(EX_OSERR), from_name.string)
         }
         from_sb = fsb
-        if fsb.filetype != .regular {
+        if fsb.type != .regular {
           errno = EFTYPE
           err(Int(EX_OSERR), from_name.string)
         }
@@ -440,7 +440,7 @@ extension xinstall {
     }
 
 
-    let to_sb = try? FileMetadata(for: to_name, followSymlinks: false)
+    let to_sb = try? to_name.stat(followTargetSymlink: false)
     let target = to_sb != nil
 
     if options.dolink.rawValue != 0 {
@@ -452,7 +452,7 @@ extension xinstall {
       err(Int(EX_CANTCREAT), to_name.string)
     }
 
-    if to_sb.filetype == .regular, to_sb.filetype == .symbolicLink {
+    if to_sb.type == .regular, to_sb.type == .symbolicLink {
       errno = EFTYPE
       err(Int(EX_CANTCREAT), to_name.string)
     }
@@ -470,7 +470,7 @@ extension xinstall {
     var to_fd : FileDescriptor!
 
     /* If we don't strip, we can compare first. */
-    if (options.docompare && !options.dostrip && target && to_sb.filetype == .regular) {
+    if (options.docompare && !options.dostrip && target && to_sb.type == .regular) {
       guard let tfd = try? FileDescriptor.open(to_name,.readOnly) else {
         err(Int(EX_OSERR), to_name.string)
       }
@@ -516,7 +516,7 @@ extension xinstall {
               (stripped, digestresult) = await strip(to_name, to_fd, from_name)
             }
             if (!stripped) {
-              digestresult = copy(from_fd, from_name, to_fd, to_name, from_sb.size)
+              digestresult = copy(from_fd, from_name, to_fd, to_name, UInt(from_sb.size))
             }
             // this function was carved out so this return would "goto copied"
             return (devnull: devnull, from_fd : from_fd, to_fd: to_fd, from_sb : from_sb, to_sb : to_sb, files_match: files_match, digestresult: digestresult)
@@ -534,7 +534,7 @@ extension xinstall {
           (stripped, digestresult) = await strip(tempfile, to_fd, from_name)
         }
         if (!stripped) {
-          digestresult = copy(from_fd, from_name, to_fd, tempfile, from_sb.size)
+          digestresult = copy(from_fd, from_name, to_fd, tempfile, UInt(from_sb.size))
         }
       }
     }
@@ -558,7 +558,7 @@ extension xinstall {
     /*
      * Compare the stripped temp file with the target.
      */
-    if options.docompare && options.dostrip && target && to_sb.filetype == .regular {
+    if options.docompare && options.dostrip && target && to_sb.type == .regular {
 
       // FIXME: this will blow up if to_fd wasn't set !!!
       let temp_fd = to_fd!
@@ -569,7 +569,7 @@ extension xinstall {
       }
       to_fd = tfd
 
-      guard let temp_sb = try? FileMetadata(for: temp_fd) else {
+      guard let temp_sb = try? temp_fd.stat() else {
         let serrno = errno;
         unlink(tempfile.string)
         errno = serrno;
@@ -584,8 +584,8 @@ extension xinstall {
          * replace it in order to snap the extra links.
          * Need to preserve target file times, though.
          */
-        if to_sb.links != 1 {
-          try? tempfile.setTimes(modified: to_sb.lastModified, accessed: to_sb.lastAccessed )
+        if to_sb.linkCount != 1 {
+          try? tempfile.setTimes(modified: to_sb.st_mtim, accessed: to_sb.st_atim )
         } else {
           files_match = true
           unlink(tempfile.string)

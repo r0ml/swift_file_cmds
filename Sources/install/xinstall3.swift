@@ -298,12 +298,12 @@ func install_dir(_ pathx : FilePath) {
   again:
     while true {
       do {
-        let sb = try FileMetadata(for: path)
-        if sb.filetype == .directory {
+        let sb = try path.stat()
+        if sb.type == .directory {
           errx(Int(EX_OSERR), "\(path) exists but is not a directory")
         }
       } catch(let e) {
-        if e.code != ENOENT || tried_mkdir {
+        if e.rawValue != ENOENT || tried_mkdir {
           err(Int(EX_OSERR), "stat \(path)")
         }
         if mkdir(path.string, 0o0755) < 0 {
@@ -322,10 +322,10 @@ func install_dir(_ pathx : FilePath) {
   }
 
   if !options.dounpriv {
-    let u = options.uid == nil ? NO_ID : uid_t(options.uid!)
-    let g = options.gid == nil ? NO_ID : gid_t(options.gid!)
+    let u = options.uid ?? UserID(NO_ID)
+    let g = options.gid ?? GroupID(NO_ID)
 
-    if (options.gid != nil || options.uid != nil) && 0 != chown(path.string, u, g) {
+    if (options.gid != nil || options.uid != nil) && 0 != chown(path.string, u.rawValue, g.rawValue) {
       warn("chown \(u):\(g) \(path)")
     }
     /* XXXBED: should we do the chmod in the dounpriv case? */

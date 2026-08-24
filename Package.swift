@@ -28,7 +28,7 @@ let TestWIP = [String]()     // test folders to skip over
 let package = Package(
   name: "file_cmds",
   // using v26 because linking with external lzma from brew
-  platforms: [.macOS(.v26), .macCatalyst(.v18), .iOS(.v18)],
+  platforms: [.macOS(.v15), .macCatalyst(.v18), .iOS(.v18)],
   dependencies: [
       .package(url: "https://github.com/r0ml/CMigration.git", branch: "main"),
      .package(url: "https://github.com/r0ml/ShellTesting.git" , branch: "main"),

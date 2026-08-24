@@ -51,8 +51,8 @@ extension dd {
     //	size_t cnt;
 
     if let t = ddc.ctab {
-      var cnt = ddc.inx.dbrcnt
-      var inp = ddc.inx.dbp - cnt
+      let cnt = ddc.inx.dbrcnt
+//      let inp = ddc.inx.dbp - cnt
 
       for inp in (ddc.inx.dbp - cnt) ..< ddc.inx.dbp {
         ddc.inx.db[inp] = t[inp]
@@ -262,8 +262,8 @@ extension dd {
 
     /* Translation and case conversion. */
     if let t = ddc.ctab {
-      var cnt = ddc.inx.dbrcnt
-      var inp = ddc.inx.dbp - cnt
+      let cnt = ddc.inx.dbrcnt
+      let inp = ddc.inx.dbp - cnt
       for i in 0..<cnt {
         ddc.inx.db[i] = t[Int(ddc.inx.db[i])]
       }
@@ -280,7 +280,7 @@ extension dd {
         t -= 1
       }
       if (t >= inp) {
-        var cnt = t - inp + 1
+        let cnt = t - inp + 1
         for i in 0 ..< cnt {
           ddc.out.db[ddc.out.dbp + i] = ddc.out.db[inp + i]
         }

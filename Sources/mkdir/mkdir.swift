@@ -59,24 +59,28 @@ import Darwin
   func parseOptions() throws(CmdErr) -> CommandOptions {
     var opts = CommandOptions()
     let go = BSDGetopt("m:pv")
-    while let (k,v) = try go.getopt() {
-      switch k {
-      case "m":
-        opts.mode = v
-      case "p":
-        opts.pflag = true
-      case "v":
-        opts.vflag = true
-      case "?":
-        fallthrough
-      default:
-        throw CmdErr(1)
+    do throws(CmdErr) {
+      while let (k,v) = try go.getopt() {
+        switch k {
+          case "m":
+            opts.mode = v
+          case "p":
+            opts.pflag = true
+          case "v":
+            opts.vflag = true
+          case "?":
+            fallthrough
+          default:
+            throw CmdErr(64)
+        }
       }
+    } catch(let e) {
+      throw CmdErr(64, e.message)
     }
 
     opts.args = go.remaining
     if opts.args.isEmpty {
-      throw CmdErr(1)
+      throw CmdErr(64)
     }
 
 
@@ -85,7 +89,7 @@ import Darwin
     } else {
       let set = Darwin.setmode(opts.mode)
       if set == nil {
-        throw CmdErr(1, "invalid file mode: \(opts.mode ?? "")");
+        throw CmdErr(64, "invalid file mode: \(opts.mode ?? "")");
       }
       opts.omode = Darwin.getmode(set, S_IRWXU | S_IRWXG | S_IRWXO);
       free(set);

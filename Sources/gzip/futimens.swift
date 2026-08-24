@@ -77,16 +77,16 @@ func futimens(_ fd : FileDescriptor, _ times : (Darwin.timespec, Darwin.timespec
 		tvp = tv
     if (times!.0.tv_nsec == UTIME_OMIT ||
         times!.1.tv_nsec == UTIME_OMIT) {
-      guard let sb = try? FileMetadata(for: fd) else {
+      guard let sb = try? fd.stat() else {
         return -1
       }
       if times!.0.tv_nsec == UTIME_OMIT {
-        tv.0.tv_sec = sb.lastAccessed.timespec.tv_sec
-        tv.0.tv_usec = Int32(sb.lastAccessed.timespec.tv_nsec / 1000)
+        tv.0.tv_sec = sb.st_atim.tv_sec
+        tv.0.tv_usec = Int32(sb.st_atim.tv_nsec / 1000)
 			}
       if times!.1.tv_nsec == UTIME_OMIT {
-        tv.1.tv_sec = sb.lastModified.timespec.tv_sec
-        tv.1.tv_usec = Int32(sb.lastModified.timespec.tv_nsec / 1000)
+        tv.1.tv_sec = sb.st_mtim.tv_sec
+        tv.1.tv_usec = Int32(sb.st_mtim.tv_nsec / 1000)
 			}
 		}
     if times!.0.tv_nsec == UTIME_NOW ||

@@ -35,15 +35,20 @@ import ShellTesting
 import CMigration
 import RegexBuilder
 
-struct linkTest : ShellTest {
+@Suite("linkTest", .serialized) struct linkTest : ShellTest {
   var cmd = "link"
   var suiteBundle = "file_cmds_linkTest"
 
   @Test("Verify that link(1) requires exactly two arguments") func link_argc() async throws {
-    try await run(status: 1, error: /usage: link/, args: ["foo"])
-    try await run(status: 1, error: /No such file/, args: ["foo", "bar"])
-    try await run(status: 1, error: /No such file/, args: ["--", "foo", "bar"])
-    try await run(status: 1, error: /usage: link/, args: ["foo", "bar", "baz"])
+    let foo = try tmpfile("foo")
+    let bar = try tmpfile("bar")
+    let baz = try tmpfile("baz")
+    defer { rm(foo, bar, baz) }
+    rm(foo, bar, baz)
+    try await run(status: 1, error: /usage: link/, args: foo)
+    try await run(status: 1, error: /No such file/, args: foo, bar)
+    try await run(status: 1, error: /No such file/, args: "--", foo, bar)
+    try await run(status: 1, error: /usage: link/, args: foo, bar, baz)
   }
 
   @Test("Verify that link(1) creates a link") func link_basic() async throws {
@@ -54,8 +59,8 @@ struct linkTest : ShellTest {
 
     try await run(args: [foo, bar])
 
-    let aa = try FileMetadata(for: foo, followSymlinks: false)
-    let bb = try FileMetadata(for: bar, followSymlinks: false)
+    let aa = try foo.stat(followTargetSymlink: false)
+    let bb = try bar.stat(followTargetSymlink: false)
     #expect(aa.inode == bb.inode)
     rm(bar)
 
@@ -63,8 +68,8 @@ struct linkTest : ShellTest {
 
     try await run(args: [bar, baz])
 
-    let cc = try FileMetadata(for: foo, followSymlinks: false)
-    let dd = try FileMetadata(for: baz, followSymlinks: false)
+    let cc = try foo.stat(followTargetSymlink: false)
+    let dd = try baz.stat(followTargetSymlink: false)
     #expect(cc.inode == dd.inode)
   }
 

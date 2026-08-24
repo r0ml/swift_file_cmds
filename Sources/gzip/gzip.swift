@@ -368,7 +368,7 @@ from a file containing the following notice:
     }
 
     if !options.qflag && options.lflag && options.args.count > 1 {
-      print_list(nil, 0, "(totals)", DateTime(0) )
+      print_list(nil, 0, "(totals)", timespec(tv_sec: 0, tv_nsec: 0) )
     }
     if (r.exit_value == 0 && (ferror(stdout) != 0 || fflush(stdout) != 0)) {
       err(1, "stdout")
@@ -383,7 +383,7 @@ from a file containing the following notice:
   }
 
   /* compress input to output. Return bytes read, -1 on error */
-  func gz_compress(_ inx : FileDescriptor, _ out : FileDescriptor, _ orignamex : String, _ mtimex : DateTime) -> (UInt, UInt)? {
+  func gz_compress(_ inx : FileDescriptor, _ out : FileDescriptor, _ orignamex : String, _ mtimex : timespec) -> (UInt, UInt)? {
     //    char *outbufp, *inbufp;
     var in_tot : UInt = 0
     var out_tot : UInt = 0
@@ -420,16 +420,16 @@ from a file containing the following notice:
 
     var mtime = mtimex
     if options.nflag {
-      mtime = DateTime(0)
+      mtime = timespec(tv_sec: 0, tv_nsec: 0)
       origname = ""
     }
 
     var header : [UInt8] = [ UInt8(GZIP_MAGIC0), UInt8(GZIP_MAGIC1), UInt8(Z_DEFLATED),
                               !origname.isEmpty ? UInt8(ORIG_NAME) : 0,
-                              UInt8(mtime.secs & 0xff),
-                              UInt8((mtime.secs >> 8) & 0xff),
-                              UInt8((mtime.secs >> 16) & 0xff),
-                              UInt8((mtime.secs >> 24) & 0xff),
+                              UInt8(mtime.tv_sec & 0xff),
+                              UInt8((mtime.tv_sec >> 8) & 0xff),
+                              UInt8((mtime.tv_sec >> 16) & 0xff),
+                              UInt8((mtime.tv_sec >> 24) & 0xff),
                               options.numflag == 1 ? 4 : options.numflag == 9 ? 2 : 0,
                               UInt8(OS_CODE) ] + origname.utf8 // .map { UInt8($0) }
 

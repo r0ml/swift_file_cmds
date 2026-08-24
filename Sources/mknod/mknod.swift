@@ -43,7 +43,7 @@ import Darwin
     var name : String = ""
     //    char	*name, *p;
     var modes : UnsafeMutableRawPointer?
-    var ft = FileType.unknown
+    var ft = FileType(rawValue: 0)
     var mode = FilePermissions()
       //    var dev : dev_t = 0
     //	dev_t	 dev;
@@ -104,7 +104,7 @@ import Darwin
         case "F":
           guard let pack = packers[v] else {
             errx(1, "invalid format: \(v)")
-            return options
+ //           return options
           }
           options.pack = pack
           options.hasformat = true
@@ -128,7 +128,7 @@ import Darwin
         case "m":
           guard let m = setmode(v) else {
             err(1, "Cannot set file mode `\(v)'")
-            return options
+ //           return options
           }
           options.modes = m
         case "?":
@@ -154,9 +154,9 @@ import Darwin
     let tt = options.args.removeFirst()
     switch tt.count == 1 ? tt.first! : "-" {
       case "c":
-        options.ft = .characterDevice
+        options.ft = .characterSpecial
       case "b":
-        options.ft = .blockDevice
+        options.ft = .blockSpecial
       case "p":
         if options.hasformat {
           errx(1, "format is meaningless for fifos")
@@ -191,16 +191,16 @@ import Darwin
 
   func runCommand() throws(CmdErr) {
     var rval : Int32 = 0
-    var dev : UInt = 0
+    var dev = DeviceID(0)
 
     switch options.numbers.count {
       case 0:
-        dev = 0;
+        dev = DeviceID(0);
       case 1:
-        dev = options.numbers[0]
+        dev = DeviceID(Int32(options.numbers[0]))
       default:
         do {
-          dev = try callPack(options.pack, options.numbers)
+          try dev = DeviceID(Int32(options.pack(options.numbers)))
         } catch(let e) {
           throw CmdErr(1, e.rawValue)
         }
@@ -213,14 +213,14 @@ import Darwin
     umask(0)
 
     let ftt = FileType(rawValue: mode)
-    var stt = FileType.unknown
+    var stt = FileType(rawValue: 0)
     var sm = FilePermissions()
 
-    rval = options.fifo ? mkfifo(options.name, mode) : Darwin.mknod(options.name, mode, Int32(dev) )
+    rval = options.fifo ? mkfifo(options.name, mode) : Darwin.mknod(options.name, mode, dev.rawValue )
     if rval < 0 && errno == EEXIST && options.r_flag != 0 {
-      if let sb = try? FileMetadata(for: FilePath(options.name), followSymlinks: false),
-         options.fifo || sb.rawDevice == dev {
-        stt = sb.filetype
+      if let sb = try? FilePath(options.name).stat(followTargetSymlink: false),
+         options.fifo || sb.specialDeviceID == dev {
+        stt = sb.type
         sm = sb.permissions
       }
 
@@ -237,7 +237,7 @@ import Darwin
         }
       } else {
         unlink(options.name)
-        rval = options.fifo ? mkfifo(options.name, mode) : Darwin.mknod(options.name, mode, Int32(dev) )
+        rval = options.fifo ? mkfifo(options.name, mode) : Darwin.mknod(options.name, mode, dev.rawValue )
       }
     }
     if rval < 0 {
@@ -263,10 +263,6 @@ usage: mknod [-rR] [-F format] [-m mode] [-g group]
       return nil
     }
     return UInt(g.pointee.gr_gid)
-  }
-
-  func callPack(_ f : pack_t, _ numbers : [UInt]) throws(StringError) -> UInt   {
-    return try f(numbers)
   }
 
 }

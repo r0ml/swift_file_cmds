@@ -147,8 +147,8 @@ let kill_signal = ManagedAtomic<Int32>(0)
 
   func main() {
 
-    var t1 = timeval(tv_sec: 1, tv_usec: 0)
-    var t2 = timeval(tv_sec: 1, tv_usec: 0)
+    let t1 = timeval(tv_sec: 1, tv_usec: 0)
+    let t2 = timeval(tv_sec: 1, tv_usec: 0)
 
     var itv : itimerval = .init(it_interval: t1, it_value: t2 ) /* SIGALARM every second, if needed */
 
@@ -400,15 +400,15 @@ let kill_signal = ManagedAtomic<Int32>(0)
 
   func getfdtype(_ io : inout IO) {
 
-    guard let sb = try? FileMetadata(for: io.fd) else {
+    guard let sb = try? io.fd.stat() else {
       // FIXME: not stdin?
       err(1, io.name ?? "(stdout)")
     }
 
-    if sb.filetype == .regular {
+    if sb.type == .regular {
       io.flags.insert(.ISTRUNC)
     }
-    if sb.filetype == .characterDevice || sb.filetype == .blockDevice {
+    if sb.type == .characterSpecial || sb.type == .blockSpecial {
       var type : Int32 = 0
 
       // FIXME: no way to do this ioctl without writing a C helper !!!!
@@ -430,7 +430,7 @@ let kill_signal = ManagedAtomic<Int32>(0)
         }
 
         // FIXME: for iOS cannot find D_TAPE in scope
-        if sb.filetype == .characterDevice && (type != D_TAPE) {
+        if sb.type == .characterSpecial && (type != D_TAPE) {
           io.flags.insert(.ISCHR)
         }
       }

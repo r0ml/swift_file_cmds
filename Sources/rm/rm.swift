@@ -130,40 +130,45 @@ let REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
     options.uid = geteuid();
 
     let go = BSDGetopt("dfiIPRrvWx")
-    while let (k, _) = try go.getopt() {
-      switch k {
-        case "d":
-          options.dflag = true
-        case "f":
-          options.fflag = true
-          options.iflag = false
-        case "i":
-          options.fflag = false
-          options.iflag = true
-        case "I":
-          options.Iflag = true
-        case "P":
-          // #ifdef __APPLE__
-          options.Pflag = true
-          // #else
-          /* Compatibility no-op. */
-          // #endif
-        case "R", "r": /* Compatibility. */
-          options.rflag = true
-        case "v":
-          options.vflag = true
-        case "W":
-          options.Wflag = true
-        case "x":
-          options.xflag = true
-        default:
-          throw CmdErr(1)
+    do throws(CmdErr) {
+      while let (k, _) = try go.getopt() {
+        switch k {
+          case "d":
+            options.dflag = true
+          case "f":
+            options.fflag = true
+            options.iflag = false
+          case "i":
+            options.fflag = false
+            options.iflag = true
+          case "I":
+            options.Iflag = true
+          case "P":
+            // #ifdef __APPLE__
+            options.Pflag = true
+            // #else
+            /* Compatibility no-op. */
+            // #endif
+          case "R", "r": /* Compatibility. */
+            options.rflag = true
+          case "v":
+            options.vflag = true
+          case "W":
+            options.Wflag = true
+          case "x":
+            options.xflag = true
+          default:
+            throw CmdErr(1)
+        }
       }
+    } catch(let e) {
+      throw CmdErr(64, e.message)
     }
+    
     options.args = go.remaining
     if options.args.isEmpty {
       if !options.fflag {
-        throw CmdErr(1)
+        throw CmdErr(64)
       }
     }
     let k = checkdot(options.args)
@@ -174,7 +179,7 @@ let REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
     checkslash(&options.args)
     if options.args.isEmpty {
       if !options.fflag {
-        throw CmdErr(1)
+        throw CmdErr(64)
       }
     } else {
       options.stdin_ok = isatty(STDIN_FILENO) != 0
@@ -251,6 +256,9 @@ let REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
 
     for var p in fts {
       //	while ((void)(errno = 0), (p = fts_read(fts)) != NULL) {
+
+      let pstat = p.statp
+
       switch p.info {
         case .DNR:
           if !options.fflag || p.errno.code != ENOENT {
@@ -286,12 +294,12 @@ let REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
             p.number = SKIPPED
           }
           else if (options.uid == 0 &&
-                   (p.statp.flags.contains(.UF_APPEND) ||
-                    p.statp.flags.contains(.UF_IMMUTABLE)) &&
-                   !(p.statp.flags.contains(.SF_APPEND) ||
-                     p.statp.flags.contains(.SF_IMMUTABLE)) &&
+                   (pstat.flags.contains(.userAppend) ||
+                    pstat.flags.contains(.userImmutable)) &&
+                   !(pstat.flags.contains(.systemAppend) ||
+                     pstat.flags.contains(.systemImmutable)) &&
                    lchflags(p.accpath,
-                            p.statp.flags.subtracting([.UF_APPEND, .UF_IMMUTABLE]).rawValue) < 0) {
+                            pstat.flags.subtracting([.userAppend, .userImmutable]).rawValue) < 0) {
             warn(p.path)
             eval = 1
           }
@@ -310,19 +318,19 @@ let REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
           }
         default:
           if (!options.fflag &&
-              !check(p.path, p.accpath, p.statp)) {
+              !check(p.path, p.accpath, pstat)) {
             continue
           }
       }
 
       var rval : Int32 = 0
       if (options.uid == 0 &&
-          (p.statp.flags.contains(.UF_APPEND) ||
-           p.statp.flags.contains(.UF_IMMUTABLE)) &&
-          !(p.statp.flags.contains(.SF_APPEND) ||
-            p.statp.flags.contains(.SF_IMMUTABLE))) {
+          (p.statp.flags.contains(.userAppend) ||
+           p.statp.flags.contains(.userImmutable)) &&
+          !(p.statp.flags.contains(.systemAppend) ||
+            p.statp.flags.contains(.systemImmutable))) {
         rval = lchflags(p.accpath,
-                        p.statp.flags.subtracting([.UF_APPEND, .UF_IMMUTABLE]).rawValue)
+                        p.statp.flags.subtracting([.userAppend, .userImmutable]).rawValue)
       }
       if (rval == 0) {
         /*
@@ -434,12 +442,12 @@ let REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
      */
     for f in args {
       /* Assume if can't stat the file, can't unlink it. */
-      let sb = try? FileMetadata(for: FilePath(f), followSymlinks: false)
-      var wtyp : FileType = .unknown
+      let sb = try? FilePath(f).stat(followTargetSymlink: false)
+      var wtyp = FileType(rawValue: 0)
       var wperm = FilePermissions()
       if sb == nil {
         if options.Wflag {
-          wtyp = .whiteOut
+          wtyp = .whiteout
           wperm.insert([.ownerWrite, .ownerRead])
         } else {
           if (!options.fflag || errno != ENOENT) {
@@ -449,7 +457,7 @@ let REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
           continue;
         }
       } else {
-        wtyp = sb!.filetype
+        wtyp = sb!.type
         wperm = sb!.permissions
       }
 
@@ -467,18 +475,18 @@ let REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
       }
 
         // if wtyp != .whiteOut, sb won't be nil
-      if (!options.fflag && wtyp != .whiteOut && !check(f, f, sb!)) {
+      if (!options.fflag && wtyp != .whiteout && !check(f, f, sb!)) {
         continue
       }
       rval = 0
-      if (options.uid == 0 && wtyp != .whiteOut &&
-          (sb!.flags.contains(.UF_APPEND) ||
-           sb!.flags.contains(.UF_IMMUTABLE)) &&
-          !(sb!.flags.containsAny(of: [.SF_APPEND, .SF_IMMUTABLE]))) {
-        rval = lchflags(f, sb!.flags.subtracting([.UF_APPEND, .UF_IMMUTABLE]).rawValue)
+      if (options.uid == 0 && wtyp != .whiteout &&
+          (sb!.flags.contains(.userAppend) ||
+           sb!.flags.contains(.userImmutable)) &&
+          !(sb!.flags.containsAny(of: [.systemAppend, .systemImmutable]))) {
+        rval = lchflags(f, sb!.flags.subtracting([.userAppend, .userImmutable, .systemAppend, .systemImmutable]).rawValue)
       }
       if (rval == 0) {
-        if (wtyp == .whiteOut) {
+        if (wtyp == .whiteout) {
           rval = undelete(f)
         }
         else if wtyp == .directory {
@@ -536,7 +544,7 @@ let REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
     return yes_or_no()
   }
 
-  func check(_ path : String, _ name : String, _ sp : FileMetadata) -> Bool {
+  func check(_ path : String, _ name : String, _ sp : Stat) -> Bool {
     //	char modep[15], *flagsp;
 
     var stderr = FileDescriptor.standardError
@@ -551,19 +559,19 @@ let REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
        * because their permissions are meaningless.  Check stdin_ok
        * first because we may not have stat'ed the file.
        */
-      if (!options.stdin_ok || sp.filetype == .symbolicLink ||
+      if (!options.stdin_ok || sp.type == .symbolicLink ||
           (access(name, W_OK) == 0 &&
-           !(sp.flags.contains(.SF_APPEND) || sp.flags.contains(.SF_IMMUTABLE)) &&
-           (!(sp.flags.contains(.UF_APPEND) || sp.flags.contains(.UF_IMMUTABLE)) || options.uid == 0))) {
+           !(sp.flags.contains(.systemAppend) || sp.flags.contains(.systemImmutable)) &&
+           (!(sp.flags.contains(.userAppend) || sp.flags.contains(.userImmutable)) || options.uid == 0))) {
         return true
       }
-      let modep = strmode(sp.filetype, sp.permissions)
+      let modep = strmode(sp.type, sp.permissions)
 
       guard let flagsp = fflagstostr(sp.flags) else {
         err(1, "fflagstostr")
       }
-      let u = user_from_uid( UInt32(sp.userId), 0)!
-      let g = group_from_gid( UInt32(sp.groupId), 0)!
+      let u = user_from_uid( UInt32(sp.userID.rawValue), 0)!
+      let g = group_from_gid( UInt32(sp.groupID.rawValue), 0)!
 
       print("override \(modep.dropFirst())\(modep.last == " " ? "" : " ")\(u)/\(g) \(flagsp)\(flagsp.isEmpty ? " " : "")for \(path)? ")
     }
@@ -586,8 +594,8 @@ let REMOVEFILE_SECURE_7_PASS = (1 << 2)        // 7 pass DoD algorithm
     var dname : String? = nil
 
     for arg in args {
-      if let st = try? FileMetadata(for: FilePath(arg), followSymlinks: false) {
-        if st.filetype == .directory { // (S_ISDIR(st.st_mode)) {
+      if let st = try? FilePath(arg).stat(followTargetSymlink: false) {
+        if st.type == .directory { // (S_ISDIR(st.st_mode)) {
           dcount += 1
           dname = arg    /* only used if 1 dir */
         } else {

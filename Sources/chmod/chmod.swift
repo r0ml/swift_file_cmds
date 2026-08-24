@@ -434,8 +434,8 @@ func siginfo_handler(_ sig : Int32) {
           print(p.path, terminator: "")
 
           if options.vflag > 1 || siginfo.load(ordering: .relaxed) {
-            let m1 = strmode(p.statp.filetype, p.statp.permissions)
-            let m2 = strmode(p.statp.filetype, FilePermissions(rawValue: newmode))
+            let m1 = strmode(p.statp.type, p.statp.permissions)
+            let m2 = strmode(p.statp.type, FilePermissions(rawValue: newmode))
 
             let a = String(p.statp.permissions.rawValue, radix: 8)
             // FIXME: filetype does not save the rawValue

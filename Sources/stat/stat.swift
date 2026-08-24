@@ -329,9 +329,9 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
          */
         let file = "(stdin)"
       do {
-        let st = try FileMetadata(for: FileDescriptor.standardInput)
+        let st = try FileDescriptor.standardInput.stat()
         output(st, nil, options.statfmt ?? "", fn, options.nonl)
-      } catch(let e) {
+      } catch {
         errs = 1
 //        linkfail = 1
         if (!options.quiet) {
@@ -368,7 +368,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
          } else if (usestat) {
          #else /* __APPLE__ */
          */
-        var st : FileMetadata?
+        var st : Stat?
 
         do {
 
@@ -380,17 +380,17 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
              * broken symlink.
              */
             do {
-              let stx = try FileMetadata(for: FilePath(file))
+              let stx = try FilePath(file).stat()
               st = stx
             } catch(let e) {
-              if e.code == ENOENT {
-                let stx = try FileMetadata(for: FilePath(file), followSymlinks: false)
+              if e.rawValue == ENOENT {
+                let stx = try FilePath(file).stat(followTargetSymlink: false)
                 st = stx
               }
             }
           }
           else {
-            try st = FileMetadata(for: FilePath(file), followSymlinks: false)
+            try st = FilePath(file).stat(followTargetSymlink: false)
           }
           if let st {
             output(st, file, options.statfmt ?? "", fn, options.nonl)
@@ -398,7 +398,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
             warn("\(file): stat")
           }
         }
-        catch(let e) {
+        catch {
          errs = 1
 //          linkfail = 1;
          if !options.quiet {
@@ -427,7 +427,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
 
 
   /// Parses a format string.
-  func output(_ st : FileMetadata, _ file : String?, _ statfmtx : String, _ fn : Int, _ nonl : Bool) {
+  func output(_ st : Stat, _ file : String?, _ statfmtx : String, _ fn : Int, _ nonl : Bool) {
     //	int flags, size, prec, ofmt, hilo, what;
     //	char buf[PATH_MAX + 4 + 1];
     //	const char *subfmt;
@@ -592,7 +592,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
   /*
    * Arranges output according to a single parsed 1 substring.
    */
-  func format1(_ st : FileMetadata, _ file : String?, _ fmt : String,
+  func format1(_ st : Stat, _ file : String?, _ fmt : String,
   _ flags : FlagFlags, _ sizex : Int, _ precx : Int, _ ofmtx : FormatFlags,
   _ hilox : Piece, _ what : WhatToShow) -> String
   {
@@ -605,7 +605,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
     char *stmp, lfmt[24], tmp[20];
  */
 
-    var data : UInt = 0
+    var data : Int = 0
     var sdata : String? = nil
     /*
     char smode[12], sid[12], path[PATH_MAX + 4];
@@ -615,7 +615,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
     int l, small, formats;
 */
 
-    var tsp : DateTime? = nil
+    var tsp : timespec? = nil
 
     // #ifndef __APPLE__
     var formats = FormatFlags()
@@ -629,13 +629,13 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
     switch what {
       case .st_dev, .st_rdev:
 //        let small = (sizeof(st->st_dev) == 4);
-        data = (what == .st_dev) ? st.device : st.rawDevice
+        data = Int(((what == .st_dev) ? st.deviceID : st.specialDeviceID).rawValue)
 
-        var ssdata = (what == .st_dev) ?
-        Darwin.devname(Int32(st.device), S_IFBLK) :
-        Darwin.devname(Int32(st.rawDevice),
-                       st.filetype == .characterDevice ? S_IFCHR :
-                        st.filetype == .blockDevice ? S_IFBLK :
+        let ssdata = (what == .st_dev) ?
+        Darwin.devname(st.deviceID.rawValue, S_IFBLK) :
+        Darwin.devname(st.specialDeviceID.rawValue,
+                       st.type == .characterSpecial ? S_IFCHR :
+                        st.type == .blockSpecial ? S_IFBLK :
                   0)
         sdata = ssdata == nil ? "???" : String(cString: ssdata!)
 
@@ -653,7 +653,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
         }
       case .st_ino:
 //        small = (sizeof(st->st_ino) == 4);
-        data = st.inode
+        data = Int(st.inode.rawValue)
         sdata = nil
         formats = [.DECIMAL, .OCTAL, .UNSIGNED, .HEX]
         if (ofmt == []) {
@@ -662,8 +662,8 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
       case .st_mode, .st_mode2:
 //        small = (sizeof(st->st_mode) == 4);
         // FIXME: mode needs to be reconstructed from fileType and mode?
-        data = UInt(st.permissions.rawValue) // | (UInt(st.fileType.rawValue) << 16)
-        var stmp = CMigration.strmode(st.filetype, st.permissions)
+        data = Int(st.permissions.rawValue) // | (UInt(st.fileType.rawValue) << 16)
+        var stmp = CMigration.strmode(st.type, st.permissions)
         if stmp.last == " " { stmp.removeLast() }
 
         // #ifdef __APPLE__
@@ -693,7 +693,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
         }
       case .st_nlink:
 //        small = (sizeof(st->st_dev) == 4);
-        data = st.links
+        data = st.linkCount
         sdata = nil
         formats = [.DECIMAL, .OCTAL, .UNSIGNED, .HEX]
         if (ofmt == []) {
@@ -702,11 +702,11 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
         break;
       case .st_uid:
 //        small = (sizeof(st->st_uid) == 4);
-        data = st.userId
-        if let k = Darwin.user_from_uid(UInt32(st.userId), 1) {
+        data = Int(st.userID.rawValue)
+        if let k = Darwin.user_from_uid(st.userID.rawValue, 1) {
           sdata = String(cString: k)
         } else {
-          sdata = "(\(st.userId))"
+          sdata = "(\(st.userID))"
         }
         formats = [.DECIMAL, .OCTAL, .UNSIGNED, .HEX, .STRING]
         if ofmt == [] {
@@ -714,41 +714,41 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
         }
       case .st_gid:
 //        small = (sizeof(st->st_gid) == 4);
-        data = st.groupId
-        if let k = group_from_gid(UInt32(st.groupId), 1) {
+        data = Int(st.groupID.rawValue)
+        if let k = group_from_gid(st.groupID.rawValue, 1) {
           sdata = String(cString: k)
         } else {
-          sdata = "(\(st.groupId))"
+          sdata = "(\(st.groupID))"
         }
         formats = [.DECIMAL, .OCTAL, .UNSIGNED, .HEX, .STRING]
         if (ofmt == []) {
           ofmt = .UNSIGNED
         }
       case .st_atime:
-        tsp = st.lastAccessed
+        tsp = st.st_atim
         fallthrough
       case .st_mtime:
         if (tsp == nil) {
-          tsp = st.lastModified
+          tsp = st.st_mtim
         }
         fallthrough
       case .st_ctime:
         if (tsp == nil) {
-          tsp = st.lastChanged
+          tsp = st.st_ctim
         }
         fallthrough
 // #if HAVE_STRUCT_STAT_ST_BIRTHTIME
       case .st_btime:
         if (tsp == nil) {
-          tsp = st.whenCreated
+          tsp = st.st_birthtim
         }
 // #endif /* HAVE_STRUCT_STAT_ST_BIRTHTIME */
 //        small = (sizeof(ts.tv_sec) == 4);
-        data = UInt(tsp!.secs)
-        var tm = localtime(&tsp!.secs)
+        data = Int(tsp!.tv_sec)
+        var tm = localtime(&tsp!.tv_sec)
         if (tm == nil) {
-          tsp!.secs = 0
-          tm = localtime(&tsp!.secs)
+          tsp!.tv_sec = 0
+          tm = localtime(&tsp!.tv_sec)
         }
 
         {
@@ -763,7 +763,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
         }
       case .st_size:
 //        small = (sizeof(st->st_size) == 4);
-        data = st.size
+        data = Int(st.size)
         sdata = nil
         formats = [.DECIMAL, .OCTAL, .UNSIGNED, .HEX]
         if (ofmt == []) {
@@ -771,7 +771,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
         }
       case .st_blocks:
   //      small = (sizeof(st->st_blocks) == 4);
-        data = st.blocks
+        data = Int(st.blocksAllocated)
         sdata = nil
         formats = [.DECIMAL, .OCTAL, .UNSIGNED, .HEX]
         if (ofmt == []) {
@@ -779,7 +779,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
         }
       case .st_blksize:
 //        small = (sizeof(st->st_blksize) == 4);
-        data = st.blockSize
+        data = st.preferredIOBlockSize
         sdata = nil
         formats = [.DECIMAL, .OCTAL, .UNSIGNED, .HEX]
         if (ofmt == []) {
@@ -788,7 +788,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
 // #if HAVE_STRUCT_STAT_ST_FLAGS
       case .st_flags:
 //        small = (sizeof(st->st_flags) == 4);
-        data = UInt(st.flags.rawValue)
+        data = Int(st.flags.rawValue)
         sdata = xfflagstostr(st.flags)
         if sdata == nil || sdata!.isEmpty  {
           sdata = "-"
@@ -801,7 +801,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
 // #if HAVE_STRUCT_STAT_ST_GEN
       case .st_gen:
 //        small = (sizeof(st->st_gen) == 4);
-        data = st.generation
+        data = Int(st.generationNumber)
         sdata = nil
         formats = [.DECIMAL, .OCTAL, .UNSIGNED, .HEX]
         if ofmt == [] {
@@ -829,7 +829,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
       case .symlink:
 //        small = 0;
         data = 0;
-        if st.filetype == .symbolicLink {
+        if st.type == .symbolicLink {
           var path = Array(repeating: CChar(0), count: Int(PATH_MAX))
           let l = readlink(file, &path, Int(PATH_MAX)-1)
           let p = String(cString: path)
@@ -852,7 +852,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
         data = 0;
         sdata = "";
         if (hilo == .unspecified || hilo == .low) {
-          switch st.filetype {
+          switch st.type {
             case .fifo:	sdata = "|"
             case .directory:	sdata = "/"
             case .regular:
@@ -861,7 +861,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
               }
             case .symbolicLink:	sdata = "@"
             case .socket:	sdata = "="
-            case .whiteOut:	sdata = "%"
+            case .whiteout:	sdata = "%"
 //               #ifdef S_IFDOOR
 //            case S_IFDOOR:	sdata = ">";	break;
 // #endif /* S_IFDOOR */
@@ -870,15 +870,15 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
           hilo = .unspecified
         }
         else if (hilo == .high) {
-          switch st.filetype {
+          switch st.type {
             case .fifo:	sdata = "Fifo File"
-            case .characterDevice:	sdata = "Character Device"
+            case .characterSpecial:	sdata = "Character Device"
             case .directory:	sdata = "Directory"
-            case .blockDevice: sdata = "Block Device"
+            case .blockSpecial: sdata = "Block Device"
             case .regular:	sdata = "Regular File"
             case .symbolicLink: sdata = "Symbolic Link"
             case .socket:	sdata = "Socket"
-            case .whiteOut: sdata = "Whiteout File"
+            case .whiteout: sdata = "Whiteout File"
 //               #ifdef S_IFDOOR
 //            case S_IFDOOR:	sdata = "Door";			break;
 // #endif /* S_IFDOOR */
@@ -899,7 +899,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
           ofmt = .STRING
         }
       case .sizerdev:
-        if st.filetype == .characterDevice || st.filetype == .blockDevice {
+        if st.type == .characterSpecial || st.type == .blockSpecial {
           let majdev = format1(st, file, fmt, flags, size, prec, ofmt, .high, .st_rdev)
           let mindev = format1(st, file, fmt, flags, size, prec, ofmt, .low, .st_rdev)
           return "\(majdev),\(mindev)"
@@ -953,7 +953,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
         }
         lfmt.append("lld")
         let s = String(cString: fmtcheck(strdup(lfmt), strdup("%lld")))
-        return s.cFormat(tsp!.secs)
+        return s.cFormat(tsp!.tv_sec)
       }
 
       /*
@@ -998,7 +998,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
        * less significant figures.
        */
       while prec < 9 {
-        tsp!.secs /= 10
+        tsp!.tv_sec /= 10
         prec += 1
       }
 
@@ -1007,7 +1007,7 @@ usage: stat [-FLnq] [-f format | -l | -r | -s | -x] [-t timefmt] [file ...]
        * might be required to make up the requested precision.
        */
       let s = String(cString: fmtcheck(strdup(lfmt), strdup("%lld %ld")))
-      var r = s.cFormat(Int64(tsp!.secs), Int32(tsp!.nanosecs))
+      var r = s.cFormat(Int64(tsp!.tv_sec), Int32(tsp!.tv_nsec))
       if prec > 9 { r.append(contentsOf: String(repeating: "0", count: prec-9))
         prec = 9
       }

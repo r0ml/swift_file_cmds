@@ -47,6 +47,7 @@ struct compressTest : ShellTest {
                          ]
     let f = try tmpfile("file1.Z", dat)
     let g = try tmpfile("file1")
+    defer { rm(f, g) }
 
 //    atf_check test ! -e file1.Z
 
@@ -54,7 +55,6 @@ struct compressTest : ShellTest {
 
     let h = try g.readAsString()
     #expect(h == ex)
-    rm(f, g)
   }
 
   /*

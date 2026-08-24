@@ -126,7 +126,7 @@ class Unxz {
       if (strm.avail_out == 0 || ret != LZMA_OK) {
         let  write_size = Self.bufferSize - strm.avail_out
 
-        guard let j = try? o.write(UnsafeRawBufferPointer(start: obuf, count: write_size)) else {
+        guard let _ = try? o.write(UnsafeRawBufferPointer(start: obuf, count: write_size)) else {
           gzi.maybe_err("write failed");
           return nil
         }
@@ -275,7 +275,7 @@ class Unxz {
   // it easy for applications.
   func parse_indexes(_ xfi : inout xz_file_info, _ src_fd : FileDescriptor) -> Bool {
 
-    guard let st = try? FileMetadata(for: src_fd) else {
+    guard let st = try? src_fd.stat() else {
       return true
     }
 
@@ -321,7 +321,7 @@ class Unxz {
         return true
       }
 
-      pos -= UInt(LZMA_STREAM_HEADER_SIZE)
+      pos -= Int64(LZMA_STREAM_HEADER_SIZE)
       var stream_padding : lzma_vli = 0
 
       var buf : [UInt8]
@@ -333,7 +333,7 @@ class Unxz {
           return true
         }
 
-        guard var b = io_pread(src_fd, Int(LZMA_STREAM_HEADER_SIZE), Int64(pos) ) else {
+        guard let b = io_pread(src_fd, Int(LZMA_STREAM_HEADER_SIZE), Int64(pos) ) else {
           return true
         }
         buf = b
@@ -382,7 +382,7 @@ class Unxz {
       }
 
       // Set pos to the beginning of the Index.
-      pos -= UInt(index_size)
+      pos -= Int64(index_size)
 
       // Decode the Index.
       guard LZMA_OK == lzma_index_decoder(&strm, &this_index, UINT64_MAX) else {
@@ -398,7 +398,7 @@ class Unxz {
           return true
         }
         buf = b
-        pos += UInt(strm.avail_in)
+        pos += Int64(strm.avail_in)
         index_size -= UInt64(strm.avail_in)
 
         ibuf.update(from: buf, count: b.count)
@@ -432,12 +432,12 @@ class Unxz {
 
       // Decode the Stream Header and check that its Stream Flags
       // match the Stream Footer.
-      pos -= UInt(footer_flags.backward_size) + UInt(LZMA_STREAM_HEADER_SIZE)
+      pos -= Int64(footer_flags.backward_size) + Int64(LZMA_STREAM_HEADER_SIZE)
       if pos < lzma_index_total_size(this_index) {
         return true
       }
 
-      pos -= UInt(lzma_index_total_size(this_index))
+      pos -= Int64(lzma_index_total_size(this_index))
       guard let buf = io_pread(src_fd, size_t(LZMA_STREAM_HEADER_SIZE), off_t(pos)) else {
         return true
       }

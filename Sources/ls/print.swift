@@ -237,7 +237,7 @@ extension ls {
     let MAXNAMETAG = MAXLOGNAME + 6 /* + strlen("group:") */
 
     if !options.f_numericonly {
-      let (e, k) = mbr_identifier_translate(.UUID(uu), .NAME)
+      let (_, k) = mbr_identifier_translate(.UUID(uu), .NAME)
       if let k, case let .NAME(type, recname) = k {
         return "\(type == .USER ? "user" : "group")):\(recname)"
       }
@@ -361,14 +361,14 @@ extension ls {
       }
       let sp = p.statp
       if options.f_inode {
-        let k = String(sp.inode).leftPad(toLength: Int(dp.s_inode))
+        // let k = String(sp.inode.rawValue).leftPad(toLength: Int(dp.s_inode))
         print("%*ju ", dp.s_inode, sp.inode)
       }
       if (options.f_size) {
-        print("%*lld ", dp.s_block, howmany(Int(sp.blocks), Int(options.blocksize)), terminator: "")
+        print("%*lld ", dp.s_block, howmany(Int(sp.blocksAllocated), Int(options.blocksize)), terminator: "")
       }
 
-      var buf = strmode(sp.filetype, sp.permissions).prefix(10) /* make +/@ about the mode */
+      let buf = strmode(sp.type, sp.permissions).prefix(10) /* make +/@ about the mode */
 
       guard let np = p.getPointer(NAMES.self) else {
         fatalError()
@@ -377,13 +377,13 @@ extension ls {
       let str = np.mode_suffix == nil ? "" : String(np.mode_suffix!.rawValue)
 
       if options.f_group && options.f_owner {	/* means print neither */
-        print("\(buf)\(str) %*ju   ", dp.s_nlink, sp.links, terminator: "")
+        print("\(buf)\(str) %*ju   ", dp.s_nlink, sp.linkCount, terminator: "")
       } else if options.f_group {
-        print("\(buf)\(str) %*ju %-*s  ", dp.s_nlink, sp.links, dp.s_group, np.group!, terminator: "")
+        print("\(buf)\(str) %*ju %-*s  ", dp.s_nlink, sp.linkCount, dp.s_group, np.group!, terminator: "")
       } else if options.f_owner {
-        print("\(buf)\(str) %*ju %-*s  ", dp.s_nlink, sp.links, dp.s_user, np.user!, terminator: "")
+        print("\(buf)\(str) %*ju %-*s  ", dp.s_nlink, sp.linkCount, dp.s_user, np.user!, terminator: "")
       } else {
-        print("\(buf)\(str) %*ju %-*s  %-*s  ", dp.s_nlink, sp.links, dp.s_user, np.user!, dp.s_group,
+        print("\(buf)\(str) %*ju %-*s  %-*s  ", dp.s_nlink, sp.linkCount, dp.s_user, np.user!, dp.s_group,
               np.group!, terminator: "")
       }
 
@@ -391,27 +391,27 @@ extension ls {
         print(np.flags!.rightPad(toLength: Int(dp.s_flags)), terminator: " ")
       }
 
-      if sp.filetype == .characterDevice || sp.filetype == .blockDevice { //  S_ISCHR(sp->st_mode) || S_ISBLK(sp->st_mode)) {
-        printdev(Int(dp.s_size), Int32(sp.rawDevice))
+      if sp.type == .characterSpecial || sp.type == .blockSpecial { //  S_ISCHR(sp->st_mode) || S_ISBLK(sp->st_mode)) {
+        printdev(Int(dp.s_size), Int32(sp.specialDeviceID.rawValue))
       }
       else {
-        printsize(Int(dp.s_size), sp.size)
+        printsize(Int(dp.s_size), UInt(sp.size))
       }
       if (options.f_accesstime) {
-        printtime(sp.lastAccessed.secs)
+        printtime(sp.st_atim.tv_sec)
       }
       else if (options.f_birthtime) {
-        printtime(sp.whenCreated.secs)
+        printtime(sp.st_birthtim.tv_sec)
       }
       else if (options.f_statustime) {
-        printtime(sp.lastChanged.secs)
+        printtime(sp.st_ctim.tv_sec)
       }
       else {
-        printtime(sp.lastModified.secs)
+        printtime(sp.st_ctim.tv_sec)
       }
 
       if (options.f_color) {
-        color_printed = colortype(sp.filetype, sp.permissions, sp.flags)
+        color_printed = colortype(sp.type, sp.permissions, sp.flags)
       }
 
       printname(p.name)
@@ -421,9 +421,9 @@ extension ls {
       }
 
       if (options.f_type) {
-        printtype(sp.filetype, sp.permissions)
+        printtype(sp.type, sp.permissions)
       }
-      if sp.filetype == .symbolicLink {
+      if sp.type == .symbolicLink {
         printlink(p)
       }
       print("")
@@ -432,7 +432,7 @@ extension ls {
         printxattr(dp, zip(np.attr_names, np.xattr_sizes))
       }
       if (np.acl != nil && options.f_acl) {
-        printacl(np.acl!, sp.filetype == .directory)
+        printacl(np.acl!, sp.type == .directory)
       }
 
     }
@@ -447,7 +447,7 @@ extension ls {
         continue
       }
       /* XXX strlen does not take octal escapes into account. */
-      var islast = cns == 0 // (p == dp.list!.last)
+      let islast = cns == 0 // (p == dp.list!.last)
       if (p.name.count + chcnt + (islast ? 2 : 0))  >= options.termwidth {
         print("")
         chcnt = 0

@@ -79,7 +79,7 @@ extension cp {
         buf = Array(buf.dropFirst(n))
       }
       return rcount
-    } catch(let e) {
+    } catch {
       return -1
     }
   }
@@ -105,20 +105,19 @@ extension cp {
     // FIXME: MASSIVE KLUDGE
     var from_fd : FileDescriptor = FileDescriptor(rawValue: -1)
     var dne = dnex
-    var topp = target
+    let topp = target
 
     if !options.lflag && !options.sflag {
-      let sb : FileMetadata
+      let sb : Stat
       do {
         from_fd = try FileDescriptor(forReading: entp.path)
-        let sbx = try FileMetadata(for: from_fd)
+        let sbx = try from_fd.stat()
         sb = sbx
       } catch {
         warn(entp.path)
         return true
       }
 
-      defer { try? from_fd.close() }
       /*
        * Check that the file hasn't been replaced with one of a
        * different type.  This can happen if we've been asked to
@@ -139,11 +138,12 @@ extension cp {
        * upstream because O_SYMLINK does not exist there so
        * (fs->st_mode & S_IFMT) cannot be S_IFLNK.
        */
-      if sb.filetype != fs.filetype || sb.filetype == .symbolicLink {
+      if sb.type != fs.type || sb.type == .symbolicLink {
         warnx("\(entp.path): File changed")
         return true
       }
     }
+    defer { try? from_fd.close() }
 
     /*
      * If the file exists and we're interactive, verify with the user.
@@ -251,7 +251,7 @@ extension cp {
       return true
     }
 
-    if fs.filetype == .regular {
+    if fs.type == .regular {
 //      struct statfs sfs;
 
       /*
@@ -274,7 +274,7 @@ extension cp {
     }
 
     var mode : FilePermissions
-    guard let to_stat = try? FileMetadata(for: to_fd!) else {
+    guard let to_stat = try? to_fd?.stat() else {
       warn(topp.string)
       return true
     }
@@ -293,7 +293,7 @@ extension cp {
      * source and the destination are regular files, use fcopyfile(3),
      * which has the ability to preserve holes if the source is sparse.
      */
-    if fs.filetype == .regular && to_stat.filetype == .regular {
+    if fs.type == .regular && to_stat.type == .regular {
       /*
        * The documentation doesn't say, but copyfile_state_t is
        * a pointer to a struct, and copyfile_state_alloc() can
@@ -308,13 +308,15 @@ extension cp {
        * and will close the file descriptors!
        */
       if let cpfs = copyfile_state_alloc() {
-        var cpctx = copyfile_context(src: entp.path, dst: topp.string, size: Int(fs.size), error: 0)
-
-        copyfile_state_set(cpfs, UInt32(COPYFILE_STATE_STATUS_CTX), &cpctx)
-
-        let _ = withUnsafePointer(to: copyfile_callback) {
-          copyfile_state_set(cpfs, UInt32(COPYFILE_STATE_STATUS_CB), $0)
-        }
+        // FIXME: registering a COPYFILE_STATE_STATUS_CB/_CTX here reliably
+        // crashes inside fcopyfile() the moment it invokes the callback --
+        // even a capture-free callback that touches nothing crashes before
+        // its body ever runs, which points at fcopyfile()/copyfile_state_set()
+        // writing/reading the wrong offset in the opaque copyfile_state_t
+        // rather than anything about the Swift callback value itself. Since
+        // the callback only exists to implement SIGINFO progress reporting
+        // and isn't required for the copy to work, leave it unregistered
+        // rather than risk a crash; fcopyfile() still does the actual copy.
 
         var cpflags = UInt32(COPYFILE_DATA)
         if !options.Sflag {
@@ -323,9 +325,6 @@ extension cp {
         let ret = Darwin.fcopyfile(from_fd.rawValue, to_fd!.rawValue, cpfs, cpflags)
         copyfile_state_free(cpfs);
         if (ret != 0) {
-          if (errno == ECANCELED) {
-            errno = cpctx.error
-          }
           warn("\(topp): fcopyfile failed")
           rval = true
         }
@@ -364,7 +363,7 @@ extension cp {
       warn("\(topp): fchmod failed")
     }
     /* do these before setfile in case copyfile changes mtime */
-    if !options.Xflag && fs.filetype == .regular  { /* skip devices, etc */
+    if !options.Xflag && fs.type == .regular  { /* skip devices, etc */
       if (Darwin.fcopyfile(from_fd.rawValue, to_fd!.rawValue, nil,
                     UInt32(COPYFILE_XATTR) ) < 0) {
         warn("\(entp.path): could not copy extended attributes to \(topp)")
@@ -429,7 +428,7 @@ extension cp {
     return options.pflag ? setfile(p.statp, nil, target) : false
   }
 
-  func copy_fifo(_ from_stat : FileMetadata, _ exists : Bool, _ target : FilePath) -> Bool {
+  func copy_fifo(_ from_stat : Stat, _ exists : Bool, _ target : FilePath) -> Bool {
 
     if exists && options.nflag {
       if options.vflag {
@@ -448,7 +447,7 @@ extension cp {
     return options.pflag ? setfile(from_stat, nil, target) : false
   }
 
-  func copy_special(_ from_stat : FileMetadata, _ exists : Bool, _ target : FilePath) -> Bool {
+  func copy_special(_ from_stat : Stat, _ exists : Bool, _ target : FilePath) -> Bool {
     if exists && options.nflag {
       if options.vflag {
         print("\(target) not overwritten")
@@ -459,36 +458,36 @@ extension cp {
       warn("unlink: \(target)")
       return true
     }
-    if mknod(target.string, from_stat.permissions.rawValue, Int32(from_stat.rawDevice)) != 0 {
+    if mknod(target.string, from_stat.permissions.rawValue, Int32(from_stat.specialDeviceID.rawValue)) != 0 {
       warn("mknod: \(target)")
       return true
     }
     return options.pflag ? setfile(from_stat, nil, target) : false
   }
 
-  func setfile(_ fs : FileMetadata, _ fd : FileDescriptor?, _ target : FilePath) -> Bool {
+  func setfile(_ fs : Stat, _ fd : FileDescriptor?, _ target : FilePath) -> Bool {
 //    static struct timespec tspec[2];
 //    struct stat ts;
 //    int gotstat, islink, fdval;
 
     var rval = false
     let fdval = fd != nil
-    let islink = !fdval && fs.filetype == .symbolicLink
+    let islink = !fdval && fs.type == .symbolicLink
 
     var fsmode = fs.permissions
 
-    var tspec : [timespec] = [fs.lastAccessed.timespec, fs.lastModified.timespec]
+    var tspec : [timespec] = [fs.st_atim, fs.st_mtim]
     if 0 != (fdval ? Darwin.futimens(fd!.rawValue, &tspec) :
               utimensat(AT_FDCWD, target.string, &tspec, islink ? AT_SYMLINK_NOFOLLOW : 0)) {
       warn("utimensat: \(target)")
       rval = true
     }
 
-    var ts : FileMetadata?
+    var ts : Stat?
     if fdval {
-      ts = try? FileMetadata(for: fd!)
+      ts = try? fd?.stat()
     } else {
-      ts = try? FileMetadata(for: target, followSymlinks: !islink)
+      ts = try? target.stat(followTargetSymlink: !islink)
     }
 
 //    if (fdval ? fstat(fd, &ts) :
@@ -501,10 +500,10 @@ extension cp {
      * the mode; current BSD behavior is to remove all setuid bits on
      * chown.  If chown fails, lose setuid/setgid bits.
      */
-    if (!gotstat || fs.userId != ts!.userId || fs.groupId != ts!.groupId) {
-      if 0 != (fdval ? Darwin.fchown(fd!.rawValue, UInt32(fs.userId), UInt32(fs.groupId)) :
-                (islink ? Darwin.lchown(target.string, UInt32(fs.userId), UInt32(fs.groupId)) :
-                  Darwin.chown(target.string, UInt32(fs.userId), UInt32(fs.groupId)))) {
+    if (!gotstat || fs.userID != ts!.userID || fs.groupID != ts!.groupID) {
+      if 0 != (fdval ? Darwin.fchown(fd!.rawValue, fs.userID.rawValue, fs.groupID.rawValue) :
+                (islink ? Darwin.lchown(target.string, fs.userID.rawValue, fs.groupID.rawValue) :
+                  Darwin.chown(target.string, fs.userID.rawValue, fs.groupID.rawValue))) {
         if (errno != EPERM) {
           let c = fdval ? "f" : (islink ? "l" : "")
           warn("\(c)chown: \(target)")
@@ -566,14 +565,17 @@ typealias CopyfileCallback = @convention(c) (
     Int32, Int32, copyfile_state_t, UnsafePointer<CChar>?, UnsafePointer<CChar>?, UnsafeMutableRawPointer?
 ) -> Int32
 
-// let copyfile_callback: CopyfileCallback = { what, stage, state, src, dst, ctx in
-
 /*
  * Status callback for fcopyfile(), called after each write operation or
  * if an error occurs.  We use it to implement SIGINFO.
+ *
+ * This must be a closure literal explicitly typed as `CopyfileCallback`
+ * (a `@convention(c)` type), not a plain `func`. A plain `func` reference
+ * passed through generic code (e.g. `UnsafeMutablePointer<T>.initialize(to:)`)
+ * is not guaranteed to collapse to a bare C-ABI function pointer, and the
+ * mismatch shows up only when the C library actually invokes the callback.
  */
-// @convention(c) (Int32, Int32, copyfile_state_t?, UnsafePointer<CChar>?, UnsafePointer<CChar>?, UnsafeMutableRawPointer?) -> Int32
-func copyfile_callback(_ what : Int32, _ stage : Int32, _ state : copyfile_state_t, _ src : UnsafePointer<CChar>?, _ dst : UnsafePointer<CChar>?, _ ctx : UnsafeMutableRawPointer?) -> Int32 {
+let copyfile_callback: CopyfileCallback = { what, stage, state, src, dst, ctx in
   var cpctx = ctx!.assumingMemoryBound(to: copyfile_context.self).pointee
   var wtotal = 0
 

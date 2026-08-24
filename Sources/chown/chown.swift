@@ -230,8 +230,8 @@ let unix2003_compat = true  // COMPAT_MODE("bin/chown", "Unix2003");
           continue
         }
       } else {
-        if ((options.uid == nil || options.uid! == p.statp.userId) &&
-            (options.gid == nil || options.gid! == p.statp.groupId)) {
+        if ((options.uid == nil || options.uid! == p.statp.userID.rawValue) &&
+            (options.gid == nil || options.gid! == p.statp.groupID.rawValue)) {
           continue
         }
       }
@@ -324,7 +324,7 @@ usage: chown [-fhnvx] [-R [-H | -L | -P]] owner[:group] file ...
   func print_info(_ p : FTSEntry, _ vflag : Int) {
     print(p.path, terminator: "")
     if (vflag > 1) {
-      print(": \(p.statp.userId):\(p.statp.groupId) -> \(options.uid == nil ? p.statp.userId : UInt(options.uid!) ):\(options.gid == nil ? p.statp.groupId : UInt(options.gid!) )",
+      print(": \(p.statp.userID):\(p.statp.groupID) -> \(options.uid == nil ? p.statp.userID : UserID(options.uid!) ):\(options.gid == nil ? p.statp.groupID : GroupID(options.gid!) )",
             terminator: "")
     }
     print("");

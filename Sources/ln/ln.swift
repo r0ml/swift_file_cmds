@@ -73,7 +73,7 @@ import Darwin
   func parseOptions() throws(CmdErr) -> CommandOptions {
     var options = CommandOptions()
     let go = BSDGetopt("FLPfhinsvw")
-    while let (k, v) = try go.getopt() {
+    while let (k, _) = try go.getopt() {
       switch(k) {
         case "F":
           options.Fflag = true
@@ -134,8 +134,8 @@ import Darwin
     targetdir = FilePath(options.args.removeLast())
 
     if options.hflag {
-        if let fm = try? FileMetadata(for: targetdir, followSymlinks: false),
-           fm.filetype == .symbolicLink {
+      if let fm = try? targetdir.stat(followTargetSymlink: false),
+           fm.type == .symbolicLink {
           /*
            * We were asked not to follow symlinks, but found one at
            * the target--simulate "not a directory" error
@@ -145,11 +145,11 @@ import Darwin
         }
     }
     do {
-      let fm = try FileMetadata(for: targetdir)
-      if fm.filetype != .directory {
+      let fm = try targetdir.stat()
+      if fm.type != .directory {
         throw CmdErr(1, usage)
       }
-    } catch(let e) {
+    } catch {
       err(1, targetdir.string)
     }
     var exitval : Int32 = 0
@@ -185,7 +185,7 @@ import Darwin
       p.removeLastComponent()
       pathbuf = p.string
     }
-    guard let sb1 = try? FileMetadata(for: FilePath(pathbuf) ) else {
+    guard let sb1 = try? FilePath(pathbuf).stat() else {
       return false
     }
     if file2.string == path2.string { pathbuf = "." }
@@ -195,15 +195,15 @@ import Darwin
       pathbuf = p.string
     }
 
-    guard let sb2 = try? FileMetadata(for: FilePath(pathbuf) ) else {
+    guard let sb2 = try? FilePath(pathbuf).stat() else {
       return false
     }
-    return sb1.device == sb2.device && sb1.inode == sb2.inode
+    return sb1.deviceID == sb2.deviceID && sb1.inode == sb2.inode
   }
 
   func isDirectory(_ path : FilePath, followSymlinks: Bool = true) -> Bool {
-    if let fm = try? FileMetadata(for: path, followSymlinks: followSymlinks) {
-      if fm.filetype == .directory { return true }
+    if let fm = try? path.stat(followTargetSymlink: followSymlinks) {
+      if fm.type == .directory { return true }
     }
     return false
   }
@@ -220,12 +220,12 @@ import Darwin
     var target = targetx
     if !options.sflag {
       /* If source doesn't exist, quit now. */
-      guard let fm = try? FileMetadata(for: source, followSymlinks: !options.Pflag) else {
+      guard let fm = try? source.stat(followTargetSymlink: !options.Pflag) else {
         warn(source.string);
         return 1
       }
       /* Only symbolic links to directories. */
-      if fm.filetype == .directory {
+      if fm.type == .directory {
         errno = EISDIR
         warn(source.string);
         return 1
@@ -255,9 +255,8 @@ import Darwin
     if options.sflag && options.wflag {
       if source.string.first == "/" {
         /* Absolute link source. */
-        let fm = try? FileMetadata(for: source)
-        if let fm {
-        } else {
+        let fm = try? source.stat()
+        if fm == nil {
           warn("warning: \(source) inaccessible")
         }
       } else {
@@ -268,9 +267,8 @@ import Darwin
          */
 
         let wbuf = target.removingLastComponent().appending(source.string)
-        let fm = try? FileMetadata(for: wbuf)
-        if let fm {
-        } else {
+        let fm = try? wbuf.stat()
+        if fm == nil {
             warn("warning: \(source)")
           }
         }
@@ -279,7 +277,7 @@ import Darwin
     /*
      * If the file exists, first check it is not the same directory entry.
      */
-    let fm = try? FileMetadata(for: target, followSymlinks: false)
+    let fm = try? target.stat(followTargetSymlink: false)
     let exists = fm != nil
     if exists {
       if !options.sflag && samedirent(source, target) {
@@ -292,7 +290,7 @@ import Darwin
      * and interactively if -i was specified.
      */
     if options.fflag && exists {
-      if options.Fflag && fm!.filetype == .directory {
+      if options.Fflag && fm!.type == .directory {
         if rmdir(target.string) != 0 {
           warn(target.string)
           return 1
@@ -313,7 +311,7 @@ import Darwin
         return 1
       }
 
-      if options.Fflag && fm!.filetype == .directory {
+      if options.Fflag && fm!.type == .directory {
         if rmdir(target.string) != 0 {
           warn(target.string)
           return 1

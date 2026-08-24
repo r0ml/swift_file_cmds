@@ -42,172 +42,158 @@ struct lnTest : ShellTest {
     let a = try tmpfile("A", "")
     let b = try tmpfile("B")
     let c = try tmpfile("C")
-
+    defer { rm(a,b,c) }
     try await run(args: ["-s", a, b] )
     try await run(args: ["-L", b, c] )
 
-    let aa = try? FileMetadata(for: a, followSymlinks: false)
-    let bb = try? FileMetadata(for: b, followSymlinks: true)
-    let bb2 = try? FileMetadata(for: b, followSymlinks: false)
-    let cc = try? FileMetadata(for: c, followSymlinks: false)
+    let aa = try? a.stat(followTargetSymlink: false)
+    let bb = try? b.stat(followTargetSymlink: true)
+    let bb2 = try? b.stat(followTargetSymlink: false)
+    let cc = try? c.stat(followTargetSymlink: false)
 
-    #expect(aa?.device == cc?.device && aa?.inode == cc?.inode)
-    #expect(aa?.device == bb?.device && aa?.inode == bb?.inode && bb?.inode != bb2?.inode )
-
-    rm(a, b, c)
+    #expect(aa?.deviceID == cc?.deviceID && aa?.inode == cc?.inode)
+    #expect(aa?.deviceID == bb?.deviceID && aa?.inode == bb?.inode && bb?.inode != bb2?.inode )
   }
 
   @Test("Verify that when creating a hard link to a symbolic link, '-P' option creates a hard link to the symbolic link itself") func P_flag() async throws {
     let a = try tmpfile("A2", "")
     let b = try tmpfile("B2")
     let c = try tmpfile("C2")
-
+    defer { rm(a, b, c) }
+    
     try await run(args: ["-s", a, b])
     try await run(args: ["-P", b, c])
 
-    let bb = try? FileMetadata(for: b, followSymlinks: false)
-    let cc = try? FileMetadata(for: c, followSymlinks: false)
+    let bb = try? b.stat(followTargetSymlink: false)
+    let cc = try? c.stat(followTargetSymlink: false)
 
-    #expect(bb?.device == cc?.device && bb?.inode == cc?.inode)
-    rm(a, b, c)
+    #expect(bb?.deviceID == cc?.deviceID && bb?.inode == cc?.inode)
   }
 
   @Test("Verify that if the target file already exists, '-f' option unlinks it so that link may occur") func f_flag() async throws {
     let a = try tmpfile("A3", "")
     let b = try tmpfile("B3", "")
-
+    defer { rm(a,b) }
     try await run(args: ["-f", a, b])
 
-    let aa = try? FileMetadata(for: a, followSymlinks: false)
-    let bb = try? FileMetadata(for: b, followSymlinks: false)
+    let aa = try? a.stat(followTargetSymlink: false)
+    let bb = try? b.stat(followTargetSymlink: false)
 
-    #expect(aa?.device == bb?.device && aa?.inode == bb?.inode)
-
-    rm(a, b)
+    #expect(aa?.deviceID == bb?.deviceID && aa?.inode == bb?.inode)
   }
 
   @Test("Verify whether creating a hard link fails if the target file already exists") func target_exists_hard() async throws {
     let a = try tmpfile("A4", "")
     let b = try tmpfile("B4", "")
     let c = try tmpdir()
-
+    defer { rm(a, b) }
     try await run(status: 1, error: /ln: B4: File exists/, args: a.relativeTo(c), b.relativeTo(c), cd: c)
-    rm(a, b)
   }
 
   @Test("Verify whether creating a symbolic link fails if the target file already exists") func target_exists_symbolic() async throws {
     let a = try tmpfile("A5", "")
     let b = try tmpfile("B5", "")
     let c = try tmpdir()
+    defer { rm(a,b ) }
     try await run(status: 1, error: /ln: B5: File exists/, args: "-s", a.relativeTo(c), b.relativeTo(c), cd: c)
-    rm(a, b)
   }
 
   @Test("Verify that if the target directory is a symbolic link, 'shf' option prevents following the link") func shf_flag_dir() async throws {
     let a = try tmpdir("A6")
     let b = try tmpdir("B6")
     let c = try tmpfile("C6")
-
+    defer { rm(a,b, c) }
     try await run(args: ["-s", a, c])
     try await run(args: ["-shf", b, c])
 
-    let bb = try? FileMetadata(for: b, followSymlinks: false)
-    let cc = try? FileMetadata(for: c, followSymlinks: true)
+    let bb = try? b.stat(followTargetSymlink: false)
+    let cc = try? c.stat(followTargetSymlink: true)
 
-    #expect(cc?.device == bb?.device && cc?.inode == bb?.inode)
-
-    rm(a, b, c)
+    #expect(cc?.deviceID == bb?.deviceID && cc?.inode == bb?.inode)
   }
 
   @Test("Verify that if the target directory is a symbolic link, 'snf' option prevents following the link") func snf_flag_dir() async throws {
     let a = try tmpdir("A7")
     let b = try tmpdir("B7")
     let c = try tmpfile("C7")
-
+    defer { rm(a, b, c) }
+    
     try await run(args: ["-s", a, c])
     try await run(args: ["-snf", b, c])
 
-    let bb = try? FileMetadata(for: b, followSymlinks: false)
-    let cc = try? FileMetadata(for: c, followSymlinks: true)
+    let bb = try? b.stat(followTargetSymlink: false)
+    let cc = try? c.stat(followTargetSymlink: true)
 
-    #expect(cc?.device == bb?.device && cc?.inode == bb?.inode)
-
-    rm(a, b, c)
+    #expect(cc?.deviceID == bb?.deviceID && cc?.inode == bb?.inode)
   }
 
 
   @Test("Verify that if the target file already exists and is a directory, then '-sF' option removes it so that the link may occur") func sF_flag() async throws {
     let a = try tmpdir("A8")
     let b = try tmpdir("B8")
-
+    defer { rm(a, b) }
+    
     try await run(args: ["-sF", a, b])
 
-    let aa = try? FileMetadata(for: a, followSymlinks: false)
-    let bb = try? FileMetadata(for: b, followSymlinks: true)
+    let aa = try? a.stat(followTargetSymlink: false)
+    let bb = try? b.stat(followTargetSymlink: true)
 
-    #expect(aa?.device == bb?.device && aa?.inode == bb?.inode)
-
-    rm(a, b)
+    #expect(aa?.deviceID == bb?.deviceID && aa?.inode == bb?.inode)
   }
 
   @Test("Verify that if the target file already exists, '-sf' option unlinks it and creates a symbolic link to the source file") func sf_flag() async throws {
     let a = try tmpfile("A9", "")
     let b = try tmpfile("B9", "")
-
+    defer { rm(a, b) }
     try await run(args: ["-sf", a, b])
 
-    let aa = try? FileMetadata(for: a, followSymlinks: false)
-    let bb = try? FileMetadata(for: b, followSymlinks: true)
+    let aa = try? a.stat(followTargetSymlink: false)
+    let bb = try? b.stat(followTargetSymlink: true)
 
-    #expect(aa?.device == bb?.device && aa?.inode == bb?.inode)
-
-    rm(a, b)
+    #expect(aa?.deviceID == bb?.deviceID && aa?.inode == bb?.inode)
   }
 
   @Test("Verify that if the target file already exists and is a symlink, then '-sfF' option removes it so that the link may occur") func sfF_flag() async throws {
     let a = try tmpdir("A10")
     let b = try tmpdir("B10")
     let c = try tmpdir("C10")
-
+    defer { rm(a, b, c) }
     try await run(args: ["-sF", a, c])
 
-    let aa = try? FileMetadata(for: a, followSymlinks: false)
-    let cc = try? FileMetadata(for: c, followSymlinks: true)
-    #expect(aa?.device == cc?.device && aa?.inode == cc?.inode)
+    let aa = try? a.stat(followTargetSymlink: false)
+    let cc = try? c.stat(followTargetSymlink: true)
+    #expect(aa?.deviceID == cc?.deviceID && aa?.inode == cc?.inode)
 
     try await run(args: ["-sfF", b, c])
-    let bb = try? FileMetadata(for: b, followSymlinks: false)
-    let cc2 = try? FileMetadata(for: c, followSymlinks: true)
-    #expect(bb?.device == cc2?.device && bb?.inode == cc2?.inode)
-
-    rm(a, b, c)
+    let bb = try? b.stat(followTargetSymlink: false)
+    let cc2 = try? c.stat(followTargetSymlink: true)
+    #expect(bb?.deviceID == cc2?.deviceID && bb?.inode == cc2?.inode)
   }
 
   @Test("Verify that '-s' option creates a symbolic link") func s_flag() async throws {
     let a = try tmpfile("A11", "")
     let b = try tmpfile("B11")
+    defer { rm(a, b) }
     try await run(args: ["-s", a, b])
 
-    let aa = try? FileMetadata(for: a, followSymlinks: false)
-    let bb = try? FileMetadata(for: b, followSymlinks: true)
-    #expect(aa?.device == bb?.device && aa?.inode == bb?.inode)
-
-    rm(a, b)
+    let aa = try? a.stat(followTargetSymlink: false)
+    let bb = try? b.stat(followTargetSymlink: true)
+    #expect(aa?.deviceID == bb?.deviceID && aa?.inode == bb?.inode)
   }
 
   @Test("Verify that if the source file does not exist, '-s' option creates a broken symbolic link to the source file") func s_flag_broken() async throws {
     let a = try tmpfile("A12")
     let b = try tmpfile("B12")
     rm(a, b)
+    defer { rm(a, b) }
     try await run(args: ["-s", a, b])
 
     //    let aa = try? FileMetadata(for: a.path, followSymlinks: false)
-    let bb = try? FileMetadata(for: b, followSymlinks: false)
-    let bb2 = try? FileMetadata(for: b, followSymlinks: true)
-    //    #expect(aa?.device == bb?.device && aa?.inode == bb?.inode)
+    let bb = try? b.stat(followTargetSymlink: false)
+    let bb2 = try? b.stat(followTargetSymlink: true)
+    //    #expect(aa?.deviceID == bb?.deviceID && aa?.inode == bb?.inode)
 
-    #expect(bb2 == nil && bb?.filetype == .symbolicLink)
-    rm(a, b)
+    #expect(bb2 == nil && bb?.type == .symbolicLink)
   }
 
   @Test("Verify that '-sw' option produces a warning if the source of a symbolic link does not currently exist") func sw_flag() async throws {
@@ -216,9 +202,9 @@ struct lnTest : ShellTest {
     rm(a, b)
     try await run(error: /ln: warning: .* inaccessible: No such file or directory/, args: ["-sw", a, b])
 
-    let aa = try? FileMetadata(for: a, followSymlinks: false)
-    let bb = try? FileMetadata(for: b, followSymlinks: true)
-    #expect(aa?.device == bb?.device && aa?.inode == bb?.inode)
+    let aa = try? a.stat(followTargetSymlink: false)
+    let bb = try? b.stat(followTargetSymlink: true)
+    #expect(aa?.deviceID == bb?.deviceID && aa?.inode == bb?.inode)
     rm(a, b)
   }
 

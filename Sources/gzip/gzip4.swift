@@ -63,16 +63,16 @@ extension gzip {
       return
     }
 
-    guard let isb = try? FileMetadata(for: FileDescriptor.standardInput) else {
+    guard let isb = try? FileDescriptor.standardInput.stat() else {
       maybe_warn("fstat")
       return
     }
-    let in_size = isb.filetype == .regular ? isb.size : 0
+    let in_size = isb.type == .regular ? isb.size : 0
     r.infile = "(stdin)"
-    r.infile_total = in_size
+    r.infile_total = UInt(in_size)
 
     if options.lflag {
-      print_list(FileDescriptor.standardInput, in_size, r.infile!, isb.lastModified)
+      print_list(FileDescriptor.standardInput, UInt(in_size), r.infile!, isb.st_mtim)
       return
     }
 
@@ -172,23 +172,23 @@ extension gzip {
     }
 
     /* If stdin is a file use its mtime, otherwise use current time */
-    guard let sb = try? FileMetadata(for: FileDescriptor.standardInput) else {
+    guard let sb = try? FileDescriptor.standardInput.stat() else {
       maybe_warn("Can't stat stdin")
       return;
     }
 
-    var mtime : DateTime
-    if sb.filetype == .regular {
+    var mtime : timespec
+    if sb.type == .regular {
       r.infile = "(stdout)"
-      r.infile_total = sb.size
-      mtime = sb.lastModified
+      r.infile_total = UInt(sb.size)
+      mtime = sb.st_mtim
     } else {
       let systime = Darwin.time(nil)
       if (systime == -1) {
         maybe_warn("time")
         return;
       }
-      mtime = DateTime(systime)
+      mtime = timespec(tv_sec: systime, tv_nsec: 0)
     }
 
     guard let (usize, gsize) = gz_compress(FileDescriptor.standardInput, FileDescriptor.standardOutput, "", mtime) else {
@@ -228,12 +228,12 @@ extension gzip {
       }
     }
 
-    var sb : FileMetadata?
+    var sb : Stat?
     var second = false
   retry:
     while true {
-      sb = try? FileMetadata(for: ps)
-      if nil == sb || (!options.fflag && !options.cflag && nil == (sb = try? FileMetadata(for: ps, followSymlinks: false), sb).1 ) {
+      sb = try? ps.stat()
+      if nil == sb || (!options.fflag && !options.cflag && nil == (sb = try? ps.stat(followTargetSymlink: false), sb).1 ) {
 
         /* lets try <path>.gz if we're decompressing */
         if options.dflag && !second && errno == ENOENT {
@@ -252,7 +252,7 @@ extension gzip {
     guard let sb else {
       fatalError("unreachable")
     }
-    if sb.filetype == .directory {
+    if sb.type == .directory {
       if options.rflag {
         handle_dir(path)
       }
@@ -262,7 +262,7 @@ extension gzip {
       return
     }
 
-    if sb.filetype == .regular {
+    if sb.type == .regular {
       handle_file(path, sb)
     }
     else {
@@ -271,12 +271,12 @@ extension gzip {
   }
 
   /* compress/decompress a file */
-  func handle_file(_ file : FilePath, _ sbp : FileMetadata) {
+  func handle_file(_ file : FilePath, _ sbp : Stat) {
     var usize : UInt = 0
     var gsize : UInt = 0
 
     r.infile = file
-    r.infile_total = sbp.size
+    r.infile_total = UInt(sbp.size)
 
     if options.dflag {
       guard let usize = file_uncompress(file) else {
@@ -289,12 +289,12 @@ extension gzip {
       if options.vflag && options.tflag {
         print_test(file, true)
       }
-      gsize = sbp.size
+      gsize = UInt(sbp.size)
     } else {
       guard let gsize = file_compress(file) else {
         return;
       }
-      usize = sbp.size
+      usize = UInt(sbp.size)
     }
 
     r.infile = nil
@@ -405,7 +405,7 @@ extension gzip {
    compressed uncompressed  ratio uncompressed_name
    354841      1679360  78.8% /usr/pkgsrc/distfiles/libglade-2.0.1.tar
    */
-  func print_list(_ fd : FileDescriptor?, _ outx : UInt, _ outfile : FilePath, _ ts : DateTime) {
+  func print_list(_ fd : FileDescriptor?, _ outx : UInt, _ outfile : FilePath, _ ts : timespec) {
 
     // FIXME: These vars were static
     var in_tot : UInt = 0
@@ -455,7 +455,7 @@ extension gzip {
       print("                            ", terminator: "")
     }
     else if (options.vflag) {
-      var b = ts.secs
+      var b = ts.tv_sec
       let date = String(cString: Darwin.ctime(&b))
       let dd = date.dropFirst(4).prefix(11)
       /* skip the day, 1/100th second, and year */

@@ -253,18 +253,18 @@ let info = ManagedAtomic(false)
      *
      * In (2), the real target is not directory, but "directory/source".
      */
-    var to_stat : FileMetadata? = nil
+    var to_stat : Stat? = nil
 
     var type : op
 
     do {
-      to_stat = try FileMetadata(for: options.to_path)
+      to_stat = try options.to_path.stat()
     } catch(let e) {
-      if e.code == ENOENT {
+      if e.rawValue != ENOENT {
         err(1, options.to_path.string)
       }
     }
-    if to_stat == nil || to_stat?.filetype != .directory {
+    if to_stat == nil || to_stat?.type != .directory {
       /*
        * Case (1).  Target is not a directory.
        */
@@ -280,14 +280,14 @@ let info = ManagedAtomic(false)
        * the initial mkdir().
        */
       if to_stat == nil {
-        var tmp_stat : FileMetadata?
+        var tmp_stat : Stat?
         if (options.Rflag && (options.Lflag || options.Hflag)) {
-          tmp_stat = try? FileMetadata(for: FilePath(options.args[0]))
+          tmp_stat = try? FilePath(options.args[0]).stat()
         }
         else {
-          tmp_stat = try? FileMetadata(for: FilePath(options.args[0]), followSymlinks: false)
+          tmp_stat = try? FilePath(options.args[0]).stat(followTargetSymlink: false)
         }
-        if (tmp_stat?.filetype == .directory && options.Rflag) {
+        if (tmp_stat?.type == .directory && options.Rflag) {
           type = .DIR_TO_DNE
         }
         else {
@@ -322,7 +322,7 @@ let info = ManagedAtomic(false)
     exit(k ? 1 : 0)
   }
 
-  func copy(_ argv : [String], _ type : op, _ root_statx : FileMetadata?) -> Bool {
+  func copy(_ argv : [String], _ type : op, _ root_statx : Stat?) -> Bool {
 
     var rootname : String? = nil
     var root_stat = root_statx
@@ -350,7 +350,7 @@ let info = ManagedAtomic(false)
 
     do {
       ftsp = try FTSWalker(path: argv, options: options.fts_options, sort: nil)
-    } catch(let e) {
+    } catch {
       err(1, "fts_open")
     }
 
@@ -403,7 +403,7 @@ let info = ManagedAtomic(false)
           path = FilePath(String(curr.name.dropFirst(2)))
         }
 
-        if let statbuf = try? FileMetadata(for: path, followSymlinks: false) {
+        if let statbuf = try? path.stat(followTargetSymlink: false) {
           continue
         }
       }
@@ -481,7 +481,7 @@ let info = ManagedAtomic(false)
          */
         if let root_stat,
             (curr.info == .D &&
-            root_stat.device == curr.statp.device &&
+            root_stat.deviceID == curr.statp.deviceID &&
             root_stat.inode == curr.statp.inode) {
           assert(recurse_path == nil)
 
@@ -555,23 +555,23 @@ let info = ManagedAtomic(false)
       }
 
       /* Check if source and destination are identical. */
-      if let to_stat = try? FileMetadata(for: target),
-          to_stat.device == curr.statp.device &&
+      if let to_stat = try? target.stat(),
+          to_stat.deviceID == curr.statp.deviceID &&
           to_stat.inode == curr.statp.inode {
         warnx("\(target) and \(curr.path) are identical (not copied).")
         badcp = true
         rval = true
-        if curr.statp.filetype == .directory {
+        if curr.statp.type == .directory {
           curr.setAction(.SKIP)
         }
         continue;
       }
 
       /* Not an error but need to remember it happened. */
-      var to_stat = try? FileMetadata(for: target, followSymlinks: false)
-      var dne = to_stat == nil
+      let to_stat = try? target.stat(followTargetSymlink: false)
+      let dne = to_stat == nil
 
-      switch curr.statp.filetype {
+      switch curr.statp.type {
         case .symbolicLink:
           if (options.fts_options.contains(.LOGICAL) ||
               (options.fts_options.contains(.COMFOLLOW) &&
@@ -626,7 +626,7 @@ let info = ManagedAtomic(false)
              * first directory we created and use that.
              */
             if root_stat == nil {
-              guard let created_root_stat = try? FileMetadata(for: target) else {
+              guard let created_root_stat = try? target.stat() else {
 //              stat(to.p_path, &created_root_stat) != 0) {
                 warn(target.string)
                 curr.setAction(.SKIP)
@@ -639,7 +639,7 @@ let info = ManagedAtomic(false)
 
             }
 
-          } else if to_stat?.filetype != .directory {
+          } else if to_stat?.type != .directory {
             warnc(ENOTDIR, target.string)
             curr.setAction(.SKIP)
             badcp = true
@@ -663,7 +663,7 @@ let info = ManagedAtomic(false)
             /* ACL and mtime set in postorder traversal */
           }
           // #endif /* __APPLE__ */
-        case .blockDevice, .characterDevice:
+        case .blockSpecial, .characterSpecial:
           if (options.Rflag && !options.sflag) {
             if (copy_special(curr.statp, !dne, target)) {
               badcp = true

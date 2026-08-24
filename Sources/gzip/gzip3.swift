@@ -59,17 +59,17 @@ extension gzip {
     defer { try? inx.close() }
 
     //    bzero(&isb, sizeof(isb));
-    guard let isb = try? FileMetadata(for: inx) else {
+    guard let isb = try? inx.stat() else {
       maybe_warn("couldn't stat: \(file)")
       return nil
     }
 
     r.infile = file
-    r.infile_total = isb.size
+    r.infile_total = UInt(isb.size)
 
     if !options.cflag {
-      if isb.links > 1 && !options.fflag {
-        maybe_warnx("\(file) has \(isb.links-1) other link\(isb.links == 2 ? "" : "s") -- skipping")
+      if isb.linkCount > 1 && !options.fflag {
+        maybe_warnx("\(file) has \(isb.linkCount-1) other link\(isb.linkCount == 2 ? "" : "s") -- skipping")
         return nil
       }
 
@@ -89,7 +89,7 @@ extension gzip {
 
     var out : FileDescriptor
     let outfile = r.outfile!
-    let size = UInt(0)
+   // let size = UInt(0)
 
 
     defer {
@@ -116,7 +116,7 @@ extension gzip {
       }
     }
 
-    guard let (size, in_size) = gz_compress(inx, out, file.basename, isb.lastModified) else {
+    guard let (size, _) = gz_compress(inx, out, file.basename, isb.st_mtim) else {
       return nil
     }
 
@@ -135,7 +135,7 @@ extension gzip {
     }
 */
     
-    guard let osb = try? FileMetadata(for: out) else {
+    guard let osb = try? out.stat() else {
       maybe_warn("couldn't stat: \(outfile)")
       return size
     }
@@ -189,16 +189,16 @@ extension gzip {
 
     defer { try? fd.close() }
 
-    guard var isb = try? FileMetadata(for: fd) else {
+    guard var isb = try? fd.stat() else {
       maybe_warn("can't stat \(file)")
       return nil
     }
 
-    var in_size = isb.filetype == .regular ? isb.size : 0
+    let in_size = isb.type == .regular ? isb.size : 0
     r.infile = file
-    r.infile_total = in_size
+    r.infile_total = UInt(in_size)
 
-    var outfile = file
+    let outfile = file
     if check_suffix(outfile) == nil && !(options.cflag || options.lflag) {
       maybe_warnx("\(file): unknown suffix -- ignored")
       return nil
@@ -230,7 +230,7 @@ extension gzip {
       return nil
     }
 
-    var timestamp : DateTime?
+    var timestamp : timespec?
 
     if method == .GZIP && options.Nflag {
       //      unsigned char ts[4];  /* timestamp */
@@ -253,7 +253,7 @@ extension gzip {
       }
 
       r.infile_current += UInt(four)
-      timestamp = DateTime(le32dec(ts))
+      timestamp = timespec(tv_sec: Int(le32dec(ts)), tv_nsec: 0)
 
       if 0 != (Int(fourbytes[3]) & ORIG_NAME) {
         var name = Array(repeating: UInt8(0), count: Int(PATH_MAX) + 1)
@@ -280,12 +280,12 @@ extension gzip {
     let _ = try? fd.seek(offset: 0, from: .start)
 
     if !options.cflag || options.lflag {
-      if isb.links > 1 && !options.lflag && !options.fflag {
-        maybe_warnx("\(file) has \(isb.links-1) other links -- skipping")
+      if isb.linkCount > 1 && !options.lflag && !options.fflag {
+        maybe_warnx("\(file) has \(isb.linkCount-1) other links -- skipping")
         return nil
       }
       if !options.nflag, let timestamp {
-        isb.lastModified = timestamp
+        isb.st_mtim = timestamp
       }
       if !check_outfile(outfile) {
         return nil
@@ -400,7 +400,7 @@ extension gzip {
         if options.lflag {
           size = uuu.unxz_len(fd);
           if (!options.tflag) {
-            print_list_out(in_size, size!, file);
+            print_list_out(UInt(in_size), size!, file);
             return nil
           }
         } else {
@@ -415,7 +415,7 @@ extension gzip {
           maybe_warnx("no -l with lzip files");
           return nil
         }
-        guard let (size, _) = lz.unlz(fd, zfd!, []) else {
+        guard let (_, _) = lz.unlz(fd, zfd!, []) else {
           return nil
         }
         break;
@@ -429,7 +429,7 @@ extension gzip {
 
       default:
         if options.lflag {
-          print_list(fd, in_size, outfile, isb.lastModified)
+          print_list(fd, UInt(in_size), outfile, isb.st_mtim)
           if !options.tflag {
             return nil  /* XXX */
           }
@@ -472,7 +472,7 @@ extension gzip {
 
     defer { try? ofd.close() }
 
-    guard let osb = try? FileMetadata(for: ofd) else {
+    guard let osb = try? ofd.stat() else {
       maybe_warn("couldn't stat (leaving original): \(outfile)")
       return nil
     }
@@ -505,7 +505,7 @@ extension gzip {
   func cat_fd(_ prepend : [UInt8], _ fd : FileDescriptor) -> UInt? {
 
     var in_tot = UInt(prepend.count)
-    guard let w = try? FileDescriptor.standardOutput.write(prepend) else {
+    guard let _ = try? FileDescriptor.standardOutput.write(prepend) else {
       maybe_warn("write to stdout");
       return nil
     }

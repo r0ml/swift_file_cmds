@@ -84,7 +84,7 @@ extension ls {
       printscol(dp)
       return
     }
-    var numcols = options.termwidth / Int(colwidth)
+    let numcols = options.termwidth / Int(colwidth)
     var numrows = r.array.count / numcols
     if 0 != (r.array.count % numcols) {
       numrows += 1
@@ -138,16 +138,16 @@ extension ls {
     let sp = p.statp
     var chcnt = 0
     if options.f_inode {
-      print(String(sp.inode).leftPad(toLength: Int(inodefield)), terminator: " ")
+      print(String(sp.inode.rawValue).leftPad(toLength: Int(inodefield)), terminator: " ")
       chcnt += 1 + inodefield
     }
     if options.f_size {
-      print(String(howmany(Int(sp.blocks), Int(options.blocksize))).leftPad(toLength: Int(sizefield)), terminator: " ")
+      print(String(howmany(Int(sp.blocksAllocated), Int(options.blocksize))).leftPad(toLength: Int(sizefield)), terminator: " ")
       chcnt += 1 + sizefield
     }
 
     if options.f_color {
-      color_printed = colortype(sp.filetype, sp.permissions, sp.flags)
+      color_printed = colortype(sp.type, sp.permissions, sp.flags)
     }
 
     chcnt += printname(p.name)
@@ -157,7 +157,7 @@ extension ls {
     }
 
     if options.f_type {
-      chcnt += printtype(sp.filetype, sp.permissions)
+      chcnt += printtype(sp.type, sp.permissions)
     }
     return chcnt
   }
@@ -258,7 +258,7 @@ extension ls {
       case .socket:
         print("=", terminator: "")
         return 1
-      case .whiteOut:
+      case .whiteout:
         print("%", terminator: "")
         return 1
       default:
@@ -344,10 +344,10 @@ extension ls {
       case .fifo:
         printcolor(.FIFO)
         return true
-      case .blockDevice:
+      case .blockSpecial:
         printcolor(.BLK)
         return true
-      case .characterDevice:
+      case .characterSpecial:
         printcolor(.CHR)
         return true
       default:
@@ -366,7 +366,7 @@ extension ls {
       return true
     }
     
-    if flags.contains(.SF_DATALESS) {
+    if flags.contains(.dataless) {
       printcolor(.DATALESS)
       return true
     }

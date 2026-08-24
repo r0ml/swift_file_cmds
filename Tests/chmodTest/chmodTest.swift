@@ -165,6 +165,7 @@ import Darwin
     let foo = try tmpfile("foo", "")
     let bar = try tmpfile("bar", "")
 //   atf_check truncate -s 0 foo bar
+    defer { rm(foo, bar) }
     
     try await run(output: "", args: "0750", foo, bar)
 //   atf_check chmod 0750 foo bar
@@ -217,8 +218,8 @@ import Darwin
     defer { rm(bar) }
     
 //   atf_check ln -s foo bar
-    #expect( try FileMetadata(for: foo).permissions.rawValue == 0o100600)
-    let p = try FileMetadata(for: bar, followSymlinks: false).permissions.rawValue
+    #expect( try foo.stat().permissions.rawValue == 0o100600)
+    let p = try bar.stat(followTargetSymlink: false).permissions.rawValue
     #expect( p == 0o120700)
 
 //    let y = try await DarwinProcess().run("/usr/bin/stat", args: "-f", "%p", foo, bar, output: nil)

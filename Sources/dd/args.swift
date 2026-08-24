@@ -237,11 +237,11 @@ extension dd {
 
 
   func f_iflag(_ arg : String, _ ddc : inout DDContext) {
-    var j = arg.split(separator: ",")
+    let j = arg.split(separator: ",")
     for tmp in j {
       guard let ip = ilist[String(tmp)] else {
         errx(1, "unknown iflag \(tmp)")
-        fatalError()
+//        fatalError()
       }
       if ddc.ddflags.containsAny(of: ip.noset) {
         errx(1, "\(tmp): illegal conversion combination")
@@ -321,7 +321,7 @@ extension dd {
   }
 
   func f_oflag(_ arg : String, _ ddc : inout DDContext) {
-    var j = arg.split(separator: ".")
+    let j = arg.split(separator: ".")
     for tmp in j {
       guard let op = olist[String(tmp)] else {
         errx(1, "unknown open flag \(tmp)")

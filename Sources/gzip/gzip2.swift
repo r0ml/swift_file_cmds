@@ -89,7 +89,7 @@ extension gzip {
     var state = GZstate.MAGIC0
     var flags = 0
     var skip_count = 0
-    var error = Z_STREAM_ERROR
+    let error = Z_STREAM_ERROR
     var done_reading = false
     var crc = UInt(0)
 //    var wr : ssize_t = 0
@@ -308,7 +308,7 @@ extension gzip {
           if wr != 0 {
             crc = crc32(crc, outbufp, UInt32(wr))
             if !options.tflag,               /* don't write anything with -t */
-               let z = try? out.write( UnsafeMutableRawBufferPointer(start: outbufp, count: wr)) {
+               let _ = try? out.write( UnsafeMutableRawBufferPointer(start: outbufp, count: wr)) {
               maybe_warn("error writing to output")
               return nil
             }
@@ -374,7 +374,7 @@ extension gzip {
             maybe_warnx("decompression error");
             return nil
           }
-          state = .MAGIC0
+  //        state = .MAGIC0
       }
       continue
     }
@@ -385,7 +385,7 @@ extension gzip {
    * set the owner, mode, flags & utimes using the given file descriptor.
    * file is only used in possible warning messages.
    */
-  func copymodes(_ fd : FileDescriptor, _ sbp : FileMetadata?, _ file : FilePath)  {
+  func copymodes(_ fd : FileDescriptor, _ sbp : Stat?, _ file : FilePath)  {
 //    struct timespec times[2];
 //    struct stat sb;
 
@@ -404,7 +404,7 @@ extension gzip {
 
     var pp = sbp.permissions
     /* if the chown fails, remove set-id bits as-per compress(1) */
-    if (fchown(fd.rawValue, UInt32(sbp.userId), UInt32(sbp.groupId) ) < 0) {
+    if (fchown(fd.rawValue, sbp.userID.rawValue, sbp.groupID.rawValue ) < 0) {
       if (errno != EPERM) {
         maybe_warn("couldn't fchown: \(file)")
       }
@@ -417,7 +417,7 @@ extension gzip {
       maybe_warn("couldn't fchmod: \(file)")
     }
 
-    let timesx = (sbp.lastAccessed.timespec, sbp.lastModified.timespec)
+    let timesx = (sbp.st_atim, sbp.st_mtim)
     if (futimens(fd, timesx) < 0) {
       maybe_warn("couldn't futimens: \(file)")
     }
@@ -462,7 +462,7 @@ extension gzip {
     var stderr = FileDescriptor.standardError
 
     if !options.lflag,
-       let sb = try? FileMetadata(for: outfile) {
+       let _ = try? outfile.stat() {
       if options.fflag {
         unlink(outfile.string)
       }
@@ -483,15 +483,15 @@ extension gzip {
     return ok
   }
 
-  func unlink_input(_ file : FilePath, _ sb : FileMetadata) {
+  func unlink_input(_ file : FilePath, _ sb : Stat) {
     if options.kflag {
       return
     }
-    guard let nsb = try? FileMetadata(for: file) else {
+    guard let nsb = try? file.stat() else {
       /* Must be gone already */
       return
     }
-    if nsb.device != sb.device || nsb.inode != sb.inode {
+    if nsb.deviceID != sb.deviceID || nsb.inode != sb.inode {
       /* Definitely a different file */
       return
     }

@@ -236,7 +236,7 @@ import Darwin
     var arg = argx
     var now = time(nil)
     var tvp = (timespec(), timespec())
-    var tt = localtime(&now)
+    let tt = localtime(&now)
     if tt == nil {
       err(1, "localtime")
     }
@@ -297,7 +297,7 @@ import Darwin
       return tvp
     }
     errx(1, "out of range or illegal time specification: [[CC]YY]MMDDhhmm[.SS]")
-    return tvp
+//    return tvp
   }
 
   func stime_arg2(_ argx : String, _ year : Bool) -> (timespec, timespec) {
@@ -305,7 +305,7 @@ import Darwin
 //    struct tm *t;
     var arg = argx
     var now = time(nil)
-    var tt = localtime(&now)
+    let tt = localtime(&now)
     var tvp = (timespec(), timespec() )
 
     if tt == nil {
@@ -377,7 +377,7 @@ import Darwin
     }
 //  bad:
     errx(1, "out of range or illegal time specification: YYYY-MM-DDThh:mm:SS[.frac][tz]");
-    return tvp
+//    return tvp
   }
 
   /* Calculate a time offset in seconds, given an arg of the format [-]HHMMSS. */

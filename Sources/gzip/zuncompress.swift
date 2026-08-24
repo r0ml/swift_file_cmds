@@ -149,7 +149,7 @@ class s_zstate {
     compressed_pre = pre
 
     while true {
-      var buf = UnsafeMutableRawBufferPointer.allocate(byteCount: BUFSIZE, alignment: 8)
+      let buf = UnsafeMutableRawBufferPointer.allocate(byteCount: BUFSIZE, alignment: 8)
       defer { buf.deallocate() }
       guard let bin = try? fp.read(into: buf) else {
         return nil
@@ -159,7 +159,7 @@ class s_zstate {
         return nil
       }
 
-      guard let z = try? out.write( buf[0..<bin] ) else {
+      guard let _ = try? out.write( buf[0..<bin] ) else {
         return nil
       }
       bout += UInt(bin)

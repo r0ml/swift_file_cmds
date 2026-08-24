@@ -304,10 +304,10 @@ options:
 
     // First, we lstat() the path to find out if it's a symlink
     do {
-      let fmd = try FileMetadata(for: filename, followSymlinks: false)
-      is_link = fmd.filetype == .symbolicLink
+      let fmd = try filename.stat(followTargetSymlink: false)
+      is_link = fmd.type == .symbolicLink
     } catch(let e) {
-      print_errno(filename, nil, e.code)
+      print_errno(filename, nil, e.rawValue)
     }
 
     // Note: this follows symlinks unless sflag = 1

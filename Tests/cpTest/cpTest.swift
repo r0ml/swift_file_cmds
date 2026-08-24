@@ -38,11 +38,12 @@ struct cpTest : ShellTest {
   var suiteBundle = "cpTest"
 
   @Test func basic() async throws {
-    let bar = try tmpfile("bar", "foo")
+    let bar = try tmpfile("bar", "foo\n")
     let baz = try tmpfile("baz")
-    try await run(args: [bar, baz])
-    let k = try FileMetadata(for: baz)
-    #expect(k.size == 3)
+    defer { rm(bar, baz) }
+    try await run(args: bar, baz)
+    let k = try baz.stat()
+    #expect(k.size == 4)
   }
 }
 

@@ -142,8 +142,8 @@ func do_color() -> Bool {
     return term == "auto" || term == "tty" || term == "if-tty"
   }
 
-  func IS_DATALESS(_ sp : FileMetadata?) -> Bool {
-    return options.f_dataless && sp != nil && sp!.flags.contains(.SF_DATALESS)
+  func IS_DATALESS(_ sp : Stat?) -> Bool {
+    return options.f_dataless && sp != nil && sp!.flags.contains(.dataless)
   }
 
   let unix2003_compat = true
